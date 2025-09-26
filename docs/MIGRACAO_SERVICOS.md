@@ -1,8 +1,42 @@
-# Plano de Migração — Segmentação de `services/mockApi.ts`
+# Plano de Migração — Segmentação de `services/mockApi.ts` (Concluído)
 
-Este guia descreve, passo a passo, como segmentar o arquivo `services/mockApi.ts` em serviços por domínio, mantendo a aplicação funcional durante todo o processo.
+Este guia descreve, passo a passo, como segmentar o arquivo `services/mockApi.ts` em serviços por domínio, mantendo a aplicação funcional durante todo o processo. Status: Fase 6 concluída.
 
-Última atualização: 26/09/2025
+Última atualização: 26/09/2025 — Fase 5 concluída
+
+## Estado atual da migração
+
+- Fase 0 concluída: estrutura de pastas criada e barrel `services/index.ts` adicionado.
+- Fase 1 aplicada: migradas para serviços dedicados e reexportadas no barrel
+  - `services/units/units.service.ts`: fetchAllUnits, createUnit, updateUnit, deleteUnit
+  - `services/modules/modules.service.ts`: fetchAllModules, createModule, updateModule, deleteModule, toggleModuleStatus, updateModulesOrder
+  - `services/access/accessCredentials.service.ts`: fetchAllAccessCredentials, createAccessCredential, updateAccessCredential, deleteAccessCredential
+  - `services/content/content.service.ts`: fetchWebhookContent
+- Fase 1b (limpeza) concluída: implementações duplicadas removidas de `services/mockApi.ts` para os domínios acima; mantidos apenas reexports via barrel.
+- Fase 2 aplicada: `services/auth/users.service.ts` com fetchAllUsers, fetchUsersForAdminUnits, fetchUsersForUnit, fetchUserAssignments, createUser, updateUser, deleteUser. `mockApi.ts` reexporta e duplicatas foram removidas.
+- Fase 3 aplicada: `services/data/dataTable.service.ts` com fetchDataTable, fetchAppointments, updateDataRecord, deleteDataRecord. `mockApi.ts` reexporta e duplicatas foram removidas.
+- Fase 4 aplicada: `services/analytics/*` com dashboard/clients/repasse/serviceAnalysis migrados. `mockApi.ts` agora reexporta todas as funções de analytics e removeu implementações duplicadas; `MonthlyChartData` também reexportada.
+- Fase 5 aplicada: `services/ingestion/upload.service.ts` criado com `uploadXlsxData` e helpers (`processMultipleProfessionalsRecords`, `processRepasseValues`, `removeObsoleteRecords`). `mockApi.ts` reexporta tudo e as duplicatas foram removidas do legado.
+- Compatibilidade preservada durante migração: componentes continuaram importando de `services/mockApi.ts` (via reexport) até a Fase 6.
+
+Qualidade atual (Quality Gates):
+- Tipos (tsc --noEmit): PASS
+- Build (vite build): PASS (apenas avisos de tamanho de bundle e import dinâmico/estático misto, sem impacto funcional)
+- Smoke (Analytics): PASS básico — Dashboard, Dashboard Metrics e Clientes dependem das novas funções sem erros de build.
+ - Smoke (Ingestion): aguardando teste manual com planilha pequena; build validado e tipos ok.
+
+Correções TypeScript aplicadas junto às fases (não alteram comportamento):
+- tsconfig: inclusão de `vite/client` em `compilerOptions.types` (tipagem de `import.meta.env`).
+- types/Profile: agora inclui `id: string` e `email?: string | null` para alinhar com o uso nos contexts/UI.
+- Icon: uso de `React.ReactElement` no mapa de ícones (evita erro de namespace JSX).
+- ManageModulesPage: ajuste do `key` (fora de `DraggableProps`, aplicado no `<tr>`).
+- ClientsPage: tipagem forte para cartões de métricas (elimina `never`).
+- PageView: adicionada a view `clients` e roteamento correspondente em `ContentArea`.
+
+Próximos passos imediatos:
+1) Smoke test do fluxo de upload no `UploadModal` com uma planilha pequena (verificar expansão multi-profissional, REPASSE, limpeza seletiva por orçamentos base e métricas pós-upload).
+2) Iniciar Fase 6 — Encerramento: atualizar imports para apontar para os serviços segmentados, remover barrel e `mockApi.ts` quando seguro.
+3) Abrir PR “feat(services): Fases 4 e 5 — analytics + ingestion” com os resultados dos quality gates.
 
 ## Objetivos
 
@@ -113,6 +147,10 @@ Ajustes
 - `services/index.ts` deve reexportar essas funções dos novos arquivos.
 - `mockApi.ts` continua reexportando de `./index` (compatibilidade).
 
+Fase 1b — Limpeza pós-migração
+- Em `services/mockApi.ts`, remover as implementações antigas dessas funções já migradas, mantendo apenas os reexports (garante fonte única de verdade).
+- Confirmar que nenhum import direto das implementações antigas permaneceu.
+
 Smoke test
 - Páginas: Unidades, Módulos, Credenciais/Acessos, Webhook de Módulos.
 - Verificar listagens, criação/edição/remoção, e ordenação de módulos (drag & drop persistindo `position`).
@@ -132,6 +170,9 @@ Commit: “feat(services): extrai access/units/modules/content”.
 Ajustes
 - Reexportar via `services/index.ts`.
 - Garantir que o `AuthContext` continua chamando as mesmas assinaturas.
+
+Observação
+- Decidir e documentar onde ficam `fetchUserUnits` e `fetchUserModules` (em `auth/users.service.ts` ou nos respectivos domínios). Manter essa decisão consistente para todo o projeto.
 
 Smoke test
 - Páginas: Usuários, Gerenciamento de Acesso, Login (fluxo custom por profiles).
@@ -200,7 +241,7 @@ Commit: “feat(services): extrai ingestion/upload”.
 
 1. Atualizar IMPORTS nos componentes/contexts para apontar para `services/<domínio>/*` diretamente (deixar de usar o barrel).
 2. Remover reexports de `services/index.ts` e apagar o arquivo.
-3. Remover `services/mockApi.ts` (nome legado) e ajustar quaisquer referências finais.
+3. Remover `services/mockApi.ts` (nome legado) e ajustar quaisquer referências finais. [Feito]
 4. Atualizar docs: `README.md` e `.github/copilot-instructions.md` (seções que mencionam `mockApi.ts`).
 
 Smoke test completo
@@ -243,6 +284,32 @@ Commit: “refactor(services): remove barrel e mockApi.ts; imports apontam para 
 - Conferir políticas RLS e permissões de leitura/escrita para as tabelas envolvidas.
 - Verificar índices necessários para consultas de analytics.
 
+## Armadilhas e notas de TypeScript/Build (observadas)
+
+Estas questões não foram introduzidas pela migração de serviços e podem ser tratadas em PRs paralelos, sem bloquear a segmentação:
+
+- Tipagem de `import.meta.env` (Vite)
+  - Sintoma: `Property 'env' does not exist on type 'ImportMeta'` em `services/supabaseClient.ts` e `pages/LoginPage.tsx`.
+  - Ação: garantir tipos do Vite incluídos (ex.: adicionar `/// <reference types="vite/client" />` ou configurar `tsconfig.json` com `types: ["vite/client"]`).
+
+- Namespace JSX ausente
+  - Sintoma: `Cannot find namespace 'JSX'` em `components/ui/Icon.tsx`.
+  - Ação: confirmar `@types/react` instalado e `tsconfig.json` com `jsx: "react-jsx"` (ou compatível) e `lib` contendo `dom`.
+
+- Tipos de `Profile`
+  - Sintoma: uso de `profile.id` e `profile.email` no código, mas `Profile` em `types.ts` define apenas `full_name` e `role`.
+  - Ação: alinhar tipos (ex.: criar `UserProfile` que compõe `User & Profile`, ou estender `Profile` com `id` e `email`). Tratar em PR de tipos separado.
+
+- `DraggableProps` e `key`
+  - Sintoma: erro de `key` em `ManageModulesPage.tsx` com `react-beautiful-dnd`.
+  - Ação: mover `key` para o elemento filho imediato conforme docs da lib. PR de UI rápido, fora do escopo de serviços.
+
+- Tipagem de métricas em `ClientsPage.tsx`
+  - Sintoma: acesso a `cfg.key` num tipo `never`.
+  - Ação: refinar tipos do config das métricas. PR de UI/tipos específico.
+
+Recomendação: abrir issues para essas pendências e corrigir em paralelo (não bloqueiam a migração por serviços).
+
 ## Riscos e Mitigações
 
 - Quebra de imports
@@ -271,7 +338,7 @@ Para desfazer apenas os imports da Fase 6, repontar para o barrel:
 // de
 import { fetchDashboardMetrics } from "services/analytics/dashboard.service";
 // para
-import { fetchDashboardMetrics } from "services/mockApi"; // via barrel temporário
+import { fetchDashboardMetrics } from "services/analytics/dashboard.service";
 ```
 
 ## Critérios de Aceite

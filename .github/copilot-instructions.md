@@ -10,16 +10,16 @@ Esta é uma aplicação React (`.tsx`) construída com Vite, usando TypeScript. 
 
 ### Estrutura de Diretórios
 
--   `src/components`: Contém componentes React, divididos em `layout`, `pages` e `ui`.
+-   `components`: Contém componentes React, divididos em `layout`, `pages` e `ui`.
     -   `pages`: Componentes que representam visualizações completas da página.
     -   `layout`: Componentes estruturais como `Sidebar` e `ContentArea`.
     -   `ui`: Componentes de UI reutilizáveis como `Icon`, modais e gráficos.
--   `src/contexts`: Contém os provedores de Contexto React para gerenciamento de estado global.
+-   `contexts`: Contém os provedores de Contexto React para gerenciamento de estado global.
     -   `AuthContext.tsx`: Gerencia a autenticação do usuário, perfil e sessões. Lida com um fluxo de login personalizado.
     -   `AppContext.tsx`: Gerencia o estado da aplicação, como a visualização ativa e a unidade selecionada.
--   `src/services`: Contém módulos para interagir com serviços externos.
+-   `services`: Contém módulos para interagir com serviços externos.
     -   `supabaseClient.ts`: Inicializa e exporta o cliente Supabase.
-    -   `mockApi.ts`: **(Camada de Acesso a Dados)** Nome legado. Este arquivo é a camada de serviço principal que centraliza toda a comunicação com o Supabase, incluindo consultas, mutações e chamadas de funções (RPCs). Contém lógica de negócios crucial para processamento de dados.
+    -   Serviços segmentados por domínio em `services/*/*.service.ts` (analytics, data, auth, units, modules, ingestion, content, access, utils).
 
 ### Fluxo de Dados e Gerenciamento de Estado
 
@@ -36,7 +36,7 @@ A aplicação não usa uma biblioteca de roteamento tradicional como o React Rou
 -   O cliente Supabase é configurado em `services/supabaseClient.ts`. As credenciais são codificadas, o que é adequado para chaves anônimas públicas, mas deve ser gerenciado com variáveis de ambiente em produção.
 -   O `AuthContext` implementa uma lógica de autenticação personalizada, consultando a tabela `profiles` para validar o usuário. **Não utiliza `supabase.auth.signInWithPassword`**.
 -   Os dados do perfil do usuário são buscados da tabela `profiles` no Supabase.
--   A lógica de negócios complexa, como o processamento de uploads de planilhas e cálculos de métricas, é tratada em `services/mockApi.ts`, que por sua vez chama funções de banco de dados (RPCs) no Supabase.
+-   A lógica de negócios complexa, como o processamento de uploads de planilhas e cálculos de métricas, está nos serviços segmentados (por exemplo, `services/ingestion/upload.service.ts`, `services/analytics/*.service.ts`), que por sua vez chamam funções de banco de dados (RPCs) no Supabase.
 
 ## Fluxos de Trabalho de Desenvolvimento
 
@@ -65,7 +65,7 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
 ## Pontos Importantes (Atualizados)
 
 - **Segurança de Conteúdo**: `ContentArea.tsx` só injeta HTML de URLs iniciando com `internal://`.
-- **Camada de Acesso a Dados** (`services/mockApi.ts`):
+- **Camada de Acesso a Dados** (serviços segmentados):
     - Upload XLSX: expansão multi-profissional (sufixos `_N`), divisão de repasse e limpeza baseada em orçamentos base (`orcamento`).
     - Sincronização: `removeObsoleteRecords` elimina registros cujo orçamento base não está mais presente no arquivo importado.
     - Métricas: `fetchDashboardMetrics` e `fetchMonthlyChartData` recalculam contagem de serviços (orçamentos base, ignorando derivados) e repasse (soma total de originais + derivados).
@@ -80,5 +80,42 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
  - **Super Admin**: Exibe apenas módulos cujo `allowed_profiles` contém `super_admin` (sem herdar públicos automaticamente).
  - **Ordenação densa**: Após drag & drop reatribuir `position` como sequência contínua (1..n); evitar gaps.
  - **Webhook Agendamentos**: Fluxo preferencial POST JSON completo; fallback automático GET com payload compactado + chunking (limite ~3000 chars) em falha de rede/CORS; inclui campo `endereco` e forma compacta (`e`).
- - **Centralização**: Qualquer nova regra de upload / métricas deve ir para `mockApi.ts` (não duplicar em componentes).
+- **Centralização**: Qualquer nova regra de upload / métricas deve ir para os serviços segmentados apropriados (por exemplo, `services/ingestion/upload.service.ts` ou `services/analytics/*.service.ts`), não duplique em componentes.
  - **Evolução**: Próxima otimização para reorder será RPC única (batch JSON) reduzindo round-trips.
+
+## Guia Rápido: Criar um Novo Módulo (padrão)
+
+Ao adicionar um novo “módulo” de negócio (aparece na Sidebar), siga este padrão para manter a consistência:
+
+1) Banco de Dados (tabela `modules`)
+- Crie/ajuste um registro com os campos:
+    - `code` (string única, usada como chave de view)
+    - `name` (rótulo na UI)
+    - `description` (opcional)
+    - `icon_name` (nome do ícone lucide, ex: "BarChart3")
+    - `allowed_profiles` (array: ["admin", "user"], inclua "super_admin" apenas quando exclusivo)
+    - `position` (número; mantido denso pelo reorder)
+    - `is_active` (boolean)
+
+2) Página de UI
+- Crie `components/pages/SeuModuloPage.tsx` seguindo o padrão de páginas existentes (com hook de período/unidade quando aplicável). Ex.: filtros no topo, cards e tabela ou gráfico. Estilização com Tailwind.
+
+3) Serviço(s) de Dados
+- Caso precise de dados, crie um serviço por domínio em `services/<dominio>/<nome>.service.ts`.
+    - Exemplos: `services/analytics/seuModulo.service.ts` (regras de métricas), `services/data/seuModulo.service.ts` (CRUD/listas).
+    - Consuma o `supabaseClient` e mantenha a lógica de negócio no serviço (não no componente).
+
+4) Navegação/Renderização
+- O `AuthContext` já compõe a lista final de módulos permitidos; a `Sidebar` mostra apenas `is_active`.
+- O `ContentArea` renderiza a página com base em `activeView` (normalmente, igual ao `code` do módulo) ou carrega HTML externo quando a origem começar com `internal://`.
+
+5) Permissões
+- Para restringir acesso por perfil, defina `allowed_profiles` no módulo e, se necessário, atribua o módulo ao usuário em `user_modules` (para admins/users). Super Admin não herda módulos públicos automaticamente.
+
+6) Ordem de Exibição
+- Arraste na UI de “Gerenciar Módulos”; o serviço `updateModulesOrder` persistirá `position` como 1..n.
+
+7) Boas práticas
+- Tipos no `types.ts` sempre que expor novas estruturas de dados.
+- Evite duplicar regras nos componentes — centralize em `services/*/*.service.ts`.
+- Para gráficos reutilize `components/ui/MonthlyComparisonChart.tsx` quando fizer sentido.

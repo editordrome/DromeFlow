@@ -53,7 +53,7 @@ npm run preview
 |--------|------------|--------|
 | Entrada | `index.html` / `index.tsx` | Montagem raiz Vite/React |
 | Contextos | `contexts/AuthContext.tsx`, `contexts/AppContext.tsx` | Autenticação + estado de UI |
-| Serviços | `services/mockApi.ts`, `services/supabaseClient.ts` | Acesso a dados / RPC / regras de negócio |
+| Serviços | `services/*/*.service.ts`, `services/supabaseClient.ts` | Acesso a dados / RPC / regras de negócio |
 | UI Layout | `components/layout/Sidebar.tsx`, `ContentArea.tsx` | Navegação e slot principal |
 | Páginas | `components/pages/*.tsx` | Telas funcionais (Dashboard, Dados, Gestão, etc.) |
 | Tipos | `types.ts` | Contratos TypeScript |
@@ -76,14 +76,40 @@ Fluxo MVP simples (sem Supabase Auth oficial):
 
 Gerenciados em `ManageModulesPage` (CRUD) e ordenados por drag & drop (`@hello-pangea/dnd`). Persistência:
 
-- Endpoint: `updateModulesOrder` em `mockApi.ts` (múltiplas updates paralelas – otimizar para RPC futura).
+- Serviço: `updateModulesOrder` em `services/modules/modules.service.ts` (reatribui `position` como sequência densa 1..n). Planejada otimização futura via RPC batch para reduzir round-trips.
 - Ordenação: `position` sequencial (densa; sempre reatribuída 1..n em reorder) + `name` como fallback secundário.
 - Sidebar consome lista já consolidada do `AuthContext` (mescla + filtragem de permissões) e só exibe `is_active`.
 
-Campos chave de um módulo:
+Campos chave de um módulo (tabela `modules`):
 ```
-id, name, icon, webhook_url, view_id, is_active, allowed_profiles[], position
+id, code, name, icon_name, is_active, allowed_profiles[], position, description?, webhook_url?
 ```
+
+### 6.1 Guia rápido: criar um novo módulo (padrão)
+
+1) Banco de Dados (tabela `modules`)
+- Defina `code` (chave única), `name`, `icon_name` (lucide), `allowed_profiles` (ex.: ["admin","user"]), `position` (número), `is_active` (boolean). `description` e `webhook_url` são opcionais.
+
+2) Página de UI
+- Crie `components/pages/SeuModuloPage.tsx` seguindo o padrão das páginas atuais (filtros, cards/tabelas/gráficos, Tailwind).
+
+3) Serviço(s) de Dados
+- Adicione um serviço por domínio em `services/<dominio>/<nome>.service.ts` (ex.: `analytics/seuModulo.service.ts` ou `data/seuModulo.service.ts`). Centralize a lógica de negócio no serviço.
+
+4) Navegação/Renderização
+- O `AuthContext` já compõe a lista final de módulos; a `Sidebar` filtra `is_active`.
+- O `ContentArea` renderiza com base em `activeView` (normalmente igual ao `code` do módulo). Para conteúdo externo, use origem começando com `internal://` quando aplicável.
+
+5) Permissões
+- Restrinja por perfil via `allowed_profiles`; para admins/users, atribua em `user_modules` quando necessário. Super Admin enxerga apenas módulos com `super_admin` explicitamente em `allowed_profiles`.
+
+6) Ordem de Exibição
+- Use a tela de “Gerenciar Módulos” (drag & drop). O serviço `updateModulesOrder` persiste `position` como 1..n.
+
+7) Boas práticas
+- Tipos no `types.ts` para novas estruturas.
+- Evite duplicar regras nos componentes — centralize em `services/*/*.service.ts`.
+- Reutilize `components/ui/MonthlyComparisonChart.tsx` quando fizer sentido.
 
 ---
 ## 7. Upload de Dados (XLSX)
@@ -152,7 +178,7 @@ Super Admin:
 ---
 ## 10. Boas Práticas Internas
 
-- Centralizar chamadas a Supabase em `mockApi.ts`.
+- Centralizar chamadas ao Supabase nos serviços segmentados em `services/*/*.service.ts`.
 - Não repetir lógica de expansão/divisão em componentes.
 - Validar tipos novos em `types.ts`.
 - Manter comentários explicando decisões (ex: mescla de módulos no `AuthContext`).

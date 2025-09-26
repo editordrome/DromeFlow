@@ -13,9 +13,9 @@ A aplicação está organizada da seguinte forma:
 - **`/contexts/`**: Contém os provedores de contexto do React para gerenciamento de estado global.
   - `AuthContext.tsx`: Gerencia o estado de autenticação do usuário (login, logout, sessão).
   - `AppContext.tsx`: Gerencia o estado da interface, como a unidade selecionada e a visualização ativa.
-- **`/services/`**: Camada de comunicação com o backend.
+- **`/services/`**: Camada de comunicação com o backend, segmentada por domínio.
   - `supabaseClient.ts`: Configura e exporta o cliente Supabase, conectando a aplicação ao banco de dados.
-  - `mockApi.ts`: (Nome legado) Centraliza todas as chamadas ao Supabase. Contém funções para buscar e modificar dados em todas as tabelas e para chamar as funções de banco de dados (RPCs).
+  - `auth/users.service.ts`, `units/units.service.ts`, `modules/modules.service.ts`, `analytics/*.service.ts`, `data/dataTable.service.ts`, `ingestion/upload.service.ts`, `content/content.service.ts`, `access/accessCredentials.service.ts`.
 - **`/components/`**: Onde residem todos os componentes React.
   - `/layout/`: Componentes estruturais como `Sidebar` e `ContentArea`.
   - `/pages/`: Componentes que representam as telas principais de cada módulo (Dashboard, Dados, Gerenciamento de Usuários, etc.).
@@ -42,7 +42,7 @@ O sistema possui três papéis definidos na tabela `profiles`:
 
 ## 4. Interação com o Banco de Dados (Supabase)
 
-Toda a comunicação com o backend é centralizada no arquivo `services/mockApi.ts`.
+A comunicação com o backend é organizada por domínio em `services/*/*.service.ts` (ex: analytics, data, auth, units, modules, ingestion), todos usando `supabaseClient`.
 
 ### Leitura de Dados (Queries Simples)
 
@@ -55,27 +55,27 @@ Toda a comunicação com o backend é centralizada no arquivo `services/mockApi.
 
 Para operações que exigem cálculos complexos ou permissões elevadas, a aplicação chama Funções de Banco de Dados (RPCs). Isso move a lógica para o servidor, tornando-a mais segura e eficiente.
 
--   **`get_user_units(p_user_id)`**: Busca as unidades de um usuário.
--   **`get_user_modules(p_user_id)`**: Busca os módulos de um usuário.
--   **`get_dashboard_metrics(p_unit_code, p_start_date, p_end_date)`**: Calcula as métricas principais do dashboard (receita, atendimentos, etc.) no servidor.
--   **`process_xlsx_upload(unit_code_arg, records_arg)`**: Processa o upload de arquivos XLSX, realizando uma operação de "upsert" (insere ou atualiza) para evitar duplicatas.
--   **`delete_app_user(user_id_to_delete)`**: Função segura (`SECURITY DEFINER`) para que o Super Admin possa deletar usuários.
+-   `get_user_units(p_user_id)`: Busca as unidades de um usuário.
+-   `get_user_modules(p_user_id)`: Busca os módulos de um usuário.
+-   `get_dashboard_metrics(p_unit_code, p_start_date, p_end_date)`: Calcula as métricas principais do dashboard (receita, atendimentos, etc.) no servidor.
+-   `process_xlsx_upload(unit_code_arg, records_arg)`: Processa o upload de arquivos XLSX, realizando uma operação de upsert para evitar duplicatas.
+-   `delete_app_user(user_id_to_delete)`: Função segura (SECURITY DEFINER) para que o Super Admin possa deletar usuários.
 
 ## 5. Módulos Principais e Configuração
 
---   **Dashboard**:
-    -   **Fonte de Dados**: Tabela `processed_data`.
-    -   **Lógica**: A função `fetchDashboardMetrics` em `mockApi.ts` recalcula localmente serviços, receita, ticket, repasse e clientes usando somente orçamentos base (originais) para evitar duplicidades de derivados. Repasse soma originais + derivados.
--   **Dados**:
-    -   **Fonte de Dados**: Tabela `processed_data`.
-    --   **Upload (XLSX)**:
-        1.  `UploadModal.tsx` lê arquivo com SheetJS.
-        2.  `uploadXlsxData` executa: expansão multi-profissional (sufixos `_N`), divisão de repasse (`processRepasseValues`), normalização de horários/datas, limpeza seletiva (`removeObsoleteRecords`) usando orçamento base (`IS_DIVISAO = 'NAO'`).
-        3.  Envio em lotes (500) para RPC `process_xlsx_upload`.
--   **Módulos de Administração**:
-    -   **Usuários, Módulos, Unidades**: São interfaces de CRUD (Criar, Ler, Atualizar, Deletar) que interagem diretamente com as tabelas correspondentes no Supabase (`profiles`, `modules`, `units`).
-    -   **Permissões**: A atribuição de unidades e módulos a um usuário no modal de "Editar Usuário" atualiza as tabelas de junção `user_units` e `user_modules`.
-   -   **Ícones e Visibilidade de Módulos**: A tela de "Gerenciar Módulos" permite definir um ícone (da biblioteca `lucide-react`) e para quais perfis (`super_admin`, `admin`, `user`) o módulo será visível.
+-   Dashboard:
+  -   Fonte de Dados: Tabela `processed_data`.
+  -   Lógica: `services/analytics/dashboard.service.ts` recalcula localmente serviços (originais), receita, ticket, repasse (originais + derivados) e clientes.
+-   Dados:
+  -   Fonte de Dados: Tabela `processed_data`.
+  -   Upload (XLSX):
+    1.  `UploadModal.tsx` lê arquivo com SheetJS.
+    2.  `uploadXlsxData` executa: expansão multi-profissional (sufixos `_N`), divisão de repasse (`processRepasseValues`), normalização de horários/datas, limpeza seletiva (`removeObsoleteRecords`) usando orçamento base (`IS_DIVISAO = 'NAO'`).
+    3.  Envio em lotes (500) para RPC `process_xlsx_upload`.
+-   Módulos de Administração:
+  -   Usuários, Módulos, Unidades: Interfaces de CRUD que interagem com `profiles`, `modules`, `units` via serviços segmentados.
+  -   Permissões: Atribuições em `user_units` e `user_modules` pelo modal de "Editar Usuário".
+  -   Ícones e Visibilidade de Módulos: Em "Gerenciar Módulos", define ícone (lucide) e `allowed_profiles`.
 
 -   **Clientes**:
   -   **Fonte de Dados**: Somente `processed_data`.
@@ -131,7 +131,7 @@ Comportamento da função:
 
 ### 6.4 Ajuste em `createUser`
 
-A função `createUser` em `mockApi.ts` agora:
+A função `createUser` em `services/auth/users.service.ts` agora:
 1. Verifica se já existe `profiles.email`.
 2. Se existir: atualiza campos básicos (nome, role, senha se fornecida) e reaplica atribuições.
 3. Se não existir: cria novo profile.
@@ -196,10 +196,30 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 ## 10. Notas para Colaboradores / Agentes
 
 Ao adicionar nova feature:
-- Centralizar interação com Supabase em `mockApi.ts`.
-- Reusar convenções de expansão de profissionais (não duplicar lógica em componentes).
-- Manter ordenação de módulos consistente (sempre atualizar `position`).
-- Evitar dependência residual em `ATENDIMENTO_ID` (legado). Priorizar `orcamento` e flags existentes.
+- Centralize a interação com Supabase nos serviços segmentados em `services/*/*.service.ts`.
+- Reuse as convenções de expansão de profissionais (não duplique lógica em componentes).
+- Mantenha ordenação de módulos consistente (sempre atualizar `position`).
+- Evite dependência residual em `ATENDIMENTO_ID` (legado). Priorize `orcamento` e flags existentes.
+
+## 11. Guia Rápido para Novos Módulos
+
+Siga estes passos ao introduzir um novo módulo que aparecerá na Sidebar:
+
+1) Registro em `modules`
+- Defina `code`, `name`, `icon_name`, `allowed_profiles`, `position`, `is_active`.
+
+2) Página React
+- Crie `components/pages/NomeDoModuloPage.tsx` com estrutura de filtros, conteúdo (cards/tabelas/gráficos) e responsividade via Tailwind.
+
+3) Serviços
+- Crie/estenda serviços em `services/analytics|data|content|.../nomeDoModulo.service.ts`.
+- Centralize regras de negócio no serviço; componentes só orquestram UI.
+
+4) Navegação
+- Use `setView(code)` via `AppContext` para abrir a página; `ContentArea` resolverá qual componente exibir.
+
+5) Permissões e Atribuições
+- Ajuste `allowed_profiles` do módulo e atribuições em `user_modules` conforme necessário.
 
 ---
 _Documento ampliado para refletir estado operacional atualizado (21/09/2025)._ 
