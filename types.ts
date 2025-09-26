@@ -10,6 +10,8 @@ export interface User {
 }
 
 export interface Profile {
+  id: string; // id do usuário (profiles.id)
+  email?: string | null;
   full_name: string;
   role: UserRole;
 }
@@ -31,7 +33,7 @@ export interface Module {
   position: number;
 }
 
-export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda';
+export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
 

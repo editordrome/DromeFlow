@@ -32,314 +32,35 @@ type UserDataPayload = Partial<FullUser> & {
     unit_ids?: string[];
     module_ids?: string[];
 };
-
-export const fetchAllUsers = async (): Promise<FullUser[]> => {
-    const { data, error } = await supabase.from('profiles').select('*, user_email:email');
-    if (error) throw error;
-
-    // A small hack to match the FullUser type which expects 'email' not 'user_email'
-    return data.map(({ user_email, ...rest }) => ({ ...rest, email: user_email }));
-};
+export { fetchAllUsers } from './index';
 
 // Lista usuários vinculados a qualquer unidade que o admin possua (interseção via user_units)
-export const fetchUsersForAdminUnits = async (adminUserId: string): Promise<FullUser[]> => {
-    // 1. Buscar unidades do admin
-    const { data: adminUnits, error: adminUnitsError } = await supabase
-        .from('user_units')
-        .select('unit_id')
-        .eq('user_id', adminUserId);
-    if (adminUnitsError) throw adminUnitsError;
-    const unitIds = (adminUnits || []).map(u => u.unit_id);
-    if (unitIds.length === 0) return [];
+export { fetchUsersForAdminUnits } from './index';
 
-    // 2. Buscar user_ids ligados a essas unidades
-    const { data: links, error: linksError } = await supabase
-        .from('user_units')
-        .select('user_id, unit_id')
-        .in('unit_id', unitIds);
-    if (linksError) throw linksError;
-    const userIds = Array.from(new Set((links || []).map(l => l.user_id)));
-    if (userIds.length === 0) return [];
+export { fetchUserAssignments } from './index';
 
-    // 3. Buscar perfis correspondentes
-    const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*, user_email:email')
-        .in('id', userIds);
-    if (profilesError) throw profilesError;
+export { createUser } from './index';
 
-    return (profilesData || []).map(({ user_email, ...rest }) => ({ ...rest, email: user_email }));
-};
-
-export const fetchUserAssignments = async (userId: string): Promise<{ unit_ids: string[], module_ids: string[] }> => {
-    const [unitsRes, modulesRes] = await Promise.all([
-        supabase.from('user_units').select('unit_id').eq('user_id', userId),
-        supabase.from('user_modules').select('module_id').eq('user_id', userId)
-    ]);
-    if (unitsRes.error) throw unitsRes.error;
-    if (modulesRes.error) throw modulesRes.error;
-
-    return {
-        unit_ids: unitsRes.data?.map(u => u.unit_id) || [],
-        module_ids: modulesRes.data?.map(m => m.module_id) || [],
-    };
-};
-
-export const createUser = async (userData: UserDataPayload & { auto_unit_id?: string }): Promise<void> => {
-    if (!userData.email || !userData.password) throw new Error("Email e senha são obrigatórios.");
-    
-    // Verifica se já existe profile com este email (defensivo para futura migração com auth.users trigger)
-    const { data: existing, error: existingError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', userData.email)
-        .limit(1);
-    if (existingError) throw existingError;
-
-    let userId = existing && existing.length > 0 ? existing[0].id : uuidv4();
-
-    if (!existing || existing.length === 0) {
-        // Cria novo profile
-        const { error: profileError } = await supabase.from('profiles').insert({
-            id: userId,
-            full_name: userData.full_name,
-            email: userData.email,
-            role: userData.role || 'user',
-            password: userData.password // Plain text (MVP). Futuro: substituir por hash.
-        });
-        if (profileError) {
-            // Código 23505 = unique_violation
-            if ((profileError as any).code === '23505') {
-                throw new Error('Já existe um usuário com este e-mail.');
-            }
-            throw profileError;
-        }
-    } else {
-        // Atualiza campos básicos se usuário já existia (não sobrescreve senha se não fornecida)
-        const updatePayload: any = {
-            full_name: userData.full_name,
-            role: userData.role,
-        };
-        if (userData.password) updatePayload.password = userData.password;
-        const { error: updErr } = await supabase
-            .from('profiles')
-            .update(updatePayload)
-            .eq('id', userId);
-        if (updErr) throw updErr;
-    }
-
-    // Atribuições (limpa e recria)
-    let unitIds = userData.unit_ids || [];
-    if (unitIds.length === 0 && userData.auto_unit_id) {
-        unitIds = [userData.auto_unit_id];
-    }
-    await updateUserAssignments(userId, unitIds, userData.module_ids || []);
-};
-
-export const updateUser = async (userId: string, userData: UserDataPayload): Promise<void> => {
-    const profileUpdate: Partial<Profile> & { password?: string } = {
-        full_name: userData.full_name,
-        role: userData.role,
-        email: userData.email
-    };
-
-    // Add password to the update payload if it exists
-    if (userData.password) {
-        profileUpdate.password = userData.password;
-    }
-
-    // Update profile (and password if provided)
-    const { error: profileError } = await supabase.from('profiles')
-        .update(profileUpdate)
-        .eq('id', userId);
-        
-    if (profileError) throw profileError;
-    
-    // Update assignments
-    await updateUserAssignments(userId, userData.unit_ids || [], userData.module_ids || []);
-};
+export { updateUser } from './index';
 
 
-const updateUserAssignments = async (userId: string, unitIds: string[], moduleIds: string[]) => {
-    // Clear existing assignments
-    await Promise.all([
-        supabase.from('user_units').delete().eq('user_id', userId),
-        supabase.from('user_modules').delete().eq('user_id', userId),
-    ]);
-    
-    // Insert new assignments
-    if (unitIds.length > 0) {
-        const unitAssignments = unitIds.map(unit_id => ({ user_id: userId, unit_id }));
-        const { error } = await supabase.from('user_units').insert(unitAssignments);
-        if (error) throw error;
-    }
-    if (moduleIds.length > 0) {
-        const moduleAssignments = moduleIds.map(module_id => ({ user_id: userId, module_id }));
-        const { error } = await supabase.from('user_modules').insert(moduleAssignments);
-        if (error) throw error;
-    }
-}
+// updateUserAssignments agora está encapsulada no serviço de usuários
 
 
-export const deleteUser = async (userId: string): Promise<void> => {
-    // This is highly insecure client-side. An Edge Function with the service_role key is required.
-    // The RLS policies will prevent this from working unless the user is deleting themselves.
-    // For this app, we'll assume an RPC `delete_app_user` exists.
-    const { error } = await supabase.rpc('delete_app_user', { user_id_to_delete: userId });
-    if (error) throw error;
-};
+export { deleteUser } from './index';
 
 // Lista usuários vinculados a uma unidade específica (via tabela de junção user_units)
-export const fetchUsersForUnit = async (unitId: string): Promise<{ id: string; full_name: string; email: string; role: string }[]> => {
-    // 1. Busca user_ids ligados à unidade
-    const { data: links, error: linkError } = await supabase
-        .from('user_units')
-        .select('user_id')
-        .eq('unit_id', unitId);
-    if (linkError) throw linkError;
-
-    const userIds = (links || []).map(l => l.user_id).filter(Boolean);
-    if (userIds.length === 0) return [];
-
-    // 2. Busca perfis correspondentes
-    const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role')
-        .in('id', userIds);
-    if (profilesError) throw profilesError;
-
-    return (profilesData || []).map(p => ({
-        id: p.id as string,
-        full_name: (p as any).full_name || '',
-        email: (p as any).email || '',
-        role: (p as any).role || 'user'
-    }));
-};
+export { fetchUsersForUnit } from './index';
 
 // --- Units & Modules ---
 
-export const fetchAllUnits = async (): Promise<Unit[]> => {
-    const { data, error } = await supabase.from('units').select('*').order('unit_name');
-    if (error) throw error;
-    return data || [];
-};
-export const createUnit = async (unitData: Partial<Unit>) => {
-    const payload = {
-        id: (unitData as any).id, // se houver default no DB, pode ser omitido
-        unit_name: unitData.unit_name?.trim(),
-        // Removido toUpperCase para preservar capitalização informada pelo usuário
-        unit_code: unitData.unit_code?.trim(),
-    };
-    if (!payload.unit_name || !payload.unit_code) {
-        throw new Error('Nome e código da unidade são obrigatórios.');
-    }
-    const { error } = await supabase.from('units').insert(payload);
-    if (error) {
-        console.error('Erro ao criar unidade:', error);
-        if ((error as any).code === '23505') {
-            throw new Error('Código de unidade já existe.');
-        }
-        throw new Error(`Falha ao criar unidade: ${error.message}`);
-    }
-};
-export const updateUnit = async (unitId: string, unitData: Partial<Unit>) => {
-    const payload = {
-        unit_name: unitData.unit_name?.trim(),
-        // Removido toUpperCase para preservar capitalização informada pelo usuário
-        unit_code: unitData.unit_code?.trim(),
-    };
-    if (!payload.unit_name || !payload.unit_code) {
-        throw new Error('Nome e código da unidade são obrigatórios.');
-    }
-    const { error } = await supabase.from('units').update(payload).eq('id', unitId);
-    if (error) {
-        console.error('Erro ao atualizar unidade:', error);
-        if ((error as any).code === '23505') {
-            throw new Error('Código de unidade já existe.');
-        }
-        throw new Error(`Falha ao atualizar unidade: ${error.message}`);
-    }
-};
-export const deleteUnit = async (unitId: string) => {
-    const { error } = await supabase.from('units').delete().eq('id', unitId);
-    if (error) throw error;
-};
+// Fase 1b: implementações de Units migradas para services/units/units.service.ts
 
-export const fetchAllModules = async (): Promise<Module[]> => {
-    const { data, error } = await supabase
-        .from('modules')
-        .select('*')
-        .order('position', { ascending: true })
-        .order('name', { ascending: true });
-    if (error) throw error;
-    return data || [];
-};
-export const createModule = async (moduleData: Partial<Module>) => {
-    // Busca maior posição atual para inserir no final
-    const { data: maxData } = await supabase
-        .from('modules')
-        .select('position')
-        .order('position', { ascending: false })
-        .limit(1);
-    const nextPosition = (maxData && maxData[0]?.position ? maxData[0].position : 0) + 1;
-
-    const dataToInsert = {
-        ...moduleData,
-        allowed_profiles: moduleData.allowed_profiles || ['super_admin'],
-        position: moduleData.position ?? nextPosition,
-    };
-    const { error } = await supabase.from('modules').insert(dataToInsert);
-    if (error) throw error;
-};
-export const updateModule = async (moduleId: string, moduleData: Partial<Module>) => {
-    // Garante que allowed_profiles seja um array, mesmo que venha nulo ou indefinido
-    const dataToUpdate = {
-        ...moduleData,
-        allowed_profiles: moduleData.allowed_profiles || ['super_admin'],
-    };
-    const { error } = await supabase.from('modules').update(dataToUpdate).eq('id', moduleId);
-    if (error) throw error;
-};
-export const deleteModule = async (moduleId: string) => {
-    const { error } = await supabase.from('modules').delete().eq('id', moduleId);
-    if (error) throw error;
-};
-export const toggleModuleStatus = async (moduleId: string, newStatus: boolean) => {
-    const { error } = await supabase.from('modules').update({ is_active: newStatus }).eq('id', moduleId);
-    if (error) throw error;
-};
-
-// Atualiza ordem de múltiplos módulos
-export const updateModulesOrder = async (ordered: { id: string; position: number }[]) => {
-    // Implementação simples: múltiplas updates paralelas.
-    // Para otimização futura: criar RPC (plpgsql) que receba JSONB e atualize em lote.
-    const updates = ordered.map(item =>
-        supabase.from('modules').update({ position: item.position }).eq('id', item.id)
-    );
-    const results = await Promise.all(updates);
-    const firstError = results.find(r => r.error)?.error;
-    if (firstError) throw firstError;
-};
+// Fase 1b: implementações de Modules migradas para services/modules/modules.service.ts
 
 
 // --- Access Credentials ---
-export const fetchAllAccessCredentials = async (): Promise<AccessCredential[]> => {
-    const { data, error } = await supabase.from('access_credentials').select('*').order('name');
-    if (error) throw error;
-    return data || [];
-};
-export const createAccessCredential = async (credData: Partial<AccessCredential>) => {
-    const { error } = await supabase.from('access_credentials').insert(credData);
-    if (error) throw error;
-};
-export const updateAccessCredential = async (credId: string, credData: Partial<AccessCredential>) => {
-    const { error } = await supabase.from('access_credentials').update(credData).eq('id', credId);
-    if (error) throw error;
-};
-export const deleteAccessCredential = async (credId: string) => {
-    const { error } = await supabase.from('access_credentials').delete().eq('id', credId);
-    if (error) throw error;
-};
+// Fase 1b: implementações de AccessCredentials migradas para services/access/accessCredentials.service.ts
 
 
 // --- User-Specific Units & Modules ---
@@ -383,80 +104,13 @@ export const fetchUserModules = async (userId: string): Promise<Module[]> => {
 
 // --- Content ---
 
-export const fetchWebhookContent = async (url: string, unitCode: string): Promise<string> => {
-    if (url.startsWith('internal://')) {
-        return `<p>Conteúdo interno para ${url.replace('internal://', '')} e unidade ${unitCode}.</p>`;
-    }
-    // In a real app, you might fetch this, but for now, it's a placeholder.
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.text();
-    } catch (error) {
-        console.error("Failed to fetch webhook content:", error);
-        return `<div class="text-danger">Falha ao carregar conteúdo de ${url}.</div>`;
-    }
-};
+// Fase 1b: implementação de Content migrada para services/content/content.service.ts
 
 // --- Data Table & Dashboard ---
-
-export const fetchDataTable = async (
-  unitCode: string,
-  page: number,
-  pageSize: number,
-  searchTerm?: string,
-  searchColumn?: 'cliente' | 'orcamento',
-  period?: string
-): Promise<{ data: DataRecord[], count: number }> => {
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-
-    let query = supabase
-        .from('processed_data')
-        .select('*', { count: 'exact' })
-        .eq('unidade_code', unitCode);
-
-    if (period && period.match(/^\d{4}-\d{2}$/)) {
-        const [year, month] = period.split('-').map(Number);
-        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-        const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-        query = query.gte('DATA', startDate).lte('DATA', endDate);
-    }
-
-    if (searchTerm && searchColumn) {
-        const columnName = searchColumn === 'cliente' ? 'CLIENTE' : 'orcamento';
-        query = query.ilike(columnName, `%${searchTerm}%`);
-    }
-
-    query = query
-        .order('DATA', { ascending: false })
-        .range(from, to);
-
-    const { data, error, count } = await query;
-
-    if (error) {
-      console.error("Error in fetchDataTable:", error);
-      throw error;
-    }
-    return { data: (data as DataRecord[]) || [], count: count || 0 };
-};
+export { fetchDataTable } from './index';
 
 // --- Appointments (Agendamentos) ---
-export const fetchAppointments = async (unitCode: string, date: string): Promise<DataRecord[]> => {
-    // Espera formato YYYY-MM-DD
-    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)) return [];
-    const { data, error } = await supabase
-        .from('processed_data')
-        .select('*')
-        .eq('unidade_code', unitCode)
-        .eq('DATA', date)
-        .order('HORARIO', { ascending: true });
-    if (error) {
-        console.error('Erro ao buscar agendamentos:', error);
-        throw error;
-    }
-    return (data as DataRecord[]) || [];
-};
+export { fetchAppointments } from './index';
 
 
 // Fix: Create a helper type to correctly type raw data from XLSX where REPASSE can be a string.
@@ -892,49 +546,7 @@ export const fetchDashboardMetricsMulti = async (unitCodes: string[], period: st
 };
 
 // --- Data Record Management ---
-export const updateDataRecord = async (recordId: string, updatedData: Partial<DataRecord>): Promise<DataRecord> => {
-    console.log(`Atualizando registro ${recordId} com dados:`, updatedData);
-
-    // Prepara os dados para atualização, removendo campos que não devem ser atualizados
-    const updatePayload: { [key: string]: any } = {
-        DATA: updatedData.DATA,
-        CLIENTE: updatedData.CLIENTE,
-        VALOR: updatedData.VALOR,
-        status: updatedData.status,
-        orcamento: updatedData.orcamento,
-    };
-
-    const { data, error } = await supabase
-        .from('processed_data')
-        .update(updatePayload)
-        .eq('id', recordId)
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Erro ao atualizar registro:', error);
-        throw error;
-    }
-
-    console.log('Registro atualizado com sucesso:', data);
-    return data;
-};
-
-export const deleteDataRecord = async (recordId: string): Promise<void> => {
-    console.log(`Deletando registro ${recordId}`);
-
-    const { error } = await supabase
-        .from('processed_data')
-        .delete()
-        .eq('id', recordId);
-
-    if (error) {
-        console.error('Erro ao deletar registro:', error);
-        throw error;
-    }
-
-    console.log(`Registro ${recordId} deletado com sucesso`);
-};
+export { updateDataRecord, deleteDataRecord } from './index';
 
 // --- Monthly Chart Data ---
 export interface MonthlyChartData {

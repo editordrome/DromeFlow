@@ -299,9 +299,10 @@ const ManageModulesPage: React.FC = () => {
                   </thead>
                   <tbody className="bg-bg-secondary divide-y divide-border-primary">
                     {modules.map((module, index) => (
-                      <Draggable draggableId={module.id} index={index} key={module.id}>
+                      <Draggable draggableId={module.id} index={index}>
                         {(dragProvided, snapshot) => (
                           <tr
+                            key={module.id}
                             ref={dragProvided.innerRef}
                             {...dragProvided.draggableProps}
                             className={`transition-colors cursor-pointer hover:bg-bg-tertiary ${!module.is_active ? 'opacity-50' : ''} ${snapshot.isDragging ? 'bg-accent-primary/10' : ''}`}

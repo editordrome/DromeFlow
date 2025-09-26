@@ -10,8 +10,8 @@ export * from './access/accessCredentials.service';
 export * from './content/content.service';
 
 // Próximas fases (manter comentado até migrar)
-// export * from './auth/users.service';
-// export * from './data/dataTable.service';
+export * from './auth/users.service';
+export * from './data/dataTable.service';
 // export * from './analytics/dashboard.service';
 // export * from './analytics/clients.service';
 // export * from './analytics/repasse.service';

@@ -13,6 +13,16 @@ interface ClientRow {
   monthlyCounts?: Record<string, number>;
 }
 
+type ClientMetrics = { total: number; recorrente: number; atencao: number; outros: number; churnRatePercent: string };
+type MetricKey = 'total' | 'recorrente' | 'atencao' | 'outros';
+
+const metricCards: { key: MetricKey; label: string; icon: string; color: string; formatter: (v: number, m: ClientMetrics) => string }[] = [
+  { key: 'total', label: 'Total', icon: 'users', color: 'bg-accent-primary', formatter: (v) => String(v) },
+  { key: 'recorrente', label: 'Recorrentes', icon: 'archive', color: 'bg-purple-600', formatter: (v) => String(v) },
+  { key: 'atencao', label: 'Atenção', icon: 'support', color: 'bg-amber-600', formatter: (v) => String(v) },
+  { key: 'outros', label: 'Outros', icon: 'user-plus', color: 'bg-slate-600', formatter: (v) => String(v) },
+];
+
 const ClientsPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
   const { userUnits } = useAuth();
@@ -20,7 +30,7 @@ const ClientsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<{ total: number; recorrente: number; atencao: number; outros: number; churnRatePercent: string } | null>(null);
+  const [metrics, setMetrics] = useState<ClientMetrics | null>(null);
   const [atencaoList, setAtencaoList] = useState<ClientRow[]>([]);
   const [period, setPeriod] = useState<string>(() => {
     const d = new Date();
@@ -82,12 +92,7 @@ const ClientsPage: React.FC = () => {
 
       {metrics && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { key: 'total', label: 'Total', icon: 'users', color: 'bg-accent-primary', formatter: (v:any)=>String(v) },
-            { key: 'recorrente', label: 'Recorrentes', icon: 'archive', color: 'bg-purple-600', formatter: (v:any)=>String(v) },
-            { key: 'atencao', label: 'Atenção', icon: 'support', color: 'bg-amber-600', formatter: (v:any)=>String(v) },
-            { key: 'outros', label: 'Outros', icon: 'user-plus', color: 'bg-slate-600', formatter: (v:any)=>String(v) }
-          ].map(cfg => (
+          {metricCards.map(cfg => (
             <button
               key={cfg.key}
               type="button"
@@ -100,7 +105,7 @@ const ClientsPage: React.FC = () => {
               <div className="ml-4 text-left">
                 <p className={`text-xs font-medium uppercase tracking-wide ${activeFilter === cfg.key ? 'text-white' : 'text-text-secondary'}`}>{cfg.label}</p>
                 <p className={`text-2xl font-bold ${activeFilter === cfg.key ? 'text-white' : 'text-text-primary'}`}>
-                  {('formatter' in cfg) ? (cfg as any).formatter((metrics as any)[cfg.key], metrics) : (metrics as any)[cfg.key]}
+                  {cfg.formatter((metrics as ClientMetrics)[cfg.key], metrics as ClientMetrics)}
                 </p>
               </div>
             </button>

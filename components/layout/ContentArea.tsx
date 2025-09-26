@@ -61,12 +61,12 @@ const ContentArea: React.FC = () => {
     if (activeView === 'data') {
         return <DataPage />;
     }
-    if (activeView === 'clients') {
-        return <ClientsPage />;
-    }
     if (activeView === 'appointments' || activeView === 'agenda') {
         return <AppointmentsPage />;
     }
+        if (activeView === 'clients') {
+            return <ClientsPage />;
+        }
     
     // Default to module view
     return (

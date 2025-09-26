@@ -63,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     if (!profile) return;
 
     const updates: { email?: string; password?: string; full_name?: string } = {};
-    if (data.email && data.email !== profile.email) updates.email = data.email;
+  if (data.email && data.email !== (user?.email || null)) updates.email = data.email;
     if (data.password) updates.password = data.password;
     if (data.full_name && data.full_name !== (profile as any).full_name) updates.full_name = data.full_name;
 
@@ -75,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     const { data: updatedProfiles, error } = await supabase
       .from('profiles')
       .update(updates)
-      .eq('id', profile.id)
+  .eq('id', profile.id)
       .select('*')
       .single();
 
