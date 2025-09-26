@@ -2,6 +2,29 @@ import { v4 as uuidv4 } from 'uuid';
 import { supabase } from './supabaseClient';
 import { User, Profile, UserRole, Unit, Module, DataRecord, DashboardMetrics, UploadMetrics, AccessCredential, ServiceAnalysisRecord, ClientAnalysisData, RepasseAnalysisRecord } from '../types';
 
+// Fase 1: reexports para manter uma única fonte de verdade das funções migradas
+export {
+    fetchAllUnits,
+    createUnit,
+    updateUnit,
+    deleteUnit,
+} from './index';
+export {
+    fetchAllModules,
+    createModule,
+    updateModule,
+    deleteModule,
+    toggleModuleStatus,
+    updateModulesOrder,
+} from './index';
+export {
+    fetchAllAccessCredentials,
+    createAccessCredential,
+    updateAccessCredential,
+    deleteAccessCredential,
+} from './index';
+export { fetchWebhookContent } from './index';
+
 // --- User Management & Auth ---
 type FullUser = User & Profile;
 type UserDataPayload = Partial<FullUser> & {
