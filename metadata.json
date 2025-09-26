@@ -1,0 +1,5 @@
+{
+  "name": "DromeFlow",
+  "description": "Uma aplicação web com uma barra lateral dinâmica, com papéis de usuário e níveis de acesso, alimentada por um backend semelhante ao Supabase. O conteúdo é carregado dinamicamente de webhooks externos com base nas seleções do usuário.",
+  "requestFramePermissions": []
+}

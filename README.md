@@ -1,0 +1,233 @@
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
+
+## DromeFlow
+
+Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend e Tailwind para estilização. Inclui:
+
+- Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).
+- Módulos dinâmicos (icones + allowed_profiles + ordenação drag & drop persistida).
+- Dashboard com métricas recalculadas localmente (repasse, ticket médio real).
+- Upload de planilhas XLSX com expansão de múltiplos profissionais e sincronização por período.
+- Controle de acesso baseado em papéis (`super_admin`, `admin`, `user`) + atribuições (`user_units`, `user_modules`).
+
+---
+## 1. Requisitos
+
+- Node.js 18+
+- NPM 9+
+- Projeto Supabase com tabelas e RPCs: `get_user_units`, `get_user_modules`, `get_dashboard_metrics`, `process_xlsx_upload`, `delete_app_user`.
+
+---
+## 2. Configuração de Ambiente
+
+Crie `.env.local` na raiz:
+
+```
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON
+```
+
+O cliente é inicializado em `services/supabaseClient.ts` usando `import.meta.env`.
+
+---
+## 3. Instalação e Execução
+
+```bash
+npm install
+npm run dev
+```
+
+Build produção:
+
+```bash
+npm run build
+npm run preview
+```
+
+---
+## 4. Arquitetura (Resumo)
+
+| Camada | Arquivo(s) | Função |
+|--------|------------|--------|
+| Entrada | `index.html` / `index.tsx` | Montagem raiz Vite/React |
+| Contextos | `contexts/AuthContext.tsx`, `contexts/AppContext.tsx` | Autenticação + estado de UI |
+| Serviços | `services/mockApi.ts`, `services/supabaseClient.ts` | Acesso a dados / RPC / regras de negócio |
+| UI Layout | `components/layout/Sidebar.tsx`, `ContentArea.tsx` | Navegação e slot principal |
+| Páginas | `components/pages/*.tsx` | Telas funcionais (Dashboard, Dados, Gestão, etc.) |
+| Tipos | `types.ts` | Contratos TypeScript |
+
+---
+## 5. Autenticação
+
+Fluxo MVP simples (sem Supabase Auth oficial):
+
+1. `login(email, password)` consulta `profiles` diretamente.
+2. Perfil armazenado em `localStorage`.
+3. Módulos carregados via `fetchUserModules` no `AuthContext`:
+   - `super_admin`: apenas módulos cujo `allowed_profiles` contém explicitamente `super_admin` (não herda mais módulos públicos por padrão).
+   - Demais perfis: união de (atribuições diretas em `user_modules`) + (módulos cujo `allowed_profiles` contém o papel) + módulos públicos (allowed_profiles null/vazio), removendo duplicatas; filtro final por `is_active`.
+
+> Futuro: migrar para `auth.users` + trigger de espelhamento + hash de senha.
+
+---
+## 6. Módulos e Ordenação
+
+Gerenciados em `ManageModulesPage` (CRUD) e ordenados por drag & drop (`@hello-pangea/dnd`). Persistência:
+
+- Endpoint: `updateModulesOrder` em `mockApi.ts` (múltiplas updates paralelas – otimizar para RPC futura).
+- Ordenação: `position` sequencial (densa; sempre reatribuída 1..n em reorder) + `name` como fallback secundário.
+- Sidebar consome lista já consolidada do `AuthContext` (mescla + filtragem de permissões) e só exibe `is_active`.
+
+Campos chave de um módulo:
+```
+id, name, icon, webhook_url, view_id, is_active, allowed_profiles[], position
+```
+
+---
+## 7. Upload de Dados (XLSX)
+
+Pipeline (`uploadXlsxData`):
+1. Lê arquivo (SheetJS) no browser.
+2. Expande multi-profissionais (`PROFISSIONAL` com `;`).
+3. Divide repasse (valores múltiplos ou divisão equitativa) – `processRepasseValues`.
+4. Identifica datas min/max → limpeza de obsoletos (`removeObsoleteRecords`) usando `orcamento` base (registros originais `IS_DIVISAO = 'NAO'`).
+5. Envia lotes (500) para RPC `process_xlsx_upload`.
+6. Agrega métricas de retorno (`inserted`, `updated`, `ignored`, `deleted`).
+
+Convenções:
+- Registros derivados recebem sufixo `_N` em `orcamento` e `IS_DIVISAO = 'SIM'`.
+- Métricas usam apenas originais para receita/contagem; repasse soma todos.
+
+---
+## 8. Dashboard e Métricas
+
+`fetchDashboardMetrics` recalcula localmente (substitui qualquer dependência de contagens pré-agregadas da RPC):
+
+- `totalServices`: orçamentos originais únicos.
+- `totalRevenue`: soma `VALOR` de originais.
+- `uniqueClients`: clientes únicos de originais.
+- `averageTicket`: revenue / services.
+- `totalRepasse`: soma de `REPASSE` de todos (originais + derivados), garantindo que divisão multi-profissional não perca somatório.
+
+Gráfico mensal (`fetchMonthlyChartData`):
+- Agrupa por orçamento base.
+- Evita duplicação de receita em ramificações.
+
+### 8.1 Módulo de Clientes (Paridade com o Dashboard)
+
+- Fonte de dados: somente `processed_data` (não há mais tabela separada de clientes).
+- Escopo do período: seleção `YYYY-MM` (igual ao Dashboard). A lista exibe apenas clientes com atendimentos no mês corrente selecionado.
+- Definições alinhadas ao Dashboard (duas consultas discretas, não range misto):
+   - Recorrentes: interseção entre os conjuntos de clientes de `M` (mês atual) e `M-1` (mês anterior).
+   - Atenção (churn): clientes presentes em `M-1` que não retornaram em `M`.
+   - Outros (novos): clientes de `M` que não estavam em `M-1`.
+- Implementação (serviço):
+   - `fetchClientMetricsFromProcessed`: executa duas consultas (M e M-1) e retorna `{ total, recorrente, atencao, outros, churnRatePercent }`.
+   - `fetchClients`: executa consultas para `M`, `M-1` e `M-2` para montar:
+      - Lista principal: apenas clientes de `M` com último atendimento no mês (para exibição padrão).
+      - Lista de Atenção: clientes que não retornaram em `M`, com metadados: `tipo` (derivado de `M-1`), `lastAttendance` (em `M-1`) e `monthlyCounts` para `M-2`, `M-1`, `M`.
+- UI/Comportamento:
+   - Cartão Atenção exibe quantidade (não percentual). Ao clicar, a tabela filtra para quem não retornou.
+   - Tabela em modo Atenção inclui três colunas de contagem por mês (invertidas): `M`, `M-1`, `M-2`. Cabeçalhos formatados como `Abreviação/AAAA` (ex.: `Ago/2025`).
+   - Paginação: 25 linhas por página, com reset ao mudar período, filtro ou busca.
+   - Ícone do cartão "Outros" atualizado para `user-plus`.
+   - Normalização: chaves de conjunto baseadas no campo bruto `CLIENTE` (sem `trim`/case transform) para manter paridade total com o Dashboard.
+
+---
+## 9. Controle de Acesso
+
+Tabelas de junção:
+- `user_units(user_id, unit_id)`
+- `user_modules(user_id, module_id)`
+
+Admins:
+- Veem apenas usuários de suas unidades (`fetchUsersForAdminUnits`).
+- Ao criar usuário, unidade pode ser atribuída automaticamente (auto_unit_id).
+- Ao editar, módulos fora do escopo aparecem como somente leitura (mantidos mas não editáveis).
+Super Admin:
+- Necessita estar em `allowed_profiles` de um módulo para visualizá-lo (não há mais privilégio implícito de "ver tudo").
+
+---
+## 10. Boas Práticas Internas
+
+- Centralizar chamadas a Supabase em `mockApi.ts`.
+- Não repetir lógica de expansão/divisão em componentes.
+- Validar tipos novos em `types.ts`.
+- Manter comentários explicando decisões (ex: mescla de módulos no `AuthContext`).
+- Manter `position` densamente sequencial após drag & drop (sem gaps).
+- Preferir futura RPC batch para reorder ao invés de múltiplas updates paralelas.
+- Webhook de Agendamentos: usar POST JSON; fallback GET chunkado é automático somente em falha de rede/CORS.
+
+---
+## 11. Próximos Passos Recomendados
+
+| Prioridade | Item | Descrição |
+|------------|------|-----------|
+| Alta | Hash de senhas | Substituir armazenamento em texto plano |
+| Alta | RLS restritivo | Políticas por unidade/módulo reais |
+| Média | RPC batch order | Atualizar posições em lote (JSONB) |
+| Média | Índices métricas | Índices (`unidade_code, DATA, IS_DIVISAO`) e (`unidade_code, orcamento`) |
+| Média | Persistir colapso Sidebar | Salvar preferência no `localStorage` |
+| Média | Assinatura Webhook | HMAC opcional para integridade do payload |
+| Baixa | Tooltips customizados | Melhorar UX em estado colapsado |
+
+---
+## 12. Scripts
+
+| Uso | Comando |
+|-----|---------|
+| Dev | `npm run dev` |
+| Build | `npm run build` |
+| Preview | `npm run preview` |
+
+---
+## 13. Licença
+
+Projeto em estágio de MVP — defina licença antes de distribuição pública.
+
+---
+## 14. Suporte / Contribuição
+
+1. Abra issue descrevendo contexto.
+2. Forneça logs/prints relevantes.
+3. Sugira melhoria se aplicável.
+
+---
+## 15. Glossário Rápido
+
+- Orçamento Base: Registro original (sem sufixo `_N`).
+- Registro Derivado: Divisão de profissional (`IS_DIVISAO = 'SIM'`) com `VALOR=0`.
+- Repasse: Soma distribuída entre profissionais (originais + derivados).
+- Módulo Público: `allowed_profiles` vazio ou null.
+- Position: Campo de ordenação denso reatribuído sempre que a ordem muda.
+- Webhook Agenda: Envio inclui endereço (`endereco`) e versão compacta; fallback GET para cenários de bloqueio POST.
+
+---
+## 16. FAQ Curto
+
+| Pergunta | Resposta |
+|----------|----------|
+| Por que não usar ainda `supabase.auth`? | Adoção incremental; MVP priorizou velocidade. |
+| Como evitar duplicações no upload? | Limpeza por período + upsert RPC + chave lógica `orcamento`. |
+| Por que recalcular repasse localmente? | Garantir consistência após expansão de profissionais. |
+
+---
+_Documento atualizado automaticamente para refletir estado atual do sistema._
+
+---
+## 17. Resumo: Alinhamento de Recorrentes
+
+Contexto: Houve divergência entre a contagem de recorrentes/atenção no módulo de Clientes e no Dashboard.
+
+Decisões e correções aplicadas:
+- Evitar consultas com range contínuo misturando meses; usar duas consultas discretas: uma para `M` e outra para `M-1`.
+- Recorrentes = interseção entre conjuntos de clientes de `M` e `M-1`.
+- Atenção (churn) = clientes em `M-1` que não retornaram em `M`.
+- Chave de comparação: `CLIENTE` bruto (sem `trim`/casefold) para espelhar 100% o comportamento do Dashboard.
+- Métricas e listas do módulo de Clientes agora derivadas exclusivamente de `processed_data`.
+
+Resultados:
+- Paridade confirmada com o Dashboard para recorrentes e churn.
+- Maior previsibilidade e performance ao limitar as consultas aos meses relevantes.
