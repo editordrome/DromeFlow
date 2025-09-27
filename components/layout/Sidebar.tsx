@@ -115,6 +115,9 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     <li>
       <button
         onClick={onClick}
+        // Quando recolhido, mostrar o nome do módulo como tooltip nativo
+        title={isCollapsed ? label : undefined}
+        aria-label={isCollapsed ? label : undefined}
         className={`flex items-center w-full px-4 py-2.5 text-sm rounded-lg transition-colors duration-200 ${
           isActive
             ? 'bg-accent-primary text-text-on-accent'

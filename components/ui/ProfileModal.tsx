@@ -78,8 +78,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, onSave, us
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog">
-            <div className="w-full max-w-lg p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onClick={onClose}>
+            <div className="w-full max-w-lg p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg" onClick={(e)=>e.stopPropagation()}>
                 <div className="flex items-center justify-between pb-3 border-b border-border-primary">
                     <h2 className="text-xl font-bold text-text-primary">Meu Perfil</h2>
                     <button onClick={onClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary">

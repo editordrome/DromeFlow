@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchAppointments } from '../../services/data/dataTable.service';
+import { fetchAppointments, fetchAppointmentsMulti } from '../../services/data/dataTable.service';
 import { DataRecord } from '../../types';
 import DataDetailModal from '../ui/DataDetailModal';
 import { Icon } from '../ui/Icon';
@@ -28,7 +28,7 @@ const formatDisplayHour = (raw: string) => {
 
 const AppointmentsPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
-  const { userModules } = useAuth();
+  const { userModules, userUnits } = useAuth();
   const [activeDate, setActiveDate] = useState<string>('');
   const [tabs, setTabs] = useState<DayTab[]>([]);
   const [appointments, setAppointments] = useState<DataRecord[]>([]);
@@ -288,7 +288,13 @@ const AppointmentsPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchAppointments(selectedUnit.unit_code, date);
+      let data: DataRecord[] = [];
+      if (selectedUnit.unit_code === 'ALL') {
+        const codes = (userUnits || []).map(u => u.unit_code);
+        data = await fetchAppointmentsMulti(codes, date);
+      } else {
+        data = await fetchAppointments(selectedUnit.unit_code, date);
+      }
       setAppointments(data);
     } catch (e: any) {
       setError(e.message || 'Falha ao buscar agendamentos.');
@@ -402,7 +408,7 @@ const AppointmentsPage: React.FC = () => {
           )}
           <button
             type="button"
-            disabled={!appointmentsWebhook || isSending}
+            disabled={!appointmentsWebhook || isSending || selectedUnit.unit_code === 'ALL'}
             onClick={handleSendWebhook}
             className={`inline-flex items-center gap-2 h-10 px-5 rounded-md text-sm font-semibold tracking-wide border transition focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm
               ${appointmentsWebhook ? 'bg-accent-primary text-text-on-accent border-accent-primary hover:bg-accent-primary/90' : 'bg-bg-tertiary text-text-tertiary border-border-secondary'}
@@ -417,7 +423,7 @@ const AppointmentsPage: React.FC = () => {
             ) : (
               <>
                 <Icon name="send" className="w-4 h-4" />
-                Enviar
+                {selectedUnit.unit_code === 'ALL' ? 'Enviar (indisponível em Todos)' : 'Enviar'}
               </>
             )}
           </button>

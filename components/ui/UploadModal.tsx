@@ -32,6 +32,9 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
         resetState();
         onClose();
     };
+    const handleOverlayClick = () => {
+        handleClose();
+    };
 
     const handleFileSelect = (selectedFile: File | null) => {
         if (status === 'processing' || !selectedFile) return;
@@ -280,8 +283,8 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
     const isProcessing = status === 'processing';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog">
-            <div className="w-full max-w-lg p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onClick={handleOverlayClick}>
+            <div className="w-full max-w-lg p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg" onClick={(e)=>e.stopPropagation()}>
                 <div className="flex items-center justify-between pb-3 border-b border-border-primary">
                     <h2 className="text-xl font-bold text-text-primary">Importar Dados XLSX</h2>
                     <button onClick={handleClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary" disabled={isProcessing}>

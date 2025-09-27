@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
-import { fetchDataTable, updateDataRecord, deleteDataRecord } from '../../services/data/dataTable.service';
+import { fetchDataTable, fetchDataTableMulti, updateDataRecord, deleteDataRecord } from '../../services/data/dataTable.service';
+import { useAuth } from '../../contexts/AuthContext';
 import { DataRecord } from '../../types';
 import { Icon } from '../ui/Icon';
 import UploadModal from '../ui/UploadModal';
@@ -78,6 +79,7 @@ const PeriodDropdown: React.FC<{
 
 const DataPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
+  const { userUnits } = useAuth();
   const [records, setRecords] = useState<DataRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,14 +125,24 @@ const DataPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const { data: result, count } = await fetchDataTable(
-        selectedUnit.unit_code,
-        currentPage,
-        pageSize,
-        debouncedSearchTerm,
-        searchColumn,
-        selectedPeriod
-      );
+      const isAll = selectedUnit.unit_code === 'ALL';
+      const { data: result, count } = isAll
+        ? await fetchDataTableMulti(
+            (userUnits || []).map(u => u.unit_code),
+            currentPage,
+            pageSize,
+            debouncedSearchTerm,
+            searchColumn,
+            selectedPeriod
+          )
+        : await fetchDataTable(
+            selectedUnit.unit_code,
+            currentPage,
+            pageSize,
+            debouncedSearchTerm,
+            searchColumn,
+            selectedPeriod
+          );
       setRecords(result);
       setTotalRecords(count);
     } catch (err: any) {
@@ -216,7 +228,7 @@ const DataPage: React.FC = () => {
   return (
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-primary">Dados: {selectedUnit?.unit_name || 'Nenhuma'}</h1>
+  <h1 className="text-2xl font-bold text-text-primary">Dados: {selectedUnit?.unit_name || 'Nenhuma'}</h1>
         
         {selectedUnit && (
           <div className="flex items-center gap-4">
@@ -253,6 +265,9 @@ const DataPage: React.FC = () => {
           </div>
         )}
       </div>
+      {selectedUnit?.unit_code === 'ALL' && (
+        <div className="mb-3 text-xs text-text-secondary">Exibindo dados agregados de todas as suas unidades.</div>
+      )}
       
       {!selectedUnit ? (
         <div className="p-4 text-center text-text-secondary bg-bg-tertiary rounded-md">

@@ -99,32 +99,57 @@ export const fetchDashboardMetricsMulti = async (
       averageTicket: 0,
       totalRepasse: 0,
     };
+  // Determina início/fim do período (mês ou ano)
+  let startDate: string | null = null;
+  let endDate: string | null = null;
+  const endOfMonthUtc = (year: number, month01to12: number) =>
+    new Date(Date.UTC(year, month01to12, 0)).toISOString().split('T')[0];
+  if (period && period.length === 4) {
+    const year = parseInt(period, 10);
+    startDate = `${year}-01-01`;
+    endDate = `${year}-12-31`;
+  } else if (period && /^\d{4}-\d{2}$/.test(period)) {
+    const [yearStr, monthStr] = period.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    endDate = endOfMonthUtc(year, month);
+  }
   let totalRevenue = 0;
   let totalServices = 0;
   let totalRepasse = 0;
-  const allClients = new Set<string>();
-  const allBudgets = new Set<string>();
+  // Soma receitas/repasse por unidade usando a função de single-unit (respeita período)
   for (const code of unitCodes) {
     const m = await fetchDashboardMetrics(code, period);
     totalRevenue += m.totalRevenue;
-    totalServices += m.totalServices;
     totalRepasse += m.totalRepasse;
   }
-  const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
-  const { data: multiRecords, error: multiErr } = await supabase
+  // Para serviços únicos (orcamentos originais) e clientes únicos, calcula no conjunto combinado com filtro do período
+  let query = supabase
     .from('processed_data')
-    .select('CLIENTE, IS_DIVISAO, orcamento, unidade_code')
+    .select('CLIENTE, IS_DIVISAO, orcamento, unidade_code', { head: false })
     .in('unidade_code', unitCodes);
-  if (!multiErr && multiRecords) {
-    (multiRecords as any[])
-      .filter((r) => r.IS_DIVISAO !== 'SIM')
-      .forEach((r: any) => {
-        if (r.orcamento) allBudgets.add(r.orcamento);
-        if (r.CLIENTE) allClients.add(r.CLIENTE);
-      });
+  if (startDate && endDate) {
+    query = query.gte('DATA', startDate).lte('DATA', endDate);
   }
-  totalServices = allBudgets.size || totalServices;
+  const { data: multiRecords, error: multiErr } = await query;
+  const allClients = new Set<string>();
+  const allBudgets = new Set<string>();
+  if (multiErr) {
+    // Em caso de erro, mantém valores baseados na soma por unidade
+    const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
+    return { totalRevenue, totalServices, uniqueClients: 0, averageTicket, totalRepasse };
+  }
+  const combined = (multiRecords as any[]) || [];
+  combined
+    .filter((r) => r.IS_DIVISAO !== 'SIM')
+    .forEach((r: any) => {
+      if (r.orcamento) allBudgets.add(r.orcamento);
+      if (r.CLIENTE) allClients.add(r.CLIENTE);
+    });
+  totalServices = allBudgets.size;
   const uniqueClients = allClients.size;
+  const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
   return { totalRevenue, totalServices, uniqueClients, averageTicket, totalRepasse };
 };
 

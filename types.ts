@@ -128,6 +128,7 @@ export interface RecrutadoraColumn {
   code: string;   // usado no campo status dos cards
   name: string;   // rótulo da coluna
   color?: string | null;
+  image_url?: string | null; // imagem do cabeçalho da coluna
   position: number;
   is_active: boolean;
 }
@@ -142,4 +143,33 @@ export interface RecrutadoraCard {
   nome: string | null;
   whatsapp: string | null;
   color_card: string | null;
+  // Campos adicionais (pessoais)
+  data_nascimento?: string | null; // ISO date (legado UI)
+  data_nasc?: string | null; // ISO date (coluna DB)
+  fumante?: boolean | null;
+  estado_civil?: string | null;
+  filhos?: boolean | null;
+  qtos_filhos?: number | null; // legado UI
+  qto_filhos?: number | null; // coluna DB
+  rotina_filhos?: string | null;
+  endereco?: string | null; // legado UI
+  'endereço'?: string | null; // coluna DB com acento
+  rg?: string | null;
+  cpf?: string | null;
+
+  // Campos profissionais
+  dias_livres?: string | null;
+  dias_semana?: string | null;
+  exp_residencial?: string | null;
+  ref_residencial?: string | null; // legado UI
+  ref_redidencial?: string | null; // coluna DB (grafia fornecida)
+  exp_comercial?: string | null;
+  ref_comercial?: string | null;
+  sit_atual?: string | null; // situação atual
+  motivo_cadastro?: string | null; // legado UI
+  motivo_cadstro?: string | null; // coluna DB (grafia fornecida)
+  transporte?: string | null;
+
+  // Observação
+  observacao?: string | null;
 }

@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { createPortal } from 'react-dom';
+import { DragDropContext, Droppable, Draggable, DropResult, DragUpdate } from '@hello-pangea/dnd';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
-import { fetchColumns, fetchCards, moveCard, ensureDefaultColumnsForUnit, createCard, updateCard, deleteCard } from '../../services/recrutadora/recrutadora.service';
+import { fetchColumns, fetchCards, moveCard, ensureDefaultColumnsForUnit, createCard, updateCard, deleteCard, fetchRecrutadoraMetrics, fetchRecrutadoraMetricsForUnits } from '../../services/recrutadora/recrutadora.service';
 import type { RecrutadoraCard, RecrutadoraColumn } from '../../types';
 import RecrutadoraCardModal from '../ui/RecrutadoraCardModal';
+import { Icon } from '../ui/Icon';
 
 const RecrutadoraPage: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, userUnits } = useAuth();
   const { selectedUnit } = useAppContext();
   const [columns, setColumns] = useState<RecrutadoraColumn[]>([]);
   const [cards, setCards] = useState<RecrutadoraCard[]>([]);
@@ -16,6 +18,40 @@ const RecrutadoraPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalStatus, setModalStatus] = useState<string | undefined>(undefined);
   const [editingCard, setEditingCard] = useState<RecrutadoraCard | null>(null);
+  const [dragIndicator, setDragIndicator] = useState<{ droppableId: string; index: number } | null>(null);
+  const [metrics, setMetrics] = useState<{ today: number; week: number; month: number } | null>(null);
+
+  // Escolhe cor de texto com bom contraste sobre o fundo fornecido (hex)
+  const getTextContrastClass = (bg?: string | null) => {
+    if (!bg) return 'text-text-secondary';
+    try {
+      let hex = bg.trim();
+      if (hex.startsWith('rgb')) {
+        // rgb(a) -> cálculo simples: extrai números
+        const nums = hex.match(/\d+\.\d+|\d+/g)?.map(Number) || [0, 0, 0];
+        const [r, g, b] = nums;
+        const yiq = (r * 299 + g * 587 + b * 114) / 1000; // YIQ heuristic
+        return yiq >= 150 ? 'text-text-primary' : 'text-white';
+      }
+      if (hex[0] === '#') hex = hex.substring(1);
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000; // mais simples e eficiente
+      return yiq >= 150 ? 'text-text-primary' : 'text-white';
+    } catch {
+      return 'text-text-secondary';
+    }
+  };
+
+  const getBadgeClasses = (bg?: string | null) => {
+    const contrast = getTextContrastClass(bg);
+    if (contrast === 'text-white') {
+      return 'ml-2 text-xs font-semibold px-2 py-0.5 rounded-full border border-white/60 bg-white/10 text-white';
+    }
+    return 'ml-2 text-xs font-semibold px-2 py-0.5 rounded-full border border-border-secondary bg-bg-secondary text-text-secondary';
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -23,14 +59,28 @@ const RecrutadoraPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        // Garante que a unidade tenha colunas padrão
-        await ensureDefaultColumnsForUnit(selectedUnit.id, selectedUnit.unit_name);
-        const [cols, crds] = await Promise.all([
-          fetchColumns(selectedUnit.id),
-          fetchCards(selectedUnit.id),
-        ]);
+        // Colunas são globais; cards variam por unidade
+        const cols = await fetchColumns(selectedUnit.id as any);
         setColumns(cols);
-        setCards(crds);
+        // Quando ALL, agrega cards de todas as unidades do usuário
+        if ((selectedUnit as any).id === 'ALL') {
+          if (!userUnits || userUnits.length === 0) {
+            setCards([]);
+            setMetrics({ today: 0, week: 0, month: 0 });
+          } else {
+            const ids = userUnits.map(u => u.id);
+            const { fetchCardsForUnits } = await import('../../services/recrutadora/recrutadora.service');
+            const crdsAll = await fetchCardsForUnits(ids);
+            setCards(crdsAll);
+            const m = await fetchRecrutadoraMetricsForUnits(ids);
+            setMetrics(m);
+          }
+        } else {
+          const crds = await fetchCards(selectedUnit.id as string);
+          setCards(crds);
+          const m = await fetchRecrutadoraMetrics(selectedUnit.id as string);
+          setMetrics(m);
+        }
       } catch (e: any) {
         setError(e.message || 'Falha ao carregar o Kanban.');
       } finally {
@@ -38,7 +88,9 @@ const RecrutadoraPage: React.FC = () => {
       }
     };
     load();
-  }, [selectedUnit]);
+  }, [selectedUnit, userUnits]);
+
+  const isAllUnits = (selectedUnit as any)?.id === 'ALL';
 
   const cardsByStatus = useMemo(() => {
     const map: Record<string, RecrutadoraCard[]> = {};
@@ -53,10 +105,41 @@ const RecrutadoraPage: React.FC = () => {
     return map;
   }, [cards]);
 
+  // Paleta estável por unidade (até 8 cores; cicla se >8)
+  const unitColorMap = useMemo(() => {
+    const colors = ['#60a5fa', '#f59e0b', '#10b981', '#ef4444', '#a78bfa', '#f472b6', '#22d3ee', '#94a3b8'];
+    const map: Record<string, string> = {};
+    userUnits?.forEach((u, idx) => { map[u.id] = colors[idx % colors.length]; });
+    return map;
+  }, [userUnits]);
+
+  // Colunas para renderização: quando ALL, duplicar "qualificadas" por unidade
+  const renderColumns = useMemo(() => {
+    if (!isAllUnits) return columns;
+    const qual = columns.find(c => c.code === 'qualificadas');
+    const others = columns.filter(c => c.code !== 'qualificadas');
+    const perUnitQual = (userUnits || []).map(u => ({
+      ...qual!,
+      id: `qualificadas_${u.id}`,
+      code: 'qualificadas',
+      // marca local para saber a qual unidade pertence esta coluna
+      // @ts-ignore
+      _unitForQual: u,
+    } as any));
+    return [...perUnitQual, ...others];
+  }, [columns, isAllUnits, userUnits]);
+
+  const parseDroppable = (id: string): { status: string; unitId?: string } => {
+    const [status, unit] = id.split('|');
+    return { status, unitId: unit };
+  };
+
   const onDragEnd = async (result: DropResult) => {
     if (!result.destination || !profile) return;
-    const sourceStatus = result.source.droppableId;
-    const destStatus = result.destination.droppableId;
+    const srcInfo = parseDroppable(result.source.droppableId);
+    const destInfo = parseDroppable(result.destination.droppableId);
+    const sourceStatus = srcInfo.status;
+    const destStatus = destInfo.status;
     const sourceIndex = result.source.index;
     const destIndex = result.destination.index;
 
@@ -71,9 +154,9 @@ const RecrutadoraPage: React.FC = () => {
 
     // remove do source
     const removed = nextCards.splice(movingIdxGlobal, 1)[0];
-    // calcula posição de inserção no destino baseado em destStatus + destIndex
-    const destList = [...(cardsByStatus[destStatus] || [])];
-    const beforeId = destList[destIndex]?.id;
+    // calcula posição de inserção no destino baseado em destStatus + destIndex (ajustada para unidade quando ALL)
+    const destListCombined = [...(cardsByStatus[destStatus] || [])];
+    const beforeId = destListCombined[destIndex]?.id;
     let insertIdx = nextCards.length;
     if (beforeId !== undefined) {
       insertIdx = nextCards.findIndex(c => c.id === beforeId);
@@ -83,31 +166,75 @@ const RecrutadoraPage: React.FC = () => {
     removed.position = destIndex + 1;
     nextCards.splice(insertIdx, 0, removed);
 
-    // normaliza positions locais por status
+    // normalização simples apenas para visual; quando ALL recarregamos após sucesso
     const normalize = (status: string) => {
       let i = 1;
       for (const c of nextCards.filter(x => x.status === status).sort((a,b)=>a.position-b.position)) {
         c.position = i++;
       }
     };
-    normalize(sourceStatus);
-    normalize(destStatus);
+    if (!isAllUnits) {
+      normalize(sourceStatus);
+      normalize(destStatus);
+    }
     setCards(nextCards);
 
     try {
-      await moveCard(profile.id, moving.id, destStatus, destIndex + 1);
+      // Bloqueia mover 'qualificadas' entre unidades diferentes
+      if (isAllUnits && destStatus === 'qualificadas' && destInfo.unitId && destInfo.unitId !== moving.unit_id) {
+        throw new Error('Não é permitido mover "Qualificadas" entre unidades diferentes.');
+      }
+
+      let newPosition = destIndex + 1;
+      if (isAllUnits && destStatus !== 'qualificadas') {
+        // Converter índice combinado para índice dentro da unidade do card
+        let countInUnit = 0;
+        for (let i = 0; i < destListCombined.length && i < destIndex; i++) {
+          if (destListCombined[i].unit_id === moving.unit_id) countInUnit++;
+        }
+        newPosition = countInUnit + 1;
+      }
+
+      await moveCard(profile.id, moving.id, destStatus, newPosition);
+
+      // Quando ALL, recarrega do servidor para garantir ordenação por unidade correta
+      if (isAllUnits) {
+        if (userUnits && userUnits.length > 0) {
+          const ids = userUnits.map(u => u.id);
+          const { fetchCardsForUnits } = await import('../../services/recrutadora/recrutadora.service');
+          const crdsAll = await fetchCardsForUnits(ids);
+          setCards(crdsAll);
+        }
+      }
     } catch (e: any) {
       // reverte
       setError('Falha ao mover card: ' + (e.message || '')); 
       // força reload
       if (selectedUnit) {
-        const [cols, crds] = await Promise.all([
-          fetchColumns(selectedUnit.id),
-          fetchCards(selectedUnit.id),
-        ]);
+        const cols = await fetchColumns(selectedUnit.id as any);
         setColumns(cols);
-        setCards(crds);
+        if (isAllUnits) {
+          if (userUnits && userUnits.length > 0) {
+            const ids = userUnits.map(u => u.id);
+            const { fetchCardsForUnits } = await import('../../services/recrutadora/recrutadora.service');
+            const crdsAll = await fetchCardsForUnits(ids);
+            setCards(crdsAll);
+          }
+        } else {
+          const crds = await fetchCards(selectedUnit.id as string);
+          setCards(crds);
+        }
       }
+    }
+    // limpar indicador visual
+    setDragIndicator(null);
+  };
+
+  const onDragUpdate = (update: DragUpdate) => {
+    if (update.destination) {
+      setDragIndicator({ droppableId: update.destination.droppableId, index: update.destination.index });
+    } else {
+      setDragIndicator(null);
     }
   };
 
@@ -135,49 +262,125 @@ const RecrutadoraPage: React.FC = () => {
 
   return (
   <div className="p-4 bg-bg-secondary rounded-lg shadow-md h-full min-h-0 w-full max-w-full box-border flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between mb-3 flex-shrink-0">
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap flex-shrink-0">
         <h1 className="text-2xl font-bold text-text-primary">Recrutadora - {selectedUnit.unit_name}</h1>
-        <div />
+        {/* Métricas compactas na mesma linha */}
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md border border-border-secondary bg-bg-secondary text-sm">
+            <Icon name="CalendarDays" className="w-4 h-4 text-brand-green" />
+            <span className="text-text-secondary">Hoje</span>
+            <span className="font-semibold text-text-primary">{metrics ? metrics.today : 0}</span>
+          </div>
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md border border-border-secondary bg-bg-secondary text-sm">
+            <Icon name="CalendarRange" className="w-4 h-4 text-brand-cyan" />
+            <span className="text-text-secondary">Semana</span>
+            <span className="font-semibold text-text-primary">{metrics ? metrics.week : 0}</span>
+          </div>
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md border border-border-secondary bg-bg-secondary text-sm">
+            <Icon name="Calendar" className="w-4 h-4 text-accent-primary" />
+            <span className="text-text-secondary">Mês</span>
+            <span className="font-semibold text-text-primary">{metrics ? metrics.month : 0}</span>
+          </div>
+        </div>
       </div>
-      <DragDropContext onDragEnd={onDragEnd}>
+  <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
         <div className="flex-1 min-h-0 min-w-0 h-full w-full max-w-full overflow-x-auto overscroll-x-contain pb-2 pr-1">
           <div className="inline-flex gap-4 h-full">
-            {columns.map(col => (
-              <div key={col.id} className="bg-bg-tertiary rounded-lg border border-border-secondary flex flex-col h-full w-[320px] min-w-[320px] shrink-0">
-                <div className="px-4 py-2 rounded-t-lg flex items-center justify-between border-b border-border-secondary" style={{ backgroundColor: col.color || undefined }}>
-                  <span className="text-sm font-semibold text-text-primary">{col.name}</span>
-                </div>
-                <Droppable droppableId={col.code}>
-                  {(provided) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps} className="flex-1 overflow-y-auto p-3 space-y-3">
-                      {(cardsByStatus[col.code] || []).map((card, index) => (
-                        <Draggable key={card.id} draggableId={String(card.id)} index={index}>
-                          {(dragProvided) => (
-                            <div
-                              ref={dragProvided.innerRef}
-                              {...dragProvided.draggableProps}
-                              {...dragProvided.dragHandleProps}
-                              className="bg-bg-secondary rounded-md p-3 text-text-primary shadow-sm border border-border-secondary hover:bg-bg-tertiary transition cursor-pointer"
-                              style={{ borderLeft: `4px solid ${card.color_card || '#4ade80'}` }}
-                              onClick={() => { setEditingCard(card); setModalStatus(card.status); setModalOpen(true); }}
-                            >
-                              <div className="font-semibold leading-snug truncate">{card.nome || 'Sem nome'}</div>
-                              <div className="text-xs text-text-secondary mt-1">Cadastrado em: {new Date(card.created_at).toLocaleDateString('pt-BR')}</div>
+            {renderColumns.map((col: any) => {
+              const droppableId = col._unitForQual ? `qualificadas|${col._unitForQual.id}` : col.code;
+              const columnCards = col._unitForQual
+                ? cards.filter(c => c.status === 'qualificadas' && c.unit_id === col._unitForQual.id)
+                : (cardsByStatus[col.code] || []);
+              return (
+                <div key={col.id} className="bg-bg-tertiary rounded-lg border border-border-secondary flex flex-col h-full w-[320px] min-w-[320px] shrink-0">
+                  <div className="p-0 h-[100px] md:h-[120px] rounded-t-lg border-b border-border-secondary relative overflow-hidden" style={{ backgroundColor: col.color || undefined }}>
+                    {col.image_url && (
+                      <div
+                        aria-label={col.name}
+                        className="absolute inset-0 bg-center bg-no-repeat bg-cover"
+                        style={{ backgroundImage: `url(${col.image_url})` }}
+                      />
+                    )}
+                    {isAllUnits && col._unitForQual && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs font-semibold px-2 py-1 text-center">
+                        {col._unitForQual.unit_name}
+                      </div>
+                    )}
+                    <span className={`absolute top-1 right-1 z-10 ${getBadgeClasses(col.color)}`}>
+                      {col._unitForQual ? columnCards.length : (cardsByStatus[col.code] || []).length}
+                    </span>
+                  </div>
+                  <Droppable droppableId={droppableId}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={`flex-1 overflow-y-auto p-3 space-y-3 transition-colors ${snapshot.isDraggingOver ? 'bg-accent-primary/5 ring-1 ring-accent-primary/30' : ''}`}
+                      >
+                        {columnCards.map((card: RecrutadoraCard, index: number, arr: RecrutadoraCard[]) => {
+                          const elements: React.ReactNode[] = [];
+                          const shouldShowIndicator = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === index;
+                          if (shouldShowIndicator) {
+                            elements.push(
+                              <div
+                                key={`drop-indicator-${droppableId}-${index}`}
+                                className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
+                              />
+                            );
+                          }
+                          elements.push(
+                            <Draggable key={card.id} draggableId={String(card.id)} index={index}>
+                              {(dragProvided, dragSnapshot) => {
+                                const content = (
+                                  <div
+                                    ref={dragProvided.innerRef}
+                                    {...dragProvided.draggableProps}
+                                    {...dragProvided.dragHandleProps}
+                                    className={`bg-bg-secondary rounded-md p-3 text-text-primary border border-border-secondary transition-shadow cursor-pointer ${dragSnapshot.isDragging ? 'shadow-2xl ring-2 ring-accent-primary/50 bg-bg-tertiary' : 'shadow-sm hover:bg-bg-tertiary'}`}
+                                    style={{
+                                      ...dragProvided.draggableProps.style,
+                                      borderLeft: `4px solid ${isAllUnits ? (unitColorMap[card.unit_id] || '#4ade80') : (card.color_card || '#4ade80')}`,
+                                    }}
+                                    onClick={() => { setEditingCard(card); setModalStatus(card.status); setModalOpen(true); }}
+                                  >
+                                    <div className="font-semibold leading-snug truncate">{card.nome || 'Sem nome'}</div>
+                                    <div className="text-xs text-text-secondary mt-1">Cadastrado em: {new Date(card.created_at).toLocaleDateString('pt-BR')}</div>
+                                  </div>
+                                );
+                                return dragSnapshot.isDragging ? createPortal(content, document.body) : content;
+                              }}
+                            </Draggable>
+                          );
+                          // indicador no final da coluna
+                          const isLast = index === arr.length - 1;
+                          const shouldShowAtEnd = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === arr.length && isLast;
+                          if (shouldShowAtEnd) {
+                            elements.push(
+                              <div
+                                key={`drop-indicator-${droppableId}-end`}
+                                className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
+                              />
+                            );
+                          }
+                          return elements;
+                        })}
+                        {provided.placeholder}
+                        {columnCards.length === 0 && (
+                          <>
+                            {dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === 0 && (
+                              <div className="h-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none mb-3" />
+                            )}
+                            <div className="text-xs text-text-secondary text-center py-6 border border-dashed border-border-secondary rounded">
+                              Nenhum card nesta coluna
                             </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                      {(!cardsByStatus[col.code] || cardsByStatus[col.code].length === 0) && (
-                        <div className="text-xs text-text-secondary text-center py-6 border border-dashed border-border-secondary rounded">
-                          Nenhum card nesta coluna
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </Droppable>
-              </div>
-            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </Droppable>
+                </div>
+              );
+            })}
           </div>
         </div>
       </DragDropContext>
@@ -186,12 +389,26 @@ const RecrutadoraPage: React.FC = () => {
         onClose={() => setModalOpen(false)}
         onSaved={async () => {
           if (!selectedUnit) return;
-          const [cols, crds] = await Promise.all([
-            fetchColumns(selectedUnit.id),
-            fetchCards(selectedUnit.id),
-          ]);
+          const cols = await fetchColumns(selectedUnit.id);
           setColumns(cols);
-          setCards(crds);
+          if ((selectedUnit as any).id === 'ALL') {
+            if (userUnits && userUnits.length > 0) {
+              const ids = userUnits.map(u => u.id);
+              const { fetchCardsForUnits } = await import('../../services/recrutadora/recrutadora.service');
+              const crdsAll = await fetchCardsForUnits(ids);
+              setCards(crdsAll);
+              const m = await fetchRecrutadoraMetricsForUnits(ids);
+              setMetrics(m);
+            } else {
+              setCards([]);
+              setMetrics({ today: 0, week: 0, month: 0 });
+            }
+          } else {
+            const crds = await fetchCards(selectedUnit.id);
+            setCards(crds);
+            const m = await fetchRecrutadoraMetrics(selectedUnit.id);
+            setMetrics(m);
+          }
         }}
   unidade={selectedUnit.unit_name}
         defaultStatus={editingCard ? undefined : modalStatus}

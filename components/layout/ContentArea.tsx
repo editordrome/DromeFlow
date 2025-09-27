@@ -11,6 +11,8 @@ import DashboardMetricsPage from '../pages/DashboardMetricsPage';
 import AppointmentsPage from '../pages/AppointmentsPage';
 import ClientsPage from '../pages/ClientsPage';
 import RecrutadoraPage from '../pages/RecrutadoraPage';
+import ProfissionaisPage from '../pages/ProfissionaisPage';
+import PrestadorasPage from '../pages/PrestadorasPage';
 
 const ContentArea: React.FC = () => {
     const { activeView, activeModule, selectedUnit } = useAppContext();
@@ -70,6 +72,12 @@ const ContentArea: React.FC = () => {
         }
         if (activeView === 'recrutadora') {
             return <RecrutadoraPage />;
+        }
+        if (activeView === 'profissionais') {
+            return <ProfissionaisPage />;
+        }
+        if (activeView === 'prestadoras') {
+            return <PrestadorasPage />;
         }
     
     // Default to module view

@@ -63,8 +63,8 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
 
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog">
-            <div className="w-full max-w-2xl p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onClick={onClose}>
+            <div className="w-full max-w-2xl p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg max-h-[90vh] flex flex-col" onClick={(e)=>e.stopPropagation()}>
                 <div className="flex items-center justify-between pb-3 border-b border-border-primary flex-shrink-0">
                     <h2 className="text-xl font-bold text-text-primary">Detalhes do Atendimento</h2>
                     <button onClick={onClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary">

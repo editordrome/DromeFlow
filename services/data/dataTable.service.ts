@@ -39,6 +39,45 @@ export const fetchDataTable = async (
   return { data: (data as DataRecord[]) || [], count: count || 0 };
 };
 
+export const fetchDataTableMulti = async (
+  unitCodes: string[],
+  page: number,
+  pageSize: number,
+  searchTerm?: string,
+  searchColumn?: 'cliente' | 'orcamento',
+  period?: string
+): Promise<{ data: DataRecord[]; count: number }> => {
+  if (!unitCodes || unitCodes.length === 0) return { data: [], count: 0 };
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from('processed_data')
+    .select('*', { count: 'exact' })
+    .in('unidade_code', unitCodes);
+
+  if (period && /^\d{4}-\d{2}$/.test(period)) {
+    const [year, month] = period.split('-').map(Number);
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
+    query = query.gte('DATA', startDate).lte('DATA', endDate);
+  }
+
+  if (searchTerm && searchColumn) {
+    const columnName = searchColumn === 'cliente' ? 'CLIENTE' : 'orcamento';
+    query = query.ilike(columnName, `%${searchTerm}%`);
+  }
+
+  query = query.order('DATA', { ascending: false }).range(from, to);
+
+  const { data, error, count } = await query;
+  if (error) {
+    console.error('Error in fetchDataTableMulti:', error);
+    throw error;
+  }
+  return { data: (data as DataRecord[]) || [], count: count || 0 };
+};
+
 export const fetchAppointments = async (
   unitCode: string,
   date: string
@@ -52,6 +91,25 @@ export const fetchAppointments = async (
     .order('HORARIO', { ascending: true });
   if (error) {
     console.error('Erro ao buscar agendamentos:', error);
+    throw error;
+  }
+  return (data as DataRecord[]) || [];
+};
+
+export const fetchAppointmentsMulti = async (
+  unitCodes: string[],
+  date: string
+): Promise<DataRecord[]> => {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)) return [];
+  if (!unitCodes || unitCodes.length === 0) return [];
+  const { data, error } = await supabase
+    .from('processed_data')
+    .select('*')
+    .in('unidade_code', unitCodes)
+    .eq('DATA', date)
+    .order('HORARIO', { ascending: true });
+  if (error) {
+    console.error('Erro ao buscar agendamentos (multi):', error);
     throw error;
   }
   return (data as DataRecord[]) || [];
