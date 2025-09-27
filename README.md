@@ -12,6 +12,7 @@ Aplicação de gestão e análise construída em React (Vite + TypeScript) com S
 - Upload de planilhas XLSX com expansão de múltiplos profissionais e sincronização por período.
 - Controle de acesso baseado em papéis (`super_admin`, `admin`, `user`) + atribuições (`user_units`, `user_modules`).
 - Visualização multi-unidade ("Todos") em módulos selecionados com agregações corretas por período.
+ - Módulo Prestadoras com dois painéis: Profissionais (ativos) e Recrutadora (cadastros), incluindo métricas mensais, ranking e drill‑down de atendimentos por profissional.
 
 ---
 ## 1. Requisitos
@@ -173,6 +174,30 @@ Gráfico mensal (`fetchMonthlyChartData`):
    - Ícone do cartão "Outros" atualizado para `user-plus`.
    - Normalização: chaves de conjunto baseadas no campo bruto `CLIENTE` (sem `trim`/case transform) para manter paridade total com o Dashboard.
 
+### 8.3 Prestadoras (Profissionais + Recrutadora)
+
+Página: `components/pages/PrestadorasPage.tsx`
+
+Serviços: `services/analytics/prestadoras.service.ts`
+
+- Cards principais:
+   - Profissionais (ativos): total de profissionais ativos no escopo da unidade/período; ao clicar, ativa painel com resumo e ranking.
+   - Recrutadora (cadastros): total de cadastros no mês; ao clicar, ativa painel com métricas mensais da recrutadora.
+   - Atendimentos (mês): total de atendimentos no período (base `processed_data`).
+- Painel Profissionais (ao ativar o card):
+   - Resumo do mês: média de atendimentos por profissional, média de ganhos (repasse) por atendimento, profissionais atuantes.
+   - Ranking (mês): ordenável por atendimentos ou ganhos; inclui coluna “Média” (repasse/atendimento).
+   - Ao clicar em uma linha do ranking abre modal com atendimentos do profissional no mês (Data, Cliente, Período, Repasse).
+   - Recarrega automaticamente ao mudar período/unidade quando este painel está ativo; ativa automaticamente ao entrar na página.
+- Painel Recrutadora (ao ativar o card):
+   - Métricas mensais inline: Cadastros no mês (total), Qualificadas, Não aprovadas, Desistentes.
+   - Ativadas no mês (profissionais): conta baseada na tabela `profissionais` (status contendo “ativo” e data de ativação no mês).
+   - O ranking de profissionais fica oculto quando o painel Recrutadora está ativo.
+- Multi-unidade (ALL):
+   - Para recrutadora/profissionais, usa `userUnits` (IDs) para agregar; para atendimentos usa `unit_code` (processed_data).
+   - Período usa seletor `YYYY-MM` com dropdown customizado.
+- Visual: cards com estado de seleção (ativo) com o mesmo efeito do Dashboard.
+
 ---
 ## 9. Controle de Acesso
 
@@ -275,4 +300,4 @@ Resultados:
 
 - Métricas Rápidas: chips inline no cabeçalho com contagens de Hoje, Semana e Mês. Implementadas em `services/recrutadora/recrutadora.service.ts` usando utilitários de data em `services/utils/dates.ts` (início do dia/semana/mês).
 - Semântica ALL: colunas globais; DnD restrito por unidade; "Qualificadas" duplicada por unidade, demais colunas agregadas.
-- Ingestão CSV (MB Londrina): pipeline RAW → `recrutadora` com status mapeados e telefones normalizados via `docs/sql/mblondrina_load_from_raw_csv.sql`, usando `unit_id` fixo para MB Londrina (`6b9769ab-9088-469b-b31a-d174ed766682`).
+ - Ingestão CSV (MB Londrina): pipeline RAW → `recrutadora` com status mapeados e telefones normalizados. Ver arquivos atuais em `docs/sql/` (ex.: `2025-09-27_profissionais.sql`, `2025-09-27_recrutadora_logs.sql`).

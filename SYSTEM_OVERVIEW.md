@@ -84,6 +84,14 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Métricas Rápidas: Chips inline no cabeçalho com contagens de Hoje, Semana e Mês (baseadas em `created_at >= início do período`). Serviços: `services/recrutadora/recrutadora.service.ts` com utilitários de data em `services/utils/dates.ts`.
   -   Visualização "Todos" (ALL): A coluna "Qualificadas" é duplicada por unidade; as demais colunas agregam cards de todas as unidades. DnD permanece restrito por unidade.
 
+-   Prestadoras (Profissionais + Recrutadora):
+    - Ponto de entrada: `components/pages/PrestadorasPage.tsx`.
+    - Serviços: `services/analytics/prestadoras.service.ts` (contagens, métricas mensais, ranking e drill‑down).
+    - Cards: Profissionais (ativos), Recrutadora (cadastros), Atendimentos (mês).
+    - Painel Profissionais: resumo (médias e atuantes) + ranking (ordenável por atendimentos ou ganhos). Ao clicar numa linha abre modal com atendimentos do profissional no mês.
+    - Painel Recrutadora: métricas mensais inline (cadastros, qualificadas, não aprovadas, desistentes) + “Ativadas no mês (profissionais)” a partir da tabela `profissionais`.
+    - Comportamento: o ranking fica oculto quando o painel Recrutadora está ativo; Profissionais recarrega automaticamente ao mudar período/unidade quando ativo e é auto-ativado ao entrar.
+
 -   **Clientes**:
   -   **Fonte de Dados**: Somente `processed_data`.
   -   **Período**: Seleção `YYYY-MM` (mesma UI do Dashboard); a lista exibe apenas clientes com atendimento em `M`.
