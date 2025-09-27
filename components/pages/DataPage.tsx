@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
-import { fetchDataTable, updateDataRecord, deleteDataRecord } from '../../services/mockApi';
+import { fetchDataTable, updateDataRecord, deleteDataRecord } from '../../services/data/dataTable.service';
 import { DataRecord } from '../../types';
 import { Icon } from '../ui/Icon';
 import UploadModal from '../ui/UploadModal';

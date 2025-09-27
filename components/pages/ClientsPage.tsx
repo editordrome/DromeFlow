@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchClients, fetchClientMetricsFromProcessed } from '../../services/mockApi';
+import { fetchClients, fetchClientMetricsFromProcessed } from '../../services/analytics/clients.service';
 import { Icon } from '../ui/Icon';
 
 interface ClientRow {

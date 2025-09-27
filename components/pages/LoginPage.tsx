@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { createUser } from '../../services/mockApi';
+import { createUser } from '../../services/auth/users.service';
 import { UserRole } from '../../types';
 
 const LoginPage: React.FC = () => {

@@ -4,11 +4,12 @@ import {
   createUser, 
   updateUser, 
   deleteUser, 
-  fetchAllUnits, 
-  fetchAllModules,
   fetchUserAssignments,
-  fetchUsersForAdminUnits
-} from '../../services/mockApi';
+  fetchUsersForAdminUnits,
+  removeUserFromUnit
+} from '../../services/auth/users.service';
+import { fetchAllUnits } from '../../services/units/units.service';
+import { fetchAllModules } from '../../services/modules/modules.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { User, Profile, UserRole, Unit, Module } from '../../types';
@@ -388,16 +389,20 @@ const ManageUsersPage: React.FC = () => {
     if (window.confirm('Tem certeza que deseja excluir este usuário?')) {
       try {
         if (!profile || !user) throw new Error('Sem perfil.');
-        if (profile.role === 'admin') {
-          // Admin só pode deletar se usuário estiver listado
-            if (!users.find(u => u.id === userId)) {
-              throw new Error('Você não pode excluir este usuário.');
-            }
-        } else if (profile.role !== 'super_admin') {
+        setDeletingUserId(userId);
+        if (profile.role === 'super_admin') {
+          await deleteUser(userId);
+        } else if (profile.role === 'admin') {
+          if (!users.find(u => u.id === userId)) {
+            throw new Error('Você não pode excluir este usuário.');
+          }
+          if (!selectedUnit) {
+            throw new Error('Selecione uma unidade ativa para remover o usuário.');
+          }
+          await removeUserFromUnit(userId, selectedUnit.id, profile.id);
+        } else {
           throw new Error('Sem permissão para excluir.');
         }
-        setDeletingUserId(userId);
-        await deleteUser(userId);
         await loadUsers();
       } catch (err: any) {
         alert(`Erro: ${err.message}`);

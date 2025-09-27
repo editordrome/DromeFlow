@@ -4,7 +4,7 @@ import {
   createAccessCredential, 
   updateAccessCredential, 
   deleteAccessCredential 
-} from '../../services/mockApi';
+} from '../../services/access/accessCredentials.service';
 import { AccessCredential, AccessCredentialType } from '../../types';
 import { Icon } from '../ui/Icon';
 

@@ -2,7 +2,8 @@ import React, { useState, useCallback, DragEvent } from 'react';
 import * as XLSX from 'xlsx';
 import { Unit, UploadMetrics } from '../../types';
 import { Icon } from './Icon';
-import { uploadXlsxData, RawDataRecordForUpload } from '../../services/mockApi';
+import { uploadXlsxData } from '../../services/ingestion/upload.service';
+import type { RawDataRecordForUpload } from '../../services/ingestion/upload.service';
 
 interface UploadModalProps {
     isOpen: boolean;

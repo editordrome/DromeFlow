@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
-import { fetchUserUnits } from '../../services/mockApi';
 import { supabase } from '../../services/supabaseClient';
 import { Unit, Module, PageView } from '../../types';
 import { Icon } from '../ui/Icon';
@@ -110,7 +109,9 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     label: string;
     isActive: boolean;
     onClick: () => void;
-  }> = ({ icon, label, isActive, onClick }) => (
+    className?: string;
+    rightSlot?: React.ReactNode;
+  }> = ({ icon, label, isActive, onClick, className, rightSlot }) => (
     <li>
       <button
         onClick={onClick}
@@ -118,39 +119,112 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
           isActive
             ? 'bg-accent-primary text-text-on-accent'
             : 'text-gray-300 hover:bg-white/10 hover:text-brand-snow-white'
-        }`}
+        } ${className || ''}`}
       >
         <Icon name={icon} />
-        {!isCollapsed && <span className="ml-4">{label}</span>}
+        {!isCollapsed && (
+          <>
+            <span className="ml-4">{label}</span>
+            {rightSlot && <span className="ml-auto pl-2 flex items-center">{rightSlot}</span>}
+          </>
+        )}
       </button>
     </li>
   );
-  
-  const renderUserModules = () => (
-    filteredModules
-      .sort((a, b) => {
+
+  // Estado de expansão por módulo pai
+  const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
+
+  const toggleParent = (parentId: string) => {
+    setExpandedParents(prev => ({ ...prev, [parentId]: !prev[parentId] }));
+  };
+
+  const renderModulesTree = () => {
+    const sorted = [...filteredModules].sort((a, b) => {
+      const posA = a.position ?? 0;
+      const posB = b.position ?? 0;
+      if (posA !== posB) return posA - posB;
+      return a.name.localeCompare(b.name);
+    });
+
+    const parents = sorted.filter(m => !m.parent_id);
+    const childrenMap = new Map<string, Module[]>();
+    for (const m of sorted) {
+      if (m.parent_id) {
+        const list = childrenMap.get(m.parent_id) || [];
+        list.push(m);
+        childrenMap.set(m.parent_id, list);
+      }
+    }
+    // Ordena filhos por position/name
+    for (const [k, arr] of childrenMap.entries()) {
+      arr.sort((a, b) => {
         const posA = a.position ?? 0;
         const posB = b.position ?? 0;
         if (posA !== posB) return posA - posB;
         return a.name.localeCompare(b.name);
-      })
-      .map(module => (
-        <NavLink
-          key={module.id}
-          icon={module.icon}
-          label={module.name}
-          isActive={
-            (activeView === 'module' && activeModule?.id === module.id) ||
-            (module.view_id && activeView === module.view_id)
-          }
-          onClick={() => handleModuleClick(module)}
-        />
-      ))
-  );
+      });
+      childrenMap.set(k, arr);
+    }
+
+    return parents.map(parent => {
+      const children = childrenMap.get(parent.id) || [];
+      const isActiveParent =
+        (activeView === 'module' && activeModule?.id === parent.id) ||
+        (parent.view_id && activeView === parent.view_id);
+  const isExpanded = expandedParents[parent.id] ?? false; // por padrão RECOLHIDO
+
+      return (
+        <React.Fragment key={parent.id}>
+          {/* Linha do pai; chevron vai ao final do nome como rightSlot */}
+          <NavLink
+            icon={parent.icon}
+            label={parent.name}
+            isActive={isActiveParent}
+            onClick={() => handleModuleClick(parent)}
+            rightSlot={
+              children.length > 0 && !isCollapsed ? (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={isExpanded ? 'Recolher' : 'Expandir'}
+                  title={isExpanded ? 'Recolher' : 'Expandir'}
+                  onClick={(e) => { e.stopPropagation(); toggleParent(parent.id); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleParent(parent.id); } }}
+                  className="p-1 rounded hover:bg-white/10 text-gray-300 cursor-pointer"
+                >
+                  <Icon name={isExpanded ? 'ChevronDown' : 'ChevronRight'} />
+                </span>
+              ) : null
+            }
+          />
+
+          {/* Filhos indentados */}
+          {children.length > 0 && isExpanded && (
+            <ul className="list-none m-0 p-0">
+              {children.map(child => (
+                <NavLink
+                  key={child.id}
+                  icon={child.icon}
+                  label={child.name}
+                  isActive={
+                    (activeView === 'module' && activeModule?.id === child.id) ||
+                    (child.view_id && activeView === child.view_id)
+                  }
+                  onClick={() => handleModuleClick(child)}
+                  className={`${isCollapsed ? '' : 'pl-6'}`}
+                />
+              ))}
+            </ul>
+          )}
+        </React.Fragment>
+      );
+    });
+  };
 
   const sidebarContent = (
     <>
-    <div className={`z-20 bg-brand-dark-blue text-brand-snow-white flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+  <div className={`z-30 bg-brand-dark-blue text-brand-snow-white flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
       <div className="flex items-center justify-between p-4 border-b border-white/10">
         <div className="flex items-center min-w-0">
           <img src="https://iili.io/3RBGZox.png" alt="DromeFlow Logo" className="w-8 h-8 flex-shrink-0" />
@@ -183,9 +257,9 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
           </div>
         )}
         <nav className="space-y-2 pt-2">
-          <ul>
-            {/* Renderiza TODOS os módulos (dinâmicos e de admin) a partir do banco de dados */}
-            {renderUserModules()}
+          <ul className="list-none m-0 p-0">
+            {/* Renderiza os módulos agrupados por pai/filho */}
+            {renderModulesTree()}
             {/* Removido fallback de Agendamentos para evitar exibir módulo não autorizado */}
           </ul>
         </nav>

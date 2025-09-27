@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-    fetchDashboardMetrics, 
-    fetchDashboardMetricsMulti,
-    fetchMonthlyChartData, 
-    MonthlyChartData,
-    fetchServiceAnalysisData,
-    fetchClientAnalysisData,
-    fetchRepasseAnalysisData
-} from '../../services/mockApi';
+import { fetchDashboardMetrics, fetchDashboardMetricsMulti, fetchMonthlyChartData } from '../../services/analytics/dashboard.service';
+import type { MonthlyChartData } from '../../services/analytics/dashboard.service';
+import { fetchServiceAnalysisData, fetchClientAnalysisData } from '../../services/analytics/serviceAnalysis.service';
+import { fetchRepasseAnalysisData } from '../../services/analytics/repasse.service';
 import { DashboardMetrics, ServiceAnalysisRecord, ClientAnalysisData, RepasseAnalysisRecord } from '../../types';
 import { Icon } from '../ui/Icon';
 import MonthlyComparisonChart from '../ui/MonthlyComparisonChart';

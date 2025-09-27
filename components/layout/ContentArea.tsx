@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
-import { fetchWebhookContent } from '../../services/mockApi';
+import { fetchWebhookContent } from '../../services/content/content.service';
 import WelcomePage from '../pages/WelcomePage';
 import ManageUsersPage from '../pages/ManageUsersPage';
 import ManageModulesPage from '../pages/ManageModulesPage';
@@ -10,6 +10,7 @@ import DataPage from '../pages/DataPage';
 import DashboardMetricsPage from '../pages/DashboardMetricsPage';
 import AppointmentsPage from '../pages/AppointmentsPage';
 import ClientsPage from '../pages/ClientsPage';
+import RecrutadoraPage from '../pages/RecrutadoraPage';
 
 const ContentArea: React.FC = () => {
     const { activeView, activeModule, selectedUnit } = useAppContext();
@@ -67,10 +68,13 @@ const ContentArea: React.FC = () => {
         if (activeView === 'clients') {
             return <ClientsPage />;
         }
+        if (activeView === 'recrutadora') {
+            return <RecrutadoraPage />;
+        }
     
     // Default to module view
     return (
-        <div className="p-4 bg-bg-secondary rounded-lg shadow-md h-full">
+    <div className="p-4 bg-bg-secondary rounded-lg shadow-md h-full w-full max-w-full min-w-0 box-border">
             {isLoading && (
                 <div className="flex items-center justify-center h-full">
                     <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>

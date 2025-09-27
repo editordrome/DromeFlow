@@ -126,8 +126,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     try {
-      // Usa serviço com fallback (RPC get_user_units -> fallback join manual)
-      const { fetchUserUnits } = await import('../services/mockApi');
+  // Usa serviço segmentado com fallback (RPC get_user_units -> fallback join manual)
+  const { fetchUserUnits } = await import('../services/auth/users.service');
       const units = await fetchUserUnits(profile.id as string);
       // Ordena por nome para consistência
       const ordered = [...units].sort((a,b)=> a.unit_name.localeCompare(b.unit_name));

@@ -77,6 +77,13 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Permissões: Atribuições em `user_units` e `user_modules` pelo modal de "Editar Usuário".
   -   Ícones e Visibilidade de Módulos: Em "Gerenciar Módulos", define ícone (lucide) e `allowed_profiles`.
 
+-   Recrutadora:
+  -   Fonte de Dados: Tabela `recrutadora` (cards) e modelo de colunas em memória compartilhado entre unidades.
+  -   Colunas: Template global imutável no cliente (ex.: Qualificadas, Contato, Envio Doc, Truora, Treinamento, Finalizado, Não Aprovadas, Desistentes). Os cards são por unidade.
+  -   Drag & Drop: Movimentação dentro da mesma unidade; prevenções para drops inválidos quando a visualização for "Todos".
+  -   Métricas Rápidas: Chips inline no cabeçalho com contagens de Hoje, Semana e Mês (baseadas em `created_at >= início do período`). Serviços: `services/recrutadora/recrutadora.service.ts` com utilitários de data em `services/utils/dates.ts`.
+  -   Visualização "Todos" (ALL): A coluna "Qualificadas" é duplicada por unidade; as demais colunas agregam cards de todas as unidades. DnD permanece restrito por unidade.
+
 -   **Clientes**:
   -   **Fonte de Dados**: Somente `processed_data`.
   -   **Período**: Seleção `YYYY-MM` (mesma UI do Dashboard); a lista exibe apenas clientes com atendimento em `M`.
@@ -91,6 +98,17 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
     - Cartão Atenção mostra quantidade; ao clicar, filtra tabela para não-retornos.
     - Tabela em Atenção exibe colunas de `M`, `M-1`, `M-2` (ordem invertida) com cabeçalhos `Abrev/AAAA`.
     - Paginação de 25 itens por página, reset em mudanças de período/filtros.
+
+### 5.1 Visualização "Todos" (ALL) – Comportamento por Módulo
+
+- Seleção de Unidade "Todos":
+  - A fonte desta seleção é a lista de unidades do usuário (`AuthContext.userUnits`).
+  - O `AppContext` expõe a unidade selecionada; os serviços e páginas adotam ramificações específicas para ALL.
+- Dashboard: Agrega por múltiplas unidades respeitando o período ativo; serviços e clientes são conjuntos únicos unificados entre unidades; receita e repasse são somas diretas (ticket médio recalculado).
+- Dados: `fetchDataTableMulti` aplica `.in('unidade_code', ...)` e filtros de período/paginação de forma unificada.
+- Agendamentos: `fetchAppointmentsMulti` agrega por data; o envio de webhook fica desabilitado quando a unidade selecionada é "Todos" (por segurança e semântica do endpoint).
+- Clientes: Visualização multi-unidade ainda não implementada; a página informa explicitamente essa limitação quando "Todos" é selecionado.
+- Recrutadora: Semântica ALL específica (vide acima), com DnD restrito e colunas globais.
 
 ## 6. Sincronização entre `auth.users` e `profiles`
 
@@ -166,6 +184,10 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 | Edição de Usuário | Módulos fora de escopo | Exibidos como somente leitura quando pertencem ao usuário mas não ao admin atual. |
 | Limpeza de Dados | Remoção seletiva | `removeObsoleteRecords` identifica orçamentos base ausentes (originais) e remove derivados correlatos. |
 | Webhook Agendamentos | POST + Fallback GET | Envia JSON completo (inclui `endereco`); se falha rede/CORS, usa GET chunkado até 3000 chars com payload compactado. |
+| Recrutadora | Métricas rápidas por período | Chips inline (Hoje/Semana/Mês) no cabeçalho; serviços em `services/recrutadora/recrutadora.service.ts` com `services/utils/dates.ts`. |
+| Multi-Unidade (ALL) | Agregação por módulos | Dashboard, Dados e Agendamentos suportam ALL; webhook desabilitado em ALL; Recrutadora com semântica ALL; Clientes pendente. |
+| Segurança de Conteúdo | Restrições no ContentArea | Injeção de HTML apenas de URLs que iniciem com `internal://`. |
+| Ingestão CSV (MB Londrina) | Loader RAW → Recrutadora | Script SQL em `docs/sql/mblondrina_load_from_raw_csv.sql` usa `unit_id` fixo, normaliza status/telefones, deduplica e calcula posições. |
 
 ---
 ## 8. Convenções Atuais de Dados
@@ -222,4 +244,4 @@ Siga estes passos ao introduzir um novo módulo que aparecerá na Sidebar:
 - Ajuste `allowed_profiles` do módulo e atribuições em `user_modules` conforme necessário.
 
 ---
-_Documento ampliado para refletir estado operacional atualizado (21/09/2025)._ 
+_Documento ampliado para refletir estado operacional atualizado (27/09/2025)._ 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchAppointments } from '../../services/mockApi';
+import { fetchAppointments } from '../../services/data/dataTable.service';
 import { DataRecord } from '../../types';
 import DataDetailModal from '../ui/DataDetailModal';
 import { Icon } from '../ui/Icon';

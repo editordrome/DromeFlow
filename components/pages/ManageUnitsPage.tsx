@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchAllUnits, createUnit, updateUnit, deleteUnit, fetchUsersForUnit } from '../../services/mockApi';
+import { fetchAllUnits, createUnit, updateUnit, deleteUnit } from '../../services/units/units.service';
+import { fetchUsersForUnit } from '../../services/auth/users.service';
 import { Unit } from '../../types';
 import { Icon } from '../ui/Icon';
 

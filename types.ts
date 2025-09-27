@@ -31,6 +31,9 @@ export interface Module {
   is_active: boolean;
   allowed_profiles: string[];
   position: number;
+  parent_id?: string | null; // Hierarquia: módulo pai (nulo = topo)
+  // Campo somente de UI (não persistido): filhos já resolvidos
+  children?: Module[];
 }
 
 export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients';
@@ -115,4 +118,28 @@ export interface ClientAnalysisData {
 export interface RepasseAnalysisRecord {
   PROFISSIONAL: string;
   REPASSE: number;
+}
+
+// Recrutadora (Kanban)
+export interface RecrutadoraColumn {
+  id: string;
+  unit_id: string; // chave de unidade atual
+  unidade?: string;  // textual opcional
+  code: string;   // usado no campo status dos cards
+  name: string;   // rótulo da coluna
+  color?: string | null;
+  position: number;
+  is_active: boolean;
+}
+
+export interface RecrutadoraCard {
+  id: number;
+  created_at: string;
+  unit_id: string; // chave de unidade atual
+  unidade?: string;  // textual opcional
+  status: string;
+  position: number;
+  nome: string | null;
+  whatsapp: string | null;
+  color_card: string | null;
 }

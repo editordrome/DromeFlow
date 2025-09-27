@@ -1,6 +1,8 @@
 import React from 'react';
+import * as Lucide from 'lucide-react';
 
-const ICONS: Record<string, React.ReactElement> = {
+// Ícones SVG custom atuais (mantidos como fallback/compatibilidade)
+const CUSTOM_ICONS: Record<string, React.ReactElement> = {
   chart: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
   briefcase: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
   archive: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />,
@@ -29,7 +31,21 @@ const ICONS: Record<string, React.ReactElement> = {
   calendar: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V5m8 2V5m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
 };
 
-export const ICON_NAMES = Object.keys(ICONS);
+// Descoberta diretamente dos exports do lucide-react (componentes React)
+const FORBIDDEN_EXPORTS = new Set(['createLucideIcon', 'default', 'Icon']);
+const LUCIDE_ICON_NAMES = Object.keys(Lucide)
+  .filter((n) => /^[A-Z][A-Za-z0-9]*$/.test(n) && !FORBIDDEN_EXPORTS.has(n))
+  .filter((n) => {
+    const comp: any = (Lucide as any)[n];
+    return comp && (typeof comp === 'function' || typeof comp === 'object');
+  });
+export { LUCIDE_ICON_NAMES };
+
+// Nomes finais disponíveis na UI (custom + Lucide)
+export const ICON_NAMES = Array.from(new Set([
+  ...Object.keys(CUSTOM_ICONS),
+  ...LUCIDE_ICON_NAMES,
+])).sort((a, b) => a.localeCompare(b));
 
 interface IconProps {
   name: string;
@@ -37,16 +53,38 @@ interface IconProps {
 }
 
 export const Icon: React.FC<IconProps> = ({ name, className }) => {
-  const iconSvg = ICONS[name] || <path d="M12 12L12 12" />; // Default icon
+  // Tenta componente pronto do lucide-react (PascalCase)
+  const LucideComp = (Lucide as any)[name] as any;
+  if (LucideComp) {
+    return React.createElement(LucideComp, { className: className || 'w-6 h-6' });
+  }
+
+  // Fallback: usa nossos paths custom
+  const iconPath = CUSTOM_ICONS[name];
+  if (iconPath) {
+    return (
+      <svg
+        className={`w-6 h-6 flex-shrink-0 ${className || ''}`}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        {iconPath}
+      </svg>
+    );
+  }
+
+  // Último recurso: placeholder
   return (
-    <svg 
-      className={`w-6 h-6 flex-shrink-0 ${className}`} 
-      fill="none" 
-      viewBox="0 0 24 24" 
-      stroke="currentColor" 
+    <svg
+      className={`w-6 h-6 flex-shrink-0 ${className || ''}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
       aria-hidden="true"
     >
-      {iconSvg}
+      <circle cx="12" cy="12" r="1" />
     </svg>
   );
 };

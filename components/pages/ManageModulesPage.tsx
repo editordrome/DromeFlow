@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchAllModules, createModule, updateModule, deleteModule, toggleModuleStatus, updateModulesOrder } from '../../services/mockApi';
+import { fetchAllModules, createModule, updateModule, deleteModule, toggleModuleStatus, updateModulesOrder } from '../../services/modules/modules.service';
 import { Module, UserRole } from '../../types';
 import { Icon, ICON_NAMES } from '../ui/Icon';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -36,15 +36,19 @@ const ModuleFormModal: React.FC<{
   onClose: () => void;
   onSave: (module: ModuleDataPayload) => void;
   module: Module | null;
-}> = ({ isOpen, onClose, onSave, module }) => {
+  allModules: Module[];
+}> = ({ isOpen, onClose, onSave, module, allModules }) => {
   const [formData, setFormData] = useState({
     name: '',
     icon: ICON_NAMES[0] || '',
     webhook_url: '',
     view_id: '',
     allowed_profiles: [UserRole.SUPER_ADMIN] as UserRole[],
+    parent_id: null as string | null,
   });
   const [error, setError] = useState('');
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
+  const [iconSearch, setIconSearch] = useState('');
 
   useEffect(() => {
     if (module) {
@@ -54,6 +58,7 @@ const ModuleFormModal: React.FC<{
         webhook_url: module.webhook_url || '',
         view_id: module.view_id || '',
         allowed_profiles: (module.allowed_profiles as UserRole[]) || [UserRole.SUPER_ADMIN],
+        parent_id: module.parent_id ?? null,
       });
     } else {
       setFormData({
@@ -62,6 +67,7 @@ const ModuleFormModal: React.FC<{
         webhook_url: '',
         view_id: '',
         allowed_profiles: [UserRole.SUPER_ADMIN],
+        parent_id: null,
       });
     }
     setError('');
@@ -69,7 +75,11 @@ const ModuleFormModal: React.FC<{
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === 'parent_id') {
+      setFormData(prev => ({ ...prev, parent_id: value === '' ? null : value }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleProfileChange = (role: UserRole) => {
@@ -90,6 +100,10 @@ const ModuleFormModal: React.FC<{
     if (formData.allowed_profiles.length === 0) {
         setError('Selecione pelo menos um perfil de usuário.');
         return;
+    }
+    if (module && formData.parent_id === module.id) {
+      setError('Um módulo não pode ser pai de si mesmo.');
+      return;
     }
     const dataToSave: ModuleDataPayload = { ...formData };
     if (module) {
@@ -116,14 +130,15 @@ const ModuleFormModal: React.FC<{
             <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
           </div>
           <div>
-            <label htmlFor="icon" className="block text-sm font-medium text-text-secondary">Ícone</label>
-            <div className="flex items-center space-x-3">
-              <Icon name={formData.icon} className="w-8 h-8 p-1 border rounded-md bg-bg-tertiary border-border-secondary" />
-              <select name="icon" id="icon" value={formData.icon} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary">
-                {ICON_NAMES.map(iconName => (
-                  <option key={iconName} value={iconName}>{iconName}</option>
-                ))}
-              </select>
+            <label className="block text-sm font-medium text-text-secondary">Ícone</label>
+            <div className="flex items-center gap-3 mt-1">
+              <div className="flex items-center gap-2 px-2 py-1 border rounded-md bg-bg-tertiary border-border-secondary">
+                <Icon name={formData.icon} className="w-7 h-7" />
+                <span className="text-sm text-text-secondary truncate max-w-[200px]" title={formData.icon}>{formData.icon}</span>
+              </div>
+              <button type="button" onClick={() => setIsIconPickerOpen(true)} className="px-3 py-2 text-sm font-medium rounded-md bg-accent-primary text-white hover:bg-accent-secondary">
+                Escolher Ícone
+              </button>
             </div>
           </div>
           <div>
@@ -133,6 +148,24 @@ const ModuleFormModal: React.FC<{
           <div>
             <label htmlFor="view_id" className="block text-sm font-medium text-text-secondary">View ID (Opcional)</label>
             <input type="text" name="view_id" id="view_id" value={formData.view_id} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+          </div>
+          <div>
+            <label htmlFor="parent_id" className="block text-sm font-medium text-text-secondary">Módulo pai (opcional)</label>
+            <select
+              id="parent_id"
+              name="parent_id"
+              value={formData.parent_id || ''}
+              onChange={handleChange}
+              className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+            >
+              <option value="">Nenhum (topo)</option>
+              {allModules
+                .filter(m => !module || m.id !== module.id)
+                .filter(m => !m.parent_id) /* apenas top-level como possíveis pais */
+                .map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary">Perfis Permitidos</label>
@@ -156,6 +189,49 @@ const ModuleFormModal: React.FC<{
           </div>
         </form>
       </div>
+
+      {isIconPickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-4xl max-h-[80vh] overflow-hidden rounded-lg shadow-lg bg-bg-secondary border border-border-primary">
+            <div className="flex items-center justify-between p-4 border-b border-border-primary">
+              <h3 className="text-lg font-semibold text-text-primary">Escolher Ícone</h3>
+              <button onClick={() => setIsIconPickerOpen(false)} className="p-1 rounded-md hover:bg-bg-tertiary text-text-secondary">
+                <Icon name="close" />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={iconSearch}
+                  onChange={(e) => setIconSearch(e.target.value)}
+                  placeholder="Buscar ícone pelo nome..."
+                  className="w-full px-3 py-2 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 overflow-y-auto max-h-[55vh] p-1">
+                {ICON_NAMES
+                  .filter(n => n.toLowerCase().includes(iconSearch.toLowerCase()))
+                  .map((iconName) => (
+                    <button
+                      type="button"
+                      key={iconName}
+                      onClick={() => { setFormData(prev => ({ ...prev, icon: iconName })); setIsIconPickerOpen(false); }}
+                      className={`flex flex-col items-center justify-center gap-2 p-3 rounded-md border transition-colors hover:bg-bg-tertiary ${formData.icon === iconName ? 'border-accent-primary ring-1 ring-accent-primary' : 'border-border-secondary'}`}
+                      title={iconName}
+                    >
+                      <Icon name={iconName} className="w-8 h-8" />
+                      <span className="text-xs text-text-secondary truncate w-full text-center">{iconName}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+            <div className="flex justify-end p-4 border-t border-border-primary">
+              <button onClick={() => setIsIconPickerOpen(false)} className="px-4 py-2 text-sm font-medium border rounded-md text-text-secondary border-border-secondary hover:bg-bg-tertiary">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -251,7 +327,7 @@ const ManageModulesPage: React.FC = () => {
 
     try {
       setIsSavingOrder(true);
-      const payload = newOrder.map((m, idx) => ({ id: m.id, position: idx + 1 }));
+      const payload = newOrder.map((m, idx) => ({ id: m.id, position: idx + 1, parent_id: m.parent_id ?? null }));
       await updateModulesOrder(payload);
       // Opcional: recarregar para garantir consistência caso haja triggers
       // await loadModules();
@@ -262,6 +338,12 @@ const ManageModulesPage: React.FC = () => {
     } finally {
       setIsSavingOrder(false);
     }
+  };
+
+  const mParentName = (all: Module[], parentId?: string | null) => {
+    if (!parentId) return '-';
+    const p = all.find(m => m.id === parentId);
+    return p ? p.name : '-';
   };
 
 
@@ -292,6 +374,7 @@ const ManageModulesPage: React.FC = () => {
                       <th className="w-8 px-2 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary"></th>
                       <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
                       <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Ícone</th>
+                      <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Pai</th>
                       <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Perfis</th>
                       <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Status</th>
                       <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
@@ -299,10 +382,9 @@ const ManageModulesPage: React.FC = () => {
                   </thead>
                   <tbody className="bg-bg-secondary divide-y divide-border-primary">
                     {modules.map((module, index) => (
-                      <Draggable draggableId={module.id} index={index}>
+                      <Draggable key={module.id} draggableId={module.id} index={index}>
                         {(dragProvided, snapshot) => (
                           <tr
-                            key={module.id}
                             ref={dragProvided.innerRef}
                             {...dragProvided.draggableProps}
                             className={`transition-colors cursor-pointer hover:bg-bg-tertiary ${!module.is_active ? 'opacity-50' : ''} ${snapshot.isDragging ? 'bg-accent-primary/10' : ''}`}
@@ -314,6 +396,9 @@ const ManageModulesPage: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{module.name}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
                               <Icon name={module.icon} className="w-6 h-6" />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
+                              {mParentName(modules, module.parent_id)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
                               <div className="flex flex-wrap gap-1">
@@ -369,6 +454,7 @@ const ManageModulesPage: React.FC = () => {
         onClose={handleCloseModal}
         onSave={handleSaveModule}
         module={editingModule}
+        allModules={modules}
       />
     </div>
   );

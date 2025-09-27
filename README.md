@@ -11,6 +11,7 @@ Aplicação de gestão e análise construída em React (Vite + TypeScript) com S
 - Dashboard com métricas recalculadas localmente (repasse, ticket médio real).
 - Upload de planilhas XLSX com expansão de múltiplos profissionais e sincronização por período.
 - Controle de acesso baseado em papéis (`super_admin`, `admin`, `user`) + atribuições (`user_units`, `user_modules`).
+- Visualização multi-unidade ("Todos") em módulos selecionados com agregações corretas por período.
 
 ---
 ## 1. Requisitos
@@ -57,6 +58,9 @@ npm run preview
 | UI Layout | `components/layout/Sidebar.tsx`, `ContentArea.tsx` | Navegação e slot principal |
 | Páginas | `components/pages/*.tsx` | Telas funcionais (Dashboard, Dados, Gestão, etc.) |
 | Tipos | `types.ts` | Contratos TypeScript |
+
+Notas:
+- O `ContentArea` só injeta HTML quando a origem começa com `internal://` (segurança de conteúdo).
 
 ---
 ## 5. Autenticação
@@ -129,7 +133,7 @@ Convenções:
 ---
 ## 8. Dashboard e Métricas
 
-`fetchDashboardMetrics` recalcula localmente (substitui qualquer dependência de contagens pré-agregadas da RPC):
+`fetchDashboardMetrics` (por unidade) e `fetchDashboardMetricsMulti` (multi-unidade) recalculam localmente (substitui dependências de contagens pré-agregadas da RPC):
 
 - `totalServices`: orçamentos originais únicos.
 - `totalRevenue`: soma `VALOR` de originais.
@@ -141,7 +145,15 @@ Gráfico mensal (`fetchMonthlyChartData`):
 - Agrupa por orçamento base.
 - Evita duplicação de receita em ramificações.
 
-### 8.1 Módulo de Clientes (Paridade com o Dashboard)
+### 8.1 Visualização "Todos" (ALL)
+
+- Dashboard: agrega múltiplas unidades respeitando o período ativo. Serviços/Clientes são conjuntos únicos globais; receita/repasse são somas; ticket médio é recalculado.
+- Dados: `fetchDataTableMulti` aplica `.in('unidade_code', ...)` com filtros e paginação unificados.
+- Agendamentos: `fetchAppointmentsMulti` agrega por data; o envio de webhook fica desabilitado quando a unidade selecionada é "Todos".
+- Recrutadora: Colunas são globais (template único), cards por unidade. Em ALL, "Qualificadas" é exibida por unidade e demais colunas agregam cards; DnD continua restrito por unidade.
+- Clientes: Visualização ALL ainda não implementada; a página informa essa limitação.
+
+### 8.2 Módulo de Clientes (Paridade com o Dashboard)
 
 - Fonte de dados: somente `processed_data` (não há mais tabela separada de clientes).
 - Escopo do período: seleção `YYYY-MM` (igual ao Dashboard). A lista exibe apenas clientes com atendimentos no mês corrente selecionado.
@@ -257,3 +269,10 @@ Decisões e correções aplicadas:
 Resultados:
 - Paridade confirmada com o Dashboard para recorrentes e churn.
 - Maior previsibilidade e performance ao limitar as consultas aos meses relevantes.
+
+---
+## 18. Recrutadora – Métricas Rápidas e Ingestão CSV
+
+- Métricas Rápidas: chips inline no cabeçalho com contagens de Hoje, Semana e Mês. Implementadas em `services/recrutadora/recrutadora.service.ts` usando utilitários de data em `services/utils/dates.ts` (início do dia/semana/mês).
+- Semântica ALL: colunas globais; DnD restrito por unidade; "Qualificadas" duplicada por unidade, demais colunas agregadas.
+- Ingestão CSV (MB Londrina): pipeline RAW → `recrutadora` com status mapeados e telefones normalizados via `docs/sql/mblondrina_load_from_raw_csv.sql`, usando `unit_id` fixo para MB Londrina (`6b9769ab-9088-469b-b31a-d174ed766682`).

@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import { MonthlyChartData } from '../../services/mockApi';
+import type { MonthlyChartData } from '../../services/analytics/dashboard.service';
 
 interface MonthlyComparisonChartProps {
   data: MonthlyChartData[];
