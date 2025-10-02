@@ -141,11 +141,14 @@ const PeriodDropdown: React.FC<{
   );
 };
 
-const SubMetricCard: React.FC<{ title: string; value: string; subtext?: string; valueColor?: string }> = ({ title, value, subtext, valueColor }) => (
-    <div className="flex-1 p-4 bg-bg-tertiary rounded-lg shadow-sm text-center">
-        <p className="text-sm text-text-secondary">{title}</p>
-        <p className={`text-2xl font-bold ${valueColor || 'text-text-primary'}`}>{value}</p>
-        {subtext && <p className="text-xs text-text-secondary">{subtext}</p>}
+const SubMetricCard: React.FC<{ title: string; value: string; subtext?: string; valueColor?: string; onClick?: () => void; isActive?: boolean }> = ({ title, value, subtext, valueColor, onClick, isActive }) => (
+    <div
+      className={`flex-1 p-4 rounded-lg shadow-sm text-center transition-colors ${onClick ? 'cursor-pointer' : ''} ${isActive ? 'bg-accent-primary text-white' : 'bg-bg-tertiary'}`}
+      onClick={onClick}
+    >
+        <p className={`text-sm ${isActive ? 'text-white' : 'text-text-secondary'}`}>{title}</p>
+        <p className={`text-2xl font-bold ${isActive ? 'text-white' : (valueColor || 'text-text-primary')}`}>{value}</p>
+        {subtext && <p className={`text-xs ${isActive ? 'text-white/80' : 'text-text-secondary'}`}>{subtext}</p>}
     </div>
 );
 
@@ -196,6 +199,7 @@ const CustomEvolutionTooltip = ({ active, payload, label }: any) => {
   };
 
 type MetricType = 'totalRevenue' | 'totalServices' | 'uniqueClients' | 'totalRepasse';
+type RevenueSubMetric = 'none' | 'averageTicket' | 'margin' | 'marginPerService';
 type ServiceAnalysis = {
     startOfMonthCount: number;
     evolutionCount: number;
@@ -248,6 +252,7 @@ const DashboardMetricsPage: React.FC = () => {
         return `${year}-${month}`;
     });
     const [selectedMetric, setSelectedMetric] = useState<MetricType>('totalRevenue');
+    const [selectedRevenueSubMetric, setSelectedRevenueSubMetric] = useState<RevenueSubMetric>('none');
 
     const getPreviousPeriod = (period: string): string => {
         const [year, month] = period.split('-').map(Number);
@@ -553,7 +558,12 @@ const DashboardMetricsPage: React.FC = () => {
 
     const getMetricConfig = (metric: MetricType) => {
         switch (metric) {
-            case 'totalRevenue': return { title: 'Faturamento por Mês' };
+            case 'totalRevenue': {
+                if (selectedRevenueSubMetric === 'averageTicket') return { title: 'Média por Atendimento (Mês)' };
+                if (selectedRevenueSubMetric === 'margin') return { title: 'Margem por Mês' };
+                if (selectedRevenueSubMetric === 'marginPerService') return { title: 'Margem por Atendimento (Mês)' };
+                return { title: 'Faturamento por Mês' };
+            }
             case 'totalServices': return { title: 'Atendimentos por Mês' };
             case 'uniqueClients': return { title: 'Clientes por Mês' };
             case 'totalRepasse': return { title: 'Repasse por Mês' };
@@ -604,7 +614,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="chart"
                             iconBgColor="bg-blue-500"
                             isSelected={selectedMetric === 'totalRevenue'}
-                            onClick={() => setSelectedMetric('totalRevenue')}
+                            onClick={() => { setSelectedMetric('totalRevenue'); }}
                         />
                          <MetricCard 
                             title="Atendimentos"
@@ -612,7 +622,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="briefcase"
                             iconBgColor="bg-green-500"
                             isSelected={selectedMetric === 'totalServices'}
-                            onClick={() => setSelectedMetric('totalServices')}
+                            onClick={() => { setSelectedMetric('totalServices'); setSelectedRevenueSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Clientes"
@@ -620,7 +630,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="users"
                             iconBgColor="bg-yellow-500"
                             isSelected={selectedMetric === 'uniqueClients'}
-                            onClick={() => setSelectedMetric('uniqueClients')}
+                            onClick={() => { setSelectedMetric('uniqueClients'); setSelectedRevenueSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Repasse"
@@ -628,7 +638,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="dollar"
                             iconBgColor="bg-purple-500"
                             isSelected={selectedMetric === 'totalRepasse'}
-                            onClick={() => setSelectedMetric('totalRepasse')}
+                            onClick={() => { setSelectedMetric('totalRepasse'); setSelectedRevenueSubMetric('none'); }}
                         />
                     </div>
 
@@ -652,7 +662,11 @@ const DashboardMetricsPage: React.FC = () => {
                                 <div className="px-6 pb-6">
                                     <MonthlyComparisonChart
                                         data={monthlyData}
-                                        selectedMetric={selectedMetric}
+                                        selectedMetric={
+                                          selectedMetric === 'totalRevenue' && selectedRevenueSubMetric !== 'none'
+                                            ? (selectedRevenueSubMetric as any)
+                                            : selectedMetric
+                                        }
                                         isLoading={isChartLoading}
                                     />
                                 </div>
@@ -669,18 +683,24 @@ const DashboardMetricsPage: React.FC = () => {
                                     title="Margem"
                                     value={formatCurrency((metrics.totalRevenue || 0) - (metrics.totalRepasse || 0))}
                                     subtext="Faturamento - Repasse"
+                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'margin' ? 'none' : 'margin')}
+                                    isActive={selectedRevenueSubMetric === 'margin'}
                                 />
                                 {/* Média por Atendimento (já existente) */}
                                 <SubMetricCard
                                     title="Média por Atendimento"
                                     value={formatCurrency(metrics.averageTicket || 0)}
                                     subtext="Faturamento / Atendimentos"
+                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'averageTicket' ? 'none' : 'averageTicket')}
+                                    isActive={selectedRevenueSubMetric === 'averageTicket'}
                                 />
                                 {/* Margem por Atendimento (derivada) */}
                                 <SubMetricCard
                                     title="Margem por Atendimento"
                                     value={formatCurrency(metrics.totalServices > 0 ? ((metrics.totalRevenue - metrics.totalRepasse) / metrics.totalServices) : 0)}
                                     subtext="(Faturamento - Repasse) / Atendimentos"
+                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'marginPerService' ? 'none' : 'marginPerService')}
+                                    isActive={selectedRevenueSubMetric === 'marginPerService'}
                                 />
                                 {/* Comparação com mês anterior */}
                                 {(() => {

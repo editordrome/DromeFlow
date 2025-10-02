@@ -14,7 +14,15 @@ import type { MonthlyChartData } from '../../services/analytics/dashboard.servic
 
 interface MonthlyComparisonChartProps {
   data: MonthlyChartData[];
-  selectedMetric: 'totalRevenue' | 'totalServices' | 'uniqueClients' | 'totalRepasse';
+  // Estendido para suportar métricas derivadas e averageTicket
+  selectedMetric:
+    | 'totalRevenue'
+    | 'totalServices'
+    | 'uniqueClients'
+    | 'totalRepasse'
+    | 'averageTicket'
+    | 'margin'
+    | 'marginPerService';
   isLoading?: boolean;
 }
 
@@ -32,6 +40,33 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
           formatter: (value: number) => 
             value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
           yAxisFormatter: (value: number) => 
+            `R$ ${(value / 1000).toFixed(0).replace('.', ',')}k`
+        };
+      case 'averageTicket':
+        return {
+          title: 'Média por Atendimento (Mês)',
+          color: '#0EA5E9',
+          formatter: (value: number) =>
+            value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+          yAxisFormatter: (value: number) =>
+            `R$ ${(value / 1000).toFixed(0).replace('.', ',')}k`
+        };
+      case 'margin':
+        return {
+          title: 'Margem por Mês',
+          color: '#22C55E',
+          formatter: (value: number) =>
+            value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+          yAxisFormatter: (value: number) =>
+            `R$ ${(value / 1000).toFixed(0).replace('.', ',')}k`
+        };
+      case 'marginPerService':
+        return {
+          title: 'Margem por Atendimento (Mês)',
+          color: '#F43F5E',
+          formatter: (value: number) =>
+            value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+          yAxisFormatter: (value: number) =>
             `R$ ${(value / 1000).toFixed(0).replace('.', ',')}k`
         };
       case 'totalServices':
@@ -111,8 +146,9 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
     return itemMonth <= currentMonth;
   });
 
-  // Determina se deve usar gráfico de linha ou barra baseado na métrica
-  const useLineChart = selectedMetric === 'totalRevenue' || selectedMetric === 'totalRepasse';
+  // Para métricas monetárias, usar LineChart; para contagens, usar BarChart
+  const monetaryMetrics = new Set(['totalRevenue', 'totalRepasse', 'averageTicket', 'margin', 'marginPerService']);
+  const useLineChart = monetaryMetrics.has(selectedMetric);
 
   // Calcula os valores máximo e mínimo para anotações
   const maxValue = filteredData.length > 0 
@@ -127,11 +163,19 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
       )
     : null;
 
+  // Calcula campos derivados no dataset (margin, marginPerService)
+  const enrichedData = data.map((d: any) => ({
+    ...d,
+    // já existe averageTicket nos dados
+    margin: (d.totalRevenue || 0) - (d.totalRepasse || 0),
+    marginPerService: d.totalServices > 0 ? (((d.totalRevenue || 0) - (d.totalRepasse || 0)) / d.totalServices) : 0,
+  }));
+
   return (
     <div className="h-60">
         <ResponsiveContainer width="100%" height="100%">
           {useLineChart ? (
-            <LineChart data={filteredData} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={filteredData.map((d) => ({ ...d, ...enrichedData.find((e) => e.month === d.month) }))} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis 
                 dataKey="monthName" 
@@ -181,7 +225,7 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
               />
             </LineChart>
           ) : (
-            <BarChart data={filteredData} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
+            <BarChart data={filteredData.map((d) => ({ ...d, ...enrichedData.find((e) => e.month === d.month) }))} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis 
                 dataKey="monthName" 
