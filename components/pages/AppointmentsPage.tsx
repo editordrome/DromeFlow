@@ -355,8 +355,13 @@ const AppointmentsPage: React.FC = () => {
       const d = new Date(activeDate + 'T00:00:00');
       if (isNaN(d.getTime())) return null;
       const formatted = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const weekdayLong = d.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const weekday = weekdayLong
+        .split('-')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('-');
       const tabLabel = tabs.find(t => t.date === activeDate)?.label || formatted;
-      return { formatted, label: tabLabel };
+      return { formatted, label: tabLabel, weekday };
     } catch {
       return null;
     }
@@ -399,7 +404,9 @@ const AppointmentsPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-text-primary flex items-center flex-wrap gap-x-2">
           <span>Agendamentos</span>
           {activeDateInfo && (
-            <span className="text-base font-normal text-text-secondary">{activeDateInfo.formatted}</span>
+            <span className="text-base font-normal text-text-secondary">
+              {activeDateInfo.formatted} - {activeDateInfo.weekday}
+            </span>
           )}
         </h1>
         <div className="flex items-center gap-3">
