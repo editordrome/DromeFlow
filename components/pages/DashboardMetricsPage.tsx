@@ -3,7 +3,7 @@ import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchDashboardMetrics, fetchDashboardMetricsMulti, fetchMonthlyChartData } from '../../services/analytics/dashboard.service';
 import type { MonthlyChartData } from '../../services/analytics/dashboard.service';
-import { fetchServiceAnalysisData, fetchClientAnalysisData } from '../../services/analytics/serviceAnalysis.service';
+import { fetchServiceAnalysisData, fetchClientAnalysisData, fetchServiceMonthlySubmetrics, fetchServiceMonthlySubmetricsMulti, type ServiceMonthlySubmetrics } from '../../services/analytics/serviceAnalysis.service';
 import { fetchRepasseAnalysisData } from '../../services/analytics/repasse.service';
 import { DashboardMetrics, ServiceAnalysisRecord, ClientAnalysisData, RepasseAnalysisRecord } from '../../types';
 import { Icon } from '../ui/Icon';
@@ -200,6 +200,7 @@ const CustomEvolutionTooltip = ({ active, payload, label }: any) => {
 
 type MetricType = 'totalRevenue' | 'totalServices' | 'uniqueClients' | 'totalRepasse';
 type RevenueSubMetric = 'none' | 'averageTicket' | 'margin' | 'marginPerService';
+type ServicesSubMetric = 'none' | 'startOfMonth' | 'evolution' | 'productiveDayAvg';
 type ServiceAnalysis = {
     startOfMonthCount: number;
     evolutionCount: number;
@@ -234,6 +235,7 @@ const DashboardMetricsPage: React.FC = () => {
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
     const [previousMonthMetrics, setPreviousMonthMetrics] = useState<DashboardMetrics | null>(null);
     const [monthlyData, setMonthlyData] = useState<MonthlyChartData[]>([]);
+    const [servicesMonthlyData, setServicesMonthlyData] = useState<ServiceMonthlySubmetrics[]>([]);
     const [serviceAnalysis, setServiceAnalysis] = useState<ServiceAnalysis | null>(null);
     const [clientAnalysis, setClientAnalysis] = useState<ClientAnalysis | null>(null);
     const [repasseAnalysis, setRepasseAnalysis] = useState<RepasseAnalysis | null>(null);
@@ -253,6 +255,7 @@ const DashboardMetricsPage: React.FC = () => {
     });
     const [selectedMetric, setSelectedMetric] = useState<MetricType>('totalRevenue');
     const [selectedRevenueSubMetric, setSelectedRevenueSubMetric] = useState<RevenueSubMetric>('none');
+    const [selectedServicesSubMetric, setSelectedServicesSubMetric] = useState<ServicesSubMetric>('none');
 
     const getPreviousPeriod = (period: string): string => {
         const [year, month] = period.split('-').map(Number);
@@ -325,9 +328,18 @@ const DashboardMetricsPage: React.FC = () => {
                 const result = await fetchMonthlyChartData(selectedUnit.unit_code, currentYear);
                 setMonthlyData(result);
             }
+                        // também carregar submétricas de atendimentos para o ano
+                        if (selectedUnit.unit_code === 'ALL') {
+                            const sub = await fetchServiceMonthlySubmetricsMulti(multiUnits, currentYear);
+                            setServicesMonthlyData(sub);
+                        } else {
+                            const sub = await fetchServiceMonthlySubmetrics(selectedUnit.unit_code, currentYear);
+                            setServicesMonthlyData(sub);
+                        }
         } catch (err: any) {
             console.error('[DASHBOARD] Erro ao carregar dados mensais:', err);
-            setMonthlyData([]);
+                        setMonthlyData([]);
+                        setServicesMonthlyData([]);
         } finally {
             setIsChartLoading(false);
         }
@@ -564,7 +576,12 @@ const DashboardMetricsPage: React.FC = () => {
                 if (selectedRevenueSubMetric === 'marginPerService') return { title: 'Margem por Atendimento (Mês)' };
                 return { title: 'Faturamento por Mês' };
             }
-            case 'totalServices': return { title: 'Atendimentos por Mês' };
+            case 'totalServices': {
+              if (selectedServicesSubMetric === 'startOfMonth') return { title: 'Início Mês (Atend.) por Mês' };
+              if (selectedServicesSubMetric === 'evolution') return { title: 'Evolução (Atend.) por Mês' };
+              if (selectedServicesSubMetric === 'productiveDayAvg') return { title: 'Média/Dia Produtivo por Mês' };
+              return { title: 'Atendimentos por Mês' };
+            }
             case 'uniqueClients': return { title: 'Clientes por Mês' };
             case 'totalRepasse': return { title: 'Repasse por Mês' };
             default: return { title: 'Métricas por Mês' };
@@ -614,7 +631,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="chart"
                             iconBgColor="bg-blue-500"
                             isSelected={selectedMetric === 'totalRevenue'}
-                            onClick={() => { setSelectedMetric('totalRevenue'); }}
+                            onClick={() => { setSelectedMetric('totalRevenue'); setSelectedServicesSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Atendimentos"
@@ -630,7 +647,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="users"
                             iconBgColor="bg-yellow-500"
                             isSelected={selectedMetric === 'uniqueClients'}
-                            onClick={() => { setSelectedMetric('uniqueClients'); setSelectedRevenueSubMetric('none'); }}
+                            onClick={() => { setSelectedMetric('uniqueClients'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Repasse"
@@ -638,7 +655,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="dollar"
                             iconBgColor="bg-purple-500"
                             isSelected={selectedMetric === 'totalRepasse'}
-                            onClick={() => { setSelectedMetric('totalRepasse'); setSelectedRevenueSubMetric('none'); }}
+                            onClick={() => { setSelectedMetric('totalRepasse'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); }}
                         />
                     </div>
 
@@ -660,15 +677,28 @@ const DashboardMetricsPage: React.FC = () => {
                                 className={`transition-all duration-500 ease-in-out overflow-hidden ${isChartVisible ? 'max-h-[500px]' : 'max-h-0'}`}
                             >
                                 <div className="px-6 pb-6">
-                                    <MonthlyComparisonChart
-                                        data={monthlyData}
-                                        selectedMetric={
-                                          selectedMetric === 'totalRevenue' && selectedRevenueSubMetric !== 'none'
-                                            ? (selectedRevenueSubMetric as any)
-                                            : selectedMetric
-                                        }
-                                        isLoading={isChartLoading}
-                                    />
+                                                                        <MonthlyComparisonChart
+                                                                                data={
+                                                                                    selectedMetric === 'totalServices' && selectedServicesSubMetric !== 'none'
+                                                                                        ? monthlyData.map((m) => {
+                                                                                                const s = servicesMonthlyData.find(x => x.month === m.month);
+                                                                                                return {
+                                                                                                    ...m,
+                                                                                                    totalServices:
+                                                                                                        selectedServicesSubMetric === 'startOfMonth' ? (s?.startOfMonth || 0)
+                                                                                                        : selectedServicesSubMetric === 'evolution' ? (s?.evolution || 0)
+                                                                                                        : (s?.productiveDayAvg || 0),
+                                                                                                } as MonthlyChartData;
+                                                                                            })
+                                                                                        : monthlyData
+                                                                                }
+                                                                                selectedMetric={
+                                                                                    selectedMetric === 'totalRevenue' && selectedRevenueSubMetric !== 'none'
+                                                                                        ? (selectedRevenueSubMetric as any)
+                                                                                        : selectedMetric
+                                                                                }
+                                                                                isLoading={isChartLoading}
+                                                                        />
                                 </div>
                             </div>
                         </div>
@@ -723,7 +753,7 @@ const DashboardMetricsPage: React.FC = () => {
                         </div>
                     )}
                     
-                    {!isLoading && selectedMetric === 'totalServices' && (
+                                        {!isLoading && selectedMetric === 'totalServices' && (
                       isAnalysisLoading ? (
                          <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div></div>
                       ) : serviceAnalysis && metrics && (
@@ -769,10 +799,19 @@ const DashboardMetricsPage: React.FC = () => {
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <SubMetricCard title="Início Mês" value={String(serviceAnalysis.startOfMonthCount)} subtext="Atendimentos de clientes existentes" />
-                                <SubMetricCard title="Evolução" value={String(serviceAnalysis.evolutionCount)} subtext="Atendimentos de novos clientes" />
-                                <SubMetricCard title="Média/Dia Produtivo" value={String(serviceAnalysis.averagePerDay)} subtext="Dias com >5 atendimentos" />
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                                                <SubMetricCard title="Início Mês" value={String(serviceAnalysis.startOfMonthCount)} subtext="Atendimentos de clientes existentes"
+                                                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'startOfMonth' ? 'none' : 'startOfMonth')}
+                                                                    isActive={selectedServicesSubMetric === 'startOfMonth'}
+                                                                />
+                                                                <SubMetricCard title="Evolução" value={String(serviceAnalysis.evolutionCount)} subtext="Atendimentos de novos clientes"
+                                                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'evolution' ? 'none' : 'evolution')}
+                                                                    isActive={selectedServicesSubMetric === 'evolution'}
+                                                                />
+                                                                <SubMetricCard title="Média/Dia Produtivo" value={String(serviceAnalysis.averagePerDay)} subtext="Dias com >5 atendimentos"
+                                                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'productiveDayAvg' ? 'none' : 'productiveDayAvg')}
+                                                                    isActive={selectedServicesSubMetric === 'productiveDayAvg'}
+                                                                />
                                 {(() => {
                                     if (!previousMonthMetrics) return <SubMetricCard title="Mês Anterior" value="--" />;
                                     const { totalServices: current } = metrics;
