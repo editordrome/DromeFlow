@@ -40,6 +40,20 @@ A aplicação não usa uma biblioteca de roteamento tradicional como o React Rou
 
 ## Fluxos de Trabalho de Desenvolvimento
 
+### Confirmação prévia antes de editar (Obrigatório)
+
+Antes de criar/editar/excluir qualquer arquivo, rodar comandos ou aplicar migrações:
+
+- Informe ao usuário exatamente o que pretende fazer, listando:
+    - Arquivo(s) a serem alterados e tipo de mudança (ex.: título do cabeçalho, nova prop, ajuste de estilo, etc.).
+    - Objetivo e impacto esperado (ex.: alterar o título do módulo para exibir o dia da semana).
+    - Passos a executar (ex.: editar arquivo X, atualizar Y, rodar build/teste se aplicável).
+- Aguarde uma confirmação explícita do usuário (ex.: “Pode prosseguir”, “Aprovado”).
+- Apenas após a confirmação execute as alterações e comandos.
+- Se houver múltiplas opções de implementação, apresente as alternativas e peça a escolha do usuário.
+- Não inicie servidores, nem execute comandos potencialmente destrutivos (mutações em dados, migrações, resets) sem aprovação explícita.
+- Respostas puramente explicativas (sem editar arquivos) são permitidas sem confirmação; caso, depois, decida aplicar mudanças, retorne e solicite aprovação antes de executar.
+
 ### Executando a Aplicação
 
 Para executar a aplicação localmente, siga os passos no `README.md`:
