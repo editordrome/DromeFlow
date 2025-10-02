@@ -66,6 +66,8 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
 -   Dashboard:
   -   Fonte de Dados: Tabela `processed_data`.
   -   Lógica: `services/analytics/dashboard.service.ts` recalcula localmente serviços (originais), receita, ticket, repasse (originais + derivados) e clientes.
+  -   Submétricas clicáveis: os cards de Faturamento, Atendimentos e Clientes alternam o gráfico anual para submétricas específicas (Média por Atendimento, Margem, Margem por Atendimento; Início do Mês, Evolução, Média/Dia Produtivo; Recorrentes, Atend. por Cliente, Churn). Estados e mapeamento em `components/pages/DashboardMetricsPage.tsx`.
+  -   Gráfico mensal: `components/ui/MonthlyComparisonChart.tsx` aceita métricas estendidas e calcula campos derivados (`margin`, `marginPerService`); alterna Line/Bar conforme tipo.
 -   Dados:
   -   Fonte de Dados: Tabela `processed_data`.
   -   Upload (XLSX):
@@ -112,7 +114,7 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
 - Seleção de Unidade "Todos":
   - A fonte desta seleção é a lista de unidades do usuário (`AuthContext.userUnits`).
   - O `AppContext` expõe a unidade selecionada; os serviços e páginas adotam ramificações específicas para ALL.
-- Dashboard: Agrega por múltiplas unidades respeitando o período ativo; serviços e clientes são conjuntos únicos unificados entre unidades; receita e repasse são somas diretas (ticket médio recalculado).
+- Dashboard: Agrega por múltiplas unidades respeitando o período ativo; serviços e clientes são conjuntos únicos unificados entre unidades; receita e repasse são somas diretas (ticket médio recalculado). As submétricas mensais de Atendimentos e Clientes possuem variantes multi-unidade dedicadas nos serviços de análise mensal.
 - Dados: `fetchDataTableMulti` aplica `.in('unidade_code', ...)` e filtros de período/paginação de forma unificada.
 - Agendamentos: `fetchAppointmentsMulti` agrega por data; o envio de webhook fica desabilitado quando a unidade selecionada é "Todos" (por segurança e semântica do endpoint).
 - Clientes: Visualização multi-unidade ainda não implementada; a página informa explicitamente essa limitação quando "Todos" é selecionado.
@@ -196,6 +198,7 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 | Multi-Unidade (ALL) | Agregação por módulos | Dashboard, Dados e Agendamentos suportam ALL; webhook desabilitado em ALL; Recrutadora com semântica ALL; Clientes pendente. |
 | Segurança de Conteúdo | Restrições no ContentArea | Injeção de HTML apenas de URLs que iniciem com `internal://`. |
 | Ingestão CSV (MB Londrina) | Loader RAW → Recrutadora | Script SQL em `docs/sql/mblondrina_load_from_raw_csv.sql` usa `unit_id` fixo, normaliza status/telefones, deduplica e calcula posições. |
+| Dashboard – Submétricas | Cliques alternam o gráfico anual | Estados de submétrica em `DashboardMetricsPage.tsx`; serviços mensais single/multi em `serviceAnalysis.service.ts`; gráfico `MonthlyComparisonChart.tsx` calcula margem e alterna Line/Bar. |
 
 ---
 ## 8. Convenções Atuais de Dados
@@ -252,4 +255,4 @@ Siga estes passos ao introduzir um novo módulo que aparecerá na Sidebar:
 - Ajuste `allowed_profiles` do módulo e atribuições em `user_modules` conforme necessário.
 
 ---
-_Documento ampliado para refletir estado operacional atualizado (27/09/2025)._ 
+_Documento ampliado para refletir estado operacional atualizado (02/10/2025)._ 

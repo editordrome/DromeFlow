@@ -146,13 +146,46 @@ Gráfico mensal (`fetchMonthlyChartData`):
 - Agrupa por orçamento base.
 - Evita duplicação de receita em ramificações.
 
-### 8.1 Visualização "Todos" (ALL)
+### 8.1 Submétricas clicáveis no Dashboard (ano todo)
 
-- Dashboard: agrega múltiplas unidades respeitando o período ativo. Serviços/Clientes são conjuntos únicos globais; receita/repasse são somas; ticket médio é recalculado.
+Os três cartões principais do Dashboard agora têm submétricas clicáveis que trocam o gráfico anual para a métrica acionada, com título dinâmico:
+
+- Faturamento
+   - Média por Atendimento (averageTicket)
+   - Margem (receita − repasse)
+   - Margem por Atendimento (margem / atendimentos)
+
+- Atendimentos
+   - Início do Mês (startOfMonth)
+   - Evolução (evolution)
+   - Média/Dia Produtivo (productiveDayAvg)
+
+- Clientes
+   - Recorrentes (recurringCount)
+   - Atend. por Cliente (servicesPerClient)
+   - Churn (churnRate)
+
+Implementação:
+- Página: `components/pages/DashboardMetricsPage.tsx` mantém estados de submétrica por cartão e ajusta o dataset mensal para o gráfico.
+- Serviços mensais (single e multi-unidade) em `services/analytics/serviceAnalysis.service.ts`:
+   - `fetchServiceMonthlySubmetrics(unitCode, year)` e `fetchServiceMonthlySubmetricsMulti(unitCodes, year)`
+   - `fetchClientMonthlySubmetrics(unitCode, year)` e `fetchClientMonthlySubmetricsMulti(unitCodes, year)`
+- Gráfico: `components/ui/MonthlyComparisonChart.tsx`
+   - Aceita selectedMetric estendido: `totalRevenue | totalServices | uniqueClients | totalRepasse | averageTicket | margin | marginPerService`.
+   - Calcula campos derivados no cliente: `margin = totalRevenue − totalRepasse` e `marginPerService = margin / totalServices`.
+   - Usa LineChart para métricas monetárias e BarChart para contagens; tooltip e destaques de maior/menor valor por mês.
+
+Observações:
+- Em ALL (multi-unidade), as séries mensais de Atendimentos e Clientes usam agregação correta (união de conjuntos ou soma conforme a métrica). Revenue/Repasse somam entre unidades.
+- O título do gráfico muda conforme a submétrica selecionada em cada cartão.
+
+### 8.2 Visualização "Todos" (ALL)
+
+- Dashboard: agrega múltiplas unidades respeitando o período ativo. Serviços/Clientes são conjuntos únicos globais; receita/repasse são somas; ticket médio é recalculado. As submétricas mensais (Atendimentos e Clientes) têm versões single/multi dedicadas e são suportadas no Dashboard.
 - Dados: `fetchDataTableMulti` aplica `.in('unidade_code', ...)` com filtros e paginação unificados.
 - Agendamentos: `fetchAppointmentsMulti` agrega por data; o envio de webhook fica desabilitado quando a unidade selecionada é "Todos".
 - Recrutadora: Colunas são globais (template único), cards por unidade. Em ALL, "Qualificadas" é exibida por unidade e demais colunas agregam cards; DnD continua restrito por unidade.
-- Clientes: Visualização ALL ainda não implementada; a página informa essa limitação.
+- Clientes (página dedicada): Visualização ALL ainda não implementada; a página informa essa limitação. No Dashboard, as submétricas de clientes em ALL estão habilitadas.
 
 ### 8.2 Módulo de Clientes (Paridade com o Dashboard)
 
@@ -235,6 +268,8 @@ Super Admin:
 | Média | Persistir colapso Sidebar | Salvar preferência no `localStorage` |
 | Média | Assinatura Webhook | HMAC opcional para integridade do payload |
 | Baixa | Tooltips customizados | Melhorar UX em estado colapsado |
+| Baixa | Churn como % | Ajustar eixo e rótulos do gráfico para porcentagem quando Churn estiver ativo |
+| Baixa | PeriodDropdown compartilhado | Extrair o seletor de período para um componente reutilizável e padronizar nas páginas |
 
 ---
 ## 12. Scripts
