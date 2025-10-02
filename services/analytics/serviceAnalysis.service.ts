@@ -9,6 +9,14 @@ export type ServiceMonthlySubmetrics = {
   productiveDayAvg: number; // média por dia produtivo (>5 atendimentos), baseada em serviços únicos (orcamentos)
 };
 
+export type ClientMonthlySubmetrics = {
+  month: string;
+  monthName: string;
+  recurringCount: number;       // clientes que estavam no mês anterior e repetiram neste mês
+  servicesPerClient: number;    // atendimentos (serviços únicos) / clientes únicos no mês
+  churnRate: number;            // % clientes do mês anterior que não retornaram neste mês
+};
+
 export const fetchServiceAnalysisData = async (
   unitCode: string,
   period: string
@@ -202,6 +210,132 @@ export const fetchServiceMonthlySubmetricsMulti = async (
     const productiveDays = Object.values(dailyCounts).filter(c => c > 5).length;
     const productiveDayAvg = productiveDays > 0 ? totalServices / productiveDays : 0;
     results.push({ month: m.value, monthName: m.name, startOfMonth, evolution, productiveDayAvg });
+  }
+  return results;
+};
+
+export const fetchClientMonthlySubmetrics = async (
+  unitCode: string,
+  year: number
+): Promise<ClientMonthlySubmetrics[]> => {
+  const months = [
+    { value: '01', name: 'Jan' }, { value: '02', name: 'Fev' }, { value: '03', name: 'Mar' },
+    { value: '04', name: 'Abr' }, { value: '05', name: 'Mai' }, { value: '06', name: 'Jun' },
+    { value: '07', name: 'Jul' }, { value: '08', name: 'Ago' }, { value: '09', name: 'Set' },
+    { value: '10', name: 'Out' }, { value: '11', name: 'Nov' }, { value: '12', name: 'Dez' },
+  ];
+  const results: ClientMonthlySubmetrics[] = [];
+  for (let i = 0; i < months.length; i++) {
+    const m = months[i];
+    const startDate = `${year}-${m.value}-01`;
+    const nextMonth = m.value === '12' ? '01' : String(parseInt(m.value) + 1).padStart(2, '0');
+    const nextYear = m.value === '12' ? year + 1 : year;
+    const endDate = `${nextYear}-${nextMonth}-01`;
+    // mês anterior
+    const prevMonth = m.value === '01' ? '12' : String(parseInt(m.value) - 1).padStart(2, '0');
+    const prevYear = m.value === '01' ? year - 1 : year;
+    const prevStart = `${prevYear}-${prevMonth}-01`;
+    const prevEnd = startDate;
+
+    const [currRes, prevRes] = await Promise.all([
+      supabase
+        .from('processed_data')
+        .select('CLIENTE, IS_DIVISAO, orcamento')
+        .eq('unidade_code', unitCode)
+        .gte('DATA', startDate)
+        .lt('DATA', endDate),
+      supabase
+        .from('processed_data')
+        .select('CLIENTE, IS_DIVISAO, orcamento')
+        .eq('unidade_code', unitCode)
+        .gte('DATA', prevStart)
+        .lt('DATA', prevEnd),
+    ]);
+    if (currRes.error || prevRes.error) {
+      results.push({ month: m.value, monthName: m.name, recurringCount: 0, servicesPerClient: 0, churnRate: 0 });
+      continue;
+    }
+    const currAll = (currRes.data as any[]) || [];
+    const prevAll = (prevRes.data as any[]) || [];
+    const currOriginal = currAll.filter(r => r.IS_DIVISAO !== 'SIM');
+    const prevOriginal = prevAll.filter(r => r.IS_DIVISAO !== 'SIM');
+    const currClients = new Set<string>(currOriginal.map(r => r.CLIENTE).filter(Boolean));
+    const prevClients = new Set<string>(prevOriginal.map(r => r.CLIENTE).filter(Boolean));
+    // serviços únicos do mês
+    const currBudgets = new Set<string>();
+    currOriginal.forEach(r => { if (r.orcamento) currBudgets.add(r.orcamento); });
+    const totalServices = currBudgets.size;
+    const uniqueClients = currClients.size;
+    const servicesPerClient = uniqueClients > 0 ? totalServices / uniqueClients : 0;
+    // recorrentes
+    let recurringCount = 0;
+    currClients.forEach(c => { if (prevClients.has(c)) recurringCount++; });
+    // churn: % dos clientes do mês anterior que não retornaram
+    const churnCount = Array.from(prevClients).filter(c => !currClients.has(c)).length;
+    const churnRate = prevClients.size > 0 ? (churnCount / prevClients.size) * 100 : 0;
+    results.push({ month: m.value, monthName: m.name, recurringCount, servicesPerClient, churnRate });
+  }
+  return results;
+};
+
+export const fetchClientMonthlySubmetricsMulti = async (
+  unitCodes: string[],
+  year: number
+): Promise<ClientMonthlySubmetrics[]> => {
+  if (!unitCodes || unitCodes.length === 0) return [];
+  const months = [
+    { value: '01', name: 'Jan' }, { value: '02', name: 'Fev' }, { value: '03', name: 'Mar' },
+    { value: '04', name: 'Abr' }, { value: '05', name: 'Mai' }, { value: '06', name: 'Jun' },
+    { value: '07', name: 'Jul' }, { value: '08', name: 'Ago' }, { value: '09', name: 'Set' },
+    { value: '10', name: 'Out' }, { value: '11', name: 'Nov' }, { value: '12', name: 'Dez' },
+  ];
+  const results: ClientMonthlySubmetrics[] = [];
+  for (let i = 0; i < months.length; i++) {
+    const m = months[i];
+    const startDate = `${year}-${m.value}-01`;
+    const nextMonth = m.value === '12' ? '01' : String(parseInt(m.value) + 1).padStart(2, '0');
+    const nextYear = m.value === '12' ? year + 1 : year;
+    const endDate = `${nextYear}-${nextMonth}-01`;
+
+    const prevMonth = m.value === '01' ? '12' : String(parseInt(m.value) - 1).padStart(2, '0');
+    const prevYear = m.value === '01' ? year - 1 : year;
+    const prevStart = `${prevYear}-${prevMonth}-01`;
+    const prevEnd = startDate;
+
+    const [currRes, prevRes] = await Promise.all([
+      supabase
+        .from('processed_data')
+        .select('CLIENTE, IS_DIVISAO, orcamento, unidade_code')
+        .in('unidade_code', unitCodes)
+        .gte('DATA', startDate)
+        .lt('DATA', endDate),
+      supabase
+        .from('processed_data')
+        .select('CLIENTE, IS_DIVISAO, orcamento, unidade_code')
+        .in('unidade_code', unitCodes)
+        .gte('DATA', prevStart)
+        .lt('DATA', prevEnd),
+    ]);
+    if (currRes.error || prevRes.error) {
+      results.push({ month: m.value, monthName: m.name, recurringCount: 0, servicesPerClient: 0, churnRate: 0 });
+      continue;
+    }
+    const currAll = (currRes.data as any[]) || [];
+    const prevAll = (prevRes.data as any[]) || [];
+    const currOriginal = currAll.filter(r => r.IS_DIVISAO !== 'SIM');
+    const prevOriginal = prevAll.filter(r => r.IS_DIVISAO !== 'SIM');
+    const currClients = new Set<string>(currOriginal.map(r => r.CLIENTE).filter(Boolean));
+    const prevClients = new Set<string>(prevOriginal.map(r => r.CLIENTE).filter(Boolean));
+    const currBudgets = new Set<string>();
+    currOriginal.forEach(r => { if (r.orcamento) currBudgets.add(r.orcamento); });
+    const totalServices = currBudgets.size;
+    const uniqueClients = currClients.size;
+    const servicesPerClient = uniqueClients > 0 ? totalServices / uniqueClients : 0;
+    let recurringCount = 0;
+    currClients.forEach(c => { if (prevClients.has(c)) recurringCount++; });
+    const churnCount = Array.from(prevClients).filter(c => !currClients.has(c)).length;
+    const churnRate = prevClients.size > 0 ? (churnCount / prevClients.size) * 100 : 0;
+    results.push({ month: m.value, monthName: m.name, recurringCount, servicesPerClient, churnRate });
   }
   return results;
 };

@@ -3,7 +3,7 @@ import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchDashboardMetrics, fetchDashboardMetricsMulti, fetchMonthlyChartData } from '../../services/analytics/dashboard.service';
 import type { MonthlyChartData } from '../../services/analytics/dashboard.service';
-import { fetchServiceAnalysisData, fetchClientAnalysisData, fetchServiceMonthlySubmetrics, fetchServiceMonthlySubmetricsMulti, type ServiceMonthlySubmetrics } from '../../services/analytics/serviceAnalysis.service';
+import { fetchServiceAnalysisData, fetchClientAnalysisData, fetchServiceMonthlySubmetrics, fetchServiceMonthlySubmetricsMulti, fetchClientMonthlySubmetrics, fetchClientMonthlySubmetricsMulti, type ServiceMonthlySubmetrics, type ClientMonthlySubmetrics } from '../../services/analytics/serviceAnalysis.service';
 import { fetchRepasseAnalysisData } from '../../services/analytics/repasse.service';
 import { DashboardMetrics, ServiceAnalysisRecord, ClientAnalysisData, RepasseAnalysisRecord } from '../../types';
 import { Icon } from '../ui/Icon';
@@ -201,6 +201,7 @@ const CustomEvolutionTooltip = ({ active, payload, label }: any) => {
 type MetricType = 'totalRevenue' | 'totalServices' | 'uniqueClients' | 'totalRepasse';
 type RevenueSubMetric = 'none' | 'averageTicket' | 'margin' | 'marginPerService';
 type ServicesSubMetric = 'none' | 'startOfMonth' | 'evolution' | 'productiveDayAvg';
+type ClientsSubMetric = 'none' | 'recurringCount' | 'servicesPerClient' | 'churnRate';
 type ServiceAnalysis = {
     startOfMonthCount: number;
     evolutionCount: number;
@@ -236,6 +237,7 @@ const DashboardMetricsPage: React.FC = () => {
     const [previousMonthMetrics, setPreviousMonthMetrics] = useState<DashboardMetrics | null>(null);
     const [monthlyData, setMonthlyData] = useState<MonthlyChartData[]>([]);
     const [servicesMonthlyData, setServicesMonthlyData] = useState<ServiceMonthlySubmetrics[]>([]);
+    const [clientsMonthlyData, setClientsMonthlyData] = useState<ClientMonthlySubmetrics[]>([]);
     const [serviceAnalysis, setServiceAnalysis] = useState<ServiceAnalysis | null>(null);
     const [clientAnalysis, setClientAnalysis] = useState<ClientAnalysis | null>(null);
     const [repasseAnalysis, setRepasseAnalysis] = useState<RepasseAnalysis | null>(null);
@@ -256,6 +258,7 @@ const DashboardMetricsPage: React.FC = () => {
     const [selectedMetric, setSelectedMetric] = useState<MetricType>('totalRevenue');
     const [selectedRevenueSubMetric, setSelectedRevenueSubMetric] = useState<RevenueSubMetric>('none');
     const [selectedServicesSubMetric, setSelectedServicesSubMetric] = useState<ServicesSubMetric>('none');
+    const [selectedClientsSubMetric, setSelectedClientsSubMetric] = useState<ClientsSubMetric>('none');
 
     const getPreviousPeriod = (period: string): string => {
         const [year, month] = period.split('-').map(Number);
@@ -329,17 +332,22 @@ const DashboardMetricsPage: React.FC = () => {
                 setMonthlyData(result);
             }
                         // também carregar submétricas de atendimentos para o ano
-                        if (selectedUnit.unit_code === 'ALL') {
+                                    if (selectedUnit.unit_code === 'ALL') {
                             const sub = await fetchServiceMonthlySubmetricsMulti(multiUnits, currentYear);
                             setServicesMonthlyData(sub);
+                                        const csub = await fetchClientMonthlySubmetricsMulti(multiUnits, currentYear);
+                                        setClientsMonthlyData(csub);
                         } else {
                             const sub = await fetchServiceMonthlySubmetrics(selectedUnit.unit_code, currentYear);
                             setServicesMonthlyData(sub);
+                                        const csub = await fetchClientMonthlySubmetrics(selectedUnit.unit_code, currentYear);
+                                        setClientsMonthlyData(csub);
                         }
         } catch (err: any) {
             console.error('[DASHBOARD] Erro ao carregar dados mensais:', err);
                         setMonthlyData([]);
                         setServicesMonthlyData([]);
+                        setClientsMonthlyData([]);
         } finally {
             setIsChartLoading(false);
         }
@@ -583,6 +591,7 @@ const DashboardMetricsPage: React.FC = () => {
               return { title: 'Atendimentos por Mês' };
             }
             case 'uniqueClients': return { title: 'Clientes por Mês' };
+            // Pode ajustar título conforme submétrica de clientes, se necessário
             case 'totalRepasse': return { title: 'Repasse por Mês' };
             default: return { title: 'Métricas por Mês' };
         }
@@ -639,7 +648,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="briefcase"
                             iconBgColor="bg-green-500"
                             isSelected={selectedMetric === 'totalServices'}
-                            onClick={() => { setSelectedMetric('totalServices'); setSelectedRevenueSubMetric('none'); }}
+                            onClick={() => { setSelectedMetric('totalServices'); setSelectedRevenueSubMetric('none'); setSelectedClientsSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Clientes"
@@ -647,7 +656,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="users"
                             iconBgColor="bg-yellow-500"
                             isSelected={selectedMetric === 'uniqueClients'}
-                            onClick={() => { setSelectedMetric('uniqueClients'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); }}
+                            onClick={() => { setSelectedMetric('uniqueClients'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); setSelectedClientsSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Repasse"
@@ -655,7 +664,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="dollar"
                             iconBgColor="bg-purple-500"
                             isSelected={selectedMetric === 'totalRepasse'}
-                            onClick={() => { setSelectedMetric('totalRepasse'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); }}
+                            onClick={() => { setSelectedMetric('totalRepasse'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); setSelectedClientsSubMetric('none'); }}
                         />
                     </div>
 
@@ -677,28 +686,39 @@ const DashboardMetricsPage: React.FC = () => {
                                 className={`transition-all duration-500 ease-in-out overflow-hidden ${isChartVisible ? 'max-h-[500px]' : 'max-h-0'}`}
                             >
                                 <div className="px-6 pb-6">
-                                                                        <MonthlyComparisonChart
-                                                                                data={
-                                                                                    selectedMetric === 'totalServices' && selectedServicesSubMetric !== 'none'
-                                                                                        ? monthlyData.map((m) => {
-                                                                                                const s = servicesMonthlyData.find(x => x.month === m.month);
-                                                                                                return {
-                                                                                                    ...m,
-                                                                                                    totalServices:
-                                                                                                        selectedServicesSubMetric === 'startOfMonth' ? (s?.startOfMonth || 0)
-                                                                                                        : selectedServicesSubMetric === 'evolution' ? (s?.evolution || 0)
-                                                                                                        : (s?.productiveDayAvg || 0),
-                                                                                                } as MonthlyChartData;
-                                                                                            })
-                                                                                        : monthlyData
-                                                                                }
-                                                                                selectedMetric={
-                                                                                    selectedMetric === 'totalRevenue' && selectedRevenueSubMetric !== 'none'
-                                                                                        ? (selectedRevenueSubMetric as any)
-                                                                                        : selectedMetric
-                                                                                }
-                                                                                isLoading={isChartLoading}
-                                                                        />
+                                                                                                            <MonthlyComparisonChart
+                                                                                                                    data={
+                                                                                                                        selectedMetric === 'totalServices' && selectedServicesSubMetric !== 'none'
+                                                                                                                            ? monthlyData.map((m) => {
+                                                                                                                                    const s = servicesMonthlyData.find(x => x.month === m.month);
+                                                                                                                                    return {
+                                                                                                                                        ...m,
+                                                                                                                                        totalServices:
+                                                                                                                                            selectedServicesSubMetric === 'startOfMonth' ? (s?.startOfMonth || 0)
+                                                                                                                                            : selectedServicesSubMetric === 'evolution' ? (s?.evolution || 0)
+                                                                                                                                            : (s?.productiveDayAvg || 0),
+                                                                                                                                    } as MonthlyChartData;
+                                                                                                                                })
+                                                                                                                            : selectedMetric === 'uniqueClients' && selectedClientsSubMetric !== 'none'
+                                                                                                                                ? monthlyData.map((m) => {
+                                                                                                                                        const c = clientsMonthlyData.find(x => x.month === m.month);
+                                                                                                                                        return {
+                                                                                                                                            ...m,
+                                                                                                                                            uniqueClients:
+                                                                                                                                                selectedClientsSubMetric === 'recurringCount' ? (c?.recurringCount || 0)
+                                                                                                                                                : selectedClientsSubMetric === 'servicesPerClient' ? (c?.servicesPerClient || 0)
+                                                                                                                                                : (c?.churnRate || 0),
+                                                                                                                                        } as MonthlyChartData;
+                                                                                                                                    })
+                                                                                                                                : monthlyData
+                                                                                                                    }
+                                                                                                                    selectedMetric={
+                                                                                                                        selectedMetric === 'totalRevenue' && selectedRevenueSubMetric !== 'none'
+                                                                                                                            ? (selectedRevenueSubMetric as any)
+                                                                                                                            : selectedMetric
+                                                                                                                    }
+                                                                                                                    isLoading={isChartLoading}
+                                                                                                            />
                                 </div>
                             </div>
                         </div>
@@ -847,9 +867,18 @@ const DashboardMetricsPage: React.FC = () => {
                         ) : clientAnalysis && metrics && previousMonthMetrics && (
                             <div className="mt-8 space-y-8">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <SubMetricCard title="Recorrentes" value={String(clientAnalysis.recurringCount)} subtext="Clientes do mês anterior" />
-                                    <SubMetricCard title="Atend. por Cliente" value={clientAnalysis.servicesPerClient} subtext="Média de atendimentos" />
-                                    <SubMetricCard title="Churn" value={clientAnalysis.churnRate} valueColor="text-danger" subtext="Clientes não retornaram" />
+                                    <SubMetricCard title="Recorrentes" value={String(clientAnalysis.recurringCount)} subtext="Clientes do mês anterior"
+                                      onClick={() => setSelectedClientsSubMetric(prev => prev === 'recurringCount' ? 'none' : 'recurringCount')}
+                                      isActive={selectedClientsSubMetric === 'recurringCount'}
+                                    />
+                                    <SubMetricCard title="Atend. por Cliente" value={clientAnalysis.servicesPerClient} subtext="Média de atendimentos"
+                                      onClick={() => setSelectedClientsSubMetric(prev => prev === 'servicesPerClient' ? 'none' : 'servicesPerClient')}
+                                      isActive={selectedClientsSubMetric === 'servicesPerClient'}
+                                    />
+                                    <SubMetricCard title="Churn" value={clientAnalysis.churnRate} valueColor="text-danger" subtext="Clientes não retornaram"
+                                      onClick={() => setSelectedClientsSubMetric(prev => prev === 'churnRate' ? 'none' : 'churnRate')}
+                                      isActive={selectedClientsSubMetric === 'churnRate'}
+                                    />
                                     {(() => {
                                         const { uniqueClients: current } = metrics;
                                         const { uniqueClients: previous } = previousMonthMetrics;
