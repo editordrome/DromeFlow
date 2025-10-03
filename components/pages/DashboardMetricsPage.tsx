@@ -141,16 +141,37 @@ const PeriodDropdown: React.FC<{
   );
 };
 
-const SubMetricCard: React.FC<{ title: string; value: string; subtext?: string; valueColor?: string; onClick?: () => void; isActive?: boolean }> = ({ title, value, subtext, valueColor, onClick, isActive }) => (
-    <div
-      className={`flex-1 p-4 rounded-lg shadow-sm text-center transition-colors ${onClick ? 'cursor-pointer' : ''} ${isActive ? 'bg-accent-primary text-white' : 'bg-bg-tertiary'}`}
-      onClick={onClick}
-    >
-        <p className={`text-sm ${isActive ? 'text-white' : 'text-text-secondary'}`}>{title}</p>
-        <p className={`text-2xl font-bold ${isActive ? 'text-white' : (valueColor || 'text-text-primary')}`}>{value}</p>
-        {subtext && <p className={`text-xs ${isActive ? 'text-white/80' : 'text-text-secondary'}`}>{subtext}</p>}
-    </div>
-);
+const SubMetricCard: React.FC<{ title: string; value: string; subtext?: string; valueColor?: string; onClick?: () => void; isActive?: boolean }> = ({ title, value, subtext, valueColor, onClick, isActive }) => {
+    const clickable = Boolean(onClick);
+    const baseClasses = 'flex-1 p-4 rounded-lg text-center border transition-all duration-150';
+    const stateClasses = isActive
+        ? 'bg-accent-primary text-white border-transparent'
+        : 'bg-bg-tertiary text-text-primary border-transparent';
+    const hoverClasses = clickable
+        ? (isActive
+            ? 'hover:shadow-lg hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-accent-primary focus:outline-none'
+            : 'hover:bg-bg-tertiary/60 hover:shadow-md hover:-translate-y-0.5 hover:border-accent-primary focus-visible:ring-2 focus-visible:ring-accent-primary focus:outline-none')
+        : '';
+    return (
+        <div
+            className={[baseClasses, stateClasses, hoverClasses, clickable ? 'cursor-pointer' : ''].join(' ')}
+            onClick={onClick}
+            role={clickable ? 'button' : undefined}
+            tabIndex={clickable ? 0 : -1}
+            onKeyDown={(e) => {
+                if (!clickable) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onClick && onClick();
+                }
+            }}
+        >
+            <p className={`text-sm ${isActive ? 'text-white' : 'text-text-secondary'}`}>{title}</p>
+            <p className={`text-2xl font-bold ${isActive ? 'text-white' : (valueColor || 'text-text-primary')}`}>{value}</p>
+            {subtext && <p className={`text-xs ${isActive ? 'text-white/80' : 'text-text-secondary'}`}>{subtext}</p>}
+        </div>
+    );
+};
 
 const DayAnalysisBar: React.FC<{ day: string; percentage: number }> = ({ day, percentage }) => (
     <div className="flex items-center text-sm">
