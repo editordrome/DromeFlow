@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchAllUnits, createUnit, updateUnit, deleteUnit } from '../../services/units/units.service';
 import { fetchUsersForUnit } from '../../services/auth/users.service';
-import { Unit } from '../../types';
+import { Unit, UnitKey } from '../../types';
 import { Icon } from '../ui/Icon';
+import { useAuth } from '../../contexts/AuthContext';
+import { fetchUnitKeys, createUnitKey, updateUnitKey, deleteUnitKey } from '../../services/units/unitKeys.service';
 
 type UnitDataPayload = Partial<Unit>;
 
@@ -13,6 +15,7 @@ const UnitFormModal: React.FC<{
   unit: Unit | null;
   onDelete: (unitId: string) => void;
 }> = ({ isOpen, onClose, onSave, unit, onDelete }) => {
+  const { profile } = useAuth();
   const [formData, setFormData] = useState({
     unit_name: '',
     unit_code: '',
@@ -22,6 +25,11 @@ const UnitFormModal: React.FC<{
   const [usersError, setUsersError] = useState<string | null>(null);
   const [unitUsers, setUnitUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dados' | 'keys'>('dados');
+  const [keys, setKeys] = useState<UnitKey[]>([]);
+  const [keysLoading, setKeysLoading] = useState(false);
+  const [keysError, setKeysError] = useState<string | null>(null);
+  // Modal antigo removido; agora salvamento é automático na própria aba
 
   useEffect(() => {
     // Reset form
@@ -33,6 +41,9 @@ const UnitFormModal: React.FC<{
     setError('');
     setUsersError(null);
     setUnitUsers([]);
+    setActiveTab('dados');
+    setKeys([]);
+    setKeysError(null);
     // Carrega usuários vinculados (somente em edição)
     if (unit && isOpen) {
       (async () => {
@@ -44,6 +55,18 @@ const UnitFormModal: React.FC<{
           setUsersError('Falha ao carregar usuários vinculados.');
         } finally {
           setUsersLoading(false);
+        }
+      })();
+      // Carrega keys (somente em edição)
+      (async () => {
+        try {
+          setKeysLoading(true);
+          const list = await fetchUnitKeys(unit.id);
+          setKeys(list);
+        } catch (err: any) {
+          setKeysError('Falha ao carregar keys da unidade.');
+        } finally {
+          setKeysLoading(false);
         }
       })();
     }
@@ -77,14 +100,25 @@ const UnitFormModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog">
-      <div className="w-full max-w-lg p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg">
+      <div className="w-full max-w-3xl p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg">
         <div className="flex items-center justify-between pb-3 border-b border-border-primary">
           <h2 className="text-xl font-bold text-text-primary">{unit ? 'Editar Unidade' : 'Adicionar Nova Unidade'}</h2>
           <button onClick={onClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary">
             <Icon name="close" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+        {/* Abas (somente em edição e para super_admin exibe Keys) */}
+        {unit && (
+          <div className="mt-4 border-b border-border-secondary flex gap-2">
+            <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='dados'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('dados')}>Dados</button>
+            {profile?.role === 'super_admin' && (
+              <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='keys'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('keys')}>Keys</button>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'dados' && (
+        <form onSubmit={handleSubmit} className="mt-4 space-y-6">
           {error && <p className="text-sm text-center text-danger bg-danger/10 p-2 rounded-md">{error}</p>}
           <div>
             <label htmlFor="unit_name" className="block text-sm font-medium text-text-secondary">Nome da Unidade</label>
@@ -140,8 +174,151 @@ const UnitFormModal: React.FC<{
             </div>
           </div>
         </form>
+        )}
+
+        {unit && profile?.role === 'super_admin' && activeTab === 'keys' && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text-primary">Keys da Unidade</h3>
+            </div>
+            {keysLoading ? (
+              <div className="flex items-center space-x-2 text-text-secondary text-sm"><span className="w-4 h-4 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" /> <span>Carregando...</span></div>
+            ) : keysError ? (
+              <div className="text-sm text-danger bg-danger/10 p-2 rounded-md">{keysError}</div>
+            ) : (
+              <div className="bg-bg-tertiary/20 border border-border-secondary rounded-md p-4">
+                <p className="text-xs text-text-secondary mb-3">Configuração única por unidade. Preencha os campos abaixo e salve.</p>
+                <KeySingleForm
+                  initial={keys[0] || null}
+                  onSubmit={async (payload) => {
+                    if (!unit) return;
+                    if (keys.length > 0) await updateUnitKey(String(keys[0].id), payload as any);
+                    else await createUnitKey(unit.id, payload as any);
+                    const list = await fetchUnitKeys(unit.id);
+                    setKeys(list);
+                  }}
+                  onDelete={async () => {
+                    if (!unit || keys.length === 0) return;
+                    if (confirm('Remover configuração desta unidade?')) {
+                      await deleteUnitKey(String(keys[0].id));
+                      const list = await fetchUnitKeys(unit.id);
+                      setKeys(list);
+                    }
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Modal antigo removido: auto-save direto no formulário */}
+          </div>
+        )}
       </div>
     </div>
+  );
+};
+
+const KeySingleForm: React.FC<{
+  initial: UnitKey | null;
+  onSubmit: (payload: Partial<UnitKey>) => void | Promise<void>;
+  onDelete: () => void | Promise<void>;
+}> = ({ initial, onSubmit, onDelete }) => {
+  const [form, setForm] = useState<Partial<UnitKey>>({
+    umbler: initial?.umbler ?? '',
+    whats_profi: initial?.whats_profi ?? '',
+    whats_client: initial?.whats_client ?? '',
+    botID: initial?.botID ?? '',
+    organizationID: initial?.organizationID ?? '',
+    trigger: initial?.trigger ?? '',
+    description: initial?.description ?? '',
+    is_active: initial?.is_active ?? true,
+  });
+  const [error, setError] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [snapshot, setSnapshot] = useState<string>(JSON.stringify(form));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type, checked } = e.target as any;
+    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+  useEffect(() => {
+    const next = {
+      umbler: initial?.umbler ?? '',
+      whats_profi: initial?.whats_profi ?? '',
+      whats_client: initial?.whats_client ?? '',
+      botID: initial?.botID ?? '',
+      organizationID: initial?.organizationID ?? '',
+      trigger: initial?.trigger ?? '',
+      description: initial?.description ?? '',
+      is_active: initial?.is_active ?? true,
+    };
+    setForm(next);
+    setSnapshot(JSON.stringify(next));
+  }, [initial?.umbler, initial?.whats_profi, initial?.whats_client, initial?.botID, initial?.organizationID, initial?.trigger, initial?.description, initial?.is_active]);
+
+  useEffect(() => {
+    const current = JSON.stringify(form);
+    if (current === snapshot) return;
+    setIsSaving(true);
+    setError('');
+    const t = setTimeout(async () => {
+      try {
+        await onSubmit(form);
+        setSnapshot(JSON.stringify(form));
+        setLastSavedAt(Date.now());
+      } catch (e: any) {
+        setError(e?.message || 'Falha ao salvar');
+      } finally {
+        setIsSaving(false);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [form, snapshot, onSubmit]);
+  return (
+    <form className="space-y-4" onSubmit={async (e)=>{ e.preventDefault(); setError(''); await onSubmit(form); }}>
+      {error && <div className="text-sm text-danger bg-danger/10 p-2 rounded-md">{error}</div>}
+      <div className="text-xs text-text-secondary">
+        {isSaving ? 'Salvando...' : lastSavedAt ? `Auto-salvo às ${new Date(lastSavedAt).toLocaleTimeString()}` : 'Edições serão salvas automaticamente'}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">umbler</label>
+          <input name="umbler" value={form.umbler as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">whats_profi</label>
+          <input name="whats_profi" value={form.whats_profi as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">whats_client</label>
+          <input name="whats_client" value={form.whats_client as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">botID</label>
+          <input name="botID" value={form.botID as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">organizationID</label>
+          <input name="organizationID" value={form.organizationID as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">trigger</label>
+          <input name="trigger" value={form.trigger as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-text-secondary">Descrição</label>
+        <textarea name="description" value={(form.description as string) || ''} onChange={handleChange} rows={2} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+      </div>
+      <label className="inline-flex items-center gap-2 text-sm text-text-secondary">
+        <input type="checkbox" name="is_active" checked={!!form.is_active} onChange={handleChange} />
+        Ativo
+      </label>
+      <div className="flex justify-end gap-2 pt-2">
+        {initial && (
+          <button type="button" onClick={() => onDelete()} className="px-4 py-2 text-sm font-medium text-white rounded-md bg-danger hover:bg-red-700">Remover</button>
+        )}
+      </div>
+    </form>
   );
 };
 
@@ -227,7 +404,6 @@ const ManageUnitsPage: React.FC = () => {
     await createUnit(data);
     handleCloseModal();
     await loadUnits();
-    // Foca/realça a nova unidade (caso queira implementar no futuro: scroll / highlight)
   };
 
   const handleDeleteUnit = async (unitId: string) => {

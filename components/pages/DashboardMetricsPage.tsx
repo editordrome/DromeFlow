@@ -590,7 +590,12 @@ const DashboardMetricsPage: React.FC = () => {
               if (selectedServicesSubMetric === 'productiveDayAvg') return { title: 'Média/Dia Produtivo por Mês' };
               return { title: 'Atendimentos por Mês' };
             }
-            case 'uniqueClients': return { title: 'Clientes por Mês' };
+                        case 'uniqueClients': {
+                            if (selectedClientsSubMetric === 'recurringCount') return { title: 'Recorrentes por Mês' };
+                            if (selectedClientsSubMetric === 'servicesPerClient') return { title: 'Atend. por Cliente (Mês)' };
+                            if (selectedClientsSubMetric === 'churnRate') return { title: 'Churn por Mês' };
+                            return { title: 'Clientes por Mês' };
+                        }
             // Pode ajustar título conforme submétrica de clientes, se necessário
             case 'totalRepasse': return { title: 'Repasse por Mês' };
             default: return { title: 'Métricas por Mês' };

@@ -256,3 +256,11 @@ Siga estes passos ao introduzir um novo módulo que aparecerá na Sidebar:
 
 ---
 _Documento ampliado para refletir estado operacional atualizado (02/10/2025)._ 
+
+## 12. Configuração Única por Unidade (unit_keys) – 03/10/2025
+
+- Tabela `public.unit_keys` reestruturada para um registro por unidade (`UNIQUE (unit_id)`).
+- Novas colunas: `umbler`, `whats_profi`, `whats_client`, `botID`, `organizationID`, `trigger` (todas texto), além de `description` e `is_active`.
+- RLS: habilitado com políticas permissivas para SELECT/INSERT/UPDATE/DELETE (restrição de edição assegurada na UI ao perfil `super_admin`). Recomendado evoluir para RLS restritiva com Supabase Auth (claims de role) no futuro.
+- Serviço: `services/units/unitKeys.service.ts` provê `fetchUnitKeys`, `createUnitKey`, `updateUnitKey`, `deleteUnitKey` para a configuração única.
+- UI: Em "Gerenciar Unidades" → Editar → aba "Keys" (somente `super_admin`). Formulário único com auto‑save por debounce (~600ms), indicador de salvamento e botão "Remover" quando existir configuração.

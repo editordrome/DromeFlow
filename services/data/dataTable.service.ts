@@ -123,8 +123,13 @@ export const updateDataRecord = async (
     DATA: updatedData.DATA,
     CLIENTE: updatedData.CLIENTE,
     VALOR: updatedData.VALOR,
-    status: updatedData.status,
+    STATUS: (updatedData as any).STATUS ?? updatedData.status,
     orcamento: updatedData.orcamento,
+    // Campos de texto livres
+    observacao: updatedData.observacao,
+    comentario: updatedData.comentario,
+    // Profissional (texto)
+    PROFISSIONAL: (updatedData as any)['PROFISSIONAL'],
   };
 
   const { data, error } = await supabase

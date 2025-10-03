@@ -22,6 +22,22 @@ export interface Unit {
   unit_code: string;
 }
 
+export interface UnitKey {
+  id: string;
+  created_at: string;
+  updated_at?: string;
+  unit_id: string;
+  // Campos de configuração por unidade (Option A)
+  umbler: string | null;
+  whats_profi: string | null;
+  whats_client: string | null;
+  botID: string | null;
+  organizationID: string | null;
+  trigger: string | null;
+  description: string | null;
+  is_active: boolean;
+}
+
 export interface Module {
   id: string;
   name: string;

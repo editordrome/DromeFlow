@@ -6,6 +6,30 @@
 
 Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend e Tailwind para estilização. Inclui:
 
+## Configuração por Unidade (Keys)
+
+Cada unidade possui uma configuração única armazenada na tabela `unit_keys`. Essa configuração é gerenciada na UI em Gerenciar Unidades → Editar → aba "Keys" (visível para perfis super_admin).
+
+Campos disponíveis (todos opcionais, texto):
+- umbler
+- whats_profi
+- whats_client
+- botID
+- organizationID
+- trigger
+
+Outros campos de apoio:
+- description (texto)
+- is_active (booleano)
+
+Comportamento na UI:
+- Formulário único por unidade com auto‑salvamento (debounce ~600ms). Ao parar de digitar, o sistema salva automaticamente e indica o status ("Salvando…" ou "Auto‑salvo às HH:MM:SS").
+- Se não existir configuração para a unidade, o primeiro auto‑save cria; se existir, atualiza.
+- Há um botão "Remover" para excluir a configuração da unidade.
+
+Requisitos de backend:
+- RLS habilitado e políticas permissivas (SELECT/INSERT/UPDATE/DELETE) foram aplicadas para permitir o fluxo atual, com a restrição de permissão feita na UI (apenas super_admin vê/edita Keys). Em produção, recomenda‑se vincular a role via JWT (Supabase Auth) e restringir as políticas pelo claim.
+
 - Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).
 - Módulos dinâmicos (icones + allowed_profiles + ordenação drag & drop persistida).
 - Dashboard com métricas recalculadas localmente (repasse, ticket médio real).

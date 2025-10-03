@@ -97,14 +97,21 @@ const AppointmentsPage: React.FC = () => {
       // Estrutura completa em JSON agora (POST). Mantemos também versão compacta para economizar banda dependendo do volume.
       const enriched = pendentes.map(p => {
         const periodo = (p as any)['PERÍODO'];
+        const servico = (p as any)['SERVIÇO'] || (p as any)['SERVICO'] || p.TIPO;
+        const dia = p.DIA;
+        const horarioClean = formatDisplayHour(String(p.HORARIO || ''));
         return {
           orcamento: p.orcamento,
-          horario: p.HORARIO,
-            periodo,
-          saida: computeSaida(p.HORARIO, periodo) || undefined,
+          horario: horarioClean,
+          periodo,
+          saida: computeSaida(horarioClean, periodo) || undefined,
           profissional: p.PROFISSIONAL,
           cliente: p.CLIENTE,
           tipo: p.TIPO,
+          servico,
+          ['SERVIÇO']: servico,
+          dia,
+          ['DIA']: dia,
           endereco: (p as any).ENDEREÇO || (p as any).ENDERECO || undefined,
           status: (p as any).STATUS || (p as any).status || 'PENDENTE'
         };
@@ -118,7 +125,7 @@ const AppointmentsPage: React.FC = () => {
         generated_at: new Date().toISOString(),
         atendimentos: enriched,
         // Campo opcional adicional com forma compacta para consumidores que queiram parse rápido
-        compact: enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco }))
+        compact: enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco, sv: e.servico, dw: e.dia }))
       };
 
       let usedFallback = false;
@@ -148,7 +155,7 @@ const AppointmentsPage: React.FC = () => {
 
       // Fallback GET compactado com chunking adaptativo
       if (usedFallback) {
-  const compactItems = enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco, st: e.status }));
+        const compactItems = enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco, st: e.status, sv: e.servico, dw: e.dia }));
         const envelopeBase = {
           u: selectedUnit?.unit_code || '', // unidade
           d: activeDate,
@@ -625,8 +632,8 @@ const AppointmentsPage: React.FC = () => {
                     <td className="px-4 py-2 text-text-secondary text-center">{(() => {
                       const periodo = (rec as any)['PERÍODO'];
                       if (!periodo) return '-';
-                      // Exibir no formato '8hr'
-                      return `${periodo}hr`;
+                      // Exibir no formato '8 horas'
+                      return `${periodo} horas`;
                     })()}</td>
                     <td className="px-4 py-2 text-text-secondary text-center truncate" title={rec.TIPO || ''}>{rec.TIPO || '-'}</td>
                     <td className="px-4 py-2 text-text-secondary truncate" title={rec.PROFISSIONAL}>{rec.PROFISSIONAL}</td>
@@ -637,9 +644,11 @@ const AppointmentsPage: React.FC = () => {
                         const value = String(raw).toUpperCase();
                         let base = 'inline-flex items-center justify-center rounded-md text-xs font-semibold px-3 h-7 tracking-wide border focus:outline-none focus:ring-2 focus:ring-offset-1 transition shadow-sm';
                         let style = 'bg-bg-tertiary text-text-secondary border-border-secondary';
-                        if (value === 'FINALIZADO') style = 'bg-success text-text-on-accent border-success/80 hover:bg-success/90';
-                        else if (value === 'PENDENTE') style = 'bg-warning text-black border-warning/80 hover:bg-warning/90';
-                        else if (value === 'CONFIRMADO') style = 'bg-success text-text-on-accent border-success/80 hover:bg-success/90';
+                        // Cores alinhadas aos cards: PENDENTE=amarelo, AGUARDANDO=azul, CONFIRMADO/CONCLUIDO/FINALIZADO=verde, RECUSADO/CANCELADO=vermelho
+                        if (value === 'PENDENTE') style = 'bg-warning text-black border-warning/80 hover:bg-warning/90';
+                        else if (value === 'AGUARDANDO') style = 'bg-blue-500/10 text-blue-500 border-blue-400/40 hover:bg-blue-500/15';
+                        else if (value === 'CONFIRMADO' || value === 'CONCLUIDO' || value === 'FINALIZADO') style = 'bg-success text-text-on-accent border-success/80 hover:bg-success/90';
+                        else if (value === 'RECUSADO' || value === 'CANCELADO') style = 'bg-rose-500/10 text-rose-500 border-rose-500/40 hover:bg-rose-500/15';
                         return (
                           <button
                             type="button"
@@ -664,6 +673,15 @@ const AppointmentsPage: React.FC = () => {
         isOpen={!!selectedRecord}
         onClose={() => setSelectedRecord(null)}
         record={selectedRecord as any}
+        onEdit={(updated) => {
+          // Atualiza lista e o registro selecionado
+          setAppointments(prev => prev.map(r => {
+            const sameId = (r.id != null && updated.id != null && r.id === updated.id);
+            const sameKey = r.orcamento && updated.orcamento && r.orcamento === updated.orcamento;
+            return (sameId || sameKey) ? { ...r, ...updated } as any : r;
+          }));
+          setSelectedRecord(prev => prev ? ({ ...(prev as any), ...updated } as any) : prev);
+        }}
       />
     </div>
   );
