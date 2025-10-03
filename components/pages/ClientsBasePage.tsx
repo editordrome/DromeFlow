@@ -11,6 +11,9 @@ const ClientsBasePage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [draft, setDraft] = useState<Partial<UnitClient>>({ nome: '', tipo: '', endereco: '', contato: '' });
 
@@ -21,8 +24,9 @@ const ClientsBasePage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await listUnitClients(unitId, q);
-      setItems(data);
+      const { items, total } = await listUnitClients(unitId, q, page, pageSize);
+      setItems(items);
+      setTotal(total);
     } catch (e: any) {
       setError(e?.message || 'Falha ao carregar clientes.');
     } finally {
@@ -30,7 +34,7 @@ const ClientsBasePage: React.FC = () => {
     }
   };
 
-  useEffect(() => { load(); }, [unitId, q]);
+  useEffect(() => { load(); }, [unitId, q, page, pageSize]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +105,7 @@ const ClientsBasePage: React.FC = () => {
           onChange={(e) => setQ(e.target.value)}
           className="w-full max-w-sm px-3 py-2 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
         />
-        <button onClick={load} className="px-3 py-2 text-sm rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary">Atualizar</button>
+        <button onClick={()=>{setPage(1); load();}} className="px-3 py-2 text-sm rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary">Atualizar</button>
       </div>
 
       {isCreating && (
@@ -165,6 +169,19 @@ const ClientsBasePage: React.FC = () => {
               )}
             </tbody>
           </table>
+          {/* Paginação */}
+          <div className="flex items-center justify-between mt-3 text-sm text-text-secondary">
+            <div>
+              {total > 0 && (
+                <span>Mostrando {(items.length>0?((page-1)*pageSize+1):0)}–{(page-1)*pageSize + items.length} de {total}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary">Anterior</button>
+              <span>Página {page}</span>
+              <button disabled={(page*pageSize)>=total} onClick={()=>setPage(p=>p+1)} className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary">Próxima</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

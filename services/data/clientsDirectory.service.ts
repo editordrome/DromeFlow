@@ -1,19 +1,22 @@
 import { supabase } from '../supabaseClient';
 import { UnitClient } from '../../types';
 
-export async function listUnitClients(unitId: string, q?: string): Promise<UnitClient[]> {
+export async function listUnitClients(unitId: string, q?: string, page: number = 1, pageSize: number = 20): Promise<{ items: UnitClient[]; total: number }> {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
   let query = supabase
     .from('unit_clients')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('unit_id', unitId)
-    .order('nome', { ascending: true });
+    .order('nome', { ascending: true })
+    .range(from, to);
   if (q && q.trim()) {
     // Busca simples por nome (case-insensitive) usando ilike
     query = query.ilike('nome', `%${q.trim()}%`);
   }
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) throw error;
-  return (data || []) as UnitClient[];
+  return { items: (data || []) as UnitClient[], total: count || 0 };
 }
 
 export async function createUnitClient(unitId: string, payload: Omit<UnitClient, 'id' | 'unit_id'>): Promise<UnitClient> {
