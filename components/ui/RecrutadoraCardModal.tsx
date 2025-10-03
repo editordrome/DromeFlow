@@ -268,40 +268,38 @@ const RecrutadoraCardModal: React.FC<Props> = ({
     const titulo = `Ficha - ${nome || initialCard?.nome || 'Sem nome'}`;
     const now = new Date();
     const dateStr = now.toLocaleString('pt-BR');
-    const colorHex = (color || initialCard?.color_card || '#4ade80') as string;
+  // Força o PDF a usar o azul escuro do Sidebar, independente da cor do card
+  const accent = '#010d32';
 
-    const pessoaisRows = [
-      ['Nome', toDisplay(nome)],
-      ['Data Nascimento', toDisplay(dataNascimento)],
-      ['WhatsApp', toDisplay(whatsapp)],
-      ['RG', toDisplay(rg)],
-      ['CPF', toDisplay(cpf)],
-      ['Estado Civil', toDisplay(estadoCivil)],
-      ['Fumante', fumante === null ? '-' : (fumante ? 'Sim' : 'Não')],
-      ['Endereço', toDisplay(endereco)],
-      ['Tem filhos?', filhos === null ? '-' : (filhos ? 'Sim' : 'Não')],
-      ['Qtde. filhos', qtosFilhos === '' ? '-' : String(qtosFilhos)],
-      ['Rotina filhos', toDisplay(rotinaFilhos)],
-    ];
+    // Helpers de cor para contraste e variações claras
+    const hexToRgb = (hex: string) => {
+      const h = hex.replace('#','');
+      const bigint = parseInt(h.length === 3 ? h.split('').map(c=>c+c).join('') : h, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return { r, g, b };
+    };
+    const getContrast = (hex: string) => {
+      const { r, g, b } = hexToRgb(hex);
+      // YIQ luma
+      const yiq = (r*299 + g*587 + b*114) / 1000;
+      return yiq >= 140 ? '#111827' : '#ffffff';
+    };
+    const { r, g, b } = hexToRgb(accent);
+    const accentText = getContrast(accent);
+    const accentLight = `rgba(${r}, ${g}, ${b}, 0.12)`;
 
-    const profRows = [
-      ['Dias Livres', toDisplay(diasLivres)],
-      ['Dias Semana', toDisplay(diasSemana)],
-      ['Exp. Residencial', toDisplay(expResidencial)],
-      ['Ref. Residencial', toDisplay(refResidencial)],
-      ['Exp. Comercial', toDisplay(expComercial)],
-      ['Ref. Comercial', toDisplay(refComercial)],
-      ['Situação Atual', toDisplay(sitAtual)],
-      ['Motivo do Cadastro', toDisplay(motivoCadastro)],
-      ['Transporte', toDisplay(transporte)],
-    ];
+    const val = (v: any) => {
+      if (v === null || v === undefined) return 'Não informado';
+      const s = String(v).trim();
+      return s === '' ? 'Não informado' : s;
+    };
+    const yesNo = (v: boolean | null) => v === null ? 'Não informado' : (v ? 'Sim' : 'Não');
+    const filhosQtde = qtosFilhos === '' ? 'Não informado' : String(qtosFilhos);
 
-    const tableRowsHtml = (rows: string[][]) => rows.map(([k, v]) => `
-      <tr>
-        <th>${k}</th>
-        <td>${v}</td>
-      </tr>
-    `).join('');
+    const nomeDisplay = val(nome || initialCard?.nome);
+    const statusDisplay = statusLabel ? String(statusLabel).toUpperCase() : '';
 
     const html = `<!doctype html>
 <html lang="pt-BR">
@@ -310,53 +308,146 @@ const RecrutadoraCardModal: React.FC<Props> = ({
     <title>${titulo}</title>
     <style>
       @page { size: A4; margin: 16mm; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif; color: #111827; }
-      .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-      .title { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; }
-      .dot { width: 10px; height: 10px; border-radius: 999px; border: 1px solid #d1d5db; display: inline-block; }
-      .meta { color: #6b7280; font-size: 12px; }
-      h2 { font-size: 14px; margin: 18px 0 8px; color: #111827; }
-      table { width: 100%; border-collapse: collapse; }
-      th { text-align: left; width: 32%; padding: 6px 8px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-size: 12px; color: #374151; }
-      td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #111827; }
-      .section { page-break-inside: avoid; }
-      .footer { margin-top: 16px; font-size: 11px; color: #6b7280; }
+      * { box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
+        color: #111827; background: #f7f9fb; line-height: 1.4;
+      }
+      h1 { margin: 0; }
+  .container { width: 100%; }
+  .page { padding: 16mm; }
+      .header {
+        background: ${accent}; color: ${accentText};
+        padding: 18px; border-radius: 14px; margin-bottom: 18px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        text-align: center;
+      }
+      .header h1 { font-size: 24px; font-weight: 800; letter-spacing: 0.2px; }
+      .header p { font-size: 14px; opacity: 0.95; margin-top: 4px; }
+
+      .section-title {
+        font-size: 18px; font-weight: 700; color: #1f2937; margin: 16px 0 10px;
+        padding-bottom: 6px; border-bottom: 2px solid ${accent};
+      }
+      .grid { display: grid; gap: 10px; }
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+      .grid-2 { grid-template-columns: repeat(2, 1fr); }
+      .grid-1 { grid-template-columns: 1fr; }
+      .card {
+        background: #ffffff; border-radius: 12px; padding: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid ${accentLight};
+      }
+      .label { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; }
+      .value { font-size: 14px; font-weight: 600; color: #111827; word-break: break-word; }
+      .address { padding: 12px; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid ${accentLight}; }
+
+      .two-col { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .exp-colors-res { border: 1px solid ${accentLight}; }
+  .exp-colors-com { border: 1px solid rgba(251,146,60,0.18); }
+  .exp-title-res { color: ${accent}; }
+      .exp-title-com { color: #9a3412; }
+
+      .footer { margin-top: 18px; font-size: 12px; color: #6b7280; text-align: center; }
+
+      /* Quebra de página segura */
+      .avoid-break { page-break-inside: avoid; }
+
+      /* Responsivo para impressão/preview no navegador */
+      @media (min-width: 900px) {
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .two-col { grid-template-columns: 1fr 1fr; }
+      }
     </style>
   </head>
   <body>
-    <div class="header">
-      <div class="title">
-        <span class="dot" style="background:${colorHex}"></span>
-        <span>${toDisplay(nome || initialCard?.nome)}</span>
-      </div>
-      <div class="meta">Gerado em ${dateStr}</div>
-    </div>
+  <div class="container"><div class="page">
+      <!-- Cabeçalho -->
+      <header class="header">
+        <h1>${nomeDisplay}</h1>
+        <p>Ficha de Cadastro Detalhada • Gerado em ${dateStr}</p>
+      </header>
 
-    <div class="section">
-      <h2>Informações Pessoais</h2>
-      <table>
-        <tbody>
-          ${tableRowsHtml(pessoaisRows)}
-        </tbody>
-      </table>
-    </div>
+      <!-- Informações Pessoais -->
+      <section class="avoid-break">
+        <h2 class="section-title">Informações Pessoais</h2>
+        <div class="grid grid-3">
+          <div class="card"><div class="label">Data de Nascimento</div><div class="value">${val(dataNascimento)}</div></div>
+          <div class="card"><div class="label">WhatsApp</div><div class="value">${val(whatsapp)}</div></div>
+          <div class="card"><div class="label">RG</div><div class="value">${val(rg)}</div></div>
+          <div class="card"><div class="label">CPF</div><div class="value">${val(cpf)}</div></div>
+          <div class="card"><div class="label">Estado Civil</div><div class="value">${val(estadoCivil)}</div></div>
+          <div class="card"><div class="label">Fumante</div><div class="value">${yesNo(fumante)}</div></div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="label" style="margin-bottom:6px">Endereço</div>
+          <div class="address">${val(endereco)}</div>
+        </div>
+      </section>
 
-    <div class="section">
-      <h2>Profissional</h2>
-      <table>
-        <tbody>
-          ${tableRowsHtml(profRows)}
-        </tbody>
-      </table>
-    </div>
+      <!-- Situação Familiar -->
+      <section class="avoid-break">
+        <h2 class="section-title">Situação Familiar</h2>
+        <div class="grid grid-3">
+          <div class="card"><div class="label">Tem Filhos?</div><div class="value">${yesNo(filhos)}</div></div>
+          <div class="card"><div class="label">Quantidade de Filhos</div><div class="value">${filhosQtde}</div></div>
+          <div class="card"><div class="label">Rotina dos Filhos</div><div class="value">${val(rotinaFilhos)}</div></div>
+        </div>
+      </section>
 
-    <div class="footer">DromeFlow • ${toDisplay(statusLabel)}${unidade ? ` • ${unidade}` : ''}</div>
+      <!-- Profissional e Disponibilidade -->
+      <section class="avoid-break">
+        <h2 class="section-title">Informações Profissionais e Disponibilidade</h2>
+        <div class="two-col">
+          <div class="card">
+            <div class="label">Status Atual</div>
+            <div class="value" style="font-size:16px; font-weight:800; margin:4px 0 8px;">${val(sitAtual)}</div>
+            <div class="label">Motivo do Cadastro</div>
+            <div class="value">${val(motivoCadastro)}</div>
+          </div>
+          <div class="card">
+            <div class="label">Dias da Semana</div>
+            <div class="value" style="margin-bottom:6px">${val(diasSemana)}</div>
+            <div class="label">Dias Livres (Folga)</div>
+            <div class="value" style="margin-bottom:6px">${val(diasLivres)}</div>
+            <div class="label">Transporte</div>
+            <div class="value">${val(transporte)}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Experiências e Referências -->
+      <section class="avoid-break">
+        <h2 class="section-title">Experiências e Referências</h2>
+        <div class="two-col">
+          <div class="card exp-colors-res">
+            <div style="font-size:16px; font-weight:800; margin-bottom:6px" class="exp-title-res">Residencial</div>
+            <div class="label">Possui Experiência?</div>
+            <div class="value" style="margin-bottom:6px">${val(expResidencial)}</div>
+            <div class="label">Referência / Detalhes</div>
+            <div class="value" style="font-style: italic">${val(refResidencial)}</div>
+          </div>
+          <div class="card exp-colors-com">
+            <div style="font-size:16px; font-weight:800; margin-bottom:6px" class="exp-title-com">Comercial</div>
+            <div class="label">Possui Experiência?</div>
+            <div class="value" style="margin-bottom:6px">${val(expComercial)}</div>
+            <div class="label">Referência / Detalhes</div>
+            <div class="value" style="font-style: italic">${val(refComercial)}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Rodapé -->
+      <footer class="footer">
+        <div>DromeFlow${statusDisplay ? ` • ${statusDisplay}` : ''}${unidade ? ` • ${unidade}` : ''}</div>
+        <div>Documento gerado por IA</div>
+      </footer>
+    </div></div>
   </body>
- </html>`;
+</html>`;
 
-    // Em vez de abrir em nova aba, renderizamos no modal de preview em A4
+    // Abre o modal de pré-visualização e injeta o HTML
     setPreviewOpen(true);
-    // Renderizamos o HTML dentro do container quando o modal abrir
     setTimeout(() => {
       const el = previewRef.current;
       if (el) el.innerHTML = html;

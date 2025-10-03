@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from '../ui/Icon';
+import UnitClientModal from '../ui/UnitClientModal';
 import { UnitClient } from '../../types';
 import { listUnitClients, createUnitClient, updateUnitClient, deleteUnitClient } from '../../services/data/clientsDirectory.service';
 
@@ -16,6 +17,8 @@ const ClientsBasePage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [draft, setDraft] = useState<Partial<UnitClient>>({ nome: '', tipo: '', endereco: '', contato: '' });
+  const [selected, setSelected] = useState<UnitClient | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const canInteract = useMemo(() => Boolean(unitId), [unitId]);
 
@@ -55,22 +58,9 @@ const ClientsBasePage: React.FC = () => {
     }
   };
 
-  const handleInlineChange = (id: string, field: keyof UnitClient, value: string) => {
-    setItems(prev => prev.map(it => it.id === id ? { ...it, [field]: value } : it));
-  };
-
-  const handleInlineSave = async (item: UnitClient) => {
-    try {
-      await updateUnitClient(item.id, {
-        nome: item.nome?.trim() || item.nome,
-        tipo: item.tipo,
-        endereco: item.endereco,
-        contato: item.contato,
-      });
-      await load();
-    } catch (e: any) {
-      alert(e?.message || 'Falha ao salvar');
-    }
+  const openModal = (item: UnitClient) => {
+    setSelected(item);
+    setIsModalOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -85,27 +75,25 @@ const ClientsBasePage: React.FC = () => {
 
   return (
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-4">
+      <div className="grid grid-cols-[auto,1fr,auto] items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold text-text-primary">Clientes • Base</h1>
+        <div className="flex justify-center">
+          <input
+            placeholder="Buscar por nome"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setPage(1); }}
+            className="w-full max-w-md px-3 py-2 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+          />
+        </div>
         {canInteract && (
           <button
             onClick={() => setIsCreating((v) => !v)}
-            className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary"
+            className="justify-self-end flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary"
           >
             <Icon name={isCreating ? 'close' : 'add'} className="w-5 h-5 mr-2" />
             {isCreating ? 'Cancelar' : 'Novo Cliente'}
           </button>
         )}
-      </div>
-
-      <div className="flex items-center gap-3 mb-4">
-        <input
-          placeholder="Buscar por nome"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="w-full max-w-sm px-3 py-2 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
-        />
-        <button onClick={()=>{setPage(1); load();}} className="px-3 py-2 text-sm rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary">Atualizar</button>
       </div>
 
       {isCreating && (
@@ -134,29 +122,19 @@ const ClientsBasePage: React.FC = () => {
               <tr>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Tipo</th>
-                <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Endereço</th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Contato</th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-bg-secondary divide-y divide-border-primary">
               {items.map((it) => (
-                <tr key={it.id} className="transition-colors hover:bg-bg-tertiary">
-                  <td className="px-6 py-3 whitespace-nowrap text-sm">
-                    <input value={it.nome} onChange={(e)=>handleInlineChange(it.id, 'nome', e.target.value)} className="w-full bg-transparent border-b border-border-secondary focus:border-accent-primary outline-none" />
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm">
-                    <input value={it.tipo || ''} onChange={(e)=>handleInlineChange(it.id, 'tipo', e.target.value)} className="w-full bg-transparent border-b border-border-secondary focus:border-accent-primary outline-none" />
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm">
-                    <input value={it.endereco || ''} onChange={(e)=>handleInlineChange(it.id, 'endereco', e.target.value)} className="w-full bg-transparent border-b border-border-secondary focus:border-accent-primary outline-none" />
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm">
-                    <input value={it.contato || ''} onChange={(e)=>handleInlineChange(it.id, 'contato', e.target.value)} className="w-full bg-transparent border-b border-border-secondary focus:border-accent-primary outline-none" />
-                  </td>
+                <tr key={it.id} className="transition-colors hover:bg-bg-tertiary cursor-pointer" onDoubleClick={() => openModal(it)}>
+                  <td className="px-6 py-3 whitespace-nowrap text-sm">{it.nome}</td>
+                  <td className="px-6 py-3 whitespace-nowrap text-sm">{it.tipo || '-'}</td>
+                  <td className="px-6 py-3 whitespace-nowrap text-sm">{it.contato || '-'}</td>
                   <td className="px-6 py-3 whitespace-nowrap text-sm text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={()=>handleInlineSave(it)} className="p-2 rounded-md text-accent-primary hover:bg-accent-primary/10" title="Salvar"><Icon name="save" className="w-5 h-5" /></button>
+                      <button onClick={() => openModal(it)} className="px-2 py-1 rounded-md text-text-secondary hover:bg-bg-tertiary" title="Abrir"><Icon name="ExternalLink" className="w-5 h-5" /></button>
                       <button onClick={()=>handleDelete(it.id)} className="p-2 rounded-md text-danger hover:bg-danger/10" title="Excluir"><Icon name="delete" className="w-5 h-5" /></button>
                     </div>
                   </td>
@@ -164,7 +142,7 @@ const ClientsBasePage: React.FC = () => {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td className="px-6 py-6 text-center text-sm text-text-secondary" colSpan={5}>Nenhum cliente cadastrado.</td>
+                  <td className="px-6 py-6 text-center text-sm text-text-secondary" colSpan={4}>Nenhum cliente cadastrado.</td>
                 </tr>
               )}
             </tbody>
@@ -184,6 +162,14 @@ const ClientsBasePage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Modal de Detalhe/Edição */}
+      <UnitClientModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        item={selected}
+        onSaved={async () => { setIsModalOpen(false); await load(); }}
+        onDeleted={async () => { setIsModalOpen(false); await load(); }}
+      />
     </div>
   );
 };

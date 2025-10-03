@@ -7,6 +7,7 @@ import { fetchColumns, fetchCards, moveCard, ensureDefaultColumnsForUnit, create
 import type { RecrutadoraCard, RecrutadoraColumn } from '../../types';
 import RecrutadoraCardModal from '../ui/RecrutadoraCardModal';
 import { Icon } from '../ui/Icon';
+import { startOfTodayISO, startOfWeekISO, startOfMonthISO } from '../../services/utils/dates';
 
 const RecrutadoraPage: React.FC = () => {
   const { profile, userUnits } = useAuth();
@@ -20,6 +21,8 @@ const RecrutadoraPage: React.FC = () => {
   const [editingCard, setEditingCard] = useState<RecrutadoraCard | null>(null);
   const [dragIndicator, setDragIndicator] = useState<{ droppableId: string; index: number } | null>(null);
   const [metrics, setMetrics] = useState<{ today: number; week: number; month: number } | null>(null);
+  // Periodo ativo para filtro a partir das métricas
+  const [activePeriod, setActivePeriod] = useState<'all' | 'today' | 'week' | 'month'>('all');
 
   // Escolhe cor de texto com bom contraste sobre o fundo fornecido (hex)
   const getTextContrastClass = (bg?: string | null) => {
@@ -92,9 +95,23 @@ const RecrutadoraPage: React.FC = () => {
 
   const isAllUnits = (selectedUnit as any)?.id === 'ALL';
 
+  // Aplica filtro por período nos cards carregados
+  const visibleCards = useMemo(() => {
+    if (activePeriod === 'all') return cards;
+    let startISO: string;
+    if (activePeriod === 'today') startISO = startOfTodayISO();
+    else if (activePeriod === 'week') startISO = startOfWeekISO();
+    else startISO = startOfMonthISO();
+    const start = new Date(startISO).getTime();
+    return cards.filter(c => {
+      const created = new Date(c.created_at).getTime();
+      return !isNaN(created) && created >= start;
+    });
+  }, [cards, activePeriod]);
+
   const cardsByStatus = useMemo(() => {
     const map: Record<string, RecrutadoraCard[]> = {};
-    for (const c of cards) {
+    for (const c of visibleCards) {
       if (!map[c.status]) map[c.status] = [];
       map[c.status].push(c);
     }
@@ -103,7 +120,7 @@ const RecrutadoraPage: React.FC = () => {
       map[k].sort((a,b) => a.position - b.position || (a.created_at < b.created_at ? 1 : -1));
     }
     return map;
-  }, [cards]);
+  }, [visibleCards]);
 
   // Paleta estável por unidade (até 8 cores; cicla se >8)
   const unitColorMap = useMemo(() => {
@@ -266,21 +283,32 @@ const RecrutadoraPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-text-primary">Recrutadora - {selectedUnit.unit_name}</h1>
         {/* Métricas compactas na mesma linha */}
         <div className="flex items-center gap-2 ml-auto">
-          <div className="flex items-center gap-1 px-2 py-1 rounded-md border border-border-secondary bg-bg-secondary text-sm">
-            <Icon name="CalendarDays" className="w-4 h-4 text-brand-green" />
-            <span className="text-text-secondary">Hoje</span>
-            <span className="font-semibold text-text-primary">{metrics ? metrics.today : 0}</span>
-          </div>
-          <div className="flex items-center gap-1 px-2 py-1 rounded-md border border-border-secondary bg-bg-secondary text-sm">
-            <Icon name="CalendarRange" className="w-4 h-4 text-brand-cyan" />
-            <span className="text-text-secondary">Semana</span>
-            <span className="font-semibold text-text-primary">{metrics ? metrics.week : 0}</span>
-          </div>
-          <div className="flex items-center gap-1 px-2 py-1 rounded-md border border-border-secondary bg-bg-secondary text-sm">
-            <Icon name="Calendar" className="w-4 h-4 text-accent-primary" />
-            <span className="text-text-secondary">Mês</span>
-            <span className="font-semibold text-text-primary">{metrics ? metrics.month : 0}</span>
-          </div>
+          {([
+            { key: 'today', label: 'Hoje', icon: 'CalendarDays', color: 'text-brand-green', value: metrics?.today || 0 },
+            { key: 'week', label: 'Semana', icon: 'CalendarRange', color: 'text-brand-cyan', value: metrics?.week || 0 },
+            { key: 'month', label: 'Mês', icon: 'Calendar', color: 'text-accent-primary', value: metrics?.month || 0 },
+          ] as const).map(m => {
+            const isActive = activePeriod === (m.key as any);
+            return (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setActivePeriod(prev => (prev === m.key ? 'all' : (m.key as any)))}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md border text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                  isActive
+                    ? 'bg-accent-primary text-text-on-accent border-accent-primary'
+                    : 'bg-bg-secondary text-text-primary border-border-secondary hover:bg-bg-tertiary'
+                }`}
+                aria-pressed={isActive}
+                aria-label={`Filtrar por ${m.label}`}
+                title={isActive ? `Remover filtro ${m.label}` : `Filtrar por ${m.label}`}
+              >
+                <Icon name={m.icon as any} className={`w-4 h-4 ${isActive ? 'text-text-on-accent' : m.color}`} />
+                <span className={`${isActive ? 'text-text-on-accent' : 'text-text-secondary'}`}>{m.label}</span>
+                <span className={`font-semibold ${isActive ? 'text-text-on-accent' : 'text-text-primary'}`}>{m.value}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
   <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
@@ -289,7 +317,7 @@ const RecrutadoraPage: React.FC = () => {
             {renderColumns.map((col: any) => {
               const droppableId = col._unitForQual ? `qualificadas|${col._unitForQual.id}` : col.code;
               const columnCards = col._unitForQual
-                ? cards.filter(c => c.status === 'qualificadas' && c.unit_id === col._unitForQual.id)
+                ? visibleCards.filter(c => c.status === 'qualificadas' && c.unit_id === col._unitForQual.id)
                 : (cardsByStatus[col.code] || []);
               return (
                 <div key={col.id} className="bg-bg-tertiary rounded-lg border border-border-secondary flex flex-col h-full w-[320px] min-w-[320px] shrink-0">

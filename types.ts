@@ -52,7 +52,7 @@ export interface Module {
   children?: Module[];
 }
 
-export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients';
+export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients' | 'clients_base' | 'recrutadora' | 'prestadoras' | 'profissionais';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
 

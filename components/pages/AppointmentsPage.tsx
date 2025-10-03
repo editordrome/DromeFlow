@@ -47,6 +47,11 @@ const AppointmentsPage: React.FC = () => {
   >('all');
   const [isSending, setIsSending] = useState(false);
   const [sendFeedback, setSendFeedback] = useState<null | { type: 'success' | 'error'; message: string }>(null);
+  // Controle local de envios individuais do status CONFIRMADO
+  const [sentConfirmed, setSentConfirmed] = useState<Set<string>>(new Set());
+  const [sendingConfirmed, setSendingConfirmed] = useState<Set<string>>(new Set());
+
+  const recordKey = (r: DataRecord) => String((r as any).id ?? r.orcamento);
 
   // Localiza webhook do módulo de agendamentos (heurística: nome contém 'agend' ou view_id === 'appointments')
   const appointmentsWebhook = useMemo(() => {
@@ -80,114 +85,95 @@ const AppointmentsPage: React.FC = () => {
     return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
   };
 
-  const handleSendWebhook = async () => {
-    if (!appointmentsWebhook) return;
-    if (!activeDate) return;
-    const pendentes = appointments.filter(a => {
-      const st = String(((a as any).STATUS || (a as any).status || '')).toUpperCase();
-      return st === 'PENDENTE';
-    });
-    if (pendentes.length === 0) {
-      setSendFeedback({ type: 'error', message: 'Nenhum atendimento PENDENTE para enviar.' });
-      return;
-    }
-    setIsSending(true);
-    setSendFeedback(null);
-    try {
-      // Estrutura completa em JSON agora (POST). Mantemos também versão compacta para economizar banda dependendo do volume.
-      const enriched = pendentes.map(p => {
-        const periodo = (p as any)['PERÍODO'];
-        const servico = (p as any)['SERVIÇO'] || (p as any)['SERVICO'] || p.TIPO;
-        const dia = p.DIA;
-        const horarioClean = formatDisplayHour(String(p.HORARIO || ''));
-        return {
-          orcamento: p.orcamento,
-          horario: horarioClean,
-          periodo,
-          saida: computeSaida(horarioClean, periodo) || undefined,
-          profissional: p.PROFISSIONAL,
-          cliente: p.CLIENTE,
-          tipo: p.TIPO,
-          servico,
-          ['SERVIÇO']: servico,
-          dia,
-          ['DIA']: dia,
-          endereco: (p as any).ENDEREÇO || (p as any).ENDERECO || undefined,
-          status: (p as any).STATUS || (p as any).status || 'PENDENTE'
-        };
-      });
+  // Normaliza um DataRecord no formato "enriched" usado no payload do webhook
+  const enrichRecord = (p: DataRecord) => {
+    const periodo = (p as any)['PERÍODO'];
+    const servico = (p as any)['SERVIÇO'] || (p as any)['SERVICO'] || p.TIPO;
+    const dia = p.DIA;
+    const horarioClean = formatDisplayHour(String(p.HORARIO || ''));
+    return {
+      orcamento: p.orcamento,
+      horario: horarioClean,
+      periodo,
+      saida: computeSaida(horarioClean, periodo) || undefined,
+      profissional: p.PROFISSIONAL,
+      cliente: p.CLIENTE,
+      tipo: p.TIPO,
+      servico,
+      ['SERVIÇO']: servico,
+      dia,
+      ['DIA']: dia,
+      endereco: (p as any).ENDEREÇO || (p as any).ENDERECO || undefined,
+      status: (p as any).STATUS || (p as any).status || 'PENDENTE'
+    };
+  };
 
+  // Envia payload ao webhook (POST JSON com fallback GET), reaproveitado pelo envio em lote e individual
+  const sendWebhookPayload = useCallback(
+    async (enriched: any[], total: number, keyword?: string) => {
+      if (!appointmentsWebhook) return;
+      if (!activeDate) return;
       const unidadeCode = selectedUnit?.unit_code || '';
       const payload = {
         unidade_code: unidadeCode,
         data: activeDate,
-        total: pendentes.length,
+        total,
         generated_at: new Date().toISOString(),
         atendimentos: enriched,
-        // Campo opcional adicional com forma compacta para consumidores que queiram parse rápido
-        compact: enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco, sv: e.servico, dw: e.dia }))
-      };
+        compact: enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco, sv: e.servico, dw: e.dia })),
+        ...(keyword ? { keyword } : {})
+      } as any;
 
       let usedFallback = false;
       try {
         const resp = await fetch(appointmentsWebhook, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         if (!resp.ok) {
           const text = await resp.text().catch(() => '');
-          throw new Error(`Falha HTTP ${resp.status}${text ? ' - ' + text.slice(0,140) : ''}`);
+          throw new Error(`Falha HTTP ${resp.status}${text ? ' - ' + text.slice(0, 140) : ''}`);
         }
-        setSendFeedback({ type: 'success', message: 'Webhook enviado (POST JSON).' });
-        return; // sucesso POST, encerra
+        return { ok: true as const, mode: 'POST' };
       } catch (primaryErr: any) {
-        // Critérios para tentar fallback GET: erro de rede ou CORS genérico ou tamanho potencial
         const msg = primaryErr?.message || '';
         if (msg.includes('Failed to fetch') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('TypeError')) {
           usedFallback = true;
         } else {
-          throw primaryErr; // erro HTTP conhecido -> não tenta fallback
+          throw primaryErr;
         }
       }
 
-      // Fallback GET compactado com chunking adaptativo
       if (usedFallback) {
         const compactItems = enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco, st: e.status, sv: e.servico, dw: e.dia }));
-        const envelopeBase = {
-          u: selectedUnit?.unit_code || '', // unidade
+        const envelopeBase: any = {
+          u: selectedUnit?.unit_code || '',
           d: activeDate,
-          g: new Date().toISOString(), // generated_at
-          tt: pendentes.length // total
+          g: new Date().toISOString(),
+          tt: total,
+          ...(keyword ? { kw: keyword } : {})
         };
         const MAX_URL = 3000;
-
         const buildUrl = (subset: any[], part?: string, parts?: number) => {
           const url = new URL(appointmentsWebhook);
-          const env: any = { ...envelopeBase, a: subset }; // 'a' = atendimentos
-          if (part && parts) env.pt = part; // posição da parte (e.g., 1/3)
+          const env: any = { ...envelopeBase, a: subset };
+          if (part && parts) env.pt = part;
           const json = JSON.stringify(env);
           url.searchParams.set('payload', json);
           return url.toString();
         };
 
-        // Tenta enviar tudo de uma vez
         let fullUrl = buildUrl(compactItems);
         if (fullUrl.length <= MAX_URL) {
           const r = await fetch(fullUrl, { method: 'GET' });
           if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
-          setSendFeedback({ type: 'success', message: 'Webhook via fallback GET (1 parte).' });
-          return;
+          return { ok: true as const, mode: 'GET-ONE' };
         }
 
-        // Chunking adaptativo
         let low = 1;
         let high = compactItems.length;
-        // Busca tamanho máximo de chunk que cabe (binária)
         const fits = (size: number) => buildUrl(compactItems.slice(0, size)).length <= MAX_URL;
-        // Garantir que pelo menos 1 cabe (se não couber, aborta e sugere outro meio)
         if (!fits(1)) throw new Error('Registro individual excede limite de URL no fallback GET. Configure POST no servidor.');
         while (low < high) {
           const mid = Math.min(high - 1, Math.floor((low + high + 1) / 2));
@@ -202,8 +188,32 @@ const AppointmentsPage: React.FC = () => {
           const r = await fetch(partUrl, { method: 'GET' });
           if (!r.ok) throw new Error(`Fallback GET parte ${i + 1} HTTP ${r.status}`);
         }
-        setSendFeedback({ type: 'success', message: `Webhook via fallback GET em ${batches.length} partes (chunk=${chunkSize}).` });
-        return;
+        return { ok: true as const, mode: 'GET-CHUNK' };
+      }
+    },
+    [appointmentsWebhook, activeDate, selectedUnit]
+  );
+
+  const handleSendWebhook = async () => {
+    if (!appointmentsWebhook) return;
+    if (!activeDate) return;
+    const pendentes = appointments.filter(a => {
+      const st = String(((a as any).STATUS || (a as any).status || '')).toUpperCase();
+      return st === 'PENDENTE';
+    });
+    if (pendentes.length === 0) {
+      setSendFeedback({ type: 'error', message: 'Nenhum atendimento PENDENTE para enviar.' });
+      return;
+    }
+    setIsSending(true);
+    setSendFeedback(null);
+    try {
+      const enriched = pendentes.map(enrichRecord);
+      const result = await sendWebhookPayload(enriched, pendentes.length);
+      if (result?.ok) {
+        if (result.mode === 'POST') setSendFeedback({ type: 'success', message: 'Webhook enviado (POST JSON).' });
+        else if (result.mode === 'GET-ONE') setSendFeedback({ type: 'success', message: 'Webhook via fallback GET (1 parte).' });
+        else if (result.mode === 'GET-CHUNK') setSendFeedback({ type: 'success', message: 'Webhook via fallback GET (múltiplas partes).' });
       }
     } catch (err: any) {
       let msg = 'Erro ao enviar webhook.';
@@ -215,6 +225,46 @@ const AppointmentsPage: React.FC = () => {
       setSendFeedback({ type: 'error', message: msg });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Envio individual para registros CONFIRMADO
+  const handleSendSingleConfirmed = async (rec: DataRecord) => {
+    if (!appointmentsWebhook || !activeDate) return;
+    if (!selectedUnit || selectedUnit.unit_code === 'ALL') return; // mantém mesma regra do botão principal
+    const key = recordKey(rec);
+    // Evita reenvio se já marcado como enviado
+    if (sentConfirmed.has(key)) return;
+    setSendingConfirmed(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    try {
+      const enriched = [enrichRecord(rec)];
+      const result = await sendWebhookPayload(enriched, 1, 'cliente');
+      if (result?.ok) {
+        setSendFeedback({ type: 'success', message: 'Atendimento CONFIRMADO enviado.' });
+        setSentConfirmed(prev => {
+          const next = new Set(prev);
+          next.add(key);
+          return next;
+        });
+      }
+    } catch (err: any) {
+      let msg = 'Erro ao enviar atendimento CONFIRMADO.';
+      if (err?.message) {
+        if (err.message.includes('Failed to fetch')) msg = 'Falha de rede/DNS ao contatar webhook.';
+        else msg = err.message;
+      }
+      console.error('Erro ao enviar webhook individual de agendamento CONFIRMADO:', err);
+      setSendFeedback({ type: 'error', message: msg });
+    } finally {
+      setSendingConfirmed(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
     }
   };
 
@@ -647,15 +697,35 @@ const AppointmentsPage: React.FC = () => {
                         // Cores alinhadas aos cards: PENDENTE=amarelo, AGUARDANDO=azul, CONFIRMADO/CONCLUIDO/FINALIZADO=verde, RECUSADO/CANCELADO=vermelho
                         if (value === 'PENDENTE') style = 'bg-warning text-black border-warning/80 hover:bg-warning/90';
                         else if (value === 'AGUARDANDO') style = 'bg-blue-500/10 text-blue-500 border-blue-400/40 hover:bg-blue-500/15';
-                        else if (value === 'CONFIRMADO' || value === 'CONCLUIDO' || value === 'FINALIZADO') style = 'bg-success text-text-on-accent border-success/80 hover:bg-success/90';
                         else if (value === 'RECUSADO' || value === 'CANCELADO') style = 'bg-rose-500/10 text-rose-500 border-rose-500/40 hover:bg-rose-500/15';
+
+                        // Para CONFIRMADO: vira botão acionável que envia o atendimento individual com keyword 'cliente'
+                        if (value === 'CONFIRMADO') {
+                          const key = recordKey(rec);
+                          const wasSent = sentConfirmed.has(key);
+                          const isRowSending = sendingConfirmed.has(key);
+                          const isDisabled = !appointmentsWebhook || selectedUnit.unit_code === 'ALL' || isRowSending || wasSent;
+                          const confirmedStyle = `bg-success ${wasSent ? 'text-black' : 'text-text-on-accent'} border-success/80`;
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleSendSingleConfirmed(rec); }}
+                              disabled={isDisabled}
+                              className={`${base} ${confirmedStyle} ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-success/90'}`}
+                              aria-label={`Enviar atendimento CONFIRMADO (${rec.CLIENTE})`}
+                              title={wasSent ? 'Enviado' : 'Enviar este atendimento'}
+                            >
+                              {isRowSending ? 'Enviando...' : value}
+                            </button>
+                          );
+                        }
+
+                        // Para CONCLUIDO/FINALIZADO mantemos como rótulo (somente visual)
+                        if (value === 'CONCLUIDO' || value === 'FINALIZADO') {
+                          style = 'bg-success text-text-on-accent border-success/80 hover:bg-success/90';
+                        }
                         return (
-                          <button
-                            type="button"
-                            disabled
-                            className={`${base} ${style} cursor-default`}
-                            aria-label={`Status: ${value}`}
-                          >
+                          <button type="button" disabled className={`${base} ${style} cursor-default`} aria-label={`Status: ${value}`}>
                             {value}
                           </button>
                         );

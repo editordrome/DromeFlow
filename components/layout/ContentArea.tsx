@@ -68,21 +68,21 @@ const ContentArea: React.FC = () => {
     if (activeView === 'appointments' || activeView === 'agenda') {
         return <AppointmentsPage />;
     }
-        if (activeView === 'clients') {
-            return <ClientsPage />;
-        }
-        if (activeView === 'clients_base') {
-            return <ClientsBasePage />;
-        }
-        if (activeView === 'recrutadora') {
-            return <RecrutadoraPage />;
-        }
-        if (activeView === 'profissionais') {
-            return <ProfissionaisPage />;
-        }
-        if (activeView === 'prestadoras') {
-            return <PrestadorasPage />;
-        }
+    if (activeView === 'clients') {
+        return <ClientsPage />;
+    }
+    if (activeView === 'clients_base') {
+        return <ClientsBasePage />;
+    }
+    if (activeView === 'recrutadora') {
+        return <RecrutadoraPage />;
+    }
+    if (activeView === 'profissionais') {
+        return <ProfissionaisPage />;
+    }
+    if (activeView === 'prestadoras') {
+        return <PrestadorasPage />;
+    }
     
     // Default to module view
     return (

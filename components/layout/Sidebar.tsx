@@ -28,7 +28,10 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   useEffect(() => {
     if (!user || !profile) return;
     if (profile.role === 'super_admin') {
-      setSelectedUnit(null);
+      // Para super_admin, define ALL por padrão para que páginas funcionem em modo agregado
+      if (!selectedUnit) {
+        setSelectedUnit({ id: 'ALL', unit_name: 'Todas as Unidades', unit_code: 'ALL' } as any);
+      }
       return;
     }
     if (!selectedUnit && userUnits.length > 0) {
@@ -48,11 +51,13 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   };
   
   const handleModuleClick = (module: Module) => {
-    if (module.view_id) {
-      // Se for um módulo de visualização estática (ex: 'manage_users')
-      setView(module.view_id as PageView, null);
+    const viewIdNorm = (module.view_id || '').toLowerCase().replace(/-/g, '_');
+    const url = (module.webhook_url || '').toLowerCase();
+    const internalView = url.startsWith('internal://') ? url.slice('internal://'.length).replace(/-/g, '_') : '';
+    const target = viewIdNorm || internalView;
+    if (target) {
+      setView(target as PageView, null);
     } else {
-      // Se for um módulo de conteúdo dinâmico (com webhook)
       setView('module', module);
     }
     setSidebarOpen(false);
@@ -150,7 +155,8 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       return a.name.localeCompare(b.name);
     });
 
-    const parents = sorted.filter(m => !m.parent_id);
+  const parents = sorted.filter(m => !m.parent_id);
+  const normalizeView = (v?: string | null) => (v || '').replace(/-/g, '_');
     const childrenMap = new Map<string, Module[]>();
     for (const m of sorted) {
       if (m.parent_id) {
@@ -174,7 +180,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       const children = childrenMap.get(parent.id) || [];
       const isActiveParent =
         (activeView === 'module' && activeModule?.id === parent.id) ||
-        (parent.view_id && activeView === parent.view_id);
+        (parent.view_id && activeView === normalizeView(parent.view_id));
   const isExpanded = expandedParents[parent.id] ?? false; // por padrão RECOLHIDO
 
       return (
@@ -212,7 +218,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
                   label={child.name}
                   isActive={
                     (activeView === 'module' && activeModule?.id === child.id) ||
-                    (child.view_id && activeView === child.view_id)
+                    (child.view_id && activeView === normalizeView(child.view_id))
                   }
                   onClick={() => handleModuleClick(child)}
                   className={`${isCollapsed ? '' : 'pl-6'}`}

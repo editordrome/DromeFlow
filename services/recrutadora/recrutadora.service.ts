@@ -8,7 +8,6 @@ export const DEFAULT_COLUMNS: Array<Pick<RecrutadoraColumn, 'code' | 'name' | 'c
   { code: 'envio_doc', name: 'ENVIO DOS DOCUMENTOS', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/ENVDOCS.png' },
   { code: 'truora', name: 'TRUORA', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/TRUORA.png' },
   { code: 'treinamento', name: 'TREINAMENTO', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/TREINAMENTOS.png' },
-  { code: 'ativo', name: 'ATIVO', color: null, image_url: null },
   { code: 'finalizado', name: 'FINALIZADO', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/FINALIZADOS.png' },
   { code: 'nao_aprovadas', name: 'NÃO APROVADAS', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/NAOAPROV.png' },
   { code: 'desistentes', name: 'DESISTENTES', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/DESISTENTES.png' },
