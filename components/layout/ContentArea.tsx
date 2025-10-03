@@ -10,6 +10,7 @@ import DataPage from '../pages/DataPage';
 import DashboardMetricsPage from '../pages/DashboardMetricsPage';
 import AppointmentsPage from '../pages/AppointmentsPage';
 import ClientsPage from '../pages/ClientsPage';
+import ClientsBasePage from '../pages/ClientsBasePage';
 import RecrutadoraPage from '../pages/RecrutadoraPage';
 import ProfissionaisPage from '../pages/ProfissionaisPage';
 import PrestadorasPage from '../pages/PrestadorasPage';
@@ -69,6 +70,9 @@ const ContentArea: React.FC = () => {
     }
         if (activeView === 'clients') {
             return <ClientsPage />;
+        }
+        if (activeView === 'clients_base') {
+            return <ClientsBasePage />;
         }
         if (activeView === 'recrutadora') {
             return <RecrutadoraPage />;

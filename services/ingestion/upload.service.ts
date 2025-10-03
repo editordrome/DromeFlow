@@ -3,6 +3,7 @@
  * Mantém a mesma lógica e assinaturas que existiam no mockApi.
  */
 import { supabase } from '../supabaseClient';
+import { syncUnitClientsFromProcessed } from '../data/clientsDirectory.service';
 import { DataRecord, UploadMetrics } from '../../types';
 
 // Fix: Create a helper type to corretamente tipar dados brutos do XLSX onde REPASSE pode ser string.
@@ -257,11 +258,16 @@ export const uploadXlsxData = async (
 	};
 
 	try {
-		return await tryRpcUpload();
+			const result = await tryRpcUpload();
+			// Sincroniza base de clientes a partir do processed_data para a unidade
+			try { await syncUnitClientsFromProcessed(unitCode); } catch (e) { console.warn('[upload] syncUnitClients warning:', e); }
+			return result;
 	} catch (e: any) {
 		const msg = String(e?.message || '').toLowerCase();
 		if (msg.includes('column "profissional" does not exist')) {
-			return await manualFallbackUpload();
+					const res = await manualFallbackUpload();
+					try { await syncUnitClientsFromProcessed(unitCode); } catch (e) { console.warn('[upload] syncUnitClients warning:', e); }
+					return res;
 		}
 		throw e;
 	}

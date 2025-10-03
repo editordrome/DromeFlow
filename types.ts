@@ -136,6 +136,18 @@ export interface RepasseAnalysisRecord {
   REPASSE: number;
 }
 
+// Diretório de Clientes por Unidade
+export interface UnitClient {
+  id: string;
+  unit_id: string;
+  nome: string;
+  tipo: string | null;
+  endereco: string | null;
+  contato: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Recrutadora (Kanban)
 export interface RecrutadoraColumn {
   id: string;
