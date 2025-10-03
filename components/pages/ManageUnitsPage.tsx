@@ -102,7 +102,7 @@ const UnitFormModal: React.FC<{
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog">
       <div className="w-full max-w-3xl p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg">
         <div className="flex items-center justify-between pb-3 border-b border-border-primary">
-          <h2 className="text-xl font-bold text-text-primary">{unit ? 'Editar Unidade' : 'Adicionar Nova Unidade'}</h2>
+          <h2 className="text-xl font-bold text-text-primary">{unit ? (unit.unit_name || 'Editar Unidade') : 'Adicionar Nova Unidade'}</h2>
           <button onClick={onClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary">
             <Icon name="close" />
           </button>
