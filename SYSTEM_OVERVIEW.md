@@ -270,3 +270,8 @@ _Documento ampliado para refletir estado operacional atualizado (02/10/2025)._
 - RLS: habilitado com políticas permissivas para SELECT/INSERT/UPDATE/DELETE (restrição de edição assegurada na UI ao perfil `super_admin`). Recomendado evoluir para RLS restritiva com Supabase Auth (claims de role) no futuro.
 - Serviço: `services/units/unitKeys.service.ts` provê `fetchUnitKeys`, `createUnitKey`, `updateUnitKey`, `deleteUnitKey` para a configuração única.
 - UI: Em "Gerenciar Unidades" → Editar → aba "Keys" (somente `super_admin`). Formulário único com auto‑save por debounce (~600ms), indicador de salvamento e botão "Remover" quando existir configuração.
+
+---
+### Referência: Subdomínios e URLs por Módulo
+
+Para publicar cada unidade em seu subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeboard.com.br/<module>`), consulte `docs/SUBDOMINIOS_E_URLS.md`.
