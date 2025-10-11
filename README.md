@@ -44,7 +44,7 @@ Requisitos de backend:
 
 - Node.js 18+
 - NPM 9+
-- Projeto Supabase com tabelas e RPCs: `get_user_units`, `get_user_modules`, `get_dashboard_metrics`, `process_xlsx_upload`, `delete_app_user`.
+- Projeto Supabase com tabelas e RPCs: `get_user_units`, `get_user_modules`, `get_dashboard_metrics`, `process_xlsx_upload`, `delete_app_user`, `unit_keys_list_columns`, `unit_keys_add_column`, `unit_keys_rename_column`, `unit_keys_drop_column`, `unit_keys_columns_stats`, `unit_keys_set_column_status`, `sync_unit_clients_from_processed`.
 
 ---
 ## 2. Configuração de Ambiente
@@ -141,6 +141,9 @@ id, code, name, icon_name, is_active, allowed_profiles[], position, description?
 - Evite duplicar regras nos componentes — centralize em `services/*/*.service.ts`.
 - Reutilize `components/ui/MonthlyComparisonChart.tsx` quando fizer sentido.
 
+Notas adicionais:
+- O barrel `services/index.ts` e o arquivo de compatibilidade `services/mockApi.ts` seguem ativos até a Fase 6 de limpeza. Não remova até um PR dedicado atualizar todos os imports.
+
 ---
 ## 7. Upload de Dados (XLSX)
 
@@ -231,6 +234,8 @@ Observações:
    - Paginação: 25 linhas por página, com reset ao mudar período, filtro ou busca.
    - Ícone do cartão "Outros" atualizado para `user-plus`.
    - Normalização: chaves de conjunto baseadas no campo bruto `CLIENTE` (sem `trim`/case transform) para manter paridade total com o Dashboard.
+   - Duplo clique na linha abre `ClientDetailModal` (abas Dados e Atendimentos) com filtro mensal e drill‑down para `DataDetailModal`.
+   - Em “Base de Clientes”, há a coluna “Último Atendimento” e o modal inclui aba Atendimentos espelhando o modal de Clientes, com duplo clique para abrir `DataDetailModal`.
 
 ### 8.3 Prestadoras (Profissionais + Recrutadora)
 
@@ -280,6 +285,7 @@ Super Admin:
 - Manter `position` densamente sequencial após drag & drop (sem gaps).
 - Preferir futura RPC batch para reorder ao invés de múltiplas updates paralelas.
 - Webhook de Agendamentos: usar POST JSON; fallback GET chunkado é automático somente em falha de rede/CORS.
+   - Payload mínimo: `{ unidade_code, data }`, com `keyword` opcional e `atendimento_id` em envios individuais; fallback GET usa chaves compactas (`u`, `d`, `kw`, `aid`).
 
 ---
 ## 11. Próximos Passos Recomendados
@@ -295,6 +301,10 @@ Super Admin:
 | Baixa | Tooltips customizados | Melhorar UX em estado colapsado |
 | Baixa | Churn como % | Ajustar eixo e rótulos do gráfico para porcentagem quando Churn estiver ativo |
 | Baixa | PeriodDropdown compartilhado | Extrair o seletor de período para um componente reutilizável e padronizar nas páginas |
+
+Notas finais:
+- ContentArea injeta HTML apenas quando `webhook_url` começa com `internal://`.
+- Em ALL, o botão de envio de webhook de Agendamentos fica desabilitado por segurança/semântica.
 
 ---
 ## 12. Scripts

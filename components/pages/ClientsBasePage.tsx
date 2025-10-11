@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from '../ui/Icon';
 import UnitClientModal from '../ui/UnitClientModal';
 import { UnitClient } from '../../types';
 import { listUnitClients, createUnitClient, updateUnitClient, deleteUnitClient } from '../../services/data/clientsDirectory.service';
+import { fetchLastAttendance } from '../../services/analytics/clients.service';
 
 const ClientsBasePage: React.FC = () => {
   const { selectedUnit } = useAppContext();
   const unitId = selectedUnit?.id || '';
+  const unitCode = (selectedUnit as any)?.unit_code || '';
   const [items, setItems] = useState<UnitClient[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +21,11 @@ const ClientsBasePage: React.FC = () => {
   const [draft, setDraft] = useState<Partial<UnitClient>>({ nome: '', tipo: '', endereco: '', contato: '' });
   const [selected, setSelected] = useState<UnitClient | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [lastMap, setLastMap] = useState<Record<string, string | null>>({}); // id do unit_client -> última DATA
+  // Edição inline do contato
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [contactEditValue, setContactEditValue] = useState('');
+  const [savingContactId, setSavingContactId] = useState<string | null>(null);
 
   const canInteract = useMemo(() => Boolean(unitId), [unitId]);
 
@@ -30,6 +37,21 @@ const ClientsBasePage: React.FC = () => {
       const { items, total } = await listUnitClients(unitId, q, page, pageSize);
       setItems(items);
       setTotal(total);
+      // Buscar últimas datas em paralelo e preencher mapa (por cliente)
+      const unitCode = (selectedUnit as any)?.unit_code;
+      if (unitCode) {
+        const pairs = await Promise.all(
+          items.map(async (it) => {
+            const d = await fetchLastAttendance(unitCode, it.nome);
+            return [it.id, d] as const;
+          })
+        );
+        const map: Record<string, string | null> = {};
+        pairs.forEach(([id, d]) => { map[id] = d || null; });
+        setLastMap(map);
+      } else {
+        setLastMap({});
+      }
     } catch (e: any) {
       setError(e?.message || 'Falha ao carregar clientes.');
     } finally {
@@ -62,6 +84,34 @@ const ClientsBasePage: React.FC = () => {
     setSelected(item);
     setIsModalOpen(true);
   };
+
+  const startEditContact = useCallback((item: UnitClient) => {
+    setEditingContactId(item.id);
+    setContactEditValue(item.contato || '');
+  }, []);
+
+  const cancelEditContact = useCallback(() => {
+    setEditingContactId(null);
+    setContactEditValue('');
+  }, []);
+
+  const saveEditContact = useCallback(async (id: string) => {
+    if (!id) return;
+    if (savingContactId) return;
+    try {
+      setSavingContactId(id);
+      const val = contactEditValue.trim();
+      await updateUnitClient(id, { contato: val || null } as any);
+      // Atualiza localmente sem recarregar
+      setItems(prev => prev.map(it => it.id === id ? { ...it, contato: val || null } : it));
+      setEditingContactId(null);
+      setContactEditValue('');
+    } catch (e: any) {
+      alert(e?.message || 'Falha ao salvar contato');
+    } finally {
+      setSavingContactId(null);
+    }
+  }, [contactEditValue, savingContactId]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir este cliente do cadastro da unidade?')) return;
@@ -123,6 +173,7 @@ const ClientsBasePage: React.FC = () => {
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Tipo</th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Contato</th>
+                <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Último</th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
               </tr>
             </thead>
@@ -131,7 +182,38 @@ const ClientsBasePage: React.FC = () => {
                 <tr key={it.id} className="transition-colors hover:bg-bg-tertiary cursor-pointer" onDoubleClick={() => openModal(it)}>
                   <td className="px-6 py-3 whitespace-nowrap text-sm">{it.nome}</td>
                   <td className="px-6 py-3 whitespace-nowrap text-sm">{it.tipo || '-'}</td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm">{it.contato || '-'}</td>
+                  <td className="px-6 py-3 whitespace-nowrap text-sm" onClick={(e)=>e.stopPropagation()}>
+                    {editingContactId === it.id ? (
+                      <input
+                        autoFocus
+                        value={contactEditValue}
+                        onChange={(e)=>setContactEditValue(e.target.value)}
+                        onBlur={()=>saveEditContact(it.id)}
+                        onKeyDown={(e)=>{
+                          if (e.key === 'Enter') saveEditContact(it.id);
+                          if (e.key === 'Escape') cancelEditContact();
+                        }}
+                        disabled={savingContactId === it.id}
+                        className="px-2 py-1 rounded border border-border-secondary bg-bg-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                        placeholder="Contato"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className={it.contato ? '' : 'text-text-tertiary'}>{it.contato || '-'}</span>
+                        <button
+                          type="button"
+                          onClick={()=>startEditContact(it)}
+                          className="p-1 rounded hover:bg-bg-tertiary text-text-secondary"
+                          title="Editar contato"
+                        >
+                          <Icon name="edit" className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-3 whitespace-nowrap text-sm">
+                    {lastMap[it.id] ? new Date((lastMap[it.id] as string) + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+                  </td>
                   <td className="px-6 py-3 whitespace-nowrap text-sm text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button onClick={() => openModal(it)} className="px-2 py-1 rounded-md text-text-secondary hover:bg-bg-tertiary" title="Abrir"><Icon name="ExternalLink" className="w-5 h-5" /></button>
@@ -169,6 +251,8 @@ const ClientsBasePage: React.FC = () => {
         item={selected}
         onSaved={async () => { setIsModalOpen(false); await load(); }}
         onDeleted={async () => { setIsModalOpen(false); await load(); }}
+        unitCode={unitCode}
+        currentPeriod={new Date().toISOString().slice(0,7)}
       />
     </div>
   );

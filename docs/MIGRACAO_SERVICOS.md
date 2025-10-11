@@ -2,7 +2,7 @@
 
 Este guia descreve, passo a passo, como segmentar o arquivo `services/mockApi.ts` em serviços por domínio, mantendo a aplicação funcional durante todo o processo. Status: Fase 6 pendente.
 
-Última atualização: 10/10/2025 — Fase 5 concluída; Fase 6 pendente (barrel e mockApi ainda ativos)
+Última atualização: 11/10/2025 — Fase 5 concluída; Fase 6 pendente (barrel e mockApi ainda ativos)
 
 ## Estado atual da migração
 
@@ -23,7 +23,7 @@ Qualidade atual (Quality Gates):
 - Tipos (tsc --noEmit): PASS
 - Build (vite build): PASS (apenas avisos de tamanho de bundle e import dinâmico/estático misto, sem impacto funcional)
 - Smoke (Analytics): PASS básico — Dashboard, Dashboard Metrics e Clientes dependem das novas funções sem erros de build.
- - Smoke (Ingestion): aguardando teste manual com planilha pequena; build validado e tipos ok.
+- Smoke (Ingestion): aguardando teste manual com planilha pequena; build validado e tipos ok.
 
 Correções TypeScript aplicadas junto às fases (não alteram comportamento):
 - tsconfig: inclusão de `vite/client` em `compilerOptions.types` (tipagem de `import.meta.env`).

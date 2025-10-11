@@ -45,3 +45,18 @@ export async function syncUnitClientsFromProcessed(unitCode: string): Promise<nu
   if (error) throw error;
   return (data as number) || 0;
 }
+
+export async function getUnitClientByName(unitId: string, name: string): Promise<UnitClient | null> {
+  if (!unitId || !name) return null;
+  // Tenta match tolerante por nome usando ilike
+  const { data, error } = await supabase
+    .from('unit_clients')
+    .select('*')
+    .eq('unit_id', unitId)
+    .ilike('nome', `%${name}%`)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return (data as UnitClient) || null;
+}

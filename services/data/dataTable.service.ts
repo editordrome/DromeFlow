@@ -156,6 +156,19 @@ export const deleteDataRecord = async (recordId: string): Promise<void> => {
     throw error;
   }
 };
+
+export const fetchDataRecordById = async (recordId: number): Promise<DataRecord | null> => {
+  const { data, error } = await supabase
+    .from('processed_data')
+    .select('*')
+    .eq('id', recordId)
+    .maybeSingle();
+  if (error) {
+    console.error('Erro ao buscar registro por ID:', error);
+    return null;
+  }
+  return (data as DataRecord) || null;
+};
 /**
  * dataTable.service.ts
  * Esqueleto de serviço para operações de tabela de dados e agendamentos.

@@ -16,7 +16,7 @@ A aplicação está organizada da seguinte forma:
 - **`/services/`**: Camada de comunicação com o backend, segmentada por domínio.
   - `supabaseClient.ts`: Configura e exporta o cliente Supabase, conectando a aplicação ao banco de dados.
   - `auth/users.service.ts`, `units/units.service.ts`, `modules/modules.service.ts`, `analytics/*.service.ts`, `data/dataTable.service.ts`, `ingestion/upload.service.ts`, `content/content.service.ts`, `access/accessCredentials.service.ts`.
-  - Barrel temporário `services/index.ts` e compatibilidade `services/mockApi.ts` permanecem ativos até a Fase 6 de limpeza.
+  - Barrel temporário `services/index.ts` e compatibilidade `services/mockApi.ts` permanecem ativos até a Fase 6 de limpeza (não remover até PR dedicado atualizar todos os imports).
 - **`/components/`**: Onde residem todos os componentes React.
   - `/layout/`: Componentes estruturais como `Sidebar` e `ContentArea`.
   - `/pages/`: Componentes que representam as telas principais de cada módulo (Dashboard, Dados, Gerenciamento de Usuários, etc.).
@@ -25,7 +25,7 @@ A aplicação está organizada da seguinte forma:
 ## 2. Fluxo de Autenticação e Sessão
 
 1.  **Login**: O usuário insere e-mail e senha na `LoginPage`.
-2.  **Verificação**: A função `login` do `AuthContext` realiza uma consulta direta na tabela `profiles` do Supabase para encontrar um usuário com o e-mail e a senha fornecidos. **Este é um fluxo de autenticação personalizado e não utiliza o `supabase.auth`**.
+2.  **Verificação**: A função `login` do `AuthContext` realiza uma consulta direta na tabela `profiles` do Supabase para encontrar um usuário com o e-mail e a senha fornecidos. **Este é um fluxo de autenticação personalizado e não utiliza o `supabase.auth`** (migração futura planejada para `auth.users` + triggers e hash de senha).
 3.  **Sessão**: Se as credenciais forem válidas, o `AuthContext` armazena os dados do perfil do usuário no estado do React e em `sessionStorage` para persistir a sessão no navegador.
 4.  **Gerenciamento**: O `App.tsx` verifica a existência do usuário no `AuthContext` para decidir se renderiza a `DashboardPage` ou a `LoginPage`.
 5.  **Persistência**: A sessão é mantida através do `sessionStorage` do navegador, permitindo que o usuário permaneça logado ao recarregar a página.
@@ -112,7 +112,7 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
     - Serviço `fetchClients` retorna lista de `M` e, para Atenção, metadados com `tipo`, `lastAttendance` e `monthlyCounts` (para `M`, `M-1`, `M-2`).
   -   **UI**:
     - Cartão Atenção mostra quantidade; ao clicar, filtra tabela para não-retornos.
-    - Tabela em Atenção exibe colunas de `M`, `M-1`, `M-2` (ordem invertida) com cabeçalhos `Abrev/AAAA`.
+  - Tabela em Atenção exibe colunas de `M`, `M-1`, `M-2` (ordem invertida) com cabeçalhos `Abrev/AAAA`. Quando ativa, a linha do cliente abre `ClientDetailModal` por duplo clique; o modal possui abas (Dados/Atendimentos) com filtro mensal e permite abrir `DataDetailModal` ao dar duplo clique no histórico. A Base de Clientes contém a coluna “Último Atendimento” e modal espelhado.
     - Paginação de 25 itens por página, reset em mudanças de período/filtros.
 
 ### 5.1 Visualização "Todos" (ALL) – Comportamento por Módulo

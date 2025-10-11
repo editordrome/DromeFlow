@@ -165,6 +165,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUserModules([]);
     setUserUnits([]);
     localStorage.removeItem('userProfile');
+    // Limpa cache local de seleção persistida
+    try {
+      localStorage.removeItem('df_selected_unit_id');
+      localStorage.removeItem('df_active_view');
+      localStorage.removeItem('df_active_module_id');
+    } catch {}
   };
 
   const value = {

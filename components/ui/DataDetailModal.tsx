@@ -18,6 +18,7 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
 
     const { selectedUnit } = useAppContext();
     const [isEditing, setIsEditing] = useState(false);
+    const [activeTab, setActiveTab] = useState<'info' | 'posvenda'>('info');
     const [profissionais, setProfissionais] = useState<Profissional[]>([]);
     const [profissionalSel, setProfissionalSel] = useState<string>(record.PROFISSIONAL || '');
     const [statusSel, setStatusSel] = useState<string>(String((record as any).status ?? (record as any).STATUS ?? '') || '');
@@ -105,6 +106,8 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
     const [coment, setComent] = useState<string>('');
     const [savingObs, setSavingObs] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const [savingComent, setSavingComent] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const [posVenda, setPosVenda] = useState<string>('');
+    const [savingPosVenda, setSavingPosVenda] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const obsTimer = useRef<any>(null);
     const comentTimer = useRef<any>(null);
 
@@ -113,8 +116,12 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         if (record) {
             setObs(record.observacao || '');
             setComent(record.comentario || '');
+            const pv = (record as any)['pos vendas'] ?? '';
+            setPosVenda(pv ? String(pv) : '');
             setSavingObs('idle');
             setSavingComent('idle');
+            setSavingPosVenda('idle');
+            setActiveTab('info');
         }
     }, [record]);
 
@@ -151,6 +158,20 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         timerRef.current = setTimeout(() => {
             persistField(field, value);
         }, 800);
+    };
+
+    const persistPosVenda = async (value: string) => {
+        if (!record || record.id == null) return;
+        try {
+            setSavingPosVenda('saving');
+            const payload: any = { ['pos vendas']: value || null };
+            const updated = await updateDataRecord(String(record.id), payload);
+            setPosVenda((updated as any)['pos vendas'] ? String((updated as any)['pos vendas']) : '');
+            setSavingPosVenda('saved');
+        } catch (e) {
+            console.error('Falha ao salvar pos vendas:', e);
+            setSavingPosVenda('error');
+        }
     };
 
     // --- Cópia de mensagens ---
@@ -308,7 +329,27 @@ Obrigada e tenha um ótimo atendimento😊`
                         <Icon name="close" />
                     </button>
                 </div>
-                <div className="mt-6 space-y-4 pr-2 overflow-y-auto">
+                {/* Tabs */}
+                <div className="mt-4 flex items-center gap-2 border-b border-border-secondary">
+                    <button
+                        type="button"
+                        className={`px-3 py-2 text-sm ${activeTab==='info' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                        onClick={() => setActiveTab('info')}
+                    >
+                        Detalhes
+                    </button>
+                    <button
+                        type="button"
+                        className={`px-3 py-2 text-sm ${activeTab==='posvenda' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                        onClick={() => setActiveTab('posvenda')}
+                    >
+                        Pós-venda
+                    </button>
+                </div>
+
+                <div className="mt-4 space-y-4 pr-2 overflow-y-auto">
+                {activeTab === 'info' && (
+                <>
                 {/* Linha 1: DATA, HORÁRIO, DIA DA SEMANA, VALOR, STATUS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-x-6">
                     {renderDetail('Data', record.DATA)}
@@ -368,8 +409,8 @@ Obrigada e tenha um ótimo atendimento😊`
                                 </div>
 
                                 {/* Linha 4 removida (Data de Cadastro, Cupom, Origem) */}
-                                     {/* Campos editáveis */}
-                                     <div className="grid grid-cols-1 gap-4 mt-2">
+                                                                         {/* Campos editáveis (Observação apenas nesta aba) */}
+                                                                         <div className="grid grid-cols-1 gap-4 mt-2">
                                             <div>
                                                 <div className="flex items-center justify-between">
                                                     <p className="text-xs font-semibold uppercase text-text-secondary tracking-wider">Observação</p>
@@ -384,6 +425,13 @@ Obrigada e tenha um ótimo atendimento😊`
                                                     onChange={(e) => scheduleSave('observacao', e.target.value)}
                                                 />
                                             </div>
+                                     </div>
+                                </>
+                                )}
+
+                                {activeTab === 'posvenda' && (
+                                    <>
+                                        <div className="grid grid-cols-1 gap-4 mt-2">
                                             <div>
                                                 <div className="flex items-center justify-between">
                                                     <p className="text-xs font-semibold uppercase text-text-secondary tracking-wider">Comentário</p>
@@ -398,7 +446,29 @@ Obrigada e tenha um ótimo atendimento😊`
                                                     onChange={(e) => scheduleSave('comentario', e.target.value)}
                                                 />
                                             </div>
-                                     </div>
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-xs font-semibold uppercase text-text-secondary tracking-wider">Pós-venda</p>
+                                                    <span className="text-[11px] text-text-tertiary">
+                                                        {savingPosVenda === 'saving' ? 'salvando…' : savingPosVenda === 'saved' ? 'salvo' : savingPosVenda === 'error' ? 'erro ao salvar' : ''}
+                                                    </span>
+                                                </div>
+                                                <select
+                                                    className="mt-1 w-full rounded-md border border-border-secondary bg-bg-tertiary p-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/60"
+                                                    value={posVenda}
+                                                    onChange={(e) => { setPosVenda(e.target.value); persistPosVenda(e.target.value); }}
+                                                >
+                                                    <option value="">Selecione</option>
+                                                    <option value="1">1</option>
+                                                    <option value="2">2</option>
+                                                    <option value="3">3</option>
+                                                    <option value="4">4</option>
+                                                    <option value="5">5</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                 </div>
                  <div className="flex items-center justify-end gap-2 pt-4 mt-auto flex-shrink-0">
                     <button
