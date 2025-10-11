@@ -7,12 +7,12 @@ export async function fetchUnitKeys(unitId: string): Promise<UnitKey[]> {
     .from('unit_keys')
     .select('*')
     .eq('unit_id', unitId)
-    .limit(1);
+    .order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
   return (data || []) as UnitKey[];
 }
 
-export async function createUnitKey(unitId: string, payload: Partial<UnitKey>) {
+export async function createUnitKey(unitId: string, payload: Partial<UnitKey>): Promise<UnitKey> {
   const body: Partial<UnitKey> & { unit_id: string } = {
     unit_id: unitId,
     umbler: payload.umbler ?? null,
@@ -24,8 +24,13 @@ export async function createUnitKey(unitId: string, payload: Partial<UnitKey>) {
     description: payload.description ?? null,
     is_active: payload.is_active ?? true,
   };
-  const { error } = await supabase.from('unit_keys').insert(body as any);
+  const { data, error } = await supabase
+    .from('unit_keys')
+    .insert(body as any)
+    .select('*')
+    .single();
   if (error) throw new Error(error.message);
+  return data as unknown as UnitKey;
 }
 
 export async function updateUnitKey(id: string, payload: Partial<UnitKey>) {

@@ -16,6 +16,7 @@ A aplicação está organizada da seguinte forma:
 - **`/services/`**: Camada de comunicação com o backend, segmentada por domínio.
   - `supabaseClient.ts`: Configura e exporta o cliente Supabase, conectando a aplicação ao banco de dados.
   - `auth/users.service.ts`, `units/units.service.ts`, `modules/modules.service.ts`, `analytics/*.service.ts`, `data/dataTable.service.ts`, `ingestion/upload.service.ts`, `content/content.service.ts`, `access/accessCredentials.service.ts`.
+  - Barrel temporário `services/index.ts` e compatibilidade `services/mockApi.ts` permanecem ativos até a Fase 6 de limpeza.
 - **`/components/`**: Onde residem todos os componentes React.
   - `/layout/`: Componentes estruturais como `Sidebar` e `ContentArea`.
   - `/pages/`: Componentes que representam as telas principais de cada módulo (Dashboard, Dados, Gerenciamento de Usuários, etc.).
@@ -85,6 +86,11 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Drag & Drop: Movimentação dentro da mesma unidade; prevenções para drops inválidos quando a visualização for "Todos".
   -   Métricas Rápidas: Chips inline no cabeçalho com contagens de Hoje, Semana e Mês (baseadas em `created_at >= início do período`). Serviços: `services/recrutadora/recrutadora.service.ts` com utilitários de data em `services/utils/dates.ts`.
   -   Visualização "Todos" (ALL): A coluna "Qualificadas" é duplicada por unidade; as demais colunas agregam cards de todas as unidades. DnD permanece restrito por unidade.
+
+-   Configuração por Unidade (unit_keys):
+  -   Tabela `unit_keys` com colunas: `umbler`, `whats_profi`, `whats_client`, `botID`, `organizationID`, `trigger`, `description`, `is_active`.
+  -   Serviço: `services/units/unitKeys.service.ts` com `fetchUnitKeys`, `createUnitKey`, `updateUnitKey`, `deleteUnitKey`.
+  -   UI: Em “Gerenciar Unidades” → Editar → aba “Keys” (somente `super_admin`). Layout atual em formato de tabela com colunas NOME (tipo da key) e KEY (valor), com edição inline e ação de excluir por linha. O botão “Adicionar Key” agora fica na mesma barra das abas.
 
 -   Prestadoras (Profissionais + Recrutadora):
     - Ponto de entrada: `components/pages/PrestadorasPage.tsx`.

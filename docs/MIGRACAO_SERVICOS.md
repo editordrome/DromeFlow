@@ -1,12 +1,12 @@
-# Plano de Migração — Segmentação de `services/mockApi.ts` (Concluído)
+# Plano de Migração — Segmentação de `services/mockApi.ts` (Em andamento)
 
-Este guia descreve, passo a passo, como segmentar o arquivo `services/mockApi.ts` em serviços por domínio, mantendo a aplicação funcional durante todo o processo. Status: Fase 6 concluída.
+Este guia descreve, passo a passo, como segmentar o arquivo `services/mockApi.ts` em serviços por domínio, mantendo a aplicação funcional durante todo o processo. Status: Fase 6 pendente.
 
-Última atualização: 26/09/2025 — Fase 5 concluída
+Última atualização: 10/10/2025 — Fase 5 concluída; Fase 6 pendente (barrel e mockApi ainda ativos)
 
 ## Estado atual da migração
 
-- Fase 0 concluída: estrutura de pastas criada e barrel `services/index.ts` adicionado.
+- Fase 0 concluída: estrutura de pastas criada e barrel `services/index.ts` adicionado (ainda ativo por compatibilidade).
 - Fase 1 aplicada: migradas para serviços dedicados e reexportadas no barrel
   - `services/units/units.service.ts`: fetchAllUnits, createUnit, updateUnit, deleteUnit
   - `services/modules/modules.service.ts`: fetchAllModules, createModule, updateModule, deleteModule, toggleModuleStatus, updateModulesOrder
@@ -17,7 +17,7 @@ Este guia descreve, passo a passo, como segmentar o arquivo `services/mockApi.ts
 - Fase 3 aplicada: `services/data/dataTable.service.ts` com fetchDataTable, fetchAppointments, updateDataRecord, deleteDataRecord. `mockApi.ts` reexporta e duplicatas foram removidas.
 - Fase 4 aplicada: `services/analytics/*` com dashboard/clients/repasse/serviceAnalysis migrados. `mockApi.ts` agora reexporta todas as funções de analytics e removeu implementações duplicadas; `MonthlyChartData` também reexportada.
 - Fase 5 aplicada: `services/ingestion/upload.service.ts` criado com `uploadXlsxData` e helpers (`processMultipleProfessionalsRecords`, `processRepasseValues`, `removeObsoleteRecords`). `mockApi.ts` reexporta tudo e as duplicatas foram removidas do legado.
-- Compatibilidade preservada durante migração: componentes continuaram importando de `services/mockApi.ts` (via reexport) até a Fase 6.
+- Compatibilidade preservada durante migração: componentes continuam podendo importar de `services/mockApi.ts` (via reexport) até a Fase 6.
 
 Qualidade atual (Quality Gates):
 - Tipos (tsc --noEmit): PASS
@@ -237,11 +237,11 @@ Commit: “feat(services): extrai ingestion/upload”.
 
 ---
 
-### Fase 6 — Encerramento e limpeza
+### Fase 6 — Encerramento e limpeza (PENDENTE)
 
 1. Atualizar IMPORTS nos componentes/contexts para apontar para `services/<domínio>/*` diretamente (deixar de usar o barrel).
 2. Remover reexports de `services/index.ts` e apagar o arquivo.
-3. Remover `services/mockApi.ts` (nome legado) e ajustar quaisquer referências finais. [Feito]
+3. Remover `services/mockApi.ts` (nome legado) e ajustar quaisquer referências finais. [Pendente]
 4. Atualizar docs: `README.md` e `.github/copilot-instructions.md` (seções que mencionam `mockApi.ts`).
 
 Smoke test completo

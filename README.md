@@ -22,15 +22,16 @@ Outros campos de apoio:
 - description (texto)
 - is_active (booleano)
 
-Comportamento na UI:
-- Formulário único por unidade com auto‑salvamento (debounce ~600ms). Ao parar de digitar, o sistema salva automaticamente e indica o status ("Salvando…" ou "Auto‑salvo às HH:MM:SS").
-- Se não existir configuração para a unidade, o primeiro auto‑save cria; se existir, atualiza.
-- Há um botão "Remover" para excluir a configuração da unidade.
+Comportamento na UI (layout atual):
+- Aba "Keys" no modal da Unidade exibe uma tabela com colunas NOME (tipo da key) e KEY (valor). Edição inline salva automaticamente ao sair do campo ou pressionar Enter.
+- O botão "Adicionar Key" fica na mesma barra das abas; ao clicar, escolhe-se o tipo e uma nova linha é criada.
+- A coluna AÇÕES permite excluir a key.
 
 Requisitos de backend:
 - RLS habilitado e políticas permissivas (SELECT/INSERT/UPDATE/DELETE) foram aplicadas para permitir o fluxo atual, com a restrição de permissão feita na UI (apenas super_admin vê/edita Keys). Em produção, recomenda‑se vincular a role via JWT (Supabase Auth) e restringir as políticas pelo claim.
 
-- Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).
+- Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).  
+   Nota: O barrel `services/index.ts` e o arquivo de compatibilidade `services/mockApi.ts` seguem ativos até a Fase 6 de limpeza.
 - Módulos dinâmicos (icones + allowed_profiles + ordenação drag & drop persistida).
 - Dashboard com métricas recalculadas localmente (repasse, ticket médio real).
 - Upload de planilhas XLSX com expansão de múltiplos profissionais e sincronização por período.
