@@ -44,10 +44,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   // Busca módulos disponíveis ao usuário:
-  // super_admin: todos os módulos
-  // demais roles: união entre (a) módulos explicitamente atribuídos via user_modules e
-  // (b) módulos cujo allowed_profiles contém o role do usuário OU não possuem restrição (allowed_profiles null/vazio).
-  // Evita-se duplicação priorizando dados vindos de user_modules em caso de overlap.
+  // super_admin: todos os módulos cujo allowed_profiles contém 'super_admin' e ativos
+  // demais roles: somente módulos explicitamente atribuídos via user_modules
+  //               E cujo allowed_profiles contenha o role do usuário; também ativos.
   const fetchUserModules = async (profile: Profile) => {
     if (profile.role === 'super_admin') {
       // Super admin agora vê SOMENTE módulos cujo allowed_profiles inclui 'super_admin' e que estejam ativos
@@ -67,7 +66,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUserModules(ordered as Module[]);
       }
     } else {
-      // 1. Módulos explicitamente atribuídos via user_modules
+      // 1) Busca ids dos módulos atribuídos ao usuário
       const { data: userModulesData, error: userModulesError } = await supabase
         .from('user_modules')
         .select('module_id')
@@ -77,45 +76,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       const moduleIds = (userModulesData || []).map(um => um.module_id);
 
-      let assignedModules: Module[] = [];
-      if (moduleIds.length > 0) {
-        const { data: modules, error: modulesError } = await supabase
-          .from('modules')
-          .select('*')
-          .in('id', moduleIds);
-        if (modulesError) {
-          console.error('Error fetching assigned modules:', modulesError.message);
-        } else {
-          assignedModules = modules || [];
-        }
+      // 2) Se não há atribuições, não há módulos a exibir
+      if (!moduleIds.length) {
+        setUserModules([]);
+        return;
       }
 
-      // 2. Módulos permitidos por allowed_profiles para o role do usuário (ex: 'admin')
-      //    Inclui também módulos sem restrição (allowed_profiles null ou vazio) para evitar esconder módulos "públicos"
-      const { data: roleAllowedModules, error: roleAllowedError } = await supabase
+      // 3) Busca apenas os módulos atribuídos, ativos e cujo allowed_profiles contenha o role do usuário
+      const { data: modules, error: modulesError } = await supabase
         .from('modules')
         .select('*')
-        .or(`allowed_profiles.cs.{${profile.role}},allowed_profiles.is.null`);
-      if (roleAllowedError) {
-        console.error('Error fetching role allowed modules:', roleAllowedError.message);
+        .in('id', moduleIds)
+        .eq('is_active', true)
+        .contains('allowed_profiles', [profile.role]);
+      if (modulesError) {
+        console.error('Error fetching assigned+allowed modules:', modulesError.message);
+        setUserModules([]);
+        return;
       }
 
-      // 3. Mescla e remove duplicatas (prioriza dados de assignedModules se houver overlap)
-      const mergedById = new Map<string, Module>();
-      (roleAllowedModules || []).forEach(m => { if (m) mergedById.set(m.id, m as Module); });
-      assignedModules.forEach(m => { if (m) mergedById.set(m.id, m); });
-
-      // 4. Ordena por position e nome (Sidebar também ordena, mas mantemos consistência)
-      const finalList = Array.from(mergedById.values())
-        .sort((a, b) => {
-          const posA = a.position ?? 0;
-          const posB = b.position ?? 0;
-          if (posA !== posB) return posA - posB;
-          return a.name.localeCompare(b.name);
-        });
-
-      // Filtra por is_active também para usuários não super_admin
-      setUserModules(finalList.filter(m => m.is_active));
+      const list = (modules || []) as Module[];
+      // 4) Ordena por position e nome para consistência
+      const ordered = list.sort((a, b) => {
+        const posA = a.position ?? 0;
+        const posB = b.position ?? 0;
+        if (posA !== posB) return posA - posB;
+        return a.name.localeCompare(b.name);
+      });
+      setUserModules(ordered);
     }
   };
 
