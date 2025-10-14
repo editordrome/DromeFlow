@@ -3,6 +3,7 @@ import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchClients, fetchClientMetricsFromProcessed } from '../../services/analytics/clients.service';
 import { Icon } from '../ui/Icon';
+import ClientDetailModal from '../ui/ClientDetailModal';
 
 interface ClientRow {
   id: string;
@@ -39,6 +40,8 @@ const ClientsPage: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 25;
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [selectedClientName, setSelectedClientName] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -174,7 +177,11 @@ const ClientsPage: React.FC = () => {
                 const start = (currentPage - 1) * pageSize;
                 const paginated = base.slice(start, start + pageSize);
                 return paginated.map((c:any, idx:number) => (
-                  <tr key={c.id} className="border-t border-white/5 hover:bg-white/5">
+                  <tr
+                    key={c.id}
+                    className="border-t border-white/5 hover:bg-white/5 cursor-pointer"
+                    onDoubleClick={() => { setSelectedClientName(c.nome); setIsClientModalOpen(true); }}
+                  >
                     <td className="px-2 py-2 text-text-secondary">{start + idx + 1}</td>
                     <td className="px-3 py-2 font-medium text-text-primary">{c.nome}</td>
                     {activeFilter === 'atencao' ? (
@@ -213,6 +220,14 @@ const ClientsPage: React.FC = () => {
         />
         </>
       )}
+      <ClientDetailModal
+        isOpen={isClientModalOpen}
+        onClose={() => setIsClientModalOpen(false)}
+        clientName={selectedClientName}
+        unitId={(selectedUnit as any).id}
+        unitCode={selectedUnit.unit_code}
+        currentPeriod={period}
+      />
     </div>
   );
 };

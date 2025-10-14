@@ -94,6 +94,8 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
  - **Super Admin**: Exibe apenas módulos cujo `allowed_profiles` contém `super_admin` (sem herdar públicos automaticamente).
  - **Ordenação densa**: Após drag & drop reatribuir `position` como sequência contínua (1..n); evitar gaps.
  - **Webhook Agendamentos**: Fluxo preferencial POST JSON completo; fallback automático GET com payload compactado + chunking (limite ~3000 chars) em falha de rede/CORS; inclui campo `endereco` e forma compacta (`e`).
+ - **Compat de Serviços**: O barrel `services/index.ts` e `services/mockApi.ts` permanecem ativos até a Fase 6 (limpeza). Não remova nem altere imports globalmente sem PR dedicado à Fase 6.
+ - **Unit Keys Admin**: Serviços administrativos expostos em `services/units/unitKeysAdmin.service.ts` (p.ex. `getUnitKeysColumnsStats`, rename/add/drop, set status) e UI correspondente em `components/pages/UnitKeysPage.tsx`.
 - **Centralização**: Qualquer nova regra de upload / métricas deve ir para os serviços segmentados apropriados (por exemplo, `services/ingestion/upload.service.ts` ou `services/analytics/*.service.ts`), não duplique em componentes.
  - **Evolução**: Próxima otimização para reorder será RPC única (batch JSON) reduzindo round-trips.
 

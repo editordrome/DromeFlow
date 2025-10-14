@@ -85,43 +85,19 @@ const AppointmentsPage: React.FC = () => {
     return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
   };
 
-  // Normaliza um DataRecord no formato "enriched" usado no payload do webhook
-  const enrichRecord = (p: DataRecord) => {
-    const periodo = (p as any)['PERÍODO'];
-    const servico = (p as any)['SERVIÇO'] || (p as any)['SERVICO'] || p.TIPO;
-    const dia = p.DIA;
-    const horarioClean = formatDisplayHour(String(p.HORARIO || ''));
-    return {
-      orcamento: p.orcamento,
-      horario: horarioClean,
-      periodo,
-      saida: computeSaida(horarioClean, periodo) || undefined,
-      profissional: p.PROFISSIONAL,
-      cliente: p.CLIENTE,
-      tipo: p.TIPO,
-      servico,
-      ['SERVIÇO']: servico,
-      dia,
-      ['DIA']: dia,
-      endereco: (p as any).ENDEREÇO || (p as any).ENDERECO || undefined,
-      status: (p as any).STATUS || (p as any).status || 'PENDENTE'
-    };
-  };
+  // OBS: Payload mínimo — apenas unidade_code e data
 
-  // Envia payload ao webhook (POST JSON com fallback GET), reaproveitado pelo envio em lote e individual
+  // Envia payload mínimo ao webhook (POST JSON com fallback GET)
   const sendWebhookPayload = useCallback(
-    async (enriched: any[], total: number, keyword?: string) => {
+    async (_enriched: any[], _total: number, keyword?: string, atendimentoId?: string) => {
       if (!appointmentsWebhook) return;
       if (!activeDate) return;
       const unidadeCode = selectedUnit?.unit_code || '';
       const payload = {
         unidade_code: unidadeCode,
         data: activeDate,
-        total,
-        generated_at: new Date().toISOString(),
-        atendimentos: enriched,
-        compact: enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco, sv: e.servico, dw: e.dia })),
-        ...(keyword ? { keyword } : {})
+        ...(keyword ? { keyword } : {}),
+        ...(atendimentoId ? { atendimento_id: String(atendimentoId) } : {})
       } as any;
 
       let usedFallback = false;
@@ -146,49 +122,14 @@ const AppointmentsPage: React.FC = () => {
       }
 
       if (usedFallback) {
-        const compactItems = enriched.map(e => ({ o: e.orcamento, h: e.horario, p: e.periodo, s: e.saida, pr: e.profissional, c: e.cliente, t: e.tipo, e: e.endereco, st: e.status, sv: e.servico, dw: e.dia }));
-        const envelopeBase: any = {
-          u: selectedUnit?.unit_code || '',
-          d: activeDate,
-          g: new Date().toISOString(),
-          tt: total,
-          ...(keyword ? { kw: keyword } : {})
-        };
-        const MAX_URL = 3000;
-        const buildUrl = (subset: any[], part?: string, parts?: number) => {
-          const url = new URL(appointmentsWebhook);
-          const env: any = { ...envelopeBase, a: subset };
-          if (part && parts) env.pt = part;
-          const json = JSON.stringify(env);
-          url.searchParams.set('payload', json);
-          return url.toString();
-        };
-
-        let fullUrl = buildUrl(compactItems);
-        if (fullUrl.length <= MAX_URL) {
-          const r = await fetch(fullUrl, { method: 'GET' });
-          if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
-          return { ok: true as const, mode: 'GET-ONE' };
-        }
-
-        let low = 1;
-        let high = compactItems.length;
-        const fits = (size: number) => buildUrl(compactItems.slice(0, size)).length <= MAX_URL;
-        if (!fits(1)) throw new Error('Registro individual excede limite de URL no fallback GET. Configure POST no servidor.');
-        while (low < high) {
-          const mid = Math.min(high - 1, Math.floor((low + high + 1) / 2));
-          if (fits(mid)) low = mid; else high = mid - 1;
-        }
-        const chunkSize = low;
-        const batches: any[][] = [];
-        for (let i = 0; i < compactItems.length; i += chunkSize) batches.push(compactItems.slice(i, i + chunkSize));
-        for (let i = 0; i < batches.length; i++) {
-          const partUrl = buildUrl(batches[i], `${i + 1}/${batches.length}`, batches.length);
-          if (partUrl.length > MAX_URL) throw new Error('Falha inesperada: URL chunk > limite após cálculo.');
-          const r = await fetch(partUrl, { method: 'GET' });
-          if (!r.ok) throw new Error(`Fallback GET parte ${i + 1} HTTP ${r.status}`);
-        }
-        return { ok: true as const, mode: 'GET-CHUNK' };
+        const url = new URL(appointmentsWebhook);
+        url.searchParams.set('u', unidadeCode);
+        url.searchParams.set('d', activeDate);
+        if (keyword) url.searchParams.set('kw', keyword);
+        if (atendimentoId) url.searchParams.set('aid', String(atendimentoId));
+        const r = await fetch(url.toString(), { method: 'GET' });
+        if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
+        return { ok: true as const, mode: 'GET-ONE' };
       }
     },
     [appointmentsWebhook, activeDate, selectedUnit]
@@ -197,23 +138,14 @@ const AppointmentsPage: React.FC = () => {
   const handleSendWebhook = async () => {
     if (!appointmentsWebhook) return;
     if (!activeDate) return;
-    const pendentes = appointments.filter(a => {
-      const st = String(((a as any).STATUS || (a as any).status || '')).toUpperCase();
-      return st === 'PENDENTE';
-    });
-    if (pendentes.length === 0) {
-      setSendFeedback({ type: 'error', message: 'Nenhum atendimento PENDENTE para enviar.' });
-      return;
-    }
+    if (!selectedUnit || selectedUnit.unit_code === 'ALL') return;
     setIsSending(true);
     setSendFeedback(null);
     try {
-      const enriched = pendentes.map(enrichRecord);
-      const result = await sendWebhookPayload(enriched, pendentes.length);
+      const result = await sendWebhookPayload([], 0, 'atendimento');
       if (result?.ok) {
-        if (result.mode === 'POST') setSendFeedback({ type: 'success', message: 'Webhook enviado (POST JSON).' });
-        else if (result.mode === 'GET-ONE') setSendFeedback({ type: 'success', message: 'Webhook via fallback GET (1 parte).' });
-        else if (result.mode === 'GET-CHUNK') setSendFeedback({ type: 'success', message: 'Webhook via fallback GET (múltiplas partes).' });
+        const msg = result.mode === 'POST' ? 'Webhook enviado.' : 'Webhook via fallback GET.';
+        setSendFeedback({ type: 'success', message: msg });
       }
     } catch (err: any) {
       let msg = 'Erro ao enviar webhook.';
@@ -233,7 +165,6 @@ const AppointmentsPage: React.FC = () => {
     if (!appointmentsWebhook || !activeDate) return;
     if (!selectedUnit || selectedUnit.unit_code === 'ALL') return; // mantém mesma regra do botão principal
     const key = recordKey(rec);
-    // Evita reenvio se já marcado como enviado
     if (sentConfirmed.has(key)) return;
     setSendingConfirmed(prev => {
       const next = new Set(prev);
@@ -241,10 +172,10 @@ const AppointmentsPage: React.FC = () => {
       return next;
     });
     try {
-      const enriched = [enrichRecord(rec)];
-      const result = await sendWebhookPayload(enriched, 1, 'cliente');
+      const atendimentoId = String(((rec as any).ATENDIMENTO_ID || (rec as any).id || rec.orcamento) ?? '');
+      const result = await sendWebhookPayload([], 0, 'cliente', atendimentoId);
       if (result?.ok) {
-        setSendFeedback({ type: 'success', message: 'Atendimento CONFIRMADO enviado.' });
+        setSendFeedback({ type: 'success', message: 'Envio realizado.' });
         setSentConfirmed(prev => {
           const next = new Set(prev);
           next.add(key);
@@ -252,12 +183,12 @@ const AppointmentsPage: React.FC = () => {
         });
       }
     } catch (err: any) {
-      let msg = 'Erro ao enviar atendimento CONFIRMADO.';
+      let msg = 'Erro ao enviar.';
       if (err?.message) {
         if (err.message.includes('Failed to fetch')) msg = 'Falha de rede/DNS ao contatar webhook.';
         else msg = err.message;
       }
-      console.error('Erro ao enviar webhook individual de agendamento CONFIRMADO:', err);
+      console.error('Erro ao enviar webhook individual:', err);
       setSendFeedback({ type: 'error', message: msg });
     } finally {
       setSendingConfirmed(prev => {
@@ -704,8 +635,9 @@ const AppointmentsPage: React.FC = () => {
                           const key = recordKey(rec);
                           const wasSent = sentConfirmed.has(key);
                           const isRowSending = sendingConfirmed.has(key);
-                          const isDisabled = !appointmentsWebhook || selectedUnit.unit_code === 'ALL' || isRowSending || wasSent;
-                          const confirmedStyle = `bg-success ${wasSent ? 'text-black' : 'text-text-on-accent'} border-success/80`;
+                          const disabledByConfirmacao = Boolean((rec as any).confirmacao === true);
+                          const isDisabled = !appointmentsWebhook || selectedUnit.unit_code === 'ALL' || isRowSending || wasSent || disabledByConfirmacao;
+                          const confirmedStyle = `bg-success ${(wasSent || disabledByConfirmacao) ? 'text-black' : 'text-text-on-accent'} border-success/80`;
                           return (
                             <button
                               type="button"

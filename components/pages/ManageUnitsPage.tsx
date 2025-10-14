@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchAllUnits, createUnit, updateUnit, deleteUnit } from '../../services/units/units.service';
-import { fetchUsersForUnit } from '../../services/auth/users.service';
+import { fetchUsersForUnit, updateUser, createUser } from '../../services/auth/users.service';
 import { Unit, UnitKey } from '../../types';
 import { Icon } from '../ui/Icon';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchUnitKeys, createUnitKey, updateUnitKey, deleteUnitKey } from '../../services/units/unitKeys.service';
+import { listUnitKeysColumns, ColumnInfo } from '../../services/units/unitKeysAdmin.service';
+import { User as UserType, Profile as ProfileType } from '../../types';
+import { UserFormModal } from '../ui/UserFormModal';
 
 type UnitDataPayload = Partial<Unit>;
 
@@ -25,11 +28,57 @@ const UnitFormModal: React.FC<{
   const [usersError, setUsersError] = useState<string | null>(null);
   const [unitUsers, setUnitUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dados' | 'keys'>('dados');
+  const [activeTab, setActiveTab] = useState<'dados' | 'usuarios' | 'keys'>('dados');
   const [keys, setKeys] = useState<UnitKey[]>([]);
+  // Estado para abrir modal Editar Usuário reaproveitando o componente compartilhado
+  const [editingUser, setEditingUser] = useState<(UserType & ProfileType) | null>(null);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+
+  const handleOpenUserModal = (u?: { id: string; full_name: string; email: string; role: string }) => {
+    setEditingUser((u as any) || null);
+    setIsUserModalOpen(true);
+  };
+  const handleCloseUserModal = () => {
+    setIsUserModalOpen(false);
+    setEditingUser(null);
+  };
+
+  const handleSaveUserFromUnit = async (payload: Partial<UserType & ProfileType>) => {
+    try {
+      if (editingUser) {
+        await updateUser(editingUser.id, payload as any);
+      } else {
+        // criação: vincula à unidade atual
+        await createUser({ ...(payload as any), auto_unit_id: unit?.id });
+      }
+      if (unit) {
+        const users = await fetchUsersForUnit(unit.id);
+        setUnitUsers(users);
+      }
+      handleCloseUserModal();
+    } catch (e: any) {
+      alert(e?.message || 'Falha ao salvar usuário');
+    }
+  };
   const [keysLoading, setKeysLoading] = useState(false);
   const [keysError, setKeysError] = useState<string | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
+  const [isCreatingKey, setIsCreatingKey] = useState(false);
+  const [expandedKeyId, setExpandedKeyId] = useState<string | null>(null);
+  const [expandedFocusField, setExpandedFocusField] = useState<string | null>(null);
+  const [createdKeyHints, setCreatedKeyHints] = useState<Record<string, string>>({});
+  const [isTypePickerOpen, setIsTypePickerOpen] = useState(false);
+  const [selectedKeyType, setSelectedKeyType] = useState<string>('umbler');
+  const [keyTypeOptions, setKeyTypeOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
+  const [keyTypeLoading, setKeyTypeLoading] = useState(false);
+  const [keyTypeError, setKeyTypeError] = useState<string | null>(null);
+  // Colunas dinâmicas disponíveis na tabela unit_keys (sem colunas de sistema)
+  const [keyColumns, setKeyColumns] = useState<ColumnInfo[]>([]);
+  const [keyColumnsLoading, setKeyColumnsLoading] = useState(false);
+  const [keyColumnsError, setKeyColumnsError] = useState<string | null>(null);
   // Modal antigo removido; agora salvamento é automático na própria aba
+  const [keyEdits, setKeyEdits] = useState<Record<string, string>>({});
+  const [savingKeyIds, setSavingKeyIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // Reset form
@@ -69,6 +118,23 @@ const UnitFormModal: React.FC<{
           setKeysLoading(false);
         }
       })();
+      // Carrega colunas disponíveis de unit_keys (dinâmico)
+      (async () => {
+        try {
+          setKeyColumnsError(null);
+          setKeyColumnsLoading(true);
+          const cols: ColumnInfo[] = await listUnitKeysColumns(false);
+          // filtro de segurança caso o RPC retorne colunas de sistema
+          const system = new Set(['id','unit_id','is_active','created_at','updated_at']);
+          const filtered = cols.filter(c => !system.has(c.column_name));
+          setKeyColumns(filtered);
+        } catch (e: any) {
+          setKeyColumnsError(e?.message || 'Falha ao carregar colunas de unit_keys.');
+          setKeyColumns([]);
+        } finally {
+          setKeyColumnsLoading(false);
+        }
+      })();
     }
   }, [unit, isOpen]);
 
@@ -99,8 +165,8 @@ const UnitFormModal: React.FC<{
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog">
-      <div className="w-full max-w-3xl p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onMouseDown={onClose}>
+      <div className="w-full max-w-3xl p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg" onMouseDown={(e)=>e.stopPropagation()}>
         <div className="flex items-center justify-between pb-3 border-b border-border-primary">
           <h2 className="text-xl font-bold text-text-primary">{unit ? (unit.unit_name || 'Editar Unidade') : 'Adicionar Nova Unidade'}</h2>
           <button onClick={onClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary">
@@ -109,119 +175,417 @@ const UnitFormModal: React.FC<{
         </div>
         {/* Abas (somente em edição e para super_admin exibe Keys) */}
         {unit && (
-          <div className="mt-4 border-b border-border-secondary flex gap-2">
-            <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='dados'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('dados')}>Dados</button>
-            {profile?.role === 'super_admin' && (
-              <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='keys'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('keys')}>Keys</button>
+          <div className="mt-4 border-b border-border-secondary flex items-center justify-between">
+            <div className="flex gap-2">
+              <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='dados'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('dados')}>Dados</button>
+              <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='usuarios'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('usuarios')}>Usuários</button>
+              {profile?.role === 'super_admin' && (
+                <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='keys'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('keys')}>Keys</button>
+              )}
+            </div>
+            {profile?.role === 'super_admin' && activeTab === 'keys' && (
+              <button
+                type="button"
+                disabled={isCreatingKey}
+                className={`ml-auto px-3 py-1.5 text-sm font-medium text-white rounded-md ${isCreatingKey ? 'opacity-60 cursor-not-allowed bg-accent-primary' : 'bg-accent-primary hover:bg-accent-secondary'}`}
+                onClick={async () => {
+                  if (!unit) return;
+                  try {
+                    setKeyTypeError(null);
+                    setKeyTypeLoading(true);
+                    const cols: ColumnInfo[] = await listUnitKeysColumns(false);
+                    // Mapeia colunas para opções; usa título amigável
+                    const toTitle = (name: string) => name
+                      .split('_')
+                      .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+                      .join(' ');
+                    const knownHints: Record<string, string> = {
+                      umbler: 'Bearer/Token',
+                    };
+                    const opts = cols
+                      .sort((a,b)=> a.ordinal_position - b.ordinal_position)
+                      .map(c => ({ value: c.column_name, label: toTitle(c.column_name), hint: knownHints[c.column_name] }));
+                    setKeyTypeOptions(opts);
+                    if (opts.length > 0) setSelectedKeyType(opts[0].value);
+                    setIsTypePickerOpen(true);
+                  } catch (e: any) {
+                    setKeyTypeError(e?.message || 'Falha ao carregar colunas de unit_keys.');
+                    alert(e?.message || 'Falha ao carregar colunas de unit_keys.');
+                  } finally {
+                    setKeyTypeLoading(false);
+                  }
+                }}
+              >
+                <Icon name="add" className="w-5 h-5 mr-1 inline" />
+                {isCreatingKey ? 'Criando…' : 'Adicionar Key'}
+              </button>
             )}
           </div>
         )}
 
         {activeTab === 'dados' && (
-        <form onSubmit={handleSubmit} className="mt-4 space-y-6">
-          {error && <p className="text-sm text-center text-danger bg-danger/10 p-2 rounded-md">{error}</p>}
-          <div>
-            <label htmlFor="unit_name" className="block text-sm font-medium text-text-secondary">Nome da Unidade</label>
-            <input type="text" name="unit_name" id="unit_name" value={formData.unit_name} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
-          </div>
-          <div>
-            <label htmlFor="unit_code" className="block text-sm font-medium text-text-secondary">Código da Unidade</label>
-            <input type="text" name="unit_code" id="unit_code" value={formData.unit_code} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
-          </div>
-          {unit && (
+          <form onSubmit={handleSubmit} className="mt-4 space-y-6">
+            {error && <p className="text-sm text-center text-danger bg-danger/10 p-2 rounded-md">{error}</p>}
             <div>
-              <h3 className="text-sm font-semibold text-text-primary mb-2 flex items-center">Usuários Vinculados</h3>
-              {usersLoading && (
-                <div className="flex items-center space-x-2 text-text-secondary text-sm"><span className="w-4 h-4 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" /> <span>Carregando...</span></div>
-              )}
-              {usersError && <div className="text-sm text-danger bg-danger/10 p-2 rounded-md">{usersError}</div>}
-              {!usersLoading && !usersError && unitUsers.length === 0 && (
-                <div className="text-xs italic text-text-secondary">Nenhum usuário vinculado.</div>
-              )}
-              {!usersLoading && unitUsers.length > 0 && (
-                <ul className="divide-y divide-border-secondary border border-border-secondary rounded-md overflow-hidden">
-                  {unitUsers.map(u => (
-                    <li key={u.id} className="px-3 py-2 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between bg-bg-tertiary/30 hover:bg-bg-tertiary transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-text-primary truncate">{u.full_name || '(Sem nome)'}</p>
-                        <p className="text-xs text-text-secondary truncate font-mono">{u.email}</p>
-                      </div>
-                      <span className="mt-1 sm:mt-0 inline-flex items-center px-2 py-0.5 rounded text-xs bg-accent-primary/10 text-accent-primary font-medium uppercase tracking-wide">{u.role}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <label htmlFor="unit_name" className="block text-sm font-medium text-text-secondary">Nome da Unidade</label>
+              <input type="text" name="unit_name" id="unit_name" value={formData.unit_name} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
             </div>
-          )}
-          <div className="flex items-center justify-between pt-4">
             <div>
-              {unit && (
-                <button
-                  type="button"
-                  onClick={() => onDelete(unit.id)}
-                  className="flex items-center px-4 py-2 text-sm font-medium text-white transition-colors bg-danger rounded-md hover:bg-red-700"
-                >
-                  <Icon name="delete" className="w-5 h-5 mr-2" />
-                  Excluir
+              <label htmlFor="unit_code" className="block text-sm font-medium text-text-secondary">Código da Unidade</label>
+              <input type="text" name="unit_code" id="unit_code" value={formData.unit_code} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+            </div>
+            <div className="flex items-center justify-between pt-4">
+              <div>
+                {unit && (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(unit.id)}
+                    className="flex items-center px-4 py-2 text-sm font-medium text-white transition-colors bg-danger rounded-md hover:bg-red-700"
+                  >
+                    <Icon name="delete" className="w-5 h-5 mr-2" />
+                    Excluir
+                  </button>
+                )}
+              </div>
+              <div className="flex space-x-3">
+                <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium border rounded-md text-text-secondary border-border-secondary hover:bg-bg-tertiary">Cancelar</button>
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md bg-accent-primary hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isSubmitting ? 'Salvando...' : 'Salvar'}
                 </button>
-              )}
+              </div>
             </div>
-            <div className="flex space-x-3">
-              <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium border rounded-md text-text-secondary border-border-secondary hover:bg-bg-tertiary">Cancelar</button>
-              <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md bg-accent-primary hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed">
-                {isSubmitting ? 'Salvando...' : 'Salvar'}
+          </form>
+        )}
+
+        {unit && activeTab === 'usuarios' && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-text-primary flex items-center">Usuários Vinculados</h3>
+              <button onClick={() => handleOpenUserModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
+                <Icon name="add" className="w-5 h-5 mr-2" />
+                Adicionar Usuário
               </button>
             </div>
+            {usersLoading && (
+              <div className="flex items-center space-x-2 text-text-secondary text-sm"><span className="w-4 h-4 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" /> <span>Carregando...</span></div>
+            )}
+            {usersError && <div className="text-sm text-danger bg-danger/10 p-2 rounded-md">{usersError}</div>}
+            {!usersLoading && !usersError && unitUsers.length === 0 && (
+              <div className="text-xs italic text-text-secondary">Nenhum usuário vinculado.</div>
+            )}
+            {!usersLoading && unitUsers.length > 0 && (
+              <ul className="divide-y divide-border-secondary border border-border-secondary rounded-md overflow-hidden">
+                {unitUsers.map(u => (
+                  <li key={u.id} className="px-3 py-2 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between bg-bg-tertiary/30 hover:bg-bg-tertiary transition-colors" onDoubleClick={()=>handleOpenUserModal(u)}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary truncate">{u.full_name || '(Sem nome)'}</p>
+                      <p className="text-xs text-text-secondary truncate font-mono">{u.email}</p>
+                    </div>
+                    <span className="mt-1 sm:mt-0 inline-flex items-center px-2 py-0.5 rounded text-xs bg-accent-primary/10 text-accent-primary font-medium uppercase tracking-wide">{u.role}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        </form>
         )}
 
         {unit && profile?.role === 'super_admin' && activeTab === 'keys' && (
           <div className="mt-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-text-primary">Keys da Unidade</h3>
-            </div>
             {keysLoading ? (
               <div className="flex items-center space-x-2 text-text-secondary text-sm"><span className="w-4 h-4 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" /> <span>Carregando...</span></div>
             ) : keysError ? (
               <div className="text-sm text-danger bg-danger/10 p-2 rounded-md">{keysError}</div>
             ) : (
-              <div className="bg-bg-tertiary/20 border border-border-secondary rounded-md p-4">
-                <p className="text-xs text-text-secondary mb-3">Configuração única por unidade. Preencha os campos abaixo e salve.</p>
-                <KeySingleForm
-                  initial={keys[0] || null}
-                  onSubmit={async (payload) => {
-                    if (!unit) return;
-                    if (keys.length > 0) await updateUnitKey(String(keys[0].id), payload as any);
-                    else await createUnitKey(unit.id, payload as any);
-                    const list = await fetchUnitKeys(unit.id);
-                    setKeys(list);
-                  }}
-                  onDelete={async () => {
-                    if (!unit || keys.length === 0) return;
-                    if (confirm('Remover configuração desta unidade?')) {
-                      await deleteUnitKey(String(keys[0].id));
-                      const list = await fetchUnitKeys(unit.id);
-                      setKeys(list);
-                    }
-                  }}
-                />
+              <div className="bg-bg-tertiary/20 border border-border-secondary rounded-md p-4 space-y-4">
+                {keys.length === 0 && (
+                  <div className="text-xs italic text-text-secondary">Nenhuma key cadastrada para esta unidade.</div>
+                )}
+
+                {keys.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full table-fixed divide-y divide-border-secondary">
+                      <thead className="bg-bg-tertiary/60">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase text-text-secondary w-[28%]">Nome</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase text-text-secondary">Key</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium uppercase text-text-secondary w-[10%]">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-secondary bg-bg-secondary/60">
+                        {keys.map((item) => {
+                          // Deriva campos dinâmicos a partir do RPC de colunas; fallback: inspeciona a própria linha
+                          const system = new Set(['id','unit_id','is_active','created_at','updated_at']);
+                          const dynamicFields = (keyColumns.length > 0
+                            ? keyColumns.map(c => c.column_name)
+                            : Array.from(new Set(Object.keys(item as any).filter(k => !system.has(k))))) as string[];
+                          const toTitle = (name: string) => name.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+                          const knownHints: Record<string, string> = { umbler: 'Bearer/Token' };
+
+                          let chosenField: string | null = null;
+                          let chosenLabel = '';
+                          let chosenValue = '';
+                          for (const f of dynamicFields) {
+                            const val = (item as any)[f];
+                            if (val !== undefined && val !== null && String(val).length > 0) {
+                              chosenField = f; chosenValue = String(val); chosenLabel = toTitle(f); break;
+                            }
+                          }
+                          if (!chosenField) {
+                            chosenField = dynamicFields[0] || 'umbler';
+                            chosenLabel = toTitle(chosenField);
+                            chosenValue = '';
+                          }
+                          const id = String(item.id);
+                          const value = keyEdits[id] !== undefined ? keyEdits[id] : chosenValue;
+                          const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                            const v = e.target.value;
+                            setKeyEdits(prev => ({ ...prev, [id]: v }));
+                          };
+                          const persist = async () => {
+                            if (!chosenField) return;
+                            try {
+                              setSavingKeyIds(prev => ({ ...prev, [id]: true }));
+                              await updateUnitKey(String(item.id), { [chosenField]: value } as any);
+                              const list = await fetchUnitKeys(unit!.id);
+                              setKeys(list);
+                            } finally {
+                              setSavingKeyIds(prev => { const n = { ...prev }; delete n[id]; return n; });
+                            }
+                          };
+                          const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+                            if (e.key === 'Enter') { e.preventDefault(); persist(); }
+                          };
+                          const onBlur = () => { persist(); };
+                          const handleDelete = async () => {
+                            if (!confirm('Remover esta key?')) return;
+                            await deleteUnitKey(String(item.id));
+                            const list = await fetchUnitKeys(unit!.id);
+                            setKeys(list);
+                          };
+                          return (
+                            <tr key={id}>
+                              <td className="px-4 py-2 text-sm text-text-primary truncate">{chosenLabel}</td>
+                              <td className="px-4 py-2">
+                                <input
+                                  value={value}
+                                  onChange={onChange}
+                                  onKeyDown={onKeyDown}
+                                  onBlur={onBlur}
+                                  placeholder={knownHints[chosenField] ? `${knownHints[chosenField]}…` : 'Digite a key...'}
+                                  className="w-full px-3 py-1.5 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                                />
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                <button
+                                  onClick={handleDelete}
+                                  className="p-2 rounded-md text-danger hover:bg-danger/10"
+                                  title="Excluir"
+                                >
+                                  <Icon name="delete" className="w-5 h-5" />
+                                </button>
+                                {savingKeyIds[id] && (
+                                  <span className="ml-2 align-middle text-xs text-text-secondary">Salvando…</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Modal antigo removido: auto-save direto no formulário */}
           </div>
         )}
+
+        {isTypePickerOpen && unit && (
+          <KeyTypePickerModal
+            isOpen={isTypePickerOpen}
+            options={keyTypeOptions}
+            loading={keyTypeLoading}
+            selected={selectedKeyType}
+            onSelect={setSelectedKeyType}
+            onCancel={() => setIsTypePickerOpen(false)}
+            onConfirm={async (chosenKey: string, typedValue: string) => {
+              if (!unit || isCreatingKey) return;
+              try {
+                setKeysError(null);
+                setIsCreatingKey(true);
+                const payload: any = { is_active: true };
+                // grava o valor digitado na coluna selecionada
+                payload[chosenKey] = typedValue || '';
+                const created = await createUnitKey(unit.id, payload);
+                const list = await fetchUnitKeys(unit.id);
+                setKeys(list);
+                setExpandedKeyId(String(created.id));
+                setExpandedFocusField(chosenKey);
+                const selectedOpt = keyTypeOptions.find(o => o.value === chosenKey);
+                setCreatedKeyHints(prev => ({ ...prev, [String(created.id)]: selectedOpt?.label || chosenKey }));
+              } catch (e: any) {
+                const msg = e?.message || 'Falha ao criar key.';
+                setKeysError(msg);
+              } finally {
+                setIsCreatingKey(false);
+                setIsTypePickerOpen(false);
+              }
+            }}
+          />
+        )}
+        {/* Modal reutilizado para editar usuário */}
+        <UserFormModal
+          isOpen={isUserModalOpen}
+          onClose={handleCloseUserModal}
+          onSave={handleSaveUserFromUnit}
+          user={editingUser}
+          currentAdminProfile={profile}
+        />
+      </div>
+    </div>
+  );
+};
+const FieldRow: React.FC<{ label: string; value?: string | null }> = ({ label, value }) => {
+  if (!value) return null;
+  return (
+    <div className="text-xs">
+      <span className="text-text-secondary mr-1">{label}:</span>
+      <span className="text-text-primary break-all font-mono">{value}</span>
+    </div>
+  );
+};
+
+const KeyListItem: React.FC<{
+  unitId: string;
+  item: UnitKey;
+  expanded?: boolean;
+  autoFocusField?: string;
+  hintLabel?: string;
+  onUpdated: () => void | Promise<void>;
+  onDeleted: () => void | Promise<void>;
+}> = ({ unitId, item, expanded: expandedProp = false, autoFocusField, hintLabel, onUpdated, onDeleted }) => {
+  const [expanded, setExpanded] = useState(expandedProp);
+  useEffect(() => { setExpanded(expandedProp); }, [expandedProp]);
+  const anyValue = !!(item.umbler || item.whats_profi || item.whats_client || item.botID || item.organizationID || item.trigger || item.description);
+  return (
+    <div className="border border-border-secondary rounded-md bg-bg-secondary/60">
+      <div className="p-3 flex items-start justify-between gap-3">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+          {!anyValue && hintLabel && (
+            <div className="col-span-1 md:col-span-2 text-xs italic text-text-secondary">Nova key: {hintLabel}</div>
+          )}
+          <FieldRow label="umbler" value={item.umbler || undefined} />
+          <FieldRow label="whats_profi" value={item.whats_profi || undefined} />
+          <FieldRow label="whats_client" value={item.whats_client || undefined} />
+          <FieldRow label="botID" value={item.botID || undefined} />
+          <FieldRow label="organizationID" value={item.organizationID || undefined} />
+          <FieldRow label="trigger" value={item.trigger || undefined} />
+          {/* Campo 'description' removido da UI enquanto a coluna não existir no schema */}
+        </div>
+        <div className="shrink-0 flex items-center gap-2">
+          <span className={`text-[10px] px-2 py-0.5 rounded ${item.is_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-gray-500/10 text-gray-400'}`}>{item.is_active ? 'ATIVA' : 'INATIVA'}</span>
+          <button
+            type="button"
+            className="px-2 py-1 text-xs rounded-md border border-border-secondary hover:bg-bg-tertiary"
+            onClick={() => setExpanded(v => !v)}
+          >{expanded ? 'Fechar' : 'Editar'}</button>
+          <button
+            type="button"
+            className="px-2 py-1 text-xs rounded-md text-white bg-danger hover:bg-red-700"
+            onClick={async ()=>{
+              if (confirm('Remover esta key?')) {
+                await deleteUnitKey(String(item.id));
+                await onDeleted();
+              }
+            }}
+          >Remover</button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="border-t border-border-secondary p-4">
+          <KeyItemForm
+            initial={item}
+            autoFocusField={autoFocusField}
+            onSubmit={async (payload)=>{ await updateUnitKey(String(item.id), payload as any); await onUpdated(); }}
+            onDelete={async ()=>{ if (confirm('Remover esta key?')) { await deleteUnitKey(String(item.id)); await onDeleted(); } }}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const KeyTypePickerModal: React.FC<{
+  isOpen: boolean;
+  options: Array<{ value: string; label: string; hint?: string }>;
+  loading?: boolean;
+  selected: string;
+  onSelect: (v: string) => void;
+  onCancel: () => void;
+  onConfirm: (selected: string, value: string) => void | Promise<void>;
+}> = ({ isOpen, options, loading = false, selected, onSelect, onCancel, onConfirm }) => {
+  const [typedValue, setTypedValue] = useState('');
+  useEffect(() => { setTypedValue(''); }, [isOpen]);
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true">
+      <div className="w-full max-w-md mx-4 bg-bg-secondary rounded-lg shadow-lg p-5">
+        <div className="flex items-center justify-between pb-3 border-b border-border-primary">
+          <h3 className="text-sm font-semibold text-text-primary">Selecionar tipo de Key</h3>
+          <button onClick={onCancel} className="p-1 rounded-md text-text-secondary hover:bg-bg-tertiary" aria-label="Fechar">
+            <Icon name="close" />
+          </button>
+        </div>
+        <div className="mt-4 space-y-3">
+          {loading ? (
+            <div className="text-xs text-text-secondary">Carregando opções…</div>
+          ) : options.length === 0 ? (
+            <div className="text-xs text-text-secondary">Sem colunas disponíveis.</div>
+          ) : (
+            <>
+              <label className="block text-sm font-medium text-text-secondary">Tipo</label>
+              <select
+                className="w-full px-3 py-2 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                value={selected}
+                onChange={e => onSelect(e.target.value)}
+              >
+                {options.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              {(() => {
+                const hint = options.find(o => o.value === selected)?.hint;
+                return hint ? <div className="text-xs text-text-secondary">{hint}</div> : null;
+              })()}
+              <div>
+                <label className="block text-sm font-medium text-text-secondary">Valor</label>
+                <input
+                  className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                  placeholder="Digite o valor..."
+                  value={typedValue}
+                  onChange={e => setTypedValue(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-4">
+          <button onClick={onCancel} className="px-3 py-1.5 text-sm border rounded-md text-text-secondary border-border-secondary hover:bg-bg-tertiary">Cancelar</button>
+          <button disabled={loading || options.length===0} onClick={() => onConfirm(selected, typedValue)} className={`px-3 py-1.5 text-sm rounded-md text-white ${loading || options.length===0 ? 'opacity-60 cursor-not-allowed bg-accent-primary' : 'bg-accent-primary hover:bg-accent-secondary'}`}>Confirmar</button>
+        </div>
       </div>
     </div>
   );
 };
 
-const KeySingleForm: React.FC<{
+const KeyItemForm: React.FC<{
   initial: UnitKey | null;
+  autoFocusField?: string;
   onSubmit: (payload: Partial<UnitKey>) => void | Promise<void>;
   onDelete: () => void | Promise<void>;
-}> = ({ initial, onSubmit, onDelete }) => {
+}> = ({ initial, autoFocusField, onSubmit, onDelete }) => {
+  const formEl = useRef<HTMLFormElement | null>(null);
   const [form, setForm] = useState<Partial<UnitKey>>({
     umbler: initial?.umbler ?? '',
     whats_profi: initial?.whats_profi ?? '',
@@ -273,8 +637,15 @@ const KeySingleForm: React.FC<{
     }, 600);
     return () => clearTimeout(t);
   }, [form, snapshot, onSubmit]);
+
+  useEffect(() => {
+    if (autoFocusField && formEl.current) {
+      const el = formEl.current.querySelector(`input[name="${autoFocusField}"]`) as HTMLInputElement | null;
+      if (el) el.focus();
+    }
+  }, [autoFocusField]);
   return (
-    <form className="space-y-4" onSubmit={async (e)=>{ e.preventDefault(); setError(''); await onSubmit(form); }}>
+    <form ref={formEl} className="space-y-4" onSubmit={async (e)=>{ e.preventDefault(); setError(''); await onSubmit(form); }}>
       {error && <div className="text-sm text-danger bg-danger/10 p-2 rounded-md">{error}</div>}
       <div className="text-xs text-text-secondary">
         {isSaving ? 'Salvando...' : lastSavedAt ? `Auto-salvo às ${new Date(lastSavedAt).toLocaleTimeString()}` : 'Edições serão salvas automaticamente'}
@@ -358,6 +729,7 @@ const ManageUnitsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
+  const [unitUserCounts, setUnitUserCounts] = useState<Record<string, number>>({});
 
   const loadUnits = useCallback(async () => {
     setIsLoading(true);
@@ -375,6 +747,32 @@ const ManageUnitsPage: React.FC = () => {
   useEffect(() => {
     loadUnits();
   }, [loadUnits]);
+
+  // Após carregar unidades, buscar contagem de usuários por unidade em uma única consulta
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const ids = units.map(u => u.id);
+        if (!ids.length) { setUnitUserCounts({}); return; }
+        const supabase = (await import('../../services/supabaseClient')).supabase;
+        const { data, error } = await supabase
+          .from('user_units')
+          .select('unit_id')
+          .in('unit_id', ids);
+        if (error) { setUnitUserCounts({}); return; }
+        const map: Record<string, number> = {};
+        (data || []).forEach((row: any) => {
+          const id = row?.unit_id as string | undefined;
+          if (!id) return;
+          map[id] = (map[id] || 0) + 1;
+        });
+        setUnitUserCounts(map);
+      } catch {
+        setUnitUserCounts({});
+      }
+    };
+    run();
+  }, [units]);
 
   const handleOpenModal = (unit: Unit | null = null) => {
     setEditingUnit(unit);
@@ -447,6 +845,7 @@ const ManageUnitsPage: React.FC = () => {
               <tr>
                 <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome da Unidade</th>
                 <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Código</th>
+                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Usuários</th>
                 <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
               </tr>
             </thead>
@@ -459,6 +858,7 @@ const ManageUnitsPage: React.FC = () => {
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{unit.unit_name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary font-mono">{unit.unit_code}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{unitUserCounts[unit.id] ?? 0}</td>
                   <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
                     <div className="flex items-center justify-end space-x-1">
                       <button 

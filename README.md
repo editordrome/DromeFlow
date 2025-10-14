@@ -22,15 +22,16 @@ Outros campos de apoio:
 - description (texto)
 - is_active (booleano)
 
-Comportamento na UI:
-- Formulário único por unidade com auto‑salvamento (debounce ~600ms). Ao parar de digitar, o sistema salva automaticamente e indica o status ("Salvando…" ou "Auto‑salvo às HH:MM:SS").
-- Se não existir configuração para a unidade, o primeiro auto‑save cria; se existir, atualiza.
-- Há um botão "Remover" para excluir a configuração da unidade.
+Comportamento na UI (layout atual):
+- Aba "Keys" no modal da Unidade exibe uma tabela com colunas NOME (tipo da key) e KEY (valor). Edição inline salva automaticamente ao sair do campo ou pressionar Enter.
+- O botão "Adicionar Key" fica na mesma barra das abas; ao clicar, escolhe-se o tipo e uma nova linha é criada.
+- A coluna AÇÕES permite excluir a key.
 
 Requisitos de backend:
 - RLS habilitado e políticas permissivas (SELECT/INSERT/UPDATE/DELETE) foram aplicadas para permitir o fluxo atual, com a restrição de permissão feita na UI (apenas super_admin vê/edita Keys). Em produção, recomenda‑se vincular a role via JWT (Supabase Auth) e restringir as políticas pelo claim.
 
-- Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).
+- Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).  
+   Nota: O barrel `services/index.ts` e o arquivo de compatibilidade `services/mockApi.ts` seguem ativos até a Fase 6 de limpeza.
 - Módulos dinâmicos (icones + allowed_profiles + ordenação drag & drop persistida).
 - Dashboard com métricas recalculadas localmente (repasse, ticket médio real).
 - Upload de planilhas XLSX com expansão de múltiplos profissionais e sincronização por período.
@@ -43,7 +44,7 @@ Requisitos de backend:
 
 - Node.js 18+
 - NPM 9+
-- Projeto Supabase com tabelas e RPCs: `get_user_units`, `get_user_modules`, `get_dashboard_metrics`, `process_xlsx_upload`, `delete_app_user`.
+- Projeto Supabase com tabelas e RPCs: `get_user_units`, `get_user_modules`, `get_dashboard_metrics`, `process_xlsx_upload`, `delete_app_user`, `unit_keys_list_columns`, `unit_keys_add_column`, `unit_keys_rename_column`, `unit_keys_drop_column`, `unit_keys_columns_stats`, `unit_keys_set_column_status`, `sync_unit_clients_from_processed`.
 
 ---
 ## 2. Configuração de Ambiente
@@ -140,6 +141,9 @@ id, code, name, icon_name, is_active, allowed_profiles[], position, description?
 - Evite duplicar regras nos componentes — centralize em `services/*/*.service.ts`.
 - Reutilize `components/ui/MonthlyComparisonChart.tsx` quando fizer sentido.
 
+Notas adicionais:
+- O barrel `services/index.ts` e o arquivo de compatibilidade `services/mockApi.ts` seguem ativos até a Fase 6 de limpeza. Não remova até um PR dedicado atualizar todos os imports.
+
 ---
 ## 7. Upload de Dados (XLSX)
 
@@ -230,6 +234,8 @@ Observações:
    - Paginação: 25 linhas por página, com reset ao mudar período, filtro ou busca.
    - Ícone do cartão "Outros" atualizado para `user-plus`.
    - Normalização: chaves de conjunto baseadas no campo bruto `CLIENTE` (sem `trim`/case transform) para manter paridade total com o Dashboard.
+   - Duplo clique na linha abre `ClientDetailModal` (abas Dados e Atendimentos) com filtro mensal e drill‑down para `DataDetailModal`.
+   - Em “Base de Clientes”, há a coluna “Último Atendimento” e o modal inclui aba Atendimentos espelhando o modal de Clientes, com duplo clique para abrir `DataDetailModal`.
 
 ### 8.3 Prestadoras (Profissionais + Recrutadora)
 
@@ -279,6 +285,7 @@ Super Admin:
 - Manter `position` densamente sequencial após drag & drop (sem gaps).
 - Preferir futura RPC batch para reorder ao invés de múltiplas updates paralelas.
 - Webhook de Agendamentos: usar POST JSON; fallback GET chunkado é automático somente em falha de rede/CORS.
+   - Payload mínimo: `{ unidade_code, data }`, com `keyword` opcional e `atendimento_id` em envios individuais; fallback GET usa chaves compactas (`u`, `d`, `kw`, `aid`).
 
 ---
 ## 11. Próximos Passos Recomendados
@@ -294,6 +301,10 @@ Super Admin:
 | Baixa | Tooltips customizados | Melhorar UX em estado colapsado |
 | Baixa | Churn como % | Ajustar eixo e rótulos do gráfico para porcentagem quando Churn estiver ativo |
 | Baixa | PeriodDropdown compartilhado | Extrair o seletor de período para um componente reutilizável e padronizar nas páginas |
+
+Notas finais:
+- ContentArea injeta HTML apenas quando `webhook_url` começa com `internal://`.
+- Em ALL, o botão de envio de webhook de Agendamentos fica desabilitado por segurança/semântica.
 
 ---
 ## 12. Scripts
@@ -356,6 +367,11 @@ Resultados:
 
 ---
 ## 18. Recrutadora – Métricas Rápidas e Ingestão CSV
+---
+## 19. Subdomínios e URLs de Módulo
+
+Para servir cada unidade em um subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeboard.com.br/<module>`), siga o guia detalhado em `docs/SUBDOMINIOS_E_URLS.md`.
+
 
 - Métricas Rápidas: chips inline no cabeçalho com contagens de Hoje, Semana e Mês. Implementadas em `services/recrutadora/recrutadora.service.ts` usando utilitários de data em `services/utils/dates.ts` (início do dia/semana/mês).
 - Semântica ALL: colunas globais; DnD restrito por unidade; "Qualificadas" duplicada por unidade, demais colunas agregadas.

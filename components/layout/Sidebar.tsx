@@ -27,15 +27,22 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
   useEffect(() => {
     if (!user || !profile) return;
+    // Se AppContext já restaurou (via localStorage), não sobrescreve
+    if (selectedUnit) return;
+
+    // Se existe cache salvo, deixa o AppContext restaurar
+    const cachedUnitId = (() => {
+      try { return localStorage.getItem('df_selected_unit_id'); } catch { return null; }
+    })();
+    if (cachedUnitId) return;
+
     if (profile.role === 'super_admin') {
       // Para super_admin, define ALL por padrão para que páginas funcionem em modo agregado
-      if (!selectedUnit) {
-        setSelectedUnit({ id: 'ALL', unit_name: 'Todas as Unidades', unit_code: 'ALL' } as any);
-      }
+      setSelectedUnit({ id: 'ALL', unit_name: 'Todas as Unidades', unit_code: 'ALL' } as any);
       return;
     }
-    if (!selectedUnit && userUnits.length > 0) {
-      // Inicializa na primeira unidade ou mantém última seleção persistida no futuro.
+    if (userUnits.length > 0) {
+      // Inicializa na primeira unidade (apenas quando não há cache)
       setSelectedUnit(userUnits[0]);
     }
   }, [user, profile, userUnits, selectedUnit, setSelectedUnit]);

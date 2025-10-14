@@ -241,6 +241,52 @@ export const fetchClientMetricsFromProcessed = async (
   const churnRatePercent = total > 0 ? `${((atencao / (atencao + total)) * 100).toFixed(1)}%` : '0.0%';
   return { total, recorrente, atencao, outros, churnRatePercent };
 };
+
+// Histórico de atendimentos por cliente
+export const fetchClientHistory = async (
+  unitCode: string,
+  clientName: string,
+  limit: number = 200,
+  period?: string // YYYY-MM
+): Promise<Array<{ id?: number; DATA: string | null; DIA: string; PROFISSIONAL: string; 'pos vendas': string | null }>> => {
+  if (!unitCode || !clientName) return [];
+  let query = supabase
+    .from('processed_data')
+    .select('id, DATA, DIA, PROFISSIONAL, "pos vendas"')
+    .eq('unidade_code', unitCode)
+    .ilike('CLIENTE', `%${clientName}%`);
+
+  if (period && /^\d{4}-\d{2}$/.test(period)) {
+    const [yearStr, monthStr] = period.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
+    query = query.gte('DATA', startDate).lte('DATA', endDate);
+  }
+
+  const { data, error } = await query.order('DATA', { ascending: false }).limit(limit);
+  if (error) return [];
+  return (data as any[]) || [];
+};
+
+// Último atendimento (DATA) de um cliente por unidade
+export const fetchLastAttendance = async (
+  unitCode: string,
+  clientName: string
+): Promise<string | null> => {
+  if (!unitCode || !clientName) return null;
+  const { data, error } = await supabase
+    .from('processed_data')
+    .select('DATA')
+    .eq('unidade_code', unitCode)
+    .ilike('CLIENTE', `%${clientName}%`)
+    .order('DATA', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return (data as any)?.DATA || null;
+};
 /**
  * clients.service.ts
  * Esqueleto de serviço para análises de clientes.

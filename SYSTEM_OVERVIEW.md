@@ -16,6 +16,7 @@ A aplicação está organizada da seguinte forma:
 - **`/services/`**: Camada de comunicação com o backend, segmentada por domínio.
   - `supabaseClient.ts`: Configura e exporta o cliente Supabase, conectando a aplicação ao banco de dados.
   - `auth/users.service.ts`, `units/units.service.ts`, `modules/modules.service.ts`, `analytics/*.service.ts`, `data/dataTable.service.ts`, `ingestion/upload.service.ts`, `content/content.service.ts`, `access/accessCredentials.service.ts`.
+  - Barrel temporário `services/index.ts` e compatibilidade `services/mockApi.ts` permanecem ativos até a Fase 6 de limpeza (não remover até PR dedicado atualizar todos os imports).
 - **`/components/`**: Onde residem todos os componentes React.
   - `/layout/`: Componentes estruturais como `Sidebar` e `ContentArea`.
   - `/pages/`: Componentes que representam as telas principais de cada módulo (Dashboard, Dados, Gerenciamento de Usuários, etc.).
@@ -24,7 +25,7 @@ A aplicação está organizada da seguinte forma:
 ## 2. Fluxo de Autenticação e Sessão
 
 1.  **Login**: O usuário insere e-mail e senha na `LoginPage`.
-2.  **Verificação**: A função `login` do `AuthContext` realiza uma consulta direta na tabela `profiles` do Supabase para encontrar um usuário com o e-mail e a senha fornecidos. **Este é um fluxo de autenticação personalizado e não utiliza o `supabase.auth`**.
+2.  **Verificação**: A função `login` do `AuthContext` realiza uma consulta direta na tabela `profiles` do Supabase para encontrar um usuário com o e-mail e a senha fornecidos. **Este é um fluxo de autenticação personalizado e não utiliza o `supabase.auth`** (migração futura planejada para `auth.users` + triggers e hash de senha).
 3.  **Sessão**: Se as credenciais forem válidas, o `AuthContext` armazena os dados do perfil do usuário no estado do React e em `sessionStorage` para persistir a sessão no navegador.
 4.  **Gerenciamento**: O `App.tsx` verifica a existência do usuário no `AuthContext` para decidir se renderiza a `DashboardPage` ou a `LoginPage`.
 5.  **Persistência**: A sessão é mantida através do `sessionStorage` do navegador, permitindo que o usuário permaneça logado ao recarregar a página.
@@ -86,6 +87,11 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Métricas Rápidas: Chips inline no cabeçalho com contagens de Hoje, Semana e Mês (baseadas em `created_at >= início do período`). Serviços: `services/recrutadora/recrutadora.service.ts` com utilitários de data em `services/utils/dates.ts`.
   -   Visualização "Todos" (ALL): A coluna "Qualificadas" é duplicada por unidade; as demais colunas agregam cards de todas as unidades. DnD permanece restrito por unidade.
 
+-   Configuração por Unidade (unit_keys):
+  -   Tabela `unit_keys` com colunas: `umbler`, `whats_profi`, `whats_client`, `botID`, `organizationID`, `trigger`, `description`, `is_active`.
+  -   Serviço: `services/units/unitKeys.service.ts` com `fetchUnitKeys`, `createUnitKey`, `updateUnitKey`, `deleteUnitKey`.
+  -   UI: Em “Gerenciar Unidades” → Editar → aba “Keys” (somente `super_admin`). Layout atual em formato de tabela com colunas NOME (tipo da key) e KEY (valor), com edição inline e ação de excluir por linha. O botão “Adicionar Key” agora fica na mesma barra das abas.
+
 -   Prestadoras (Profissionais + Recrutadora):
     - Ponto de entrada: `components/pages/PrestadorasPage.tsx`.
     - Serviços: `services/analytics/prestadoras.service.ts` (contagens, métricas mensais, ranking e drill‑down).
@@ -106,7 +112,7 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
     - Serviço `fetchClients` retorna lista de `M` e, para Atenção, metadados com `tipo`, `lastAttendance` e `monthlyCounts` (para `M`, `M-1`, `M-2`).
   -   **UI**:
     - Cartão Atenção mostra quantidade; ao clicar, filtra tabela para não-retornos.
-    - Tabela em Atenção exibe colunas de `M`, `M-1`, `M-2` (ordem invertida) com cabeçalhos `Abrev/AAAA`.
+  - Tabela em Atenção exibe colunas de `M`, `M-1`, `M-2` (ordem invertida) com cabeçalhos `Abrev/AAAA`. Quando ativa, a linha do cliente abre `ClientDetailModal` por duplo clique; o modal possui abas (Dados/Atendimentos) com filtro mensal e permite abrir `DataDetailModal` ao dar duplo clique no histórico. A Base de Clientes contém a coluna “Último Atendimento” e modal espelhado.
     - Paginação de 25 itens por página, reset em mudanças de período/filtros.
 
 ### 5.1 Visualização "Todos" (ALL) – Comportamento por Módulo
@@ -264,3 +270,8 @@ _Documento ampliado para refletir estado operacional atualizado (02/10/2025)._
 - RLS: habilitado com políticas permissivas para SELECT/INSERT/UPDATE/DELETE (restrição de edição assegurada na UI ao perfil `super_admin`). Recomendado evoluir para RLS restritiva com Supabase Auth (claims de role) no futuro.
 - Serviço: `services/units/unitKeys.service.ts` provê `fetchUnitKeys`, `createUnitKey`, `updateUnitKey`, `deleteUnitKey` para a configuração única.
 - UI: Em "Gerenciar Unidades" → Editar → aba "Keys" (somente `super_admin`). Formulário único com auto‑save por debounce (~600ms), indicador de salvamento e botão "Remover" quando existir configuração.
+
+---
+### Referência: Subdomínios e URLs por Módulo
+
+Para publicar cada unidade em seu subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeboard.com.br/<module>`), consulte `docs/SUBDOMINIOS_E_URLS.md`.
