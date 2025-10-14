@@ -309,9 +309,9 @@ const DataPage: React.FC = () => {
                       <td className="px-4 py-4 text-sm whitespace-nowrap text-text-primary">{formatDate(row.DATA)}</td>
                       <td className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary font-mono" title={row.orcamento}>{row.orcamento}</td>
                       <td className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-primary" title={row.CLIENTE}>{row.CLIENTE}</td>
-                      <td className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary">{row.VALOR.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary">{Number(row.VALOR ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                       <td className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary" title={row.PROFISSIONAL}>{row.PROFISSIONAL}</td>
-                      <td className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary">{row.REPASSE.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary">{Number(row.REPASSE ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                     </tr>
                   ))}
                 </tbody>
