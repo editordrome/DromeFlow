@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchAllModules, createModule, updateModule, deleteModule, toggleModuleStatus, updateModulesOrder } from '../../services/modules/modules.service';
 import { Module, UserRole } from '../../types';
 import { Icon, ICON_NAMES } from '../ui/Icon';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+
+const ITEMS_PER_PAGE = 10;
 
 type ModuleDataPayload = Partial<Module>;
 
@@ -243,6 +245,8 @@ const ManageModulesPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadModules = useCallback(async () => {
     setIsLoading(true);
@@ -260,6 +264,39 @@ const ManageModulesPage: React.FC = () => {
   useEffect(() => {
     loadModules();
   }, [loadModules]);
+
+  const filteredModules = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return modules;
+    return modules.filter((module) => {
+      const name = (module.name || '').toLowerCase();
+      const viewId = (module.view_id || '').toLowerCase();
+      const parent = module.parent_id ? modules.find((m) => m.id === module.parent_id)?.name?.toLowerCase() : '';
+      return name.includes(term) || viewId.includes(term) || (parent ? parent.includes(term) : false);
+    });
+  }, [modules, searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredModules.length / ITEMS_PER_PAGE));
+
+  useEffect(() => {
+    setCurrentPage((prev) => {
+      if (prev > totalPages) return totalPages;
+      if (prev < 1) return 1;
+      return prev;
+    });
+  }, [totalPages]);
+
+  const paginatedModules = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredModules.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredModules, currentPage]);
+
+  const pageStart = filteredModules.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const pageEnd = filteredModules.length === 0 ? 0 : Math.min(filteredModules.length, (currentPage - 1) * ITEMS_PER_PAGE + paginatedModules.length);
 
   const handleOpenModal = (module: Module | null = null) => {
     setEditingModule(module);
@@ -311,9 +348,19 @@ const ManageModulesPage: React.FC = () => {
 
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
-    const fromIndex = result.source.index;
-    const toIndex = result.destination.index;
-    if (fromIndex === toIndex) return;
+    const filteredIds = filteredModules.map((m) => m.id);
+    const pageOffset = (currentPage - 1) * ITEMS_PER_PAGE;
+    const fromFilteredIndex = pageOffset + result.source.index;
+    const toFilteredIndex = pageOffset + result.destination.index;
+    if (fromFilteredIndex === toFilteredIndex) return;
+
+    const fromModuleId = filteredIds[fromFilteredIndex];
+    const toModuleId = filteredIds[toFilteredIndex];
+    if (!fromModuleId || !toModuleId) return;
+
+    const fromIndex = modules.findIndex((m) => m.id === fromModuleId);
+    const toIndex = modules.findIndex((m) => m.id === toModuleId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
 
     // Calcula nova ordem local imediatamente (estado otimista)
     const newOrder = (() => {
@@ -349,12 +396,36 @@ const ManageModulesPage: React.FC = () => {
 
   return (
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-text-primary">Módulos {isSavingOrder && <span className="ml-2 text-sm text-text-secondary">(salvando...)</span>}</h1>
-        <button onClick={() => handleOpenModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
-          <Icon name="add" className="w-5 h-5 mr-2" />
-          Adicionar Módulo
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative max-w-xs w-full sm:w-[260px]">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar módulo"
+              className="w-full pl-9 pr-8 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+            />
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary">
+              <Icon name="search" className="w-4 h-4" />
+            </span>
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-bg-tertiary text-text-secondary"
+                aria-label="Limpar busca"
+              >
+                <Icon name="close" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button onClick={() => handleOpenModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
+            <Icon name="add" className="w-5 h-5 mr-2" />
+            Adicionar Módulo
+          </button>
+        </div>
       </div>
       
       {isLoading ? (
@@ -371,17 +442,22 @@ const ManageModulesPage: React.FC = () => {
                 <table className="min-w-full divide-y divide-border-primary" ref={provided.innerRef} {...provided.droppableProps}>
                   <thead className="bg-bg-tertiary">
                     <tr>
-                      <th className="w-8 px-2 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary"></th>
-                      <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
-                      <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Ícone</th>
-                      <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Pai</th>
-                      <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Perfis</th>
-                      <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Status</th>
-                      <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
+                      <th className="w-8 px-2 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary"></th>
+                      <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
+                      <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Ícone</th>
+                      <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Pai</th>
+                      <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Perfis</th>
+                      <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Status</th>
+                      <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="bg-bg-secondary divide-y divide-border-primary">
-                    {modules.map((module, index) => (
+                    {filteredModules.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-6 text-center text-sm text-text-secondary">Nenhum módulo encontrado.</td>
+                      </tr>
+                    )}
+                    {paginatedModules.map((module, index) => (
                       <Draggable key={module.id} draggableId={module.id} index={index}>
                         {(dragProvided, snapshot) => (
                           <tr
@@ -393,14 +469,14 @@ const ManageModulesPage: React.FC = () => {
                             <td className="px-2 py-2 align-middle" {...dragProvided.dragHandleProps}>
                               <div className="flex items-center justify-center w-4 h-4 text-text-secondary cursor-grab active:cursor-grabbing">⋮⋮</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{module.name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
+                            <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-text-primary">{module.name}</td>
+                            <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">
                               <Icon name={module.icon} className="w-6 h-6" />
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
+                            <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">
                               {mParentName(modules, module.parent_id)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
+                            <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">
                               <div className="flex flex-wrap gap-1">
                                 {module.allowed_profiles?.map(profile => (
                                   <span key={profile} className="px-2 py-1 text-xs font-semibold text-white bg-gray-600 rounded-full">
@@ -409,7 +485,7 @@ const ManageModulesPage: React.FC = () => {
                                 ))}
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
+                            <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">
                                <div className="flex items-center space-x-2">
                                   <ToggleSwitch
                                     checked={module.is_active}
@@ -418,7 +494,7 @@ const ManageModulesPage: React.FC = () => {
                                   <span>{module.is_active ? 'Ativo' : 'Inativo'}</span>
                                 </div>
                             </td>
-                            <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
+                            <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
                               <div className="flex items-center justify-end space-x-1">
                                 <button 
                                   onClick={(e) => { e.stopPropagation(); handleOpenModal(module); }} 
@@ -446,6 +522,31 @@ const ManageModulesPage: React.FC = () => {
               )}
             </Droppable>
           </DragDropContext>
+        </div>
+      )}
+
+      {filteredModules.length > 0 && (
+        <div className="flex flex-col items-center justify-between gap-3 mt-4 text-sm text-text-secondary sm:flex-row">
+          <span>Mostrando {pageStart}–{pageEnd} de {filteredModules.length}</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm font-medium border rounded-md text-text-secondary border-border-secondary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary"
+            >
+              Anterior
+            </button>
+            <span>Página {currentPage} de {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || filteredModules.length === 0}
+              className="px-3 py-1.5 text-sm font-medium border rounded-md text-text-secondary border-border-secondary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary"
+            >
+              Próxima
+            </button>
+          </div>
         </div>
       )}
 

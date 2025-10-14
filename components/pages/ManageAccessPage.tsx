@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   fetchAllAccessCredentials, 
   createAccessCredential, 
@@ -140,6 +140,9 @@ const ManageAccessPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCredential, setEditingCredential] = useState<AccessCredential | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const loadCredentials = useCallback(async () => {
     setIsLoading(true);
@@ -157,6 +160,29 @@ const ManageAccessPage: React.FC = () => {
   useEffect(() => {
     loadCredentials();
   }, [loadCredentials]);
+
+  // Resetar página ao alterar busca
+  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
+
+  const filteredCredentials = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return credentials;
+    return credentials.filter((c) => {
+      const t = [
+        c.name,
+        c.type,
+        c.description ?? '',
+        c.value ?? '',
+      ].join(' ').toLowerCase();
+      return t.includes(q);
+    });
+  }, [credentials, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCredentials.length / ITEMS_PER_PAGE));
+  const pageIndex = Math.min(currentPage, totalPages) - 1;
+  const start = pageIndex * ITEMS_PER_PAGE;
+  const end = start + ITEMS_PER_PAGE;
+  const paginatedCredentials = filteredCredentials.slice(start, end);
 
   const handleOpenModal = (credential: AccessCredential | null = null) => {
     setEditingCredential(credential);
@@ -195,12 +221,37 @@ const ManageAccessPage: React.FC = () => {
 
   return (
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-3">
         <h1 className="text-2xl font-bold text-text-primary">Gerenciar Acessos</h1>
-        <button onClick={() => handleOpenModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
-          <Icon name="add" className="w-5 h-5 mr-2" />
-          Adicionar Acesso
-        </button>
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-text-secondary">
+              <Icon name="search" className="w-4 h-4" />
+            </span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e)=>setSearchTerm(e.target.value)}
+              placeholder="Buscar por nome, tipo, descrição ou valor"
+              className="w-80 pl-8 pr-8 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={()=>setSearchTerm('')}
+                className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
+                aria-label="Limpar busca"
+                title="Limpar"
+              >
+                <Icon name="close" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button onClick={() => handleOpenModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
+            <Icon name="add" className="w-5 h-5 mr-2" />
+            Adicionar Acesso
+          </button>
+        </div>
       </div>
       
       {isLoading ? (
@@ -214,22 +265,27 @@ const ManageAccessPage: React.FC = () => {
           <table className="min-w-full divide-y divide-border-primary">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Tipo</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Valor</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Descrição</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Tipo</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Valor</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Descrição</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-bg-secondary divide-y divide-border-primary">
-              {credentials.map((cred) => (
+              {paginatedCredentials.length === 0 && (
+                <tr>
+                  <td className="px-6 py-4 text-sm text-text-secondary" colSpan={5}>Nenhum acesso encontrado.</td>
+                </tr>
+              )}
+              {paginatedCredentials.map((cred) => (
                 <tr 
                   key={cred.id}
                   onDoubleClick={() => handleOpenModal(cred)}
                   className="transition-colors cursor-pointer hover:bg-bg-tertiary"
                 >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{cred.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
+                  <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-text-primary">{cred.name}</td>
+                  <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                         cred.type === 'API_KEY' ? 'bg-blue-100 text-blue-800' :
                         cred.type === 'TOKEN' ? 'bg-purple-100 text-purple-800' :
@@ -238,15 +294,15 @@ const ManageAccessPage: React.FC = () => {
                         {cred.type.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
+                  <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">
                     <ValueCell value={cred.value} />
                   </td>
-                   <td className="px-6 py-4 text-sm text-text-secondary max-w-xs truncate">{cred.description}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
+                   <td className="px-6 py-2 text-sm text-text-secondary max-w-xs truncate">{cred.description}</td>
+                  <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
                     <div className="flex items-center justify-end space-x-1">
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleOpenModal(cred); }} 
-                        className="p-2 rounded-md text-accent-primary hover:text-accent-primary/10 transition-colors"
+                        className="p-2 rounded-md text-accent-primary hover:bg-accent-primary/10 transition-colors"
                         title="Editar Acesso"
                       >
                         <Icon name="edit" className="w-5 h-5" />
@@ -264,6 +320,25 @@ const ManageAccessPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+          {/* Paginação */}
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-xs text-text-secondary">
+              Mostrando {filteredCredentials.length === 0 ? 0 : start + 1}–{Math.min(end, filteredCredentials.length)} de {filteredCredentials.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-3 py-1 text-sm border rounded-md disabled:opacity-50"
+                onClick={()=>setCurrentPage(p=>Math.max(1, p-1))}
+                disabled={currentPage <= 1}
+              >Anterior</button>
+              <span className="text-sm text-text-secondary">Página {currentPage} de {totalPages}</span>
+              <button
+                className="px-3 py-1 text-sm border rounded-md disabled:opacity-50"
+                onClick={()=>setCurrentPage(p=>Math.min(totalPages, p+1))}
+                disabled={currentPage >= totalPages}
+              >Próxima</button>
+            </div>
+          </div>
         </div>
       )}
 

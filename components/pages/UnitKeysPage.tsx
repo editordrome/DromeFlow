@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserRole } from '../../types';
 import { listUnitKeysColumns, addUnitKeysColumn, renameUnitKeysColumn, dropUnitKeysColumn, ColumnInfo, getUnitKeysColumnsStats, fetchUnitsBasic, fetchUnitKeysValuesFor, UnitKeyValueRow, updateUnitKeyValueById } from '../../services/units/unitKeysAdmin.service';
@@ -28,6 +28,9 @@ const UnitKeysPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState<null | { oldName: string }>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const ITEMS_PER_PAGE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
 
   const canManage = profile?.role === UserRole.SUPER_ADMIN;
 
@@ -50,6 +53,24 @@ const UnitKeysPage: React.FC = () => {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Resetar para a primeira página quando o termo de busca mudar
+  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
+
+  const filteredColumns = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return columns;
+    return columns.filter(c =>
+      c.column_name.toLowerCase().includes(q) ||
+      String(c.data_type ?? '').toLowerCase().includes(q)
+    );
+  }, [columns, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredColumns.length / ITEMS_PER_PAGE));
+  const pageIndex = Math.min(currentPage, totalPages) - 1;
+  const start = pageIndex * ITEMS_PER_PAGE;
+  const end = start + ITEMS_PER_PAGE;
+  const paginatedColumns = filteredColumns.slice(start, end);
 
   const handleAdd = async (payload: { name: string; type: string; nullable: boolean; def: string }) => {
     if (!profile || !canManage) return;
@@ -98,14 +119,39 @@ const UnitKeysPage: React.FC = () => {
 
   return (
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-3">
         <h1 className="text-2xl font-bold text-text-primary">Keys (unit_keys)</h1>
-        {canManage && (
-          <button onClick={() => setIsAddOpen(true)} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
-            <Icon name="add" className="w-5 h-5 mr-2" />
-            Adicionar Coluna
-          </button>
-        )}
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-text-secondary">
+              <Icon name="search" className="w-4 h-4" />
+            </span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e)=>setSearchTerm(e.target.value)}
+              placeholder="Buscar coluna ou tipo"
+              className="w-64 pl-8 pr-8 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={()=>setSearchTerm('')}
+                className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
+                aria-label="Limpar busca"
+                title="Limpar"
+              >
+                <Icon name="close" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {canManage && (
+            <button onClick={() => setIsAddOpen(true)} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
+              <Icon name="add" className="w-5 h-5 mr-2" />
+              Adicionar Coluna
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -119,15 +165,20 @@ const UnitKeysPage: React.FC = () => {
           <table className="min-w-full divide-y divide-border-primary">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Pos</th>
-                <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
-                <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Tipo</th>
-                <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">UNID</th>
-                <th className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
+                <th className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Pos</th>
+                <th className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
+                <th className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Tipo</th>
+                <th className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">UNID</th>
+                <th className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-bg-secondary divide-y divide-border-primary">
-              {columns.map((c) => {
+              {paginatedColumns.length === 0 && (
+                <tr>
+                  <td className="px-6 py-4 text-sm text-text-secondary" colSpan={5}>Nenhuma coluna encontrada.</td>
+                </tr>
+              )}
+              {paginatedColumns.map((c) => {
                 const isReserved = RESERVED.has(c.column_name);
                 return (
                   <tr key={c.column_name} className={`transition-colors ${isReserved ? 'opacity-70' : ''} hover:bg-bg-tertiary cursor-pointer`}
@@ -153,11 +204,11 @@ const UnitKeysPage: React.FC = () => {
                         }
                       }}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{c.ordinal_position}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{c.column_name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{c.data_type}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{stats[c.column_name]?.usage_count ?? 0}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
+                    <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{c.ordinal_position}</td>
+                    <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-text-primary">{c.column_name}</td>
+                    <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{c.data_type}</td>
+                    <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{stats[c.column_name]?.usage_count ?? 0}</td>
+                    <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
                       <div className="flex items-center justify-end space-x-1">
                         <button
                           onClick={() => setIsRenameOpen({ oldName: c.column_name })}
@@ -182,6 +233,25 @@ const UnitKeysPage: React.FC = () => {
               })}
             </tbody>
           </table>
+          {/* Paginação */}
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-xs text-text-secondary">
+              Mostrando {filteredColumns.length === 0 ? 0 : start + 1}–{Math.min(end, filteredColumns.length)} de {filteredColumns.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-3 py-1 text-sm border rounded-md disabled:opacity-50"
+                onClick={()=>setCurrentPage(p=>Math.max(1, p-1))}
+                disabled={currentPage <= 1}
+              >Anterior</button>
+              <span className="text-sm text-text-secondary">Página {currentPage} de {totalPages}</span>
+              <button
+                className="px-3 py-1 text-sm border rounded-md disabled:opacity-50"
+                onClick={()=>setCurrentPage(p=>Math.min(totalPages, p+1))}
+                disabled={currentPage >= totalPages}
+              >Próxima</button>
+            </div>
+          </div>
         </div>
       )}
 

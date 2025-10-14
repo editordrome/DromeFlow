@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { fetchAllUnits, createUnit, updateUnit, deleteUnit } from '../../services/units/units.service';
 import { fetchUsersForUnit, updateUser, createUser } from '../../services/auth/users.service';
 import { Unit, UnitKey } from '../../types';
 import { Icon } from '../ui/Icon';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchUnitKeys, createUnitKey, updateUnitKey, deleteUnitKey } from '../../services/units/unitKeys.service';
+import { fetchUnitKeys, createUnitKey, updateUnitKey, deleteUnitKey, upsertUnitKeyValue } from '../../services/units/unitKeys.service';
 import { listUnitKeysColumns, ColumnInfo } from '../../services/units/unitKeysAdmin.service';
 import { User as UserType, Profile as ProfileType } from '../../types';
 import { UserFormModal } from '../ui/UserFormModal';
@@ -300,6 +300,11 @@ const UnitFormModal: React.FC<{
                 {keys.length === 0 && (
                   <div className="text-xs italic text-text-secondary">Nenhuma key cadastrada para esta unidade.</div>
                 )}
+                {keys.length > 1 && (
+                  <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md p-2">
+                    Aviso: Foram encontradas <strong>{keys.length}</strong> linhas de keys para esta unidade. O novo modelo consolida tudo em uma única linha. Considere remover registros extras após migrar valores.
+                  </div>
+                )}
 
                 {keys.length > 0 && (
                   <div className="overflow-x-auto">
@@ -414,18 +419,21 @@ const UnitFormModal: React.FC<{
               try {
                 setKeysError(null);
                 setIsCreatingKey(true);
-                const payload: any = { is_active: true };
-                // grava o valor digitado na coluna selecionada
-                payload[chosenKey] = typedValue || '';
-                const created = await createUnitKey(unit.id, payload);
+                // Se já existe linha e a coluna escolhida possui valor, confirmar overwrite
+                const existing = keys[0];
+                if (existing && (existing as any)[chosenKey] && String((existing as any)[chosenKey]).length > 0) {
+                  const proceed = confirm('Esta coluna já possui um valor. Substituir?');
+                  if (!proceed) return; // aborta sem fechar o modal
+                }
+                const updated = await upsertUnitKeyValue(unit.id, chosenKey, typedValue || '', true);
                 const list = await fetchUnitKeys(unit.id);
                 setKeys(list);
-                setExpandedKeyId(String(created.id));
+                setExpandedKeyId(String(updated.id));
                 setExpandedFocusField(chosenKey);
                 const selectedOpt = keyTypeOptions.find(o => o.value === chosenKey);
-                setCreatedKeyHints(prev => ({ ...prev, [String(created.id)]: selectedOpt?.label || chosenKey }));
+                setCreatedKeyHints(prev => ({ ...prev, [String(updated.id)]: selectedOpt?.label || chosenKey }));
               } catch (e: any) {
-                const msg = e?.message || 'Falha ao criar key.';
+                const msg = e?.message || 'Falha ao salvar key.';
                 setKeysError(msg);
               } finally {
                 setIsCreatingKey(false);
@@ -722,6 +730,8 @@ const DeleteConfirmationModal: React.FC<{
 };
 
 
+const ITEMS_PER_PAGE = 10;
+
 const ManageUnitsPage: React.FC = () => {
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -730,6 +740,8 @@ const ManageUnitsPage: React.FC = () => {
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
   const [unitUserCounts, setUnitUserCounts] = useState<Record<string, number>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadUnits = useCallback(async () => {
     setIsLoading(true);
@@ -747,6 +759,38 @@ const ManageUnitsPage: React.FC = () => {
   useEffect(() => {
     loadUnits();
   }, [loadUnits]);
+
+  const filteredUnits = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return units;
+    return units.filter((u) => {
+      const name = (u.unit_name || '').toLowerCase();
+      const code = (u.unit_code || '').toLowerCase();
+      return name.includes(term) || code.includes(term);
+    });
+  }, [units, searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUnits.length / ITEMS_PER_PAGE));
+
+  useEffect(() => {
+    setCurrentPage((prev) => {
+      if (prev > totalPages) return totalPages;
+      if (prev < 1) return 1;
+      return prev;
+    });
+  }, [totalPages]);
+
+  const paginatedUnits = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredUnits.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredUnits, currentPage]);
+
+  const pageStart = filteredUnits.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const pageEnd = filteredUnits.length === 0 ? 0 : Math.min(filteredUnits.length, (currentPage - 1) * ITEMS_PER_PAGE + paginatedUnits.length);
 
   // Após carregar unidades, buscar contagem de usuários por unidade em uma única consulta
   useEffect(() => {
@@ -826,10 +870,34 @@ const ManageUnitsPage: React.FC = () => {
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-text-primary">Unidades</h1>
-        <button onClick={() => handleOpenModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
-          <Icon name="add" className="w-5 h-5 mr-2" />
-          Adicionar Unidade
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative max-w-xs w-[260px]">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar unidade"
+              className="w-full pl-9 pr-8 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+            />
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary">
+              <Icon name="search" className="w-4 h-4" />
+            </span>
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-bg-tertiary text-text-secondary"
+                aria-label="Limpar busca"
+              >
+                <Icon name="close" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button onClick={() => handleOpenModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
+            <Icon name="add" className="w-5 h-5 mr-2" />
+            Adicionar Unidade
+          </button>
+        </div>
       </div>
       
       {isLoading ? (
@@ -843,23 +911,28 @@ const ManageUnitsPage: React.FC = () => {
           <table className="min-w-full divide-y divide-border-primary">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome da Unidade</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Código</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Usuários</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome da Unidade</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Código</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Usuários</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-bg-secondary divide-y divide-border-primary">
-              {units.map((unit) => (
+              {filteredUnits.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-6 text-center text-sm text-text-secondary">Nenhuma unidade encontrada.</td>
+                </tr>
+              )}
+              {paginatedUnits.map((unit) => (
                 <tr 
                   key={unit.id}
                   onDoubleClick={() => handleOpenModal(unit)}
                   className="transition-colors cursor-pointer hover:bg-bg-tertiary"
                 >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{unit.unit_name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary font-mono">{unit.unit_code}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{unitUserCounts[unit.id] ?? 0}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
+                  <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-text-primary">{unit.unit_name}</td>
+                  <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary font-mono">{unit.unit_code}</td>
+                  <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{unitUserCounts[unit.id] ?? 0}</td>
+                  <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
                     <div className="flex items-center justify-end space-x-1">
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleOpenModal(unit); }} 
@@ -881,6 +954,30 @@ const ManageUnitsPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+          {filteredUnits.length > 0 && (
+            <div className="flex flex-col items-center justify-between gap-3 mt-4 text-sm text-text-secondary sm:flex-row">
+              <span>Mostrando {pageStart}–{pageEnd} de {filteredUnits.length}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm font-medium border rounded-md text-text-secondary border-border-secondary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary"
+                >
+                  Anterior
+                </button>
+                <span>Página {currentPage} de {totalPages}</span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages || filteredUnits.length === 0}
+                  className="px-3 py-1.5 text-sm font-medium border rounded-md text-text-secondary border-border-secondary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary"
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

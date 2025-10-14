@@ -35,6 +35,8 @@ const ManageUsersPage: React.FC = () => {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [unitsByUser, setUnitsByUser] = useState<Record<string, string[]>>({});
+  const ITEMS_PER_PAGE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadUsers = useCallback(async () => {
     setIsLoading(true);
@@ -79,6 +81,9 @@ const ManageUsersPage: React.FC = () => {
     loadUsers();
   }, [loadUsers]);
 
+  // Resetar para a primeira página quando a busca muda
+  useEffect(() => { setCurrentPage(1); }, [searchQuery]);
+
   // Carrega nomes das unidades para todos os usuários listados em uma única consulta
   useEffect(() => {
     const fetchUnitsForUsers = async () => {
@@ -116,6 +121,12 @@ const ManageUsersPage: React.FC = () => {
     const byUnit = unitNames.includes(q);
     return byName || byEmail || byUnit;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / ITEMS_PER_PAGE));
+  const pageIndex = Math.min(currentPage, totalPages) - 1;
+  const start = pageIndex * ITEMS_PER_PAGE;
+  const end = start + ITEMS_PER_PAGE;
+  const paginatedUsers = filteredUsers.slice(start, end);
 
   const handleOpenModal = (user: FullUser | null = null) => {
     setEditingUser(user);
@@ -221,23 +232,28 @@ const ManageUsersPage: React.FC = () => {
           <table className="min-w-full table-fixed divide-y divide-border-primary">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[22%]">Nome</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[26%]">Email</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[32%]">Unidade</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[12%] whitespace-nowrap">Função</th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium tracking-wider text-right uppercase text-text-secondary w-[8%] whitespace-nowrap">Ações</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[22%]">Nome</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[26%]">Email</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[32%]">Unidade</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[12%] whitespace-nowrap">Função</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary w-[8%] whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-bg-secondary divide-y divide-border-primary">
-              {filteredUsers.map((user) => (
+              {paginatedUsers.length === 0 && (
+                <tr>
+                  <td className="px-6 py-4 text-sm text-text-secondary" colSpan={5}>Nenhum usuário encontrado.</td>
+                </tr>
+              )}
+              {paginatedUsers.map((user) => (
                 <tr 
                   key={user.id} 
                   onDoubleClick={() => handleOpenModal(user)}
                   className="transition-colors cursor-pointer hover:bg-bg-tertiary"
                 >
-                  <td className="px-6 py-4 text-sm font-medium text-text-primary truncate">{user.full_name}</td>
-                  <td className="px-6 py-4 text-sm text-text-secondary truncate">{user.email}</td>
-                  <td className="px-6 py-4 text-sm text-text-secondary truncate" title={(unitsByUser[user.id] && unitsByUser[user.id].length > 0) ? unitsByUser[user.id].join(', ') : '-' }>
+                  <td className="px-6 py-2 text-sm font-medium text-text-primary truncate">{user.full_name}</td>
+                  <td className="px-6 py-2 text-sm text-text-secondary truncate">{user.email}</td>
+                  <td className="px-6 py-2 text-sm text-text-secondary truncate" title={(unitsByUser[user.id] && unitsByUser[user.id].length > 0) ? unitsByUser[user.id].join(', ') : '-' }>
                     {(() => {
                       const list = unitsByUser[user.id] || [];
                       if (list.length === 0) return '-';
@@ -246,8 +262,8 @@ const ManageUsersPage: React.FC = () => {
                       return extra > 0 ? `${shown} +${extra}` : shown;
                     })()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
+                  <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+                  <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
                     <div className="flex items-center justify-end space-x-1">
                       {profile?.role !== 'user' && (
                         <>
@@ -278,6 +294,25 @@ const ManageUsersPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+          {/* Paginação */}
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-xs text-text-secondary">
+              Mostrando {filteredUsers.length === 0 ? 0 : start + 1}–{Math.min(end, filteredUsers.length)} de {filteredUsers.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-3 py-1 text-sm border rounded-md disabled:opacity-50"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+              >Anterior</button>
+              <span className="text-sm text-text-secondary">Página {currentPage} de {totalPages}</span>
+              <button
+                className="px-3 py-1 text-sm border rounded-md disabled:opacity-50"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+              >Próxima</button>
+            </div>
+          </div>
         </div>
       )}
 
