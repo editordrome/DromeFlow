@@ -71,6 +71,7 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
 
     // Restaurar View/Módulo
     try {
+      let restored = false;
       const storedView = (localStorage.getItem('df_active_view') as PageView | null) || null;
       const storedModuleId = localStorage.getItem('df_active_module_id');
       if (storedView === 'module' && storedModuleId) {
@@ -78,11 +79,20 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
         if (foundModule) {
           setActiveView('module');
           setActiveModule(foundModule);
-          return; // já restaurou módulo
+          restored = true; // já restaurou módulo
         }
       }
       if (storedView && storedView !== 'module') {
         setView(storedView);
+        restored = true;
+      }
+
+      // Caso não haja restauração válida, define o primeiro módulo ativo disponível
+      if (!restored) {
+        const firstActive = userModules.find(m => (m as any).is_active) || userModules[0];
+        if (firstActive) {
+          setView('module', firstActive);
+        }
       }
     } catch {}
   }, [loading, userUnits, userModules, selectedUnit]);
