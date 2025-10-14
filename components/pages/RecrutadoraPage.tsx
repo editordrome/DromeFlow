@@ -23,6 +23,13 @@ const RecrutadoraPage: React.FC = () => {
   const [metrics, setMetrics] = useState<{ today: number; week: number; month: number } | null>(null);
   // Periodo ativo para filtro a partir das métricas
   const [activePeriod, setActivePeriod] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  // Busca (nome ou whatsapp)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim().toLowerCase()), 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   // Escolhe cor de texto com bom contraste sobre o fundo fornecido (hex)
   const getTextContrastClass = (bg?: string | null) => {
@@ -97,17 +104,27 @@ const RecrutadoraPage: React.FC = () => {
 
   // Aplica filtro por período nos cards carregados
   const visibleCards = useMemo(() => {
-    if (activePeriod === 'all') return cards;
-    let startISO: string;
-    if (activePeriod === 'today') startISO = startOfTodayISO();
-    else if (activePeriod === 'week') startISO = startOfWeekISO();
-    else startISO = startOfMonthISO();
-    const start = new Date(startISO).getTime();
-    return cards.filter(c => {
-      const created = new Date(c.created_at).getTime();
-      return !isNaN(created) && created >= start;
-    });
-  }, [cards, activePeriod]);
+    let base = cards;
+    if (activePeriod !== 'all') {
+      let startISO: string;
+      if (activePeriod === 'today') startISO = startOfTodayISO();
+      else if (activePeriod === 'week') startISO = startOfWeekISO();
+      else startISO = startOfMonthISO();
+      const start = new Date(startISO).getTime();
+      base = base.filter(c => {
+        const created = new Date(c.created_at).getTime();
+        return !isNaN(created) && created >= start;
+      });
+    }
+    if (debouncedSearch) {
+      base = base.filter(c => {
+        const nome = (c.nome || '').toLowerCase();
+        const whatsapp = (c.whatsapp || '').toLowerCase();
+        return nome.includes(debouncedSearch) || whatsapp.includes(debouncedSearch);
+      });
+    }
+    return base;
+  }, [cards, activePeriod, debouncedSearch]);
 
   const cardsByStatus = useMemo(() => {
     const map: Record<string, RecrutadoraCard[]> = {};
@@ -281,8 +298,31 @@ const RecrutadoraPage: React.FC = () => {
   <div className="p-4 bg-bg-secondary rounded-lg shadow-md h-full min-h-0 w-full max-w-full box-border flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap flex-shrink-0">
         <h1 className="text-2xl font-bold text-text-primary">Recrutadora - {selectedUnit.unit_name}</h1>
-        {/* Métricas compactas na mesma linha */}
-        <div className="flex items-center gap-2 ml-auto">
+        {/* Campo de busca */}
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          <div className="relative">
+            <label htmlFor="recrutadora-search" className="sr-only">Buscar cards</label>
+            <input
+              id="recrutadora-search"
+              type="text"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nome ou WhatsApp..."
+              className="w-64 px-3 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary pr-8"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute top-1/2 -translate-y-1/2 right-2 text-text-secondary hover:text-text-primary"
+                aria-label="Limpar busca"
+              >
+                <Icon name="close" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {/* Métricas compactas */}
+          <div className="flex items-center gap-2">
           {([
             { key: 'today', label: 'Hoje', icon: 'CalendarDays', color: 'text-brand-green', value: metrics?.today || 0 },
             { key: 'week', label: 'Semana', icon: 'CalendarRange', color: 'text-brand-cyan', value: metrics?.week || 0 },
@@ -309,6 +349,7 @@ const RecrutadoraPage: React.FC = () => {
               </button>
             );
           })}
+          </div>
         </div>
       </div>
   <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
