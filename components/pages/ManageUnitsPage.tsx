@@ -5,6 +5,7 @@ import { Unit, UnitKey } from '../../types';
 import { Icon } from '../ui/Icon';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchUnitKeys, createUnitKey, updateUnitKey, deleteUnitKey } from '../../services/units/unitKeys.service';
+import { listUnitKeysColumns, ColumnInfo } from '../../services/units/unitKeysAdmin.service';
 import { User as UserType, Profile as ProfileType } from '../../types';
 import { UserFormModal } from '../ui/UserFormModal';
 
@@ -68,6 +69,13 @@ const UnitFormModal: React.FC<{
   const [createdKeyHints, setCreatedKeyHints] = useState<Record<string, string>>({});
   const [isTypePickerOpen, setIsTypePickerOpen] = useState(false);
   const [selectedKeyType, setSelectedKeyType] = useState<string>('umbler');
+  const [keyTypeOptions, setKeyTypeOptions] = useState<Array<{ value: string; label: string; hint?: string }>>([]);
+  const [keyTypeLoading, setKeyTypeLoading] = useState(false);
+  const [keyTypeError, setKeyTypeError] = useState<string | null>(null);
+  // Colunas dinâmicas disponíveis na tabela unit_keys (sem colunas de sistema)
+  const [keyColumns, setKeyColumns] = useState<ColumnInfo[]>([]);
+  const [keyColumnsLoading, setKeyColumnsLoading] = useState(false);
+  const [keyColumnsError, setKeyColumnsError] = useState<string | null>(null);
   // Modal antigo removido; agora salvamento é automático na própria aba
   const [keyEdits, setKeyEdits] = useState<Record<string, string>>({});
   const [savingKeyIds, setSavingKeyIds] = useState<Record<string, boolean>>({});
@@ -108,6 +116,23 @@ const UnitFormModal: React.FC<{
           setKeysError('Falha ao carregar keys da unidade.');
         } finally {
           setKeysLoading(false);
+        }
+      })();
+      // Carrega colunas disponíveis de unit_keys (dinâmico)
+      (async () => {
+        try {
+          setKeyColumnsError(null);
+          setKeyColumnsLoading(true);
+          const cols: ColumnInfo[] = await listUnitKeysColumns(false);
+          // filtro de segurança caso o RPC retorne colunas de sistema
+          const system = new Set(['id','unit_id','is_active','created_at','updated_at']);
+          const filtered = cols.filter(c => !system.has(c.column_name));
+          setKeyColumns(filtered);
+        } catch (e: any) {
+          setKeyColumnsError(e?.message || 'Falha ao carregar colunas de unit_keys.');
+          setKeyColumns([]);
+        } finally {
+          setKeyColumnsLoading(false);
         }
       })();
     }
@@ -163,7 +188,33 @@ const UnitFormModal: React.FC<{
                 type="button"
                 disabled={isCreatingKey}
                 className={`ml-auto px-3 py-1.5 text-sm font-medium text-white rounded-md ${isCreatingKey ? 'opacity-60 cursor-not-allowed bg-accent-primary' : 'bg-accent-primary hover:bg-accent-secondary'}`}
-                onClick={() => setIsTypePickerOpen(true)}
+                onClick={async () => {
+                  if (!unit) return;
+                  try {
+                    setKeyTypeError(null);
+                    setKeyTypeLoading(true);
+                    const cols: ColumnInfo[] = await listUnitKeysColumns(false);
+                    // Mapeia colunas para opções; usa título amigável
+                    const toTitle = (name: string) => name
+                      .split('_')
+                      .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+                      .join(' ');
+                    const knownHints: Record<string, string> = {
+                      umbler: 'Bearer/Token',
+                    };
+                    const opts = cols
+                      .sort((a,b)=> a.ordinal_position - b.ordinal_position)
+                      .map(c => ({ value: c.column_name, label: toTitle(c.column_name), hint: knownHints[c.column_name] }));
+                    setKeyTypeOptions(opts);
+                    if (opts.length > 0) setSelectedKeyType(opts[0].value);
+                    setIsTypePickerOpen(true);
+                  } catch (e: any) {
+                    setKeyTypeError(e?.message || 'Falha ao carregar colunas de unit_keys.');
+                    alert(e?.message || 'Falha ao carregar colunas de unit_keys.');
+                  } finally {
+                    setKeyTypeLoading(false);
+                  }
+                }}
               >
                 <Icon name="add" className="w-5 h-5 mr-1 inline" />
                 {isCreatingKey ? 'Criando…' : 'Adicionar Key'}
@@ -262,24 +313,28 @@ const UnitFormModal: React.FC<{
                       </thead>
                       <tbody className="divide-y divide-border-secondary bg-bg-secondary/60">
                         {keys.map((item) => {
-                          const labelMap: Record<string, string> = {
-                            umbler: 'Umbler',
-                            whats_profi: 'WhatsApp Profissional',
-                            whats_client: 'WhatsApp Cliente',
-                            botID: 'Bot ID',
-                            organizationID: 'Organization ID',
-                            trigger: 'Trigger',
-                            description: 'Descrição',
-                          };
-                          const fields: Array<keyof typeof item> = ['umbler','whats_profi','whats_client','botID','organizationID','trigger','description'] as any;
+                          // Deriva campos dinâmicos a partir do RPC de colunas; fallback: inspeciona a própria linha
+                          const system = new Set(['id','unit_id','is_active','created_at','updated_at']);
+                          const dynamicFields = (keyColumns.length > 0
+                            ? keyColumns.map(c => c.column_name)
+                            : Array.from(new Set(Object.keys(item as any).filter(k => !system.has(k))))) as string[];
+                          const toTitle = (name: string) => name.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+                          const knownHints: Record<string, string> = { umbler: 'Bearer/Token' };
+
                           let chosenField: string | null = null;
                           let chosenLabel = '';
                           let chosenValue = '';
-                          for (const f of fields) {
+                          for (const f of dynamicFields) {
                             const val = (item as any)[f];
-                            if (val && String(val).length > 0) { chosenField = String(f); chosenValue = String(val); chosenLabel = labelMap[String(f)] || String(f); break; }
+                            if (val !== undefined && val !== null && String(val).length > 0) {
+                              chosenField = f; chosenValue = String(val); chosenLabel = toTitle(f); break;
+                            }
                           }
-                          if (!chosenField) { chosenField = 'umbler'; chosenLabel = labelMap['umbler']; chosenValue = ''; }
+                          if (!chosenField) {
+                            chosenField = dynamicFields[0] || 'umbler';
+                            chosenLabel = toTitle(chosenField);
+                            chosenValue = '';
+                          }
                           const id = String(item.id);
                           const value = keyEdits[id] !== undefined ? keyEdits[id] : chosenValue;
                           const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -316,7 +371,7 @@ const UnitFormModal: React.FC<{
                                   onChange={onChange}
                                   onKeyDown={onKeyDown}
                                   onBlur={onBlur}
-                                  placeholder="Digite a key..."
+                                  placeholder={knownHints[chosenField] ? `${knownHints[chosenField]}…` : 'Digite a key...'}
                                   className="w-full px-3 py-1.5 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
                                 />
                               </td>
@@ -349,28 +404,26 @@ const UnitFormModal: React.FC<{
         {isTypePickerOpen && unit && (
           <KeyTypePickerModal
             isOpen={isTypePickerOpen}
+            options={keyTypeOptions}
+            loading={keyTypeLoading}
             selected={selectedKeyType}
             onSelect={setSelectedKeyType}
             onCancel={() => setIsTypePickerOpen(false)}
-            onConfirm={async () => {
+            onConfirm={async (chosenKey: string, typedValue: string) => {
               if (!unit || isCreatingKey) return;
               try {
                 setKeysError(null);
                 setIsCreatingKey(true);
-                const created = await createUnitKey(unit.id, { is_active: true });
+                const payload: any = { is_active: true };
+                // grava o valor digitado na coluna selecionada
+                payload[chosenKey] = typedValue || '';
+                const created = await createUnitKey(unit.id, payload);
                 const list = await fetchUnitKeys(unit.id);
                 setKeys(list);
                 setExpandedKeyId(String(created.id));
-                setExpandedFocusField(selectedKeyType);
-                const labelMap: Record<string, string> = {
-                  umbler: 'Umbler',
-                  whats_profi: 'WhatsApp Profissional',
-                  whats_client: 'WhatsApp Cliente',
-                  botID: 'Bot ID',
-                  organizationID: 'Organization ID',
-                  trigger: 'Trigger',
-                };
-                setCreatedKeyHints(prev => ({ ...prev, [String(created.id)]: labelMap[selectedKeyType] || selectedKeyType }));
+                setExpandedFocusField(chosenKey);
+                const selectedOpt = keyTypeOptions.find(o => o.value === chosenKey);
+                setCreatedKeyHints(prev => ({ ...prev, [String(created.id)]: selectedOpt?.label || chosenKey }));
               } catch (e: any) {
                 const msg = e?.message || 'Falha ao criar key.';
                 setKeysError(msg);
@@ -428,7 +481,7 @@ const KeyListItem: React.FC<{
           <FieldRow label="botID" value={item.botID || undefined} />
           <FieldRow label="organizationID" value={item.organizationID || undefined} />
           <FieldRow label="trigger" value={item.trigger || undefined} />
-          <FieldRow label="Descrição" value={item.description || undefined} />
+          {/* Campo 'description' removido da UI enquanto a coluna não existir no schema */}
         </div>
         <div className="shrink-0 flex items-center gap-2">
           <span className={`text-[10px] px-2 py-0.5 rounded ${item.is_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-gray-500/10 text-gray-400'}`}>{item.is_active ? 'ATIVA' : 'INATIVA'}</span>
@@ -463,22 +516,17 @@ const KeyListItem: React.FC<{
   );
 };
 
-const keyTypeOptions: Array<{ value: string; label: string; hint?: string }> = [
-  { value: 'umbler', label: 'Umbler', hint: 'Bearer/Token' },
-  { value: 'whats_profi', label: 'WhatsApp Profissional' },
-  { value: 'whats_client', label: 'WhatsApp Cliente' },
-  { value: 'botID', label: 'Bot ID' },
-  { value: 'organizationID', label: 'Organization ID' },
-  { value: 'trigger', label: 'Trigger' },
-];
-
 const KeyTypePickerModal: React.FC<{
   isOpen: boolean;
+  options: Array<{ value: string; label: string; hint?: string }>;
+  loading?: boolean;
   selected: string;
   onSelect: (v: string) => void;
   onCancel: () => void;
-  onConfirm: () => void | Promise<void>;
-}> = ({ isOpen, selected, onSelect, onCancel, onConfirm }) => {
+  onConfirm: (selected: string, value: string) => void | Promise<void>;
+}> = ({ isOpen, options, loading = false, selected, onSelect, onCancel, onConfirm }) => {
+  const [typedValue, setTypedValue] = useState('');
+  useEffect(() => { setTypedValue(''); }, [isOpen]);
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true">
@@ -489,20 +537,42 @@ const KeyTypePickerModal: React.FC<{
             <Icon name="close" />
           </button>
         </div>
-        <div className="mt-4 space-y-2">
-          {keyTypeOptions.map(opt => (
-            <label key={opt.value} className="flex items-start gap-3 p-2 rounded-md border border-border-secondary hover:bg-bg-tertiary cursor-pointer">
-              <input type="radio" name="keytype" value={opt.value} checked={selected===opt.value} onChange={() => onSelect(opt.value)} />
-              <div className="flex-1">
-                <div className="text-sm text-text-primary">{opt.label}</div>
-                {opt.hint && <div className="text-xs text-text-secondary">{opt.hint}</div>}
+        <div className="mt-4 space-y-3">
+          {loading ? (
+            <div className="text-xs text-text-secondary">Carregando opções…</div>
+          ) : options.length === 0 ? (
+            <div className="text-xs text-text-secondary">Sem colunas disponíveis.</div>
+          ) : (
+            <>
+              <label className="block text-sm font-medium text-text-secondary">Tipo</label>
+              <select
+                className="w-full px-3 py-2 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                value={selected}
+                onChange={e => onSelect(e.target.value)}
+              >
+                {options.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              {(() => {
+                const hint = options.find(o => o.value === selected)?.hint;
+                return hint ? <div className="text-xs text-text-secondary">{hint}</div> : null;
+              })()}
+              <div>
+                <label className="block text-sm font-medium text-text-secondary">Valor</label>
+                <input
+                  className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                  placeholder="Digite o valor..."
+                  value={typedValue}
+                  onChange={e => setTypedValue(e.target.value)}
+                />
               </div>
-            </label>
-          ))}
+            </>
+          )}
         </div>
         <div className="flex justify-end gap-2 pt-4">
           <button onClick={onCancel} className="px-3 py-1.5 text-sm border rounded-md text-text-secondary border-border-secondary hover:bg-bg-tertiary">Cancelar</button>
-          <button onClick={onConfirm} className="px-3 py-1.5 text-sm rounded-md text-white bg-accent-primary hover:bg-accent-secondary">Confirmar</button>
+          <button disabled={loading || options.length===0} onClick={() => onConfirm(selected, typedValue)} className={`px-3 py-1.5 text-sm rounded-md text-white ${loading || options.length===0 ? 'opacity-60 cursor-not-allowed bg-accent-primary' : 'bg-accent-primary hover:bg-accent-secondary'}`}>Confirmar</button>
         </div>
       </div>
     </div>
