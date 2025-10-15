@@ -131,7 +131,7 @@ const UnitKeysPage: React.FC = () => {
               value={searchTerm}
               onChange={(e)=>setSearchTerm(e.target.value)}
               placeholder="Buscar coluna ou tipo"
-              className="w-64 pl-8 pr-8 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+              className="w-full max-w-64 pl-8 pr-8 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
             />
             {searchTerm && (
               <button

@@ -283,7 +283,7 @@ const ComercialPage: React.FC = () => {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="Buscar por nome ou contato..."
-              className="w-64 rounded-md border border-border-secondary bg-bg-tertiary px-3 py-2 pr-8 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
+              className="w-full max-w-64 rounded-md border border-border-secondary bg-bg-tertiary px-3 py-2 pr-8 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
             />
             {searchTerm && (
               <button

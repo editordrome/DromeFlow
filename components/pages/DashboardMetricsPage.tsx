@@ -639,9 +639,11 @@ const DashboardMetricsPage: React.FC = () => {
     }
     
     return (
-        <div>
+        <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-                 <h1 className="text-3xl font-bold text-text-primary">Dashboard - {selectedUnit.unit_name}</h1>
+                 <h1 className="text-2xl font-bold text-text-primary">
+                    Dashboard {selectedUnit.unit_code !== 'ALL' ? `- ${selectedUnit.unit_name}` : ''}
+                 </h1>
                 <div className="flex items-center gap-2 mt-4 sm:mt-0">
                     <PeriodDropdown
                         value={selectedPeriod}
@@ -694,7 +696,7 @@ const DashboardMetricsPage: React.FC = () => {
                         />
                     </div>
 
-                    <div className="mt-8">
+                    <div className="mt-6">
                         <div className="bg-bg-secondary rounded-lg shadow-md">
                             <div
                                 className="flex items-center justify-between p-6 cursor-pointer"

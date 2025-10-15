@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchClients, fetchClientMetricsFromProcessed } from '../../services/analytics/clients.service';
+import { fetchClients, fetchClientMetricsFromProcessed, fetchAllUnitClientsWithHistory, fetchLastAttendance } from '../../services/analytics/clients.service';
 import { Icon } from '../ui/Icon';
 import ClientDetailModal from '../ui/ClientDetailModal';
 
@@ -14,11 +14,12 @@ interface ClientRow {
   monthlyCounts?: Record<string, number>;
 }
 
-type ClientMetrics = { total: number; recorrente: number; atencao: number; outros: number; churnRatePercent: string };
-type MetricKey = 'total' | 'recorrente' | 'atencao' | 'outros';
+type ClientMetrics = { total: number; mes: number; recorrente: number; atencao: number; outros: number; churnRatePercent: string };
+type MetricKey = 'total' | 'mes' | 'recorrente' | 'atencao' | 'outros';
 
 const metricCards: { key: MetricKey; label: string; icon: string; color: string; formatter: (v: number, m: ClientMetrics) => string }[] = [
   { key: 'total', label: 'Total', icon: 'users', color: 'bg-accent-primary', formatter: (v) => String(v) },
+  { key: 'mes', label: 'Mês', icon: 'calendar', color: 'bg-blue-600', formatter: (v) => String(v) },
   { key: 'recorrente', label: 'Recorrentes', icon: 'archive', color: 'bg-purple-600', formatter: (v) => String(v) },
   { key: 'atencao', label: 'Atenção', icon: 'support', color: 'bg-amber-600', formatter: (v) => String(v) },
   { key: 'outros', label: 'Outros', icon: 'user-plus', color: 'bg-slate-600', formatter: (v) => String(v) },
@@ -28,6 +29,7 @@ const ClientsPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
   const { userUnits } = useAuth();
   const [clients, setClients] = useState<ClientRow[]>([]);
+  const [allHistoricalClients, setAllHistoricalClients] = useState<ClientRow[]>([]); // Todos os clientes históricos
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,25 +39,101 @@ const ClientsPage: React.FC = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   });
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  // Inicia com TOTAL ativo conforme solicitado
+  const [activeFilter, setActiveFilter] = useState<string | null>('total');
   const [page, setPage] = useState(1);
   const pageSize = 25;
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [selectedClientName, setSelectedClientName] = useState<string | null>(null);
+  const [segmentFilter, setSegmentFilter] = useState<'all' | 'pf' | 'pj'>('all');
+  // Fallback de último atendimento para casos em que o match não ocorreu na carga histórica
+  const [fallbackLastAttendance, setFallbackLastAttendance] = useState<Record<string, string | null>>({});
+  // Filtro por status (apenas quando TOTAL estiver ativo)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ativo' | 'atencao' | 'inativo'>('all');
+  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
+  const statusMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Normalização local (alinha com o serviço) para chavear overrides por nome
+  const normalizeName = (value?: string | null) => {
+    if (!value) return '';
+    return value
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\(.*?\)/g, ' ')
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  // Cálculo do status por cliente (usa período atual e última data conhecida)
+  const computeStatus = useCallback((c: any): 'Ativo' | 'Atenção' | 'Inativo' => {
+    const [yr, mo] = period.split('-').map((n) => parseInt(n, 10));
+    const currentStart = new Date(Date.UTC(yr, mo - 1, 1));
+    const currentEnd = new Date(Date.UTC(yr, mo, 0));
+    const prevStart = new Date(Date.UTC(yr, mo - 2, 1));
+    const prevEnd = new Date(Date.UTC(yr, mo - 1, 0));
+    const overrideKey = normalizeName(c.nome);
+    const chosen = c.lastAttendance ?? fallbackLastAttendance[overrideKey] ?? null;
+    if (!chosen) return 'Inativo';
+    const [cy, cm, cd] = chosen.split('-').map((v: string) => parseInt(v, 10));
+    const last = new Date(Date.UTC(cy, cm - 1, cd || 1));
+    const inRange = (d: Date, a: Date, b: Date) => d.getTime() >= a.getTime() && d.getTime() <= b.getTime();
+    if (inRange(last, currentStart, currentEnd)) return 'Ativo';
+    if (inRange(last, prevStart, prevEnd)) return 'Atenção';
+    const diffDays = Math.floor((currentEnd.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays > 30 ? 'Inativo' : 'Atenção';
+  }, [period, fallbackLastAttendance]);
+
+  const resolvedList = useMemo(() => {
+    if (activeFilter === 'atencao') return atencaoList;
+    if (activeFilter === 'total') return allHistoricalClients;
+    const base = [...clients];
+    if (!activeFilter || activeFilter === 'mes') return base;
+    if (activeFilter === 'recorrente') return base.filter(c => c.categoria === 'recorrente');
+    if (activeFilter === 'outros') return base.filter(c => c.categoria === 'outro');
+    return base;
+  }, [activeFilter, atencaoList, allHistoricalClients, clients]);
+
+  const resolvedListWithSegment = useMemo(() => {
+    const matchesSegment = (tipo?: string | null) => {
+      const value = (tipo || '').trim().toLowerCase();
+      if (segmentFilter === 'pf') return value === 'residencial' || value === 'pf';
+      if (segmentFilter === 'pj') return value === 'comercial' || value === 'pj';
+      return true;
+    };
+    let base = resolvedList.filter(item => matchesSegment(item.tipo));
+    // Filtro de status apenas quando TOTAL ativo
+    if (activeFilter === 'total' && statusFilter !== 'all') {
+      const toKey = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const target = statusFilter; // 'ativo' | 'atencao' | 'inativo'
+      base = base.filter(c => {
+        const s = computeStatus(c);
+        const k = toKey(s).replace(/ç/g, 'c'); // atençao -> atencao
+        return k === target;
+      });
+    }
+    return base;
+  }, [resolvedList, segmentFilter, activeFilter, statusFilter, computeStatus]);
 
   useEffect(() => {
     const load = async () => {
       if (!selectedUnit) return;
-      if (selectedUnit.unit_code === 'ALL') { setClients([]); setMetrics(null); return; }
+      if (selectedUnit.unit_code === 'ALL') { setClients([]); setMetrics(null); setAllHistoricalClients([]); return; }
       setIsLoading(true); setError(null);
       try {
-        const [list, m] = await Promise.all([
+        const [list, m, historical] = await Promise.all([
           fetchClients({ unitCode: selectedUnit.unit_code, search, period }),
-          fetchClientMetricsFromProcessed(selectedUnit.unit_code, period)
+          fetchClientMetricsFromProcessed(selectedUnit.unit_code, period),
+          selectedUnit.id
+            ? fetchAllUnitClientsWithHistory({ unitId: selectedUnit.id, unitCode: selectedUnit.unit_code, search })
+            : Promise.resolve([])
         ]);
   const metaAtencao = (list as any)._atencaoSource || [];
   const filteredList = Array.isArray(list) ? list.filter((x:any) => !Array.isArray(x)) : list;
   setClients(filteredList);
+  setAllHistoricalClients(historical); // Armazena clientes históricos
   // metaAtencao já são objetos completos
   setAtencaoList(metaAtencao);
         setMetrics(m);
@@ -69,6 +147,66 @@ const ClientsPage: React.FC = () => {
 
   // Resetar página quando filtro ativo muda
   useEffect(() => { setPage(1); }, [activeFilter]);
+  useEffect(() => { setPage(1); }, [segmentFilter]);
+  useEffect(() => { setPage(1); }, [statusFilter]);
+
+  // Fecha o popover de Status ao clicar fora ou pressionar Esc
+  useEffect(() => {
+    if (!isStatusMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
+        setIsStatusMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsStatusMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isStatusMenuOpen]);
+
+
+  // Enriquecer a página atual com fallback do último atendimento quando TOTAL estiver ativo
+  useEffect(() => {
+    const run = async () => {
+      if (!selectedUnit || selectedUnit.unit_code === 'ALL') return;
+      if (activeFilter !== 'total') return;
+      const totalRows = resolvedListWithSegment.length;
+      if (totalRows === 0) return;
+      const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+      const currentPage = Math.min(page, totalPages);
+      const start = (currentPage - 1) * pageSize;
+      const paginated = resolvedListWithSegment.slice(start, start + pageSize);
+      const tasks: Promise<void>[] = [];
+      const nextOverrides: Record<string, string | null> = {};
+      for (const c of paginated) {
+        const key = normalizeName((c as any).nome);
+        // Se já temos lastAttendance (da carga histórica) ou já há override, pula
+        if ((c as any).lastAttendance) continue;
+        if (fallbackLastAttendance[key] !== undefined) continue;
+        tasks.push(
+          (async () => {
+            const dt = await fetchLastAttendance(selectedUnit.unit_code, (c as any).nome);
+            nextOverrides[key] = dt;
+          })()
+        );
+      }
+      if (tasks.length === 0) return;
+      try {
+        await Promise.all(tasks);
+        if (Object.keys(nextOverrides).length > 0) {
+          setFallbackLastAttendance(prev => ({ ...prev, ...nextOverrides }));
+        }
+      } catch {
+        // silencioso
+      }
+    };
+    run();
+  }, [activeFilter, page, pageSize, resolvedListWithSegment, selectedUnit]);
 
   if (!selectedUnit) {
     return <div className="p-4 text-text-secondary">Selecione uma unidade para ver clientes.</div>;
@@ -78,9 +216,9 @@ const ClientsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 space-y-4">
+  <div className="p-6 bg-bg-secondary rounded-lg shadow-md space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-text-primary">Clientes - {selectedUnit.unit_name}</h1>
+        <h1 className="text-2xl font-bold text-text-primary">Clientes{selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
         <div className="flex items-center gap-3">
           <div className="min-w-[190px]"><PeriodDropdown value={period} onChange={setPeriod} /></div>
           <input
@@ -94,20 +232,20 @@ const ClientsPage: React.FC = () => {
       </div>
 
       {metrics && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {metricCards.map(cfg => (
             <button
               key={cfg.key}
               type="button"
               onClick={() => setActiveFilter(prev => prev === cfg.key ? null : cfg.key)}
-              className={`p-5 rounded-lg shadow-md flex items-center transition-all group border ${activeFilter === cfg.key ? 'bg-accent-primary border-accent-secondary' : 'bg-bg-secondary hover:bg-bg-tertiary border-transparent'}`}
+              className={`p-3 rounded-lg shadow-sm flex items-center transition-all group border ${activeFilter === cfg.key ? 'bg-accent-primary border-accent-secondary' : 'bg-bg-secondary hover:bg-bg-tertiary border-transparent'}`}
             >
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${cfg.color} text-white group-hover:scale-105 transition-transform ${activeFilter === cfg.key ? 'ring-2 ring-white/40' : ''}`}>
-                <Icon name={cfg.icon} className="w-6 h-6" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${cfg.color} text-white group-hover:scale-105 transition-transform ${activeFilter === cfg.key ? 'ring-2 ring-white/40' : ''}`}>
+                <Icon name={cfg.icon} className="w-5 h-5" />
               </div>
               <div className="ml-4 text-left">
-                <p className={`text-xs font-medium uppercase tracking-wide ${activeFilter === cfg.key ? 'text-white' : 'text-text-secondary'}`}>{cfg.label}</p>
-                <p className={`text-2xl font-bold ${activeFilter === cfg.key ? 'text-white' : 'text-text-primary'}`}>
+                <p className={`text-[0.7rem] font-medium uppercase tracking-wide ${activeFilter === cfg.key ? 'text-white' : 'text-text-secondary'}`}>{cfg.label}</p>
+                <p className={`text-xl font-bold ${activeFilter === cfg.key ? 'text-white' : 'text-text-primary'}`}>
                   {cfg.formatter((metrics as ClientMetrics)[cfg.key], metrics as ClientMetrics)}
                 </p>
               </div>
@@ -121,15 +259,51 @@ const ClientsPage: React.FC = () => {
 
       {!isLoading && !error && (
         <>
-        <div className="overflow-auto border border-white/10 rounded-md">
+        <div className="rounded-lg shadow-md overflow-hidden">
+          {/* Cabeçalho das abas e filtros no padrão do Agendamentos */}
+          <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
+            <div className="flex w-full gap-2">
+              {([
+                { key: 'all', label: 'Total' },
+                { key: 'pf', label: 'PF' },
+                { key: 'pj', label: 'PJ' },
+              ] as const).map(tab => {
+                const isActive = segmentFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setSegmentFilter(tab.key)}
+                    aria-pressed={isActive}
+                    className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${
+                      isActive
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="overflow-auto">
           <table className="min-w-full text-sm">
+            {activeFilter !== 'atencao' && (
+              <colgroup>
+                <col className="w-[45%]" />
+                <col className="w-24" />
+                <col className="w-32" />
+                {/* Status apenas no TOTAL */}
+                {activeFilter === 'total' && <col className="w-32" />}
+              </colgroup>
+            )}
             <thead className="bg-bg-tertiary text-text-secondary">
               <tr>
-                <th className="px-2 py-2 text-left w-12">#</th>
-                <th className="px-3 py-2 text-left">Nome</th>
+                <th className="px-4 py-3 text-left">Nome</th>
                 {activeFilter === 'atencao' ? (
                   <>
-                    <th className="px-3 py-2 text-left">Tipo</th>
+                    <th className="px-4 py-3 text-center">Tipo</th>
                     {/* Cabeçalhos dinâmicos: últimos 3 meses (M, M-1, M-2) com rótulo pt-BR */}
                     {(() => {
                       const sample = atencaoList[0];
@@ -143,61 +317,110 @@ const ClientsPage: React.FC = () => {
                         return `${months[idx]}/${y}`;
                       };
                       return keys.map(k => (
-                        <th key={k} className="px-3 py-2 text-left">{fmt(k)}</th>
+                        <th key={k} className="px-4 py-3 text-center">{fmt(k)}</th>
                       ));
                     })()}
                   </>
                 ) : (
                   <>
-                    <th className="px-3 py-2 text-left">Tipo</th>
-                    <th className="px-3 py-2 text-left">Último Atendimento</th>
+                    <th className="px-4 py-3 text-center">Tipo</th>
+                    <th className="px-4 py-3 text-center">Último Atendimento</th>
+                    {activeFilter === 'total' && (
+                      <th className="px-4 py-3 text-center">
+                        <div className="inline-flex items-center gap-2 relative" ref={statusMenuRef}>
+                          <span>Status</span>
+                          <button
+                            type="button"
+                            aria-label="Filtrar status"
+                            aria-expanded={isStatusMenuOpen}
+                            onClick={() => setIsStatusMenuOpen((v) => !v)}
+                            className={`p-1 rounded hover:bg-bg-secondary border border-transparent ${statusFilter !== 'all' ? 'text-text-primary' : 'text-text-secondary'}`}
+                          >
+                            <Icon name="ChevronDown" className="w-4 h-4" />
+                          </button>
+                          {isStatusMenuOpen && (
+                            <div className="absolute right-0 top-full mt-2 z-20 w-40 rounded-md border border-border-secondary bg-bg-secondary shadow-lg">
+                              {([
+                                { v: 'all', l: 'Todos' },
+                                { v: 'ativo', l: 'Ativo' },
+                                { v: 'atencao', l: 'Atenção' },
+                                { v: 'inativo', l: 'Inativo' },
+                              ] as const).map(opt => (
+                                <button
+                                  key={opt.v}
+                                  className={`block w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-bg-tertiary ${statusFilter === opt.v ? 'bg-accent-primary text-text-on-accent' : 'text-text-primary'}`}
+                                  onClick={() => { setStatusFilter(opt.v as any); setIsStatusMenuOpen(false); }}
+                                >
+                                  {opt.l}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </th>
+                    )}
                   </>
                 )}
               </tr>
             </thead>
             <tbody>
-              {clients.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-4 text-center text-text-secondary">Nenhum cliente encontrado.</td>
-                </tr>
-              )}
               {(() => {
-                const base = (activeFilter === 'atencao'
-                  ? atencaoList
-                  : clients.filter(c => {
-                      if (!activeFilter || activeFilter === 'total') return true;
-                      if (activeFilter === 'recorrente') return c.categoria === 'recorrente';
-                      if (activeFilter === 'outros') return c.categoria === 'outro';
-                      return true;
-                    })
-                );
-                const totalRows = base.length;
+                const totalRows = resolvedListWithSegment.length;
+                if (totalRows === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={100} className="px-4 py-6 text-center text-text-secondary">
+                        Nenhum cliente encontrado.
+                      </td>
+                    </tr>
+                  );
+                }
                 const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
                 const currentPage = Math.min(page, totalPages);
                 const start = (currentPage - 1) * pageSize;
-                const paginated = base.slice(start, start + pageSize);
+                const paginated = resolvedListWithSegment.slice(start, start + pageSize);
                 return paginated.map((c:any, idx:number) => (
                   <tr
                     key={c.id}
-                    className="border-t border-white/5 hover:bg-white/5 cursor-pointer"
+                    className="hover:bg-bg-tertiary cursor-pointer transition-colors duration-150 border-t border-border-secondary"
                     onDoubleClick={() => { setSelectedClientName(c.nome); setIsClientModalOpen(true); }}
                   >
-                    <td className="px-2 py-2 text-text-secondary">{start + idx + 1}</td>
-                    <td className="px-3 py-2 font-medium text-text-primary">{c.nome}</td>
+                    <td className="px-4 py-2 font-medium text-text-primary truncate whitespace-nowrap" title={c.nome}>{c.nome}</td>
                     {activeFilter === 'atencao' ? (
                       <>
-                        <td className="px-3 py-2">{c.tipo || '-'}</td>
+                        <td className="px-4 py-2 text-center">{c.tipo || '-'}</td>
                         {(() => {
                           const keys = c.monthlyCounts ? Object.keys(c.monthlyCounts).sort().reverse() : [];
                           return keys.map((k:string) => (
-                            <td key={k} className="px-3 py-2">{c.monthlyCounts[k]}</td>
+                            <td key={k} className="px-4 py-2 text-center">{c.monthlyCounts[k]}</td>
                           ));
                         })()}
                       </>
                     ) : (
                       <>
-                        <td className="px-3 py-2">{c.tipo || '-'}</td>
-                        <td className="px-3 py-2">{c.lastAttendance ? new Date(c.lastAttendance + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
+                        <td className="px-4 py-2 text-center">{c.tipo || '-'}</td>
+                        <td className="px-4 py-2 text-center">{(() => {
+                          const overrideKey = normalizeName(c.nome);
+                          const chosen = c.lastAttendance ?? fallbackLastAttendance[overrideKey] ?? null;
+                          return chosen ? new Date(chosen + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
+                        })()}</td>
+                        {activeFilter === 'total' && (
+                          <td className="px-4 py-2 text-center">
+                            {(() => {
+                              const status = computeStatus(c);
+                              const styles = {
+                                'Ativo': 'bg-green-500/10 text-green-600 border-green-500/30',
+                                'Atenção': 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30',
+                                'Inativo': 'bg-gray-500/10 text-gray-600 border-gray-500/30'
+                              };
+                              return (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${styles[status as keyof typeof styles] || ''}`}>
+                                  {status}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                        )}
                       </>
                     )}
                   </tr>
@@ -205,17 +428,13 @@ const ClientsPage: React.FC = () => {
               })()}
             </tbody>
           </table>
+          </div>
         </div>
         {/* Paginação */}
         <Pagination
           page={page}
           onChange={setPage}
-          totalItems={(activeFilter === 'atencao' ? atencaoList.length : clients.filter(c => {
-            if (!activeFilter || activeFilter === 'total') return true;
-            if (activeFilter === 'recorrente') return c.categoria === 'recorrente';
-            if (activeFilter === 'outros') return c.categoria === 'outro';
-            return true;
-          }).length)}
+          totalItems={resolvedListWithSegment.length}
           pageSize={pageSize}
         />
         </>

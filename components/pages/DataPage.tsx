@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
-import { fetchDataTable, fetchDataTableMulti, updateDataRecord, deleteDataRecord } from '../../services/data/dataTable.service';
+import { fetchDataTable, fetchDataTableMulti, updateDataRecord, deleteDataRecord, deleteDataRecords } from '../../services/data/dataTable.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { DataRecord } from '../../types';
 import { Icon } from '../ui/Icon';
@@ -100,8 +100,11 @@ const DataPage: React.FC = () => {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(50);
+  const [pageSize] = useState(25);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -112,7 +115,12 @@ const DataPage: React.FC = () => {
 
   useEffect(() => {
     if (currentPage !== 1) setCurrentPage(1);
+    setSelectedRecordIds(new Set());
   }, [debouncedSearchTerm, searchColumn, selectedPeriod]);
+
+  useEffect(() => {
+    setSelectedRecordIds(new Set());
+  }, [currentPage]);
 
 
   const loadData = useCallback(async () => {
@@ -214,6 +222,41 @@ const DataPage: React.FC = () => {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedRecordIds.size === 0) return;
+    setIsDeleting(true);
+    try {
+      await deleteDataRecords(Array.from(selectedRecordIds));
+      setSelectedRecordIds(new Set());
+      await loadData();
+      setShowBulkDeleteConfirm(false);
+    } catch (error) {
+      console.error('Erro ao excluir registros em lote:', error);
+      setError('Erro ao excluir os atendimentos selecionados.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleSelectRecord = (id: string) => {
+    const newSet = new Set(selectedRecordIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedRecordIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedRecordIds.size === records.length && records.length > 0) {
+      setSelectedRecordIds(new Set());
+    } else {
+      const allIds = records.map(r => String(r.id)).filter(Boolean);
+      setSelectedRecordIds(new Set(allIds));
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '';
     const parts = dateString.split('-');
@@ -225,40 +268,89 @@ const DataPage: React.FC = () => {
   const handlePrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
   const handleNextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
 
+  // Componente de paginação estilo ClientsPage
+  const Pagination: React.FC = () => {
+    if (totalPages <= 1) return null;
+    const go = (p: number) => { if (p >= 1 && p <= totalPages) setCurrentPage(p); };
+    const windowSize = 5;
+    let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
+    let end = start + windowSize - 1;
+    if (end > totalPages) { end = totalPages; start = Math.max(1, end - windowSize + 1); }
+    const pages = [] as number[];
+    for (let i = start; i <= end; i++) pages.push(i);
+    
+    return (
+      <div className="flex items-center justify-between mt-4 text-xs text-text-secondary">
+        <div>Mostrando {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, totalRecords)} de {totalRecords}</div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => go(1)} disabled={currentPage === 1} className={`px-2 py-1 rounded-md border ${currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-tertiary'}`}>«</button>
+          <button onClick={() => go(currentPage - 1)} disabled={currentPage === 1} className={`px-2 py-1 rounded-md border ${currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-tertiary'}`}>‹</button>
+          {pages.map(p => (
+            <button key={p} onClick={() => go(p)} className={`px-2 py-1 rounded-md border min-w-[32px] ${p === currentPage ? 'bg-accent-primary text-white border-accent-secondary' : 'hover:bg-bg-tertiary'}`}>{p}</button>
+          ))}
+          <button onClick={() => go(currentPage + 1)} disabled={currentPage === totalPages} className={`px-2 py-1 rounded-md border ${currentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-tertiary'}`}>›</button>
+          <button onClick={() => go(totalPages)} disabled={currentPage === totalPages} className={`px-2 py-1 rounded-md border ${currentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-tertiary'}`}>»</button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
       <div className="flex items-center justify-between mb-6">
-  <h1 className="text-2xl font-bold text-text-primary">Dados: {selectedUnit?.unit_name || 'Nenhuma'}</h1>
+        <h1 className="text-2xl font-bold text-text-primary">
+          Dados{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}
+        </h1>
         
         {selectedUnit && (
-          <div className="flex items-center gap-4">
-             <PeriodDropdown
-                value={selectedPeriod}
-                onChange={setSelectedPeriod}
-                disabled={isLoading}
-            />
+          <div className="flex items-center gap-3">
+            {/* Campo de busca com seletor de coluna */}
             <div className="flex items-center gap-2">
               <select
                 value={searchColumn}
                 onChange={(e) => setSearchColumn(e.target.value as 'cliente' | 'orcamento')}
-                className="px-3 py-2 text-sm border border-border-primary rounded-md bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                className="px-3 py-2 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 <option value="cliente">Cliente</option>
                 <option value="orcamento">Orçamento</option>
               </select>
-              <input
-                type="text"
-                placeholder={`Buscar...`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-48 px-3 py-2 text-sm border border-border-primary rounded-md bg-bg-secondary text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
-              />
+              <div className="relative">
+                <span className="absolute inset-y-0 left-3 flex items-center text-text-secondary pointer-events-none">
+                  <Icon name="search" className="w-4 h-4" />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Buscar..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-48 pl-9 pr-9 py-2 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
+                    aria-label="Limpar busca"
+                  >
+                    <Icon name="x" className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
+            
+            {/* Filtro de período */}
+            <PeriodDropdown
+              value={selectedPeriod}
+              onChange={setSelectedPeriod}
+              disabled={isLoading}
+            />
+            
+            {/* Botão de upload */}
             <button 
-                onClick={() => setIsUploadModalOpen(true)} 
-                disabled={!selectedUnit}
-                className="p-2 text-white rounded-md bg-accent-primary hover:bg-accent-secondary disabled:bg-gray-400 disabled:cursor-not-allowed"
-                title="Importar XLSX"
+              onClick={() => setIsUploadModalOpen(true)} 
+              disabled={!selectedUnit}
+              className="p-2 text-white rounded-md bg-accent-primary hover:bg-accent-secondary disabled:bg-gray-400 disabled:cursor-not-allowed"
+              title="Importar XLSX"
             >
               <Icon name="upload" className="w-5 h-5" />
             </button>
@@ -267,6 +359,22 @@ const DataPage: React.FC = () => {
       </div>
       {selectedUnit?.unit_code === 'ALL' && (
         <div className="mb-3 text-xs text-text-secondary">Exibindo dados agregados de todas as suas unidades.</div>
+      )}
+      
+      {selectedRecordIds.size > 0 && (
+        <div className="mb-4 p-3 bg-accent-primary/10 border border-accent-primary/30 rounded-md flex items-center justify-between">
+          <span className="text-sm text-text-primary">
+            {selectedRecordIds.size} {selectedRecordIds.size === 1 ? 'atendimento selecionado' : 'atendimentos selecionados'}
+          </span>
+          <button
+            onClick={() => setShowBulkDeleteConfirm(true)}
+            disabled={isDeleting}
+            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Icon name="delete" className="w-4 h-4" />
+            Excluir Selecionados
+          </button>
+        </div>
       )}
       
       {!selectedUnit ? (
@@ -283,65 +391,102 @@ const DataPage: React.FC = () => {
         <>
             <div className="overflow-x-auto">
               <table className="w-full divide-y table-fixed divide-border-primary">
+                <colgroup>
+                  <col style={{ width: '5%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '25%' }} />
+                  <col style={{ width: '10%' }} />
+                </colgroup>
                 <thead className="bg-bg-tertiary">
                   <tr>
-                    <th className="w-[10%] px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Data</th>
-                    <th className="w-[12%] px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Orçamento</th>
-                    <th className="w-[30%] px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Cliente</th>
-                    <th className="w-[10%] px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Valor</th>
-                    <th className="w-[28%] px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Profissional</th>
-                    <th className="w-[10%] px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Repasse</th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">
+                      <input
+                        type="checkbox"
+                        checked={selectedRecordIds.size === records.length && records.length > 0}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Data</th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Orçamento</th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Cliente</th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Valor</th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Profissional</th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Repasse</th>
                   </tr>
                 </thead>
                 <tbody className="bg-bg-secondary divide-y divide-border-primary">
                   {records.length === 0 ? (
                       <tr>
-                          <td colSpan={6} className="px-6 py-10 text-center text-text-secondary">
+                          <td colSpan={7} className="px-6 py-10 text-center text-text-secondary">
                             {searchTerm || selectedPeriod ? 'Nenhum resultado encontrado para os filtros aplicados.' : 'Nenhum dado encontrado para esta unidade.'}
                           </td>
                       </tr>
                   ) : records.map((row, index) => (
                     <tr 
                         key={row.id || index} 
-                        className="transition-colors cursor-pointer hover:bg-bg-tertiary"
-                        onDoubleClick={() => handleOpenDetailModal(row)}
+                        className="transition-colors hover:bg-bg-tertiary"
                     >
-                      <td className="px-4 py-4 text-sm whitespace-nowrap text-text-primary">{formatDate(row.DATA)}</td>
-                      <td className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary font-mono" title={row.orcamento}>{row.orcamento}</td>
-                      <td className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-primary" title={row.CLIENTE}>{row.CLIENTE}</td>
-                      <td className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary">{Number(row.VALOR ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                      <td className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary" title={row.PROFISSIONAL}>{row.PROFISSIONAL}</td>
-                      <td className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary">{Number(row.REPASSE ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="px-4 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedRecordIds.has(String(row.id))}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleSelectRecord(String(row.id));
+                          }}
+                          className="w-4 h-4 cursor-pointer"
+                        />
+                      </td>
+                      <td 
+                        className="px-4 py-4 text-sm whitespace-nowrap text-text-primary cursor-pointer"
+                        onDoubleClick={() => handleOpenDetailModal(row)}
+                      >
+                        {formatDate(row.DATA)}
+                      </td>
+                      <td 
+                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary font-mono cursor-pointer" 
+                        title={row.orcamento}
+                        onDoubleClick={() => handleOpenDetailModal(row)}
+                      >
+                        {row.orcamento}
+                      </td>
+                      <td 
+                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-primary cursor-pointer" 
+                        title={row.CLIENTE}
+                        onDoubleClick={() => handleOpenDetailModal(row)}
+                      >
+                        {row.CLIENTE}
+                      </td>
+                      <td 
+                        className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary cursor-pointer"
+                        onDoubleClick={() => handleOpenDetailModal(row)}
+                      >
+                        {Number(row.VALOR ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                      <td 
+                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary cursor-pointer" 
+                        title={row.PROFISSIONAL}
+                        onDoubleClick={() => handleOpenDetailModal(row)}
+                      >
+                        {row.PROFISSIONAL}
+                      </td>
+                      <td 
+                        className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary cursor-pointer"
+                        onDoubleClick={() => handleOpenDetailModal(row)}
+                      >
+                        {Number(row.REPASSE ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <div className="flex items-center justify-between pt-4 mt-2 border-t border-border-primary">
-                <span className="text-sm text-text-secondary">
-                    Mostrando {Math.min((currentPage - 1) * pageSize + 1, totalRecords).toLocaleString()} a {Math.min(currentPage * pageSize, totalRecords).toLocaleString()} de {totalRecords.toLocaleString()} registros
-                </span>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={handlePrevPage}
-                        disabled={currentPage === 1 || totalPages === 0}
-                        className="px-3 py-1 text-sm font-medium bg-bg-secondary border rounded-md border-border-secondary hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Anterior
-                    </button>
-                    <span className="text-sm text-text-primary">
-                        Página {totalPages > 0 ? currentPage : 0} de {totalPages}
-                    </span>
-                    <button
-                        onClick={handleNextPage}
-                        disabled={currentPage === totalPages || totalPages === 0}
-                        className="px-3 py-1 text-sm font-medium bg-bg-secondary border rounded-md border-border-secondary hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Próximo
-                    </button>
-                </div>
-            </div>
+            <Pagination />
         </>
       )}
 
@@ -413,6 +558,56 @@ const DataPage: React.FC = () => {
                   className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-bg-secondary rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0 w-10 h-10 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+                  <Icon name="delete" className="w-6 h-6 text-red-600" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-medium text-text-primary">
+                    Confirmar Exclusão em Lote
+                  </h3>
+                </div>
+              </div>
+              <div className="mb-6">
+                <p className="text-text-secondary">
+                  Tem certeza que deseja excluir <strong>{selectedRecordIds.size}</strong> {selectedRecordIds.size === 1 ? 'atendimento' : 'atendimentos'}?
+                </p>
+                <p className="text-sm text-red-600 mt-2">
+                  Esta ação não pode ser desfeita.
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-medium text-text-secondary bg-bg-tertiary border border-border-primary rounded-md hover:bg-bg-primary focus:outline-none focus:ring-2 focus:ring-accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Excluindo...
+                    </>
+                  ) : (
+                    'Excluir Todos'
+                  )}
                 </button>
               </div>
             </div>

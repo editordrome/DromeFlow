@@ -125,8 +125,8 @@ const ClientsBasePage: React.FC = () => {
 
   return (
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="grid grid-cols-[auto,1fr,auto] items-center gap-3 mb-4">
-        <h1 className="text-2xl font-bold text-text-primary">Clientes • Base</h1>
+      <div className="grid grid-cols-[auto,1fr,auto] items-center gap-3 mb-6">
+        <h1 className="text-2xl font-bold text-text-primary">Clientes • Base{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
         <div className="flex justify-center">
           <input
             placeholder="Buscar por nome"

@@ -50,6 +50,8 @@ const AppointmentsPage: React.FC = () => {
   // Controle local de envios individuais do status CONFIRMADO
   const [sentConfirmed, setSentConfirmed] = useState<Set<string>>(new Set());
   const [sendingConfirmed, setSendingConfirmed] = useState<Set<string>>(new Set());
+  // Campo de busca
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   const recordKey = (r: DataRecord) => String((r as any).id ?? r.orcamento);
 
@@ -310,31 +312,52 @@ const AppointmentsPage: React.FC = () => {
     });
   }, [appointments]);
 
-  // Aplica filtro baseado na métrica selecionada
+  // Aplica filtro baseado na métrica selecionada e busca
   const filteredAppointments = useMemo(() => {
-    if (activeMetricFilter === 'all') return sortedAppointments;
-    return sortedAppointments.filter(a => {
-      const tipo = (a.TIPO || '').toLowerCase();
-      const rawStatus = (a as any).STATUS || (a as any).status || '';
-      const st = String(rawStatus).trim().toUpperCase();
-      switch (activeMetricFilter) {
-        case 'comercial':
-          return tipo.includes('comercial');
-        case 'residencial':
-          return tipo.includes('residencial');
-        case 'pendente':
-          return st === 'PENDENTE';
-        case 'aguardando':
-          return st === 'AGUARDANDO';
-        case 'confirmado':
-          return st === 'CONFIRMADO' || st === 'FINALIZADO';
-        case 'recusado':
-          return st === 'RECUSADO' || st === 'CANCELADO';
-        default:
-          return true;
-      }
-    });
-  }, [sortedAppointments, activeMetricFilter]);
+    let result = sortedAppointments;
+    
+    // Filtro por métrica (card)
+    if (activeMetricFilter !== 'all') {
+      result = result.filter(a => {
+        const tipo = (a.TIPO || '').toLowerCase();
+        const rawStatus = (a as any).STATUS || (a as any).status || '';
+        const st = String(rawStatus).trim().toUpperCase();
+        switch (activeMetricFilter) {
+          case 'comercial':
+            return tipo.includes('comercial');
+          case 'residencial':
+            return tipo.includes('residencial');
+          case 'pendente':
+            return st === 'PENDENTE';
+          case 'aguardando':
+            return st === 'AGUARDANDO';
+          case 'confirmado':
+            return st === 'CONFIRMADO' || st === 'FINALIZADO';
+          case 'recusado':
+            return st === 'RECUSADO' || st === 'CANCELADO';
+          default:
+            return true;
+        }
+      });
+    }
+    
+    // Filtro por busca
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      result = result.filter(a => {
+        const cliente = (a.CLIENTE || '').toLowerCase();
+        const profissional = (a.PROFISSIONAL || '').toLowerCase();
+        const tipo = (a.TIPO || '').toLowerCase();
+        const horario = (a.HORARIO || '').toLowerCase();
+        return cliente.includes(search) || 
+               profissional.includes(search) || 
+               tipo.includes(search) ||
+               horario.includes(search);
+      });
+    }
+    
+    return result;
+  }, [sortedAppointments, activeMetricFilter, searchTerm]);
 
   // Info formatada da data ativa para exibir no título
   const activeDateInfo = useMemo(() => {
@@ -387,10 +410,10 @@ const AppointmentsPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 bg-bg-secondary rounded-lg shadow-md space-y-6">
       <div className="flex items-center flex-wrap gap-3 justify-between">
         <h1 className="text-2xl font-bold text-text-primary flex items-center flex-wrap gap-x-2">
-          <span>Agendamentos</span>
+          <span>Agendamentos{selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</span>
           {activeDateInfo && (
             <span className="text-base font-normal text-text-secondary">
               {activeDateInfo.formatted} - {activeDateInfo.weekday}
@@ -398,6 +421,30 @@ const AppointmentsPage: React.FC = () => {
           )}
         </h1>
         <div className="flex items-center gap-3">
+          {/* Campo de busca */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-3 flex items-center text-text-secondary pointer-events-none">
+              <Icon name="search" className="w-4 h-4" />
+            </span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por cliente, profissional..."
+              className="w-full max-w-64 pl-9 pr-9 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary text-text-primary placeholder:text-text-tertiary"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
+                aria-label="Limpar busca"
+              >
+                <Icon name="x" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          
           {sendFeedback && (
             <div className={`text-sm px-3 py-1 rounded-md border ${sendFeedback.type === 'success' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/40' : 'bg-rose-500/10 text-rose-500 border-rose-500/40'}`}>\n+              {sendFeedback.message}\n+            </div>
           )}
@@ -424,157 +471,144 @@ const AppointmentsPage: React.FC = () => {
           </button>
         </div>
       </div>
-      <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
-        {/* Barra de abas e botão calendário alinhados com a tabela */}
-        <div className="p-4 border-b border-border-secondary">
-          <div className="flex w-full gap-2">
-            {tabs.map(t => (
-              <button
-                key={t.date}
-                onClick={() => setActiveDate(t.date)}
-                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition text-center truncate ${
-                  activeDate === t.date
-                    ? 'bg-accent-primary text-text-on-accent shadow'
-                    : 'bg-bg-tertiary text-text-secondary hover:text-text-primary hover:shadow'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-            {/* Botão calendário com popover */}
-            <div className="relative mr-2" ref={calendarRef}>
-              <button
-                type="button"
-                aria-label="Abrir seletor de data"
-                onClick={() => setShowCalendar(v => !v)}
-                className={`h-full aspect-square flex items-center justify-center rounded-md transition border border-border-secondary ${
-                  showCalendar ? 'bg-accent-primary text-text-on-accent shadow' : 'bg-bg-tertiary text-text-secondary hover:text-text-primary hover:shadow'
-                }`}
-              >
-                <Icon name="calendar" className="w-5 h-5" />
-              </button>
-              {showCalendar && (
-                <div className="absolute right-0 mt-2 z-30 w-72 p-3 rounded-md bg-bg-secondary shadow-lg border border-border-secondary animate-fade-in">
-                  <div className="flex items-center justify-between mb-2">
-                    <button
-                      type="button"
-                      className="p-1 rounded hover:bg-bg-tertiary"
-                      onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
-                      aria-label="Mês anterior"
-                    >
-                      <span className="text-sm">‹</span>
-                    </button>
-                    <div className="text-sm font-medium text-text-primary select-none">
-                      {calendarMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                    </div>
-                    <button
-                      type="button"
-                      className="p-1 rounded hover:bg-bg-tertiary"
-                      onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
-                      aria-label="Próximo mês"
-                    >
-                      <span className="text-sm">›</span>
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-7 gap-1 mb-1 text-[10px] uppercase tracking-wide text-text-secondary">
-                    {['S','T','Q','Q','S','S','D'].map(d => <div key={d} className="text-center py-1">{d}</div>)}
-                  </div>
-                  <div className="grid grid-cols-7 gap-1">
-                    {daysMatrix.map((week, wi) => week.map((day, di) => {
-                      if (!day) return <div key={wi+'-'+di} className="h-8" />;
-                      const key = formatDateKey(day);
-                      const isActive = key === activeDate;
-                      const isToday = key === new Date().toISOString().split('T')[0];
-                      return (
-                        <button
-                          type="button"
-                          key={key}
-                          onClick={() => handleSelectDate(day)}
-                          className={`h-8 text-xs rounded-md flex items-center justify-center transition border border-transparent ${
-                            isActive
-                              ? 'bg-accent-primary text-text-on-accent shadow'
-                              : isToday
-                              ? 'bg-bg-tertiary text-text-primary'
-                              : 'hover:bg-bg-tertiary text-text-secondary'
-                          }`}
-                        >
-                          {day.getDate()}
-                        </button>
-                      );
-                    }))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          {/* Métricas */}
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+      
+      {/* Métricas */}
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             {([
-              { key: 'all', label: 'Total', value: metrics.total, base: true, color: '' },
-              { key: 'comercial', label: 'Comercial', value: metrics.comercial, color: '' },
-              { key: 'residencial', label: 'Residencial', value: metrics.residencial, color: '' },
-              { key: 'pendente', label: 'Pendente', value: metrics.pendente, color: 'yellow' },
-              { key: 'aguardando', label: 'Aguardando', value: metrics.aguardando, color: 'blue' },
-              { key: 'confirmado', label: 'Confirmado', value: metrics.confirmado, color: 'emerald' },
-              { key: 'recusado', label: 'Recusado', value: metrics.recusado, color: 'rose' }
+              { key: 'all', label: 'Total', value: metrics.total, icon: 'calendar', bgColor: 'bg-blue-500' },
+              { key: 'comercial', label: 'Comercial', value: metrics.comercial, icon: 'briefcase', bgColor: 'bg-indigo-500' },
+              { key: 'residencial', label: 'Residencial', value: metrics.residencial, icon: 'home', bgColor: 'bg-purple-500' },
+              { key: 'pendente', label: 'Pendente', value: metrics.pendente, icon: 'clock', bgColor: 'bg-yellow-500' },
+              { key: 'aguardando', label: 'Aguardando', value: metrics.aguardando, icon: 'hourglass', bgColor: 'bg-blue-400' },
+              { key: 'confirmado', label: 'Confirmado', value: metrics.confirmado, icon: 'check-circle', bgColor: 'bg-emerald-500' },
+              { key: 'recusado', label: 'Recusado', value: metrics.recusado, icon: 'x-circle', bgColor: 'bg-rose-500' }
             ] as const).map(card => {
               const isActive = activeMetricFilter === card.key;
-              const common = 'rounded-md p-3 flex flex-col items-center text-center cursor-pointer select-none border transition shadow-sm';
-              let style = 'bg-bg-tertiary/60 border-border-secondary hover:bg-bg-tertiary';
-              if (card.color === 'yellow') style = 'border-yellow-400/40 bg-yellow-400/10';
-              if (card.color === 'blue') style = 'border-blue-400/40 bg-blue-400/10';
-              if (card.color === 'emerald') style = 'border-emerald-500/40 bg-emerald-500/10';
-              if (card.color === 'rose') style = 'border-rose-500/40 bg-rose-500/10';
-              if (isActive) {
-                // Destaque diferente mantendo paleta
-                if (card.key === 'all') style = 'bg-accent-primary text-text-on-accent border-accent-primary shadow';
-                else if (card.color === 'yellow') style += ' ring-2 ring-yellow-400/60';
-                else if (card.color === 'blue') style += ' ring-2 ring-blue-400/60';
-                else if (card.color === 'emerald') style += ' ring-2 ring-emerald-500/60';
-                else if (card.color === 'rose') style += ' ring-2 ring-rose-500/60';
-                else style += ' ring-2 ring-accent-primary/60';
-              }
-              const textColor = card.key === 'all'
-                ? (isActive ? 'text-text-on-accent' : 'text-text-secondary')
-                : card.color === 'yellow'
-                  ? 'text-yellow-500'
-                  : card.color === 'blue'
-                    ? 'text-blue-400'
-                    : card.color === 'emerald'
-                      ? 'text-emerald-500'
-                      : card.color === 'rose'
-                        ? 'text-rose-500'
-                        : 'text-text-secondary';
-              const numberColor = isActive && card.key === 'all'
-                ? 'text-text-on-accent'
-                : textColor.replace('text-', 'text-');
               return (
-                <div
+                <button
                   key={card.key}
-                  role="button"
-                  tabIndex={0}
+                  type="button"
                   onClick={() => setActiveMetricFilter(prev => prev === card.key ? 'all' : card.key as any)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveMetricFilter(prev => prev === card.key ? 'all' : card.key as any); } }}
-                  className={`${common} ${style}`}
+                  className={`p-3 rounded-lg shadow-sm flex items-center transition-all group border ${
+                    isActive 
+                      ? 'bg-accent-primary border-accent-secondary' 
+                      : 'bg-bg-secondary hover:bg-bg-tertiary border-transparent'
+                  }`}
                   aria-pressed={isActive}
                   aria-label={`Filtrar por ${card.label}`}
                 >
-                  <p className={`text-[11px] uppercase tracking-wide font-medium ${textColor}`}>{card.label}</p>
-                  <p className={`mt-1 text-lg font-semibold ${numberColor}`}>{card.value}</p>
-                </div>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${card.bgColor} text-white group-hover:scale-105 transition-transform ${
+                    isActive ? 'ring-2 ring-white/40' : ''
+                  }`}>
+                    <Icon name={card.icon} className="w-5 h-5" />
+                  </div>
+                  <div className="ml-4 text-left">
+                    <p className={`text-[0.7rem] font-medium uppercase tracking-wide ${
+                      isActive ? 'text-white' : 'text-text-secondary'
+                    }`}>{card.label}</p>
+                    <p className={`text-xl font-bold ${
+                      isActive ? 'text-white' : 'text-text-primary'
+                    }`}>{card.value}</p>
+                  </div>
+                </button>
               );
             })}
           </div>
-        </div>
+        
+        {/* Barra de abas de dias */}
+        <div className="mt-4 rounded-lg shadow-md overflow-hidden">
+          <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
+            <div className="flex w-full gap-2">
+              {tabs.map(t => (
+                <button
+                  key={t.date}
+                  onClick={() => setActiveDate(t.date)}
+                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${
+                    activeDate === t.date
+                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+              {/* Botão calendário com popover */}
+              <div className="relative" ref={calendarRef}>
+                <button
+                  type="button"
+                  aria-label="Abrir seletor de data"
+                  onClick={() => setShowCalendar(v => !v)}
+                  className={`h-full aspect-square flex items-center justify-center rounded-md transition border ${
+                    showCalendar ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow' : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                  }`}
+                >
+                  <Icon name="calendar" className="w-5 h-5" />
+                </button>
+                {showCalendar && (
+                  <div className="absolute right-0 mt-2 z-30 w-72 p-3 rounded-md bg-bg-secondary shadow-lg border border-border-secondary animate-fade-in">
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        type="button"
+                        className="p-1 rounded hover:bg-bg-tertiary"
+                        onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+                        aria-label="Mês anterior"
+                      >
+                        <span className="text-sm">‹</span>
+                      </button>
+                      <div className="text-sm font-medium text-text-primary select-none">
+                        {calendarMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                      </div>
+                      <button
+                        type="button"
+                        className="p-1 rounded hover:bg-bg-tertiary"
+                        onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+                        aria-label="Próximo mês"
+                      >
+                        <span className="text-sm">›</span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 mb-1 text-[10px] uppercase tracking-wide text-text-secondary">
+                      {['S','T','Q','Q','S','S','D'].map(d => <div key={d} className="text-center py-1">{d}</div>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {daysMatrix.map((week, wi) => week.map((day, di) => {
+                        if (!day) return <div key={wi+'-'+di} className="h-8" />;
+                        const key = formatDateKey(day);
+                        const isActive = key === activeDate;
+                        const isToday = key === new Date().toISOString().split('T')[0];
+                        return (
+                          <button
+                            type="button"
+                            key={key}
+                            onClick={() => handleSelectDate(day)}
+                            className={`h-8 text-xs rounded-md flex items-center justify-center transition border border-transparent ${
+                              isActive
+                                ? 'bg-accent-primary text-text-on-accent shadow'
+                                : isToday
+                                ? 'bg-bg-tertiary text-text-primary'
+                                : 'hover:bg-bg-tertiary text-text-secondary'
+                            }`}
+                          >
+                            {day.getDate()}
+                          </button>
+                        );
+                      }))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm table-fixed">
+          <table className="w-full text-sm table-fixed" style={{ minWidth: '900px' }}>
             <colgroup>
-              <col className="w-24" />
-              <col className="w-52" />
-              <col className="w-24" />
-              <col className="w-36" />
-              <col className="w-48" />
-              <col className="w-28" />
+              <col className="w-[8%]" />
+              <col className="w-[32%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
+              <col className="w-[26%]" />
+              <col className="w-[12%]" />
             </colgroup>
             <thead>
               <tr className="bg-bg-tertiary text-text-secondary">
@@ -669,7 +703,7 @@ const AppointmentsPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
 
       <DataDetailModal
         isOpen={!!selectedRecord}

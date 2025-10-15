@@ -198,8 +198,8 @@ const PrestadorasPage: React.FC = () => {
   return (
     <>
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-text-primary">Prestadoras</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-text-primary">Prestadoras{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
         <PeriodDropdown value={period} onChange={setPeriod} />
       </div>
       {loading ? (

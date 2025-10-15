@@ -161,3 +161,19 @@ export const updateProfissional = async (
   if (error) throw error;
   return (data as Profissional) || null;
 };
+
+// Atualizar status da profissional (Ativa/Inativa)
+export const updateProfissionalStatus = async (
+  id: string,
+  newStatus: 'Ativa' | 'Inativa'
+): Promise<Profissional | null> => {
+  if (!id) return null;
+  const { data, error } = await supabase
+    .from('profissionais')
+    .update({ status: newStatus })
+    .eq('id', id)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Profissional) || null;
+};

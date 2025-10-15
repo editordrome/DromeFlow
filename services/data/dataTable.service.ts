@@ -157,6 +157,18 @@ export const deleteDataRecord = async (recordId: string): Promise<void> => {
   }
 };
 
+export const deleteDataRecords = async (recordIds: string[]): Promise<void> => {
+  if (!recordIds || recordIds.length === 0) return;
+  const { error } = await supabase
+    .from('processed_data')
+    .delete()
+    .in('id', recordIds);
+  if (error) {
+    console.error('Erro ao deletar registros em lote:', error);
+    throw error;
+  }
+};
+
 export const fetchDataRecordById = async (recordId: number): Promise<DataRecord | null> => {
   const { data, error } = await supabase
     .from('processed_data')

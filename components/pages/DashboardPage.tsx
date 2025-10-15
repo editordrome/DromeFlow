@@ -6,7 +6,7 @@ const DashboardPage: React.FC = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     return (
-        <div className="flex h-screen bg-bg-primary overflow-x-hidden">
+        <div className="flex h-screen bg-bg-primary">
             <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
             <div className="flex flex-col flex-1 min-h-0 w-0">
                 <header className="relative z-10 flex items-center justify-between px-4 py-3 bg-bg-secondary border-b border-border-primary lg:hidden">
@@ -20,7 +20,7 @@ const DashboardPage: React.FC = () => {
                         </svg>
                     </button>
                 </header>
-                <main className="flex-1 p-4 lg:p-6 overflow-x-hidden overflow-y-auto min-h-0">
+                <main className="flex-1 p-4 lg:p-6 overflow-y-auto min-h-0">
                     <ContentArea />
                 </main>
             </div>

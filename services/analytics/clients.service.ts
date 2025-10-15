@@ -184,9 +184,9 @@ export const fetchClientMetrics = async (
 export const fetchClientMetricsFromProcessed = async (
   unitCode: string,
   period: string
-): Promise<{ total: number; recorrente: number; atencao: number; outros: number; churnRatePercent: string }> => {
+): Promise<{ total: number; mes: number; recorrente: number; atencao: number; outros: number; churnRatePercent: string }> => {
   if (!unitCode || !/^\d{4}-\d{2}$/.test(period))
-    return { total: 0, recorrente: 0, atencao: 0, outros: 0, churnRatePercent: '0.0%' };
+    return { total: 0, mes: 0, recorrente: 0, atencao: 0, outros: 0, churnRatePercent: '0.0%' };
   const [year, month] = period.split('-').map(Number);
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
@@ -199,7 +199,7 @@ export const fetchClientMetricsFromProcessed = async (
   const prevStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
   const prevEnd = new Date(Date.UTC(prevYear, prevMonth, 0)).toISOString().split('T')[0];
 
-  const [currentRes, prevRes] = await Promise.all([
+  const [currentRes, prevRes, allHistoricalRes, unitInfo] = await Promise.all([
     supabase
       .from('processed_data')
       .select('CLIENTE')
@@ -212,10 +212,22 @@ export const fetchClientMetricsFromProcessed = async (
       .eq('unidade_code', unitCode)
       .gte('DATA', prevStart)
       .lte('DATA', prevEnd),
+    // Busca TODOS os clientes distintos que já tiveram atendimento (histórico completo)
+    supabase
+      .from('processed_data')
+      .select('CLIENTE')
+      .eq('unidade_code', unitCode),
+    supabase
+      .from('units')
+      .select('id')
+      .eq('unit_code', unitCode)
+      .maybeSingle(),
   ]);
 
-  if (currentRes.error || prevRes.error)
-    return { total: 0, recorrente: 0, atencao: 0, outros: 0, churnRatePercent: '0.0%' };
+  if (currentRes.error || prevRes.error || allHistoricalRes.error || unitInfo.error)
+    return { total: 0, mes: 0, recorrente: 0, atencao: 0, outros: 0, churnRatePercent: '0.0%' };
+
+  const unitId = unitInfo.data?.id as string | undefined;
 
   const currentClients = new Set<string>(
     ((currentRes.data as any[]) || [])
@@ -227,8 +239,21 @@ export const fetchClientMetricsFromProcessed = async (
       .map((r) => r.CLIENTE)
       .filter((c) => typeof c === 'string' && c.trim() !== '')
   );
+  const allHistoricalClients = new Set<string>(
+    ((allHistoricalRes.data as any[]) || [])
+      .map((r) => r.CLIENTE)
+      .filter((c) => typeof c === 'string' && c.trim() !== '')
+  );
 
-  const total = currentClients.size;
+  let total = allHistoricalClients.size; // fallback para histórico
+  if (unitId) {
+    const { count, error } = await supabase
+      .from('unit_clients')
+      .select('id', { count: 'exact', head: true })
+      .eq('unit_id', unitId);
+    if (!error && typeof count === 'number') total = count;
+  }
+  const mes = currentClients.size; // Clientes com atendimento no mês
   let recorrente = 0;
   let atencao = 0;
   currentClients.forEach((c) => {
@@ -237,9 +262,78 @@ export const fetchClientMetricsFromProcessed = async (
   prevClients.forEach((c) => {
     if (!currentClients.has(c)) atencao++;
   });
-  const outros = Math.max(0, total - recorrente);
-  const churnRatePercent = total > 0 ? `${((atencao / (atencao + total)) * 100).toFixed(1)}%` : '0.0%';
-  return { total, recorrente, atencao, outros, churnRatePercent };
+  const outros = Math.max(0, mes - recorrente);
+  const churnRatePercent = mes > 0 ? `${((atencao / (atencao + mes)) * 100).toFixed(1)}%` : '0.0%';
+  return { total, mes, recorrente, atencao, outros, churnRatePercent };
+};
+
+export const fetchAllUnitClientsWithHistory = async ({
+  unitId,
+  unitCode,
+  search,
+}: {
+  unitId: string;
+  unitCode: string;
+  search?: string;
+}): Promise<Array<{ id: string; nome: string; tipo: string | null; lastAttendance: string | null }>> => {
+  if (!unitId || !unitCode) return [];
+
+  const filtersSearch = search?.trim();
+
+  const [baseRes, historyRes] = await Promise.all([
+    (() => {
+      let query = supabase
+        .from('unit_clients')
+        .select('id, nome, tipo')
+        .eq('unit_id', unitId)
+        .order('nome', { ascending: true });
+      if (filtersSearch) query = query.ilike('nome', `%${filtersSearch}%`);
+      return query;
+    })(),
+    supabase
+      .from('processed_data')
+      .select('CLIENTE, DATA')
+      .eq('unidade_code', unitCode)
+      .order('DATA', { ascending: false }),
+  ]);
+
+  if (baseRes.error || historyRes.error) return [];
+
+  // Normalização robusta para casar nomes entre unit_clients.nome e processed_data.CLIENTE
+  // - remove acentos/diacríticos
+  // - remove conteúdos entre parênteses (e.g., sufixos descritivos)
+  // - remove pontuação/sinais, mantendo letras/números e espaços
+  // - colapsa múltiplos espaços e converte para minúsculas
+  const normalize = (value: string | null | undefined) => {
+    if (!value) return '';
+    return value
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // diacríticos
+      .replace(/\(.*?\)/g, ' ') // conteúdo entre parênteses
+      .replace(/[^a-zA-Z0-9\s]/g, ' ') // pontuação/sinais
+      .toLowerCase()
+      .replace(/\s+/g, ' ') // colapsa espaços
+      .trim();
+  };
+
+  const lastAttendanceMap = new Map<string, string>();
+  ((historyRes.data as any[]) || []).forEach((row) => {
+    const key = normalize(row.CLIENTE);
+    if (!key) return;
+    if (!lastAttendanceMap.has(key)) {
+      lastAttendanceMap.set(key, row.DATA ?? null);
+    }
+  });
+
+  const list = ((baseRes.data as any[]) || []).map((row) => ({
+    id: row.id,
+    nome: row.nome,
+    tipo: row.tipo ?? null,
+    lastAttendance: lastAttendanceMap.get(normalize(row.nome)) ?? null,
+  }));
+
+  return list;
 };
 
 // Histórico de atendimentos por cliente
@@ -287,6 +381,63 @@ export const fetchLastAttendance = async (
   if (error) return null;
   return (data as any)?.DATA || null;
 };
+
+// Buscar todos os clientes que já tiveram atendimento na unidade (histórico completo)
+export const fetchAllHistoricalClients = async ({
+  unitCode,
+  search,
+}: {
+  unitCode: string;
+  search?: string;
+}): Promise<Array<{ id: string; nome: string; tipo: string | null; lastAttendance: string | null }>> => {
+  if (!unitCode) return [];
+
+  // Busca todos os clientes distintos que já tiveram atendimento nesta unidade
+  const { data, error } = await supabase
+    .from('processed_data')
+    .select('CLIENTE, TIPO, DATA')
+    .eq('unidade_code', unitCode)
+    .order('DATA', { ascending: false });
+
+  if (error) return [];
+
+  interface Row {
+    CLIENTE: string;
+    TIPO?: string | null;
+    DATA: string;
+  }
+
+  const rows = ((data as Row[]) || []).filter((r) => r.CLIENTE && r.CLIENTE.trim());
+
+  // Agrupar por cliente e pegar o último atendimento
+  const clientMap = new Map<string, Row>();
+  for (const r of rows) {
+    const clientName = r.CLIENTE.trim();
+    const existing = clientMap.get(clientName);
+    if (!existing || existing.DATA < r.DATA) {
+      clientMap.set(clientName, r);
+    }
+  }
+
+  let list = Array.from(clientMap.values()).map((r) => ({
+    id: r.CLIENTE,
+    nome: r.CLIENTE.trim() || r.CLIENTE,
+    tipo: r.TIPO || null,
+    lastAttendance: r.DATA,
+  }));
+
+  // Filtrar por busca se houver
+  if (search && search.trim()) {
+    const s = search.trim().toLowerCase();
+    list = list.filter((c) => c.nome.toLowerCase().includes(s));
+  }
+
+  // Ordenar por nome
+  list.sort((a, b) => a.nome.localeCompare(b.nome));
+
+  return list;
+};
+
 /**
  * clients.service.ts
  * Esqueleto de serviço para análises de clientes.

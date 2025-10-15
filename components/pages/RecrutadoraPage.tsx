@@ -308,7 +308,7 @@ const RecrutadoraPage: React.FC = () => {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="Buscar por nome ou WhatsApp..."
-              className="w-64 px-3 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary pr-8"
+              className="w-full max-w-64 px-3 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary pr-8"
             />
             {searchTerm && (
               <button
