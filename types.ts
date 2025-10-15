@@ -52,7 +52,7 @@ export interface Module {
   children?: Module[];
 }
 
-export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients' | 'clients_base' | 'recrutadora' | 'prestadoras' | 'profissionais';
+export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients' | 'clients_base' | 'recrutadora' | 'prestadoras' | 'profissionais' | 'comercial';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
 
@@ -200,4 +200,30 @@ export interface RecrutadoraCard {
 
   // Observação
   observacao?: string | null;
+}
+
+// Comercial (Kanban)
+export interface ComercialColumn {
+  id: string;
+  unit_id: string | null;
+  code: string;
+  name: string;
+  color?: string | null;
+  image_url?: string | null;
+  position: number;
+  is_active: boolean;
+}
+
+export interface ComercialCard {
+  id: string;
+  unit_id: string;
+  nome: string;
+  tipo: 'Residencial' | 'Comercial' | 'Pós Obra' | null;
+  endereco: string | null;
+  contato: string | null;
+  status: string;
+  observacao: string | null;
+  created_at: string;
+  updated_at: string;
+  position: number;
 }

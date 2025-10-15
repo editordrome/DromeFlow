@@ -40,6 +40,24 @@ Requisitos de backend:
  - Módulo Prestadoras com dois painéis: Profissionais (ativos) e Recrutadora (cadastros), incluindo métricas mensais, ranking e drill‑down de atendimentos por profissional.
 
 ---
+## Comercial (Kanban)
+
+O módulo Comercial exibe oportunidades em colunas de status com arrastar‑e‑soltar e persistência otimista.
+
+- Colunas/Status padrão: `leads`, `andamento`, `ganhos`, `perdidos`, `aguardando` (tabela `comercial_columns`).
+- Cards (tabela `comercial`): `id, unit_id, nome, tipo, endereco, contato, status, observacao, position, created_at, updated_at`.
+- Drag & Drop:
+   - Atualização otimista no cliente, reatribuindo `position` densamente por coluna (1..n).
+   - Persistência sem recarregar a tela: aplica `update` individual por card alterado (sem `upsert`), evitando erro 400.
+   - Stripe lateral colorido: usa `border-left` com a cor da coluna; fallback para `var(--color-accent-primary)`.
+- ALL (todas as unidades): após o drop, ocorre um refresh silencioso apenas dos cards/métricas (sem spinner), mantendo a UI estável.
+- Sincronização com Clientes: trigger `comercial_sync_unit_clients` espelha cards "ganhos" em `unit_clients` (upsert por unidade+nome).
+
+Troubleshooting
+- Erro 400 em reordenação: ocorreu ao usar `upsert` com `on_conflict=id`. Resolvido trocando por `update` simples por `id` (sequencial) e enviando somente os cards efetivamente alterados (status/position mudaram).
+- Stripe sem cor: garanta que `index.html` contenha `--color-accent-primary: var(--accent-primary);` no `:root`.
+
+---
 ## 1. Requisitos
 
 - Node.js 18+

@@ -87,6 +87,13 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Métricas Rápidas: Chips inline no cabeçalho com contagens de Hoje, Semana e Mês (baseadas em `created_at >= início do período`). Serviços: `services/recrutadora/recrutadora.service.ts` com utilitários de data em `services/utils/dates.ts`.
   -   Visualização "Todos" (ALL): A coluna "Qualificadas" é duplicada por unidade; as demais colunas agregam cards de todas as unidades. DnD permanece restrito por unidade.
 
+-   Comercial:
+  -   Fonte de Dados: Tabelas `comercial` (cards) e `comercial_columns` (metadados de colunas).
+  -   Colunas/Status: `leads`, `andamento`, `ganhos`, `perdidos`, `aguardando`. Badge com contagem por coluna; header opcional com imagem.
+  -   Drag & Drop: ordenação otimista e densa (1..n) por coluna; persistência sem recarregar (updates por `id`, sem `upsert`). Stripe visual lateral via `border-left` com cor da coluna (fallback `--color-accent-primary`).
+  -   ALL: após drop, executa refresh silencioso de cards/métricas (sem spinner) para refletir agregação multi‑unidade.
+  -   Sincronização: trigger `comercial_sync_unit_clients` espelha status `ganhos` em `unit_clients` (upsert por unidade+nome) mantendo `endereco` e `contato` atualizados.
+
 -   Configuração por Unidade (unit_keys):
   -   Tabela `unit_keys` com colunas: `umbler`, `whats_profi`, `whats_client`, `botID`, `organizationID`, `trigger`, `description`, `is_active`.
   -   Serviço: `services/units/unitKeys.service.ts` com `fetchUnitKeys`, `createUnitKey`, `updateUnitKey`, `deleteUnitKey`.
@@ -200,6 +207,7 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 | Edição de Usuário | Módulos fora de escopo | Exibidos como somente leitura quando pertencem ao usuário mas não ao admin atual. |
 | Limpeza de Dados | Remoção seletiva | `removeObsoleteRecords` identifica orçamentos base ausentes (originais) e remove derivados correlatos. |
 | Webhook Agendamentos | POST + Fallback GET | Envia JSON completo (inclui `endereco`); se falha rede/CORS, usa GET chunkado até 3000 chars com payload compactado. |
+| Comercial | DnD sem reload + fix 400 | Persistência por `update` individual (sem `upsert`), atualização silenciosa em ALL e stripe lateral com `border-left`. |
 | Recrutadora | Métricas rápidas por período | Chips inline (Hoje/Semana/Mês) no cabeçalho; serviços em `services/recrutadora/recrutadora.service.ts` com `services/utils/dates.ts`. |
 | Multi-Unidade (ALL) | Agregação por módulos | Dashboard, Dados e Agendamentos suportam ALL; webhook desabilitado em ALL; Recrutadora com semântica ALL; Clientes pendente. |
 | Segurança de Conteúdo | Restrições no ContentArea | Injeção de HTML apenas de URLs que iniciem com `internal://`. |

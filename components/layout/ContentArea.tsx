@@ -15,6 +15,7 @@ import RecrutadoraPage from '../pages/RecrutadoraPage';
 import ProfissionaisPage from '../pages/ProfissionaisPage';
 import PrestadorasPage from '../pages/PrestadorasPage';
 import UnitKeysPage from '../pages/UnitKeysPage';
+import ComercialPage from '../pages/ComercialPage';
 
 const ContentArea: React.FC = () => {
     const { activeView, activeModule, selectedUnit } = useAppContext();
@@ -86,6 +87,9 @@ const ContentArea: React.FC = () => {
     }
     if (activeView === 'unit_keys') {
         return <UnitKeysPage />;
+    }
+    if (activeView === 'comercial') {
+        return <ComercialPage />;
     }
     
     // Default to module view

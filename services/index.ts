@@ -23,3 +23,4 @@ export * from './analytics/serviceAnalysis.service';
 export * from './ingestion/upload.service';
 export * from './profissionais/profissionais.service';
 export * from './analytics/prestadoras.service';
+export * from './comercial/comercial.service';
