@@ -28,7 +28,6 @@ export const fetchComercialColumns = async (unitId: string | null): Promise<Come
       { id: 'andamento', unit_id: null, code: 'andamento', name: 'Em andamento', color: null, image_url: null, position: 2, is_active: true },
       { id: 'ganhos', unit_id: null, code: 'ganhos', name: 'Ganhos', color: null, image_url: null, position: 3, is_active: true },
       { id: 'perdidos', unit_id: null, code: 'perdidos', name: 'Perdidos', color: null, image_url: null, position: 4, is_active: true },
-      { id: 'aguardando', unit_id: null, code: 'aguardando', name: 'Aguardando', color: null, image_url: null, position: 5, is_active: true },
     ];
   }
   return data as ComercialColumn[];
@@ -76,14 +75,43 @@ export const deleteComercialCard = async (id: string) => {
 
 export const persistStatusOrdering = async (updates: Array<Pick<ComercialCard, 'id' | 'status' | 'position'>>) => {
   if (!updates.length) return;
+  
+  console.log('🔄 [COMERCIAL] Persistindo ordenação:', {
+    totalUpdates: updates.length,
+    updates: updates.map(u => ({ id: u.id.slice(0, 8), status: u.status, position: u.position }))
+  });
+
+  const results: Array<{ id: string; success: boolean; error?: any }> = [];
+  
   for (const update of updates) {
     const { id, status, position } = update;
-    const { error } = await supabase
+    console.log(`  ↳ Atualizando card ${id.slice(0, 8)}... → status="${status}", position=${position}`);
+    
+    const { data, error } = await supabase
       .from('comercial')
       .update({ status, position })
-      .eq('id', id);
-    if (error) throw error;
+      .eq('id', id)
+      .select();
+    
+    if (error) {
+      console.error(`  ❌ ERRO no card ${id.slice(0, 8)}:`, {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      results.push({ id, success: false, error });
+      throw error; // Para na primeira falha
+    } else {
+      console.log(`  ✅ Card ${id.slice(0, 8)} atualizado com sucesso`, data);
+      results.push({ id, success: true });
+    }
   }
+  
+  console.log('✨ [COMERCIAL] Ordenação persistida com sucesso!', {
+    totalSuccess: results.filter(r => r.success).length,
+    totalFailed: results.filter(r => !r.success).length
+  });
 };
 
 export const moveComercialCard = async (cardId: string, newStatus: string, newPosition: number) => {

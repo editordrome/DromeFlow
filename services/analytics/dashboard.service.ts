@@ -172,52 +172,25 @@ export const fetchMonthlyChartData = async (
     { value: '12', name: 'Dez' },
   ];
 
-  try {
-    // 🚀 OTIMIZAÇÃO: Uma única query para todo o ano
-    const startDate = `${year}-01-01`;
-    const endDate = `${year + 1}-01-01`;
+  const monthlyData: MonthlyChartData[] = [];
 
-    const { data, error } = await supabase
-      .from('processed_data')
-      .select('VALOR, CLIENTE, DATA, IS_DIVISAO, REPASSE, orcamento')
-      .eq('unidade_code', unitCode)
-      .gte('DATA', startDate)
-      .lt('DATA', endDate);
+  for (const month of months) {
+    try {
+      const startDate = `${year}-${month.value}-01`;
+      const nextMonth =
+        month.value === '12' ? '01' : String(parseInt(month.value) + 1).padStart(2, '0');
+      const nextYear = month.value === '12' ? year + 1 : year;
+      const endDate = `${nextYear}-${nextMonth}-01`;
 
-    if (error) {
-      console.error('[fetchMonthlyChartData] Erro na query:', error);
-      return months.map(month => ({
-        month: month.value,
-        monthName: month.name,
-        totalRevenue: 0,
-        totalServices: 0,
-        uniqueClients: 0,
-        averageTicket: 0,
-        totalRepasse: 0,
-      }));
-    }
+      const { data, error } = await supabase
+        .from('processed_data')
+        .select('VALOR, CLIENTE, DATA, IS_DIVISAO, REPASSE, PROFISSIONAL, orcamento')
+        .eq('unidade_code', unitCode)
+        .gte('DATA', startDate)
+        .lt('DATA', endDate);
 
-    const allRecords = (data as any[]) || [];
-
-    // Agrupar registros por mês
-    const recordsByMonth = new Map<string, any[]>();
-    months.forEach(m => recordsByMonth.set(m.value, []));
-
-    allRecords.forEach(record => {
-      if (record.DATA) {
-        const month = record.DATA.substring(5, 7); // Extrai 'MM' de 'YYYY-MM-DD'
-        if (recordsByMonth.has(month)) {
-          recordsByMonth.get(month)!.push(record);
-        }
-      }
-    });
-
-    // Processar cada mês
-    const monthlyData: MonthlyChartData[] = months.map(month => {
-      const monthRecords = recordsByMonth.get(month.value) || [];
-      
-      if (monthRecords.length === 0) {
-        return {
+      if (error) {
+        monthlyData.push({
           month: month.value,
           monthName: month.name,
           totalRevenue: 0,
@@ -225,15 +198,15 @@ export const fetchMonthlyChartData = async (
           uniqueClients: 0,
           averageTicket: 0,
           totalRepasse: 0,
-        };
+        });
+        continue;
       }
 
-      // Filtrar apenas registros originais
-      const originalRecords = monthRecords.filter(record => record.IS_DIVISAO !== 'SIM');
+      const allRecords = (data as any[]) || [];
+      const originalRecords = allRecords.filter((record) => record.IS_DIVISAO !== 'SIM');
 
-      // Agrupar por orçamento base
       const orcamentoGroups = new Map<string, any[]>();
-      originalRecords.forEach(record => {
+      originalRecords.forEach((record) => {
         const orcamentoKey = record.orcamento || 'unknown';
         if (!orcamentoGroups.has(orcamentoKey)) {
           orcamentoGroups.set(orcamentoKey, []);
@@ -241,16 +214,12 @@ export const fetchMonthlyChartData = async (
         orcamentoGroups.get(orcamentoKey)!.push(record);
       });
 
-      // Calcular receita (apenas primeiro registro de cada orçamento)
+      const uniqueRecords: any[] = [];
       const revenueByOrcamento = new Map<string, number>();
-      const clientsSet = new Set<string>();
-      
       orcamentoGroups.forEach((records, orcamentoKey) => {
         const firstRecord = records[0];
+        uniqueRecords.push(firstRecord);
         revenueByOrcamento.set(orcamentoKey, firstRecord.VALOR || 0);
-        if (firstRecord.CLIENTE) {
-          clientsSet.add(firstRecord.CLIENTE);
-        }
       });
 
       const totalRevenue = Array.from(revenueByOrcamento.values()).reduce(
@@ -258,16 +227,14 @@ export const fetchMonthlyChartData = async (
         0
       );
       const totalServices = orcamentoGroups.size;
-      const uniqueClients = clientsSet.size;
+      const uniqueClients = new Set(uniqueRecords.map((record) => record.CLIENTE)).size;
       const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
-      
-      // Repasse soma TODOS os registros (originais + derivados)
-      const totalRepasse = monthRecords.reduce(
+      const totalRepasse = allRecords.reduce(
         (sum, record) => sum + (record.REPASSE || 0),
         0
       );
 
-      return {
+      monthlyData.push({
         month: month.value,
         monthName: month.name,
         totalRevenue,
@@ -275,22 +242,21 @@ export const fetchMonthlyChartData = async (
         uniqueClients,
         averageTicket,
         totalRepasse,
-      };
-    });
-
-    return monthlyData;
-  } catch (err) {
-    console.error('[fetchMonthlyChartData] Erro inesperado:', err);
-    return months.map(month => ({
-      month: month.value,
-      monthName: month.name,
-      totalRevenue: 0,
-      totalServices: 0,
-      uniqueClients: 0,
-      averageTicket: 0,
-      totalRepasse: 0,
-    }));
+      });
+    } catch {
+      monthlyData.push({
+        month: month.value,
+        monthName: month.name,
+        totalRevenue: 0,
+        totalServices: 0,
+        uniqueClients: 0,
+        averageTicket: 0,
+        totalRepasse: 0,
+      });
+    }
   }
+
+  return monthlyData;
 };
 /**
  * dashboard.service.ts

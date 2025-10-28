@@ -20,7 +20,6 @@ const STATUS_OPTIONS = [
   { value: 'andamento', label: 'Em andamento' },
   { value: 'ganhos', label: 'Ganhos' },
   { value: 'perdidos', label: 'Perdidos' },
-  { value: 'aguardando', label: 'Aguardando' },
 ];
 
 const TYPE_OPTIONS: Array<{ value: Exclude<ComercialCard['tipo'], null>; label: string }> = [

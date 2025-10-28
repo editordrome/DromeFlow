@@ -19,12 +19,14 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
     const [status, setStatus] = useState<Status>('idle');
     const [message, setMessage] = useState('');
     const [isDragOver, setIsDragOver] = useState(false);
+    const [showInfo, setShowInfo] = useState(false);
 
     const resetState = () => {
         setFile(null);
         setStatus('idle');
         setMessage('');
         setIsDragOver(false);
+        setShowInfo(false);
     };
 
     const handleClose = () => {
@@ -286,7 +288,63 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onClick={handleOverlayClick}>
             <div className="w-full max-w-lg p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg" onClick={(e)=>e.stopPropagation()}>
                 <div className="flex items-center justify-between pb-3 border-b border-border-primary">
-                    <h2 className="text-xl font-bold text-text-primary">Importar Dados XLSX</h2>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-text-primary">Importar Dados XLSX</h2>
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setShowInfo(!showInfo)}
+                                className="p-1 text-text-secondary hover:text-accent-primary transition-colors rounded-full hover:bg-bg-tertiary"
+                                aria-label="Informações sobre o relatório"
+                                disabled={isProcessing}
+                            >
+                                <Icon name="Info" className="w-5 h-5" />
+                            </button>
+                            {showInfo && (
+                                <div className="absolute left-0 top-8 z-10 w-80 p-4 bg-bg-tertiary border border-border-secondary rounded-lg shadow-lg text-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowInfo(false)}
+                                        className="absolute top-2 right-2 p-1 text-text-secondary hover:text-text-primary rounded-full hover:bg-bg-secondary"
+                                        aria-label="Fechar"
+                                    >
+                                        <Icon name="close" className="w-4 h-4" />
+                                    </button>
+                                    <h3 className="font-semibold text-text-primary mb-3">📊 Como tirar o relatório</h3>
+                                    
+                                    <div className="space-y-3 text-text-secondary">
+                                        <div>
+                                            <p className="font-medium text-text-primary mb-1">🔹 Relatório de Atendimentos</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <p className="font-medium text-text-primary mb-1">📋 Colunas necessárias:</p>
+                                            <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
+                                                <li>Local de atendimento</li>
+                                                <li>Valor</li>
+                                                <li>Origem</li>
+                                                <li>Repasse</li>
+                                                <li>Cupom de desconto</li>
+                                                <li>Data de cadastro</li>
+                                                <li>Dia da semana</li>
+                                            </ul>
+                                        </div>
+                                        
+                                        <div>
+                                            <p className="font-medium text-text-primary mb-1">🔍 Filtros recomendados:</p>
+                                            <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
+                                                <li>Programado</li>
+                                                <li>Concluído</li>
+                                                <li>Previstos</li>
+                                                <li>Não concluídos</li>
+                                                <li>Pendente</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                     <button onClick={handleClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary" disabled={isProcessing}>
                         <Icon name="close" />
                     </button>

@@ -25,7 +25,6 @@ const STATUS_BORDER_CLASSES: Record<string, string> = {
   andamento: 'border-brand-green/40',
   ganhos: 'border-accent-primary/50',
   perdidos: 'border-danger/50',
-  aguardando: 'border-warning/50',
 };
 
 const STATUS_BADGE_BG: Record<string, string> = {
@@ -33,7 +32,6 @@ const STATUS_BADGE_BG: Record<string, string> = {
   andamento: 'bg-brand-green/80',
   ganhos: 'bg-accent-primary',
   perdidos: 'bg-danger/80',
-  aguardando: 'bg-warning/80',
 };
 
 const ComercialPage: React.FC = () => {

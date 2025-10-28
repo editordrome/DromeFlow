@@ -36,6 +36,8 @@ const LoginPage: React.FC = () => {
             <img
               src="https://iili.io/3IVuaEb.png"
               alt="Logo DromeFlow"
+              width="180"
+              height="60"
               className="mx-auto max-w-[50%] h-auto"
             />
           </h2>
