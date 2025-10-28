@@ -1,0 +1,212 @@
+# DromeFlow - Configuração Apache para Hostinger
+# Copie este arquivo para public_html junto com os arquivos da pasta dist/
+
+# ====================================
+# 1. COMPRESSÃO GZIP/BROTLI
+# ====================================
+<IfModule mod_deflate.c>
+  # Comprimir HTML, CSS, JavaScript, Text, XML e fontes
+  AddOutputFilterByType DEFLATE application/javascript
+  AddOutputFilterByType DEFLATE application/rss+xml
+  AddOutputFilterByType DEFLATE application/vnd.ms-fontobject
+  AddOutputFilterByType DEFLATE application/x-font
+  AddOutputFilterByType DEFLATE application/x-font-opentype
+  AddOutputFilterByType DEFLATE application/x-font-otf
+  AddOutputFilterByType DEFLATE application/x-font-truetype
+  AddOutputFilterByType DEFLATE application/x-font-ttf
+  AddOutputFilterByType DEFLATE application/x-javascript
+  AddOutputFilterByType DEFLATE application/xhtml+xml
+  AddOutputFilterByType DEFLATE application/xml
+  AddOutputFilterByType DEFLATE font/opentype
+  AddOutputFilterByType DEFLATE font/otf
+  AddOutputFilterByType DEFLATE font/ttf
+  AddOutputFilterByType DEFLATE image/svg+xml
+  AddOutputFilterByType DEFLATE image/x-icon
+  AddOutputFilterByType DEFLATE text/css
+  AddOutputFilterByType DEFLATE text/html
+  AddOutputFilterByType DEFLATE text/javascript
+  AddOutputFilterByType DEFLATE text/plain
+  AddOutputFilterByType DEFLATE text/xml
+</IfModule>
+
+# Servir arquivos pré-comprimidos Brotli se existirem
+<IfModule mod_headers.c>
+  RewriteEngine On
+  
+  # Verificar se o navegador aceita Brotli
+  RewriteCond %{HTTP:Accept-Encoding} br
+  RewriteCond %{REQUEST_FILENAME}\.br -f
+  RewriteRule ^(.*)$ $1.br [L]
+  
+  # Verificar se o navegador aceita Gzip
+  RewriteCond %{HTTP:Accept-Encoding} gzip
+  RewriteCond %{REQUEST_FILENAME}\.gz -f
+  RewriteRule ^(.*)$ $1.gz [L]
+  
+  # Servir arquivos .br com Content-Encoding correto
+  <FilesMatch "\.js\.br$">
+    Header set Content-Type "application/javascript"
+    Header set Content-Encoding "br"
+  </FilesMatch>
+  
+  <FilesMatch "\.css\.br$">
+    Header set Content-Type "text/css"
+    Header set Content-Encoding "br"
+  </FilesMatch>
+  
+  # Servir arquivos .gz com Content-Encoding correto
+  <FilesMatch "\.js\.gz$">
+    Header set Content-Type "application/javascript"
+    Header set Content-Encoding "gzip"
+  </FilesMatch>
+  
+  <FilesMatch "\.css\.gz$">
+    Header set Content-Type "text/css"
+    Header set Content-Encoding "gzip"
+  </FilesMatch>
+</IfModule>
+
+# ====================================
+# 2. CACHE HEADERS (Performance)
+# ====================================
+<IfModule mod_expires.c>
+  ExpiresActive On
+  
+  # Imagens - 1 ano
+  ExpiresByType image/jpg "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/gif "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType image/x-icon "access plus 1 year"
+  
+  # Fontes - 1 ano
+  ExpiresByType font/ttf "access plus 1 year"
+  ExpiresByType font/otf "access plus 1 year"
+  ExpiresByType font/woff "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType application/font-woff "access plus 1 year"
+  
+  # CSS e JavaScript com hash no nome - 1 ano (são immutable)
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType application/x-javascript "access plus 1 year"
+  
+  # HTML - sem cache (sempre verificar)
+  ExpiresByType text/html "access plus 0 seconds"
+  
+  # Manifest e Service Worker - sem cache
+  ExpiresByType application/manifest+json "access plus 0 seconds"
+</IfModule>
+
+# Cache-Control headers
+<IfModule mod_headers.c>
+  # Assets com hash são immutable (nunca mudam)
+  <FilesMatch "\.(js|css|woff2|woff|ttf|otf|eot|svg|jpg|jpeg|png|gif|webp|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  
+  # HTML sem cache
+  <FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+  </FilesMatch>
+  
+  # Service Worker e Manifest sem cache
+  <FilesMatch "^(sw\.js|manifest\.webmanifest|manifest\.json)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+# ====================================
+# 3. SEGURANÇA
+# ====================================
+<IfModule mod_headers.c>
+  # X-Frame-Options (proteção contra clickjacking)
+  Header always set X-Frame-Options "SAMEORIGIN"
+  
+  # X-Content-Type-Options (impedir MIME sniffing)
+  Header always set X-Content-Type-Options "nosniff"
+  
+  # X-XSS-Protection
+  Header always set X-XSS-Protection "1; mode=block"
+  
+  # Referrer-Policy
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  
+  # Permissions-Policy
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  
+  # Content-Security-Policy (ajuste conforme necessário)
+  # Descomente e ajuste as URLs do Supabase
+  # Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co;"
+</IfModule>
+
+# ====================================
+# 4. SPA ROUTING (React Router)
+# ====================================
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # Se o arquivo ou diretório existe, servir diretamente
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Caso contrário, redirecionar para index.html
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# ====================================
+# 5. MIMETYPES
+# ====================================
+<IfModule mod_mime.c>
+  # JavaScript
+  AddType application/javascript js mjs
+  AddType application/json json
+  
+  # Fontes
+  AddType font/woff2 woff2
+  AddType font/woff woff
+  AddType font/ttf ttf
+  AddType font/otf otf
+  
+  # Imagens
+  AddType image/webp webp
+  AddType image/svg+xml svg
+  
+  # Manifest
+  AddType application/manifest+json webmanifest
+  
+  # Arquivos comprimidos
+  AddType application/javascript .js.br
+  AddType text/css .css.br
+  AddType application/javascript .js.gz
+  AddType text/css .css.gz
+</IfModule>
+
+# ====================================
+# 6. OTIMIZAÇÕES ADICIONAIS
+# ====================================
+
+# Desabilitar ETags (Cache-Control é suficiente)
+<IfModule mod_headers.c>
+  Header unset ETag
+</IfModule>
+FileETag None
+
+# Habilitar KeepAlive (se não estiver global)
+<IfModule mod_headers.c>
+  Header set Connection keep-alive
+</IfModule>
+
+# Bloquear acesso a arquivos sensíveis
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+<FilesMatch "(^#.*#|\.(bak|config|dist|fla|inc|ini|log|psd|sh|sql|sw[op])|~)$">
+  Require all denied
+</FilesMatch>
