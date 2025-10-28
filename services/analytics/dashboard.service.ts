@@ -172,79 +172,21 @@ export const fetchMonthlyChartData = async (
     { value: '12', name: 'Dez' },
   ];
 
-  const monthlyData: MonthlyChartData[] = [];
+  try {
+    // 🚀 OTIMIZAÇÃO: Uma única query para todo o ano
+    const startDate = `${year}-01-01`;
+    const endDate = `${year + 1}-01-01`;
 
-  for (const month of months) {
-    try {
-      const startDate = `${year}-${month.value}-01`;
-      const nextMonth =
-        month.value === '12' ? '01' : String(parseInt(month.value) + 1).padStart(2, '0');
-      const nextYear = month.value === '12' ? year + 1 : year;
-      const endDate = `${nextYear}-${nextMonth}-01`;
+    const { data, error } = await supabase
+      .from('processed_data')
+      .select('VALOR, CLIENTE, DATA, IS_DIVISAO, REPASSE, orcamento')
+      .eq('unidade_code', unitCode)
+      .gte('DATA', startDate)
+      .lt('DATA', endDate);
 
-      const { data, error } = await supabase
-        .from('processed_data')
-        .select('VALOR, CLIENTE, DATA, IS_DIVISAO, REPASSE, PROFISSIONAL, orcamento')
-        .eq('unidade_code', unitCode)
-        .gte('DATA', startDate)
-        .lt('DATA', endDate);
-
-      if (error) {
-        monthlyData.push({
-          month: month.value,
-          monthName: month.name,
-          totalRevenue: 0,
-          totalServices: 0,
-          uniqueClients: 0,
-          averageTicket: 0,
-          totalRepasse: 0,
-        });
-        continue;
-      }
-
-      const allRecords = (data as any[]) || [];
-      const originalRecords = allRecords.filter((record) => record.IS_DIVISAO !== 'SIM');
-
-      const orcamentoGroups = new Map<string, any[]>();
-      originalRecords.forEach((record) => {
-        const orcamentoKey = record.orcamento || 'unknown';
-        if (!orcamentoGroups.has(orcamentoKey)) {
-          orcamentoGroups.set(orcamentoKey, []);
-        }
-        orcamentoGroups.get(orcamentoKey)!.push(record);
-      });
-
-      const uniqueRecords: any[] = [];
-      const revenueByOrcamento = new Map<string, number>();
-      orcamentoGroups.forEach((records, orcamentoKey) => {
-        const firstRecord = records[0];
-        uniqueRecords.push(firstRecord);
-        revenueByOrcamento.set(orcamentoKey, firstRecord.VALOR || 0);
-      });
-
-      const totalRevenue = Array.from(revenueByOrcamento.values()).reduce(
-        (sum, valor) => sum + valor,
-        0
-      );
-      const totalServices = orcamentoGroups.size;
-      const uniqueClients = new Set(uniqueRecords.map((record) => record.CLIENTE)).size;
-      const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
-      const totalRepasse = allRecords.reduce(
-        (sum, record) => sum + (record.REPASSE || 0),
-        0
-      );
-
-      monthlyData.push({
-        month: month.value,
-        monthName: month.name,
-        totalRevenue,
-        totalServices,
-        uniqueClients,
-        averageTicket,
-        totalRepasse,
-      });
-    } catch {
-      monthlyData.push({
+    if (error) {
+      console.error('[fetchMonthlyChartData] Erro na query:', error);
+      return months.map(month => ({
         month: month.value,
         monthName: month.name,
         totalRevenue: 0,
@@ -252,11 +194,103 @@ export const fetchMonthlyChartData = async (
         uniqueClients: 0,
         averageTicket: 0,
         totalRepasse: 0,
-      });
+      }));
     }
-  }
 
-  return monthlyData;
+    const allRecords = (data as any[]) || [];
+
+    // Agrupar registros por mês
+    const recordsByMonth = new Map<string, any[]>();
+    months.forEach(m => recordsByMonth.set(m.value, []));
+
+    allRecords.forEach(record => {
+      if (record.DATA) {
+        const month = record.DATA.substring(5, 7); // Extrai 'MM' de 'YYYY-MM-DD'
+        if (recordsByMonth.has(month)) {
+          recordsByMonth.get(month)!.push(record);
+        }
+      }
+    });
+
+    // Processar cada mês
+    const monthlyData: MonthlyChartData[] = months.map(month => {
+      const monthRecords = recordsByMonth.get(month.value) || [];
+      
+      if (monthRecords.length === 0) {
+        return {
+          month: month.value,
+          monthName: month.name,
+          totalRevenue: 0,
+          totalServices: 0,
+          uniqueClients: 0,
+          averageTicket: 0,
+          totalRepasse: 0,
+        };
+      }
+
+      // Filtrar apenas registros originais
+      const originalRecords = monthRecords.filter(record => record.IS_DIVISAO !== 'SIM');
+
+      // Agrupar por orçamento base
+      const orcamentoGroups = new Map<string, any[]>();
+      originalRecords.forEach(record => {
+        const orcamentoKey = record.orcamento || 'unknown';
+        if (!orcamentoGroups.has(orcamentoKey)) {
+          orcamentoGroups.set(orcamentoKey, []);
+        }
+        orcamentoGroups.get(orcamentoKey)!.push(record);
+      });
+
+      // Calcular receita (apenas primeiro registro de cada orçamento)
+      const revenueByOrcamento = new Map<string, number>();
+      const clientsSet = new Set<string>();
+      
+      orcamentoGroups.forEach((records, orcamentoKey) => {
+        const firstRecord = records[0];
+        revenueByOrcamento.set(orcamentoKey, firstRecord.VALOR || 0);
+        if (firstRecord.CLIENTE) {
+          clientsSet.add(firstRecord.CLIENTE);
+        }
+      });
+
+      const totalRevenue = Array.from(revenueByOrcamento.values()).reduce(
+        (sum, valor) => sum + valor,
+        0
+      );
+      const totalServices = orcamentoGroups.size;
+      const uniqueClients = clientsSet.size;
+      const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
+      
+      // Repasse soma TODOS os registros (originais + derivados)
+      const totalRepasse = monthRecords.reduce(
+        (sum, record) => sum + (record.REPASSE || 0),
+        0
+      );
+
+      return {
+        month: month.value,
+        monthName: month.name,
+        totalRevenue,
+        totalServices,
+        uniqueClients,
+        averageTicket,
+        totalRepasse,
+      };
+    });
+
+    return monthlyData;
+  } catch (err) {
+    console.error('[fetchMonthlyChartData] Erro inesperado:', err);
+    return months.map(month => ({
+      month: month.value,
+      monthName: month.name,
+      totalRevenue: 0,
+      totalServices: 0,
+      uniqueClients: 0,
+      averageTicket: 0,
+      totalRepasse: 0,
+    }));
+  }
 };
 /**
  * dashboard.service.ts
