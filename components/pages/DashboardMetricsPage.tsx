@@ -639,7 +639,8 @@ const DashboardMetricsPage: React.FC = () => {
     }
     
     return (
-        <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
+        <div className="h-full bg-bg-secondary rounded-lg shadow-md overflow-y-auto">
+            <div className="p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
                  <h1 className="text-2xl font-bold text-text-primary">
                     Dashboard {selectedUnit.unit_code !== 'ALL' ? `- ${selectedUnit.unit_name}` : ''}
@@ -991,6 +992,7 @@ const DashboardMetricsPage: React.FC = () => {
 
                 </>
             )}
+            </div>
         </div>
     );
 };

@@ -20,8 +20,10 @@ const DashboardPage: React.FC = () => {
                         </svg>
                     </button>
                 </header>
-                <main className="flex-1 overflow-hidden min-h-0 p-4 lg:p-6">
-                    <ContentArea />
+                <main className="flex-1 min-h-0 overflow-auto">
+                    <div className="h-full p-4 lg:p-6">
+                        <ContentArea />
+                    </div>
                 </main>
             </div>
         </div>
