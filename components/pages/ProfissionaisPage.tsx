@@ -289,7 +289,19 @@ const ProfissionaisPage: React.FC = () => {
         </>
       )}
 
-      <ProfissionalDetailModal isOpen={modalOpen} onClose={() => setModalOpen(false)} profissional={selected} />
+      <ProfissionalDetailModal 
+        isOpen={modalOpen} 
+        onClose={() => setModalOpen(false)} 
+        profissional={selected}
+        onEdit={(updated) => {
+          // Atualiza a lista local com os dados atualizados
+          setRows(prev => prev.map(r => r.id === updated.id ? updated : r));
+          // Atualiza o profissional selecionado
+          if (selected && selected.id === updated.id) {
+            setSelected(updated);
+          }
+        }}
+      />
     </div>
   );
 };

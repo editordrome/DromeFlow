@@ -134,6 +134,7 @@ export const fetchProfessionalPosVendaMetrics = async (
 export const updateProfissional = async (
   id: string,
   patch: Partial<Pick<Profissional,
+    | 'nome'
     | 'whatsapp'
     | 'rg'
     | 'cpf'
@@ -152,13 +153,20 @@ export const updateProfissional = async (
   >>
 ): Promise<Profissional | null> => {
   if (!id) return null;
+  console.log('profissionais.service: Tentando atualizar ID:', id, 'com patch:', patch);
   const { data, error } = await supabase
     .from('profissionais')
     .update(patch)
     .eq('id', id)
     .select('*')
-    .maybeSingle();
-  if (error) throw error;
+    .single();
+  
+  console.log('profissionais.service: Resposta do Supabase:', { data, error });
+  
+  if (error) {
+    console.error('profissionais.service: Erro do Supabase:', error);
+    throw new Error(`Erro ao atualizar profissional: ${error.message} (Código: ${error.code})`);
+  }
   return (data as Profissional) || null;
 };
 

@@ -516,7 +516,7 @@ const AppointmentsPage: React.FC = () => {
           </div>
         
         {/* Barra de abas de dias */}
-        <div className="mt-4 rounded-lg shadow-md overflow-hidden">
+        <div className="mt-4 rounded-lg shadow-md overflow-visible">
           <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
             <div className="flex w-full gap-2">
               {tabs.map(t => (
@@ -545,7 +545,7 @@ const AppointmentsPage: React.FC = () => {
                   <Icon name="calendar" className="w-5 h-5" />
                 </button>
                 {showCalendar && (
-                  <div className="absolute right-0 mt-2 z-30 w-72 p-3 rounded-md bg-bg-secondary shadow-lg border border-border-secondary animate-fade-in">
+                  <div className="absolute right-0 mt-2 z-50 w-72 p-3 rounded-md bg-bg-secondary shadow-lg border border-border-secondary animate-fade-in">
                     <div className="flex items-center justify-between mb-2">
                       <button
                         type="button"
@@ -600,7 +600,7 @@ const AppointmentsPage: React.FC = () => {
             </div>
           </div>
         
-        <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-sm table-fixed" style={{ minWidth: '900px' }}>
             <colgroup>
               <col className="w-[8%]" />
@@ -702,7 +702,7 @@ const AppointmentsPage: React.FC = () => {
               )}
             </tbody>
           </table>
-        </div>
+          </div>
         </div>
 
       <DataDetailModal

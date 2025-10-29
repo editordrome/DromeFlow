@@ -104,10 +104,10 @@ const ContentArea: React.FC = () => {
     
     // Default to module view
     return (
-    <div className="p-4 bg-bg-secondary rounded-lg shadow-md h-full w-full max-w-full min-w-0 box-border">
+        <div className="h-full w-full flex flex-col overflow-x-hidden overflow-y-auto bg-bg-secondary rounded-lg shadow-md">
             {!activeModule && (
                 <div className="flex items-center justify-center h-full">
-                    <p className="text-text-secondary text-center">Selecione um módulo na barra lateral para começar.</p>
+                    <p className="text-text-secondary text-center px-4">Selecione um módulo na barra lateral para começar.</p>
                 </div>
             )}
             
@@ -118,14 +118,13 @@ const ContentArea: React.FC = () => {
             )}
             
             {activeModule && error && (
-                <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
+                <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md m-4">{error}</div>
             )}
             
             {activeModule && !isLoading && !error && (
-                <div>
-                    <h1 className="text-2xl font-bold text-text-primary mb-4">{activeModule?.name}</h1>
+                <div className="w-full p-4">
                     <div
-                        className="prose max-w-none"
+                        className="prose max-w-none break-words"
                         dangerouslySetInnerHTML={{ __html: activeModule?.webhook_url?.startsWith('internal://') ? content : '<p>Conteúdo externo bloqueado por segurança.</p>' }}
                     />
                 </div>

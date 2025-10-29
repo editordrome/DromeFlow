@@ -23,13 +23,31 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
     const [profissionalSel, setProfissionalSel] = useState<string>(record.PROFISSIONAL || '');
     const [statusSel, setStatusSel] = useState<string>(String((record as any).status ?? (record as any).STATUS ?? '') || '');
     const [savingHeader, setSavingHeader] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    
+    // Estados para campos editáveis
+    const [editData, setEditData] = useState<string>(record.DATA || '');
+    const [editHorario, setEditHorario] = useState<string>(record.HORARIO || '');
+    const [editCliente, setEditCliente] = useState<string>(record.CLIENTE || '');
+    const [editEndereco, setEditEndereco] = useState<string>((record as any)['ENDEREÇO'] || '');
+    const [editTipo, setEditTipo] = useState<string>(record.TIPO || '');
+    const [editPeriodo, setEditPeriodo] = useState<string>((record as any)['PERÍODO'] || (record as any)['PERIODO'] || '');
+    const [editValor, setEditValor] = useState<string>(String(record.VALOR || ''));
+    const [editRepasse, setEditRepasse] = useState<string>(String(record.REPASSE || ''));
     const hasHeaderChanges = useMemo(() => {
         const recStatus = String((record as any).status ?? (record as any).STATUS ?? '') || '';
         return (
             profissionalSel !== (record.PROFISSIONAL || '') ||
-            statusSel !== recStatus
+            statusSel !== recStatus ||
+            editData !== (record.DATA || '') ||
+            editHorario !== (record.HORARIO || '') ||
+            editCliente !== (record.CLIENTE || '') ||
+            editEndereco !== ((record as any)['ENDEREÇO'] || '') ||
+            editTipo !== (record.TIPO || '') ||
+            editPeriodo !== ((record as any)['PERÍODO'] || (record as any)['PERIODO'] || '') ||
+            editValor !== String(record.VALOR || '') ||
+            editRepasse !== String(record.REPASSE || '')
         );
-    }, [profissionalSel, statusSel, record]);
+    }, [profissionalSel, statusSel, editData, editHorario, editCliente, editEndereco, editTipo, editPeriodo, editValor, editRepasse, record]);
 
     useEffect(() => {
         // Carrega profissionais da unidade atual
@@ -51,6 +69,14 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         if (record) {
             setProfissionalSel(record.PROFISSIONAL || '');
             setStatusSel(String((record as any).status ?? (record as any).STATUS ?? '') || '');
+            setEditData(record.DATA || '');
+            setEditHorario(record.HORARIO || '');
+            setEditCliente(record.CLIENTE || '');
+            setEditEndereco((record as any)['ENDEREÇO'] || '');
+            setEditTipo(record.TIPO || '');
+            setEditPeriodo((record as any)['PERÍODO'] || (record as any)['PERIODO'] || '');
+            setEditValor(String(record.VALOR || ''));
+            setEditRepasse(String(record.REPASSE || ''));
             setIsEditing(false);
             setSavingHeader('idle');
         }
@@ -77,6 +103,47 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
             <div key={label} className="py-2">
                 <p className="text-xs font-semibold uppercase text-text-secondary tracking-wider">{label}</p>
                 <p className="text-md text-text-primary">{displayValue}</p>
+            </div>
+        );
+    };
+
+    const renderEditableField = (label: string, value: string, onChange: (val: string) => void, type: 'text' | 'date' | 'time' | 'number' = 'text') => {
+        if (!isEditing) {
+            // Modo somente leitura
+            let displayValue: any = value;
+            if (!value || value === '') {
+                displayValue = <span className="text-gray-400">N/A</span>;
+            } else if (label.toLowerCase().includes('valor') || label.toLowerCase().includes('repasse')) {
+                displayValue = Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            } else if (label === 'Data' && type === 'date' && value.includes('-')) {
+                const parts = value.split('-');
+                if (parts.length === 3) {
+                    displayValue = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                }
+            } else if (label === 'Horário' && type === 'time') {
+                displayValue = formatTimeHM(value);
+            } else if (label === 'Período') {
+                displayValue = value ? `${value} horas` : '-';
+            }
+            return (
+                <div className="py-2">
+                    <p className="text-xs font-semibold uppercase text-text-secondary tracking-wider">{label}</p>
+                    <p className="text-md text-text-primary">{displayValue}</p>
+                </div>
+            );
+        }
+
+        // Modo edição
+        return (
+            <div className="py-2">
+                <p className="text-xs font-semibold uppercase text-text-secondary tracking-wider">{label}</p>
+                <input
+                    type={type}
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-border-secondary bg-bg-tertiary p-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/60"
+                    placeholder={label}
+                />
             </div>
         );
     };
@@ -352,10 +419,10 @@ Obrigada e tenha um ótimo atendimento😊`
                 <>
                 {/* Linha 1: DATA, HORÁRIO, DIA DA SEMANA, VALOR, STATUS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-x-6">
-                    {renderDetail('Data', record.DATA)}
-                    {renderDetail('Horário', record.HORARIO)}
+                    {renderEditableField('Data', editData, setEditData, 'date')}
+                    {renderEditableField('Horário', editHorario, setEditHorario, 'time')}
                     {renderDetail('Dia da Semana', record.DIA)}
-                    {renderDetail('Valor (R$)', record.VALOR)}
+                    {renderEditableField('Valor (R$)', editValor, setEditValor, 'number')}
                     <div className="py-2">
                         <p className="text-xs font-semibold uppercase text-text-secondary tracking-wider flex items-center justify-between">
                             Status
@@ -365,6 +432,7 @@ Obrigada e tenha um ótimo atendimento😊`
                             className="mt-1 w-full rounded-md border border-border-secondary bg-bg-tertiary p-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/60"
                             value={statusSel}
                             onChange={(e) => setStatusSel(e.target.value)}
+                            disabled={!isEditing}
                         >
                             <option value="">Selecione</option>
                             <option value="PENDENTE">PENDENTE</option>
@@ -376,9 +444,10 @@ Obrigada e tenha um ótimo atendimento😊`
                     </div>
                 </div>
 
-                {/* Linha 2: ENDEREÇO (full) */}
-                <div className="grid grid-cols-1 gap-x-6">
-                    {renderDetail('Endereço', (record as any)['ENDEREÇO'])}
+                {/* Linha 2: CLIENTE e ENDEREÇO */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                    {renderEditableField('Cliente', editCliente, setEditCliente, 'text')}
+                    {renderEditableField('Endereço', editEndereco, setEditEndereco, 'text')}
                 </div>
 
                                 {/* Linha 3: PROFISSIONAL, REPASSE, TIPO, PERÍODO */}
@@ -392,6 +461,7 @@ Obrigada e tenha um ótimo atendimento😊`
                                                 className="mt-1 w-full rounded-md border border-border-secondary bg-bg-tertiary p-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/60"
                                                 value={profissionalSel}
                                                 onChange={(e) => setProfissionalSel(e.target.value)}
+                                                disabled={!isEditing}
                                             >
                                                 <option value="">Selecione</option>
                                                 {profissionais.map(p => (
@@ -399,13 +469,9 @@ Obrigada e tenha um ótimo atendimento😊`
                                                 ))}
                                             </select>
                                         </div>
-                                        {renderDetail('Repasse (R$)', record.REPASSE)}
-                                        {renderDetail('Tipo', record.TIPO)}
-                                        {(() => {
-                                            const periodoRaw = (record as any)['PERÍODO'] ?? (record as any)['PERIODO'] ?? '';
-                                            const display = periodoRaw ? `${periodoRaw} horas` : '-';
-                                            return renderDetail('Período', display);
-                                        })()}
+                                        {renderEditableField('Repasse (R$)', editRepasse, setEditRepasse, 'number')}
+                                        {renderEditableField('Tipo', editTipo, setEditTipo, 'text')}
+                                        {renderEditableField('Período', editPeriodo, setEditPeriodo, 'number')}
                                 </div>
 
                                 {/* Linha 4 removida (Data de Cadastro, Cupom, Origem) */}
@@ -495,29 +561,51 @@ Obrigada e tenha um ótimo atendimento😊`
                     <button
                         type="button"
                         onClick={async () => {
-                            // Se houver mudanças em Profissional ou Status, salvar imediatamente
+                            // Se não está em modo edição, ativa o modo
+                            if (!isEditing && !hasHeaderChanges) {
+                                setIsEditing(true);
+                                return;
+                            }
+                            
+                            // Se está em modo edição ou há mudanças, salvar
                             if (hasHeaderChanges) {
                                 try {
                                     setSavingHeader('saving');
                                     const payload: any = {};
+                                    
+                                    // Campos básicos
+                                    if (editData !== (record.DATA || '')) payload['DATA'] = editData;
+                                    if (editHorario !== (record.HORARIO || '')) payload['HORARIO'] = editHorario;
+                                    if (editCliente !== (record.CLIENTE || '')) payload['CLIENTE'] = editCliente;
+                                    if (editEndereco !== ((record as any)['ENDEREÇO'] || '')) payload['ENDEREÇO'] = editEndereco;
+                                    if (editTipo !== (record.TIPO || '')) payload['TIPO'] = editTipo;
+                                    if (editPeriodo !== ((record as any)['PERÍODO'] || (record as any)['PERIODO'] || '')) payload['PERÍODO'] = editPeriodo;
+                                    if (editValor !== String(record.VALOR || '')) payload['VALOR'] = parseFloat(editValor) || 0;
+                                    if (editRepasse !== String(record.REPASSE || '')) payload['REPASSE'] = parseFloat(editRepasse) || 0;
                                     if (profissionalSel !== (record.PROFISSIONAL || '')) payload['PROFISSIONAL'] = profissionalSel;
+                                    
                                     const recStatus = String((record as any).status ?? (record as any).STATUS ?? '') || '';
                                     if (statusSel !== recStatus) payload['STATUS'] = statusSel;
+                                    
                                     if (Object.keys(payload).length > 0) {
                                         const updated = await updateDataRecord(String(record.id), payload);
                                         const merged: any = { ...record, ...payload };
                                         if (onEdit) onEdit(merged as DataRecord);
                                     }
                                     setSavingHeader('saved');
-                                    if (isEditing) setIsEditing(false);
+                                    setIsEditing(false);
+                                    
+                                    // Limpa o status "salvo" após 2 segundos
+                                    setTimeout(() => setSavingHeader('idle'), 2000);
                                 } catch (e) {
-                                    console.error('Falha ao salvar cabeçalho:', e);
+                                    console.error('Falha ao salvar:', e);
                                     setSavingHeader('error');
                                 }
                                 return;
                             }
-                            // Caso contrário, alterna modo de edição para Observação/Comentário
-                            setIsEditing(prev => !prev);
+                            
+                            // Se não há mudanças, apenas desativa o modo edição
+                            setIsEditing(false);
                         }}
                         className={`p-2 text-sm font-medium text-white transition-colors border border-transparent rounded-md ${(isEditing || hasHeaderChanges) ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-accent-primary hover:bg-accent-secondary'}`}
                         aria-label={(isEditing || hasHeaderChanges) ? 'Salvar' : 'Editar'}

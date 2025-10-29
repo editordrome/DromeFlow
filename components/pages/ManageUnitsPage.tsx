@@ -308,79 +308,112 @@ const UnitFormModal: React.FC<{
 
                 {keys.length > 0 && (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full table-fixed divide-y divide-border-secondary">
+                    <table className="min-w-full table-auto divide-y divide-border-secondary">
                       <thead className="bg-bg-tertiary/60">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium uppercase text-text-secondary w-[28%]">Nome</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium uppercase text-text-secondary">Key</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium uppercase text-text-secondary w-[10%]">Ações</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium uppercase text-text-secondary whitespace-nowrap">Status</th>
+                          {keyColumns.map(col => {
+                            const label = col.column_name
+                              .split('_')
+                              .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+                              .join(' ');
+                            return (
+                              <th key={col.column_name} className="px-3 py-2 text-left text-xs font-medium uppercase text-text-secondary whitespace-nowrap">
+                                {label}
+                              </th>
+                            );
+                          })}
+                          <th className="px-3 py-2 text-right text-xs font-medium uppercase text-text-secondary w-[10%]">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border-secondary bg-bg-secondary/60">
                         {keys.map((item) => {
-                          // Deriva campos dinâmicos a partir do RPC de colunas; fallback: inspeciona a própria linha
-                          const system = new Set(['id','unit_id','is_active','created_at','updated_at']);
-                          const dynamicFields = (keyColumns.length > 0
-                            ? keyColumns.map(c => c.column_name)
-                            : Array.from(new Set(Object.keys(item as any).filter(k => !system.has(k))))) as string[];
-                          const toTitle = (name: string) => name.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
-                          const knownHints: Record<string, string> = { umbler: 'Bearer/Token' };
-
-                          let chosenField: string | null = null;
-                          let chosenLabel = '';
-                          let chosenValue = '';
-                          for (const f of dynamicFields) {
-                            const val = (item as any)[f];
-                            if (val !== undefined && val !== null && String(val).length > 0) {
-                              chosenField = f; chosenValue = String(val); chosenLabel = toTitle(f); break;
-                            }
-                          }
-                          if (!chosenField) {
-                            chosenField = dynamicFields[0] || 'umbler';
-                            chosenLabel = toTitle(chosenField);
-                            chosenValue = '';
-                          }
                           const id = String(item.id);
-                          const value = keyEdits[id] !== undefined ? keyEdits[id] : chosenValue;
-                          const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-                            const v = e.target.value;
-                            setKeyEdits(prev => ({ ...prev, [id]: v }));
+                          
+                          const handleFieldChange = (fieldName: string, value: string) => {
+                            setKeyEdits(prev => ({ ...prev, [`${id}_${fieldName}`]: value }));
                           };
-                          const persist = async () => {
-                            if (!chosenField) return;
+                          
+                          const persistField = async (fieldName: string) => {
+                            const editKey = `${id}_${fieldName}`;
+                            const value = keyEdits[editKey];
+                            if (value === undefined) return;
+                            
                             try {
-                              setSavingKeyIds(prev => ({ ...prev, [id]: true }));
-                              await updateUnitKey(String(item.id), { [chosenField]: value } as any);
+                              setSavingKeyIds(prev => ({ ...prev, [editKey]: true }));
+                              await updateUnitKey(String(item.id), { [fieldName]: value } as any);
                               const list = await fetchUnitKeys(unit!.id);
                               setKeys(list);
+                              // Limpa o edit após salvar
+                              setKeyEdits(prev => {
+                                const n = { ...prev };
+                                delete n[editKey];
+                                return n;
+                              });
                             } finally {
-                              setSavingKeyIds(prev => { const n = { ...prev }; delete n[id]; return n; });
+                              setSavingKeyIds(prev => { const n = { ...prev }; delete n[editKey]; return n; });
                             }
                           };
-                          const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-                            if (e.key === 'Enter') { e.preventDefault(); persist(); }
-                          };
-                          const onBlur = () => { persist(); };
+                          
                           const handleDelete = async () => {
                             if (!confirm('Remover esta key?')) return;
                             await deleteUnitKey(String(item.id));
                             const list = await fetchUnitKeys(unit!.id);
                             setKeys(list);
                           };
+                          
                           return (
-                            <tr key={id}>
-                              <td className="px-4 py-2 text-sm text-text-primary truncate">{chosenLabel}</td>
-                              <td className="px-4 py-2">
-                                <input
-                                  value={value}
-                                  onChange={onChange}
-                                  onKeyDown={onKeyDown}
-                                  onBlur={onBlur}
-                                  placeholder={knownHints[chosenField] ? `${knownHints[chosenField]}…` : 'Digite a key...'}
-                                  className="w-full px-3 py-1.5 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
-                                />
+                            <tr key={id} className="hover:bg-bg-tertiary/30">
+                              <td className="px-3 py-2">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                  item.is_active 
+                                    ? 'bg-success/10 text-success border border-success/30' 
+                                    : 'bg-danger/10 text-danger border border-danger/30'
+                                }`}>
+                                  {item.is_active ? 'Ativo' : 'Inativo'}
+                                </span>
                               </td>
-                              <td className="px-4 py-2 text-right">
+                              {keyColumns.map(col => {
+                                const fieldName = col.column_name;
+                                const editKey = `${id}_${fieldName}`;
+                                const currentValue = (item as any)[fieldName];
+                                const displayValue = keyEdits[editKey] !== undefined ? keyEdits[editKey] : (currentValue || '');
+                                
+                                const knownHints: Record<string, string> = {
+                                  codigo: 'Código da unidade',
+                                  istancia: 'Nome da instância',
+                                  recrutadora: 'Key da recrutadora',
+                                  botID: 'ID do bot',
+                                  triggerName: 'Nome do trigger',
+                                  organizationID: 'ID da organização',
+                                  contato_profissionais: 'Contato'
+                                };
+                                
+                                return (
+                                  <td key={fieldName} className="px-3 py-2">
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="text"
+                                        value={displayValue}
+                                        onChange={(e) => handleFieldChange(fieldName, e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            persistField(fieldName);
+                                          }
+                                        }}
+                                        onBlur={() => persistField(fieldName)}
+                                        placeholder={knownHints[fieldName] || `${fieldName}...`}
+                                        className="w-full min-w-[150px] px-2 py-1.5 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                                      />
+                                      {savingKeyIds[editKey] && (
+                                        <span className="text-xs text-text-secondary whitespace-nowrap">💾</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                              <td className="px-3 py-2 text-right">
                                 <button
                                   onClick={handleDelete}
                                   className="p-2 rounded-md text-danger hover:bg-danger/10"
@@ -388,9 +421,6 @@ const UnitFormModal: React.FC<{
                                 >
                                   <Icon name="delete" className="w-5 h-5" />
                                 </button>
-                                {savingKeyIds[id] && (
-                                  <span className="ml-2 align-middle text-xs text-text-secondary">Salvando…</span>
-                                )}
                               </td>
                             </tr>
                           );

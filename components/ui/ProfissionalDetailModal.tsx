@@ -10,9 +10,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   profissional: Profissional | null;
+  onEdit?: (updated: Profissional) => void;
 }
 
-const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissional }) => {
+const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissional, onEdit }) => {
   const { selectedUnit } = useAppContext();
   const unitCode = (selectedUnit as any)?.unit_code || null;
 
@@ -29,38 +30,109 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
   const [metrics, setMetrics] = useState<{ geral: number | null; comercial: number | null; residencial: number | null }>({ geral: null, comercial: null, residencial: null });
   const [isEditing, setIsEditing] = useState(false);
-  const [form, setForm] = useState<any>({});
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Estados para campos editáveis
+  const [editNome, setEditNome] = useState<string>('');
+  const [editWhatsapp, setEditWhatsapp] = useState<string>('');
+  const [editRg, setEditRg] = useState<string>('');
+  const [editCpf, setEditCpf] = useState<string>('');
+  const [editDataNasc, setEditDataNasc] = useState<string>('');
+  const [editTipo, setEditTipo] = useState<string>('');
+  const [editPreferencia, setEditPreferencia] = useState<string>('');
+  const [editHabilidade, setEditHabilidade] = useState<string>('');
+  const [editEstadoCivil, setEditEstadoCivil] = useState<string>('');
+  const [editFumante, setEditFumante] = useState<string>('');
+  const [editFilhos, setEditFilhos] = useState<string>('');
+  const [editQtoFilhos, setEditQtoFilhos] = useState<string>('');
+  const [editEndereco, setEditEndereco] = useState<string>('');
+  const [editNomeRecado, setEditNomeRecado] = useState<string>('');
+  const [editTelRecado, setEditTelRecado] = useState<string>('');
+  const [editObservacao, setEditObservacao] = useState<string>('');
+
+  // Detecta mudanças
+  const hasChanges = useMemo(() => {
+    if (!profissional) return false;
+    return (
+      editNome !== (profissional.nome || '') ||
+      editWhatsapp !== (profissional.whatsapp || '') ||
+      editRg !== (profissional.rg || '') ||
+      editCpf !== (profissional.cpf || '') ||
+      editDataNasc !== (profissional.data_nasc || '') ||
+      editTipo !== (profissional.tipo || '') ||
+      editPreferencia !== (profissional.preferencia || '') ||
+      editHabilidade !== (profissional.habilidade || '') ||
+      editEstadoCivil !== (profissional.estado_civil || '') ||
+      editFumante !== (profissional.fumante || '') ||
+      editFilhos !== (profissional.filhos || '') ||
+      editQtoFilhos !== (profissional.qto_filhos || '') ||
+      editEndereco !== (profissional.endereco || '') ||
+      editNomeRecado !== (profissional.nome_recado || '') ||
+      editTelRecado !== (profissional.tel_recado || '') ||
+      editObservacao !== (profissional.observacao || '')
+    );
+  }, [profissional, editNome, editWhatsapp, editRg, editCpf, editDataNasc, editTipo, editPreferencia, editHabilidade, editEstadoCivil, editFumante, editFilhos, editQtoFilhos, editEndereco, editNomeRecado, editTelRecado, editObservacao]);
 
   useEffect(() => {
     if (profissional && isOpen) {
-      setForm({
-        whatsapp: profissional.whatsapp || '',
-        rg: profissional.rg || '',
-        cpf: profissional.cpf || '',
-        data_nasc: profissional.data_nasc || '',
-        tipo: profissional.tipo || '',
-        preferencia: profissional.preferencia || '',
-        habilidade: profissional.habilidade || '',
-        estado_civil: profissional.estado_civil || '',
-        fumante: profissional.fumante || '',
-        filhos: profissional.filhos || '',
-        qto_filhos: profissional.qto_filhos || '',
-        endereco: profissional.endereco || '',
-        nome_recado: profissional.nome_recado || '',
-        tel_recado: profissional.tel_recado || '',
-        observacao: profissional.observacao || '',
-      });
+      setEditNome(profissional.nome || '');
+      setEditWhatsapp(profissional.whatsapp || '');
+      setEditRg(profissional.rg || '');
+      setEditCpf(profissional.cpf || '');
+      setEditDataNasc(profissional.data_nasc || '');
+      setEditTipo(profissional.tipo || '');
+      setEditPreferencia(profissional.preferencia || '');
+      setEditHabilidade(profissional.habilidade || '');
+      setEditEstadoCivil(profissional.estado_civil || '');
+      setEditFumante(profissional.fumante || '');
+      setEditFilhos(profissional.filhos || '');
+      setEditQtoFilhos(profissional.qto_filhos || '');
+      setEditEndereco(profissional.endereco || '');
+      setEditNomeRecado(profissional.nome_recado || '');
+      setEditTelRecado(profissional.tel_recado || '');
+      setEditObservacao(profissional.observacao || '');
       setIsEditing(false);
+      setIsSaving(false);
     }
   }, [profissional, isOpen]);
 
   const onSave = async () => {
-    if (!profissional) return;
-    const patch: any = { ...form };
-    const updated = await updateProfissional(profissional.id, patch);
-    if (updated) {
-      Object.assign(profissional, updated);
-      setIsEditing(false);
+    if (!profissional || !hasChanges) return;
+    try {
+      setIsSaving(true);
+      const patch: any = {};
+      if (editNome !== (profissional.nome || '')) patch.nome = editNome;
+      if (editWhatsapp !== (profissional.whatsapp || '')) patch.whatsapp = editWhatsapp;
+      if (editRg !== (profissional.rg || '')) patch.rg = editRg;
+      if (editCpf !== (profissional.cpf || '')) patch.cpf = editCpf;
+      if (editDataNasc !== (profissional.data_nasc || '')) patch.data_nasc = editDataNasc;
+      if (editTipo !== (profissional.tipo || '')) patch.tipo = editTipo;
+      if (editPreferencia !== (profissional.preferencia || '')) patch.preferencia = editPreferencia;
+      if (editHabilidade !== (profissional.habilidade || '')) patch.habilidade = editHabilidade;
+      if (editEstadoCivil !== (profissional.estado_civil || '')) patch.estado_civil = editEstadoCivil;
+      if (editFumante !== (profissional.fumante || '')) patch.fumante = editFumante;
+      if (editFilhos !== (profissional.filhos || '')) patch.filhos = editFilhos;
+      if (editQtoFilhos !== (profissional.qto_filhos || '')) patch.qto_filhos = editQtoFilhos;
+      if (editEndereco !== (profissional.endereco || '')) patch.endereco = editEndereco;
+      if (editNomeRecado !== (profissional.nome_recado || '')) patch.nome_recado = editNomeRecado;
+      if (editTelRecado !== (profissional.tel_recado || '')) patch.tel_recado = editTelRecado;
+      if (editObservacao !== (profissional.observacao || '')) patch.observacao = editObservacao;
+      
+      if (Object.keys(patch).length > 0) {
+        console.log('ProfissionalDetailModal: Salvando patch:', patch);
+        const updated = await updateProfissional(profissional.id, patch);
+        console.log('ProfissionalDetailModal: Resposta do update:', updated);
+        if (updated && onEdit) {
+          onEdit(updated);
+        }
+        setIsEditing(false);
+      }
+    } catch (error: any) {
+      console.error('Erro ao salvar profissional:', error);
+      const errorMessage = error?.message || error?.error_description || JSON.stringify(error);
+      alert(`Erro ao salvar alterações:\n${errorMessage}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -142,34 +214,73 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
       <div className="w-full max-w-3xl max-h-[90vh] bg-bg-secondary rounded-lg shadow-lg flex flex-col" onClick={(e)=>e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary">
           <div className="min-w-0 flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-text-primary truncate" title={profissional.nome || 'Profissional'}>
-              {profissional.nome || 'Profissional'}
-            </h2>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs ${profissional.status ? 'border-accent-primary text-accent-primary' : 'border-border-secondary text-text-secondary'}`}>{profissional.status || 'Sem status'}</span>
+            {!isEditing ? (
+              <>
+                <h2 className="text-lg font-semibold text-text-primary truncate" title={profissional.nome || 'Profissional'}>
+                  {profissional.nome || 'Profissional'}
+                </h2>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs ${profissional.status ? 'border-accent-primary text-accent-primary' : 'border-border-secondary text-text-secondary'}`}>{profissional.status || 'Sem status'}</span>
+              </>
+            ) : (
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <input
+                  type="text"
+                  value={editNome}
+                  onChange={(e) => setEditNome(e.target.value)}
+                  placeholder="Nome do profissional"
+                  className="flex-1 min-w-0 px-3 py-1.5 text-lg font-semibold bg-bg-tertiary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                />
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs ${profissional.status ? 'border-accent-primary text-accent-primary' : 'border-border-secondary text-text-secondary'}`}>{profissional.status || 'Sem status'}</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {!isEditing ? (
-              <button onClick={()=>setIsEditing(true)} className="px-3 py-1.5 text-sm rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary">Editar</button>
+              <button 
+                onClick={() => setIsEditing(true)} 
+                className="p-2 text-sm rounded-md text-text-secondary hover:bg-bg-tertiary"
+                title="Editar"
+              >
+                <Icon name="edit" className="w-5 h-5" />
+              </button>
             ) : (
               <>
-                <button onClick={onSave} className="px-3 py-1.5 text-sm rounded-md border border-accent-primary text-accent-primary hover:bg-accent-primary/10">Salvar</button>
-                <button onClick={()=>{ setIsEditing(false); setForm({
-                  whatsapp: profissional.whatsapp || '',
-                  rg: profissional.rg || '',
-                  cpf: profissional.cpf || '',
-                  data_nasc: profissional.data_nasc || '',
-                  tipo: profissional.tipo || '',
-                  preferencia: profissional.preferencia || '',
-                  habilidade: profissional.habilidade || '',
-                  estado_civil: profissional.estado_civil || '',
-                  fumante: profissional.fumante || '',
-                  filhos: profissional.filhos || '',
-                  qto_filhos: profissional.qto_filhos || '',
-                  endereco: profissional.endereco || '',
-                  nome_recado: profissional.nome_recado || '',
-                  tel_recado: profissional.tel_recado || '',
-                  observacao: profissional.observacao || '',
-                }); }} className="px-3 py-1.5 text-sm rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary">Cancelar</button>
+                <button 
+                  onClick={onSave} 
+                  disabled={!hasChanges || isSaving}
+                  className={`p-2 text-sm rounded-md transition-colors ${(hasChanges && !isSaving) ? 'text-white bg-emerald-600 hover:bg-emerald-500' : 'text-text-secondary bg-bg-tertiary opacity-50 cursor-not-allowed'}`}
+                  title="Salvar"
+                >
+                  <Icon name="check" className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => {
+                    setIsEditing(false);
+                    // Restaura valores originais
+                    if (profissional) {
+                      setEditNome(profissional.nome || '');
+                      setEditWhatsapp(profissional.whatsapp || '');
+                      setEditRg(profissional.rg || '');
+                      setEditCpf(profissional.cpf || '');
+                      setEditDataNasc(profissional.data_nasc || '');
+                      setEditTipo(profissional.tipo || '');
+                      setEditPreferencia(profissional.preferencia || '');
+                      setEditHabilidade(profissional.habilidade || '');
+                      setEditEstadoCivil(profissional.estado_civil || '');
+                      setEditFumante(profissional.fumante || '');
+                      setEditFilhos(profissional.filhos || '');
+                      setEditQtoFilhos(profissional.qto_filhos || '');
+                      setEditEndereco(profissional.endereco || '');
+                      setEditNomeRecado(profissional.nome_recado || '');
+                      setEditTelRecado(profissional.tel_recado || '');
+                      setEditObservacao(profissional.observacao || '');
+                    }
+                  }} 
+                  className="p-2 text-sm rounded-md text-text-secondary hover:bg-bg-tertiary"
+                  title="Cancelar"
+                >
+                  <Icon name="x" className="w-5 h-5" />
+                </button>
               </>
             )}
             <button onClick={onClose} className="p-1 rounded hover:bg-bg-tertiary text-text-secondary"><Icon name="close"/></button>
@@ -243,6 +354,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
               </div>
               {!isEditing ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Item label="WhatsApp" value={profissional.whatsapp} />
                   <Item label="RG" value={profissional.rg} />
                   <Item label="CPF" value={profissional.cpf} />
                   <Item label="Data de Nascimento" value={profissional.data_nasc} />
@@ -252,12 +364,13 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <LabeledInput label="RG" value={form.rg} onChange={(v)=>setForm((f:any)=>({...f, rg:v}))} />
-                  <LabeledInput label="CPF" value={form.cpf} onChange={(v)=>setForm((f:any)=>({...f, cpf:v}))} />
-                  <LabeledInput label="Data de Nascimento" value={form.data_nasc} onChange={(v)=>setForm((f:any)=>({...f, data_nasc:v}))} />
-                  <LabeledInput label="Tipo" value={form.tipo} onChange={(v)=>setForm((f:any)=>({...f, tipo:v}))} />
-                  <LabeledInput label="Preferência" value={form.preferencia} onChange={(v)=>setForm((f:any)=>({...f, preferencia:v}))} />
-                  <LabeledInput label="Habilidade" value={form.habilidade} onChange={(v)=>setForm((f:any)=>({...f, habilidade:v}))} />
+                  <LabeledInput label="WhatsApp" value={editWhatsapp} onChange={setEditWhatsapp} />
+                  <LabeledInput label="RG" value={editRg} onChange={setEditRg} />
+                  <LabeledInput label="CPF" value={editCpf} onChange={setEditCpf} />
+                  <LabeledInput label="Data de Nascimento" value={editDataNasc} onChange={setEditDataNasc} type="date" />
+                  <LabeledInput label="Tipo" value={editTipo} onChange={setEditTipo} />
+                  <LabeledInput label="Preferência" value={editPreferencia} onChange={setEditPreferencia} />
+                  <LabeledInput label="Habilidade" value={editHabilidade} onChange={setEditHabilidade} />
                 </div>
               )}
             </div>
@@ -276,14 +389,14 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <LabeledInput label="Estado Civil" value={form.estado_civil} onChange={(v)=>setForm((f:any)=>({...f, estado_civil:v}))} />
-                <LabeledInput label="Fumante" value={form.fumante} onChange={(v)=>setForm((f:any)=>({...f, fumante:v}))} />
-                <LabeledInput label="Filhos" value={form.filhos} onChange={(v)=>setForm((f:any)=>({...f, filhos:v}))} />
-                <LabeledInput label="Qtd Filhos" value={form.qto_filhos} onChange={(v)=>setForm((f:any)=>({...f, qto_filhos:v}))} />
-                <LabeledInput label="Endereço" value={form.endereco} onChange={(v)=>setForm((f:any)=>({...f, endereco:v}))} />
-                <LabeledInput label="Nome Recado" value={form.nome_recado} onChange={(v)=>setForm((f:any)=>({...f, nome_recado:v}))} />
-                <LabeledInput label="Tel Recado" value={form.tel_recado} onChange={(v)=>setForm((f:any)=>({...f, tel_recado:v}))} />
-                <LabeledTextarea label="Observação" value={form.observacao} onChange={(v)=>setForm((f:any)=>({...f, observacao:v}))} />
+                <LabeledInput label="Estado Civil" value={editEstadoCivil} onChange={setEditEstadoCivil} />
+                <LabeledInput label="Fumante" value={editFumante} onChange={setEditFumante} />
+                <LabeledInput label="Filhos" value={editFilhos} onChange={setEditFilhos} />
+                <LabeledInput label="Qtd Filhos" value={editQtoFilhos} onChange={setEditQtoFilhos} />
+                <LabeledInput label="Endereço" value={editEndereco} onChange={setEditEndereco} />
+                <LabeledInput label="Nome Recado" value={editNomeRecado} onChange={setEditNomeRecado} />
+                <LabeledInput label="Tel Recado" value={editTelRecado} onChange={setEditTelRecado} />
+                <LabeledTextarea label="Observação" value={editObservacao} onChange={setEditObservacao} />
               </div>
             )
           )}
