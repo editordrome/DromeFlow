@@ -13,19 +13,81 @@ export const DEFAULT_COLUMNS: Array<Pick<RecrutadoraColumn, 'code' | 'name' | 'c
   { code: 'desistentes', name: 'DESISTENTES', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/DESISTENTES.png' },
 ];
 
-export const fetchColumns = async (_unitId: string): Promise<RecrutadoraColumn[]> => {
-  // Template global: mesmas colunas para todas as unidades
-  return DEFAULT_COLUMNS.map((c, idx) => ({
-    id: c.code, // id sintético estável
-    unit_id: 'global',
-    unidade: null,
-    code: c.code,
-    name: c.name,
-    color: c.color || null,
-    image_url: c.image_url || null,
-    position: idx + 1,
-    is_active: true,
+/**
+ * Busca colunas para uma unidade específica.
+ * Retorna colunas padrão + colunas customizadas da unidade (excluindo duplicatas).
+ * Colunas customizadas aparecem apenas para a unidade vinculada.
+ */
+export const fetchColumns = async (unitId: string): Promise<RecrutadoraColumn[]> => {
+  // 1. Buscar colunas customizadas da unidade no banco
+  const { data: customColumns, error } = await supabase
+    .from('recrutadora_columns')
+    .select('*')
+    .eq('unit_id', unitId)
+    .eq('is_active', true)
+    .order('position', { ascending: true });
+  
+  if (error) {
+    console.error('Erro ao buscar colunas customizadas:', error);
+    // Em caso de erro, retorna apenas as padrão
+    return DEFAULT_COLUMNS.map((c, idx) => ({
+      id: c.code,
+      unit_id: 'default',
+      unidade: null,
+      code: c.code,
+      name: c.name,
+      color: c.color || null,
+      image_url: c.image_url || null,
+      position: idx + 1,
+      is_active: true,
+    }));
+  }
+
+  // 2. Criar mapa de colunas padrão
+  const defaultColumnsMap = new Map(
+    DEFAULT_COLUMNS.map((c, idx) => [
+      c.code,
+      {
+        id: c.code,
+        unit_id: 'default',
+        unidade: null,
+        code: c.code,
+        name: c.name,
+        color: c.color || null,
+        image_url: c.image_url || null,
+        position: idx + 1,
+        is_active: true,
+      } as RecrutadoraColumn
+    ])
+  );
+
+  // 3. Processar colunas customizadas
+  const customColumnsProcessed: RecrutadoraColumn[] = (customColumns || []).map(col => ({
+    id: col.id,
+    unit_id: col.unit_id,
+    unidade: col.unidade || null,
+    code: col.code,
+    name: col.name,
+    color: col.color || null,
+    image_url: col.image_url || null,
+    position: col.position,
+    is_active: col.is_active,
   }));
+
+  // 4. Remover colunas padrão que foram customizadas
+  customColumnsProcessed.forEach(customCol => {
+    if (defaultColumnsMap.has(customCol.code)) {
+      defaultColumnsMap.delete(customCol.code);
+    }
+  });
+
+  // 5. Combinar colunas padrão + customizadas e ordenar por position
+  const allColumns = [
+    ...Array.from(defaultColumnsMap.values()),
+    ...customColumnsProcessed
+  ].sort((a, b) => a.position - b.position);
+
+  return allColumns;
 };
 
 export const ensureDefaultColumnsForUnit = async (_unitId: string, _unitName?: string): Promise<void> => {
