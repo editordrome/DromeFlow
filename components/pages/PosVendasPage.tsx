@@ -12,6 +12,84 @@ import PosVendaFormModal from '../ui/PosVendaFormModal';
 
 type ActiveCard = 'geral' | 'finalizados' | 'pendente' | 'contatado';
 
+// Componente de seletor de período
+const PeriodSelector: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}> = ({ value, onChange, disabled = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const months = [
+    { value: '01', label: 'Janeiro' },
+    { value: '02', label: 'Fevereiro' },
+    { value: '03', label: 'Março' },
+    { value: '04', label: 'Abril' },
+    { value: '05', label: 'Maio' },
+    { value: '06', label: 'Junho' },
+    { value: '07', label: 'Julho' },
+    { value: '08', label: 'Agosto' },
+    { value: '09', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' },
+  ];
+
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear - 1, currentYear, currentYear + 1];
+
+  const options = years.flatMap(year =>
+    months.map(month => ({
+      value: `${year}-${month.value}`,
+      label: `${month.label} ${year}`
+    }))
+  );
+
+  const getDisplayLabel = () => {
+    const [year, monthNum] = value.split('-');
+    const month = months.find(m => m.value === monthNum);
+    return month ? `${month.label} ${year}` : value;
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className="flex items-center justify-between w-64 px-3 py-2 text-left border rounded-md bg-bg-secondary border-border-primary focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
+      >
+        <span className="text-sm text-text-primary">{getDisplayLabel()}</span>
+        <Icon name={isOpen ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4 text-text-secondary" />
+      </button>
+
+      {isOpen && !disabled && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 z-20 w-64 mt-1 bg-bg-secondary border rounded-md shadow-lg border-border-primary max-h-80 overflow-y-auto">
+            <div className="py-1">
+              {options.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${
+                    value === option.value ? 'bg-primary text-white' : 'text-text-primary'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 const PosVendasPage: React.FC = () => {
   const { profile } = useAuth();
   const { selectedUnit } = useAppContext();
@@ -21,6 +99,12 @@ const PosVendasPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PosVenda | null>(null);
   const [activeCard, setActiveCard] = useState<ActiveCard>('geral');
+
+  // Período selecionado (formato: YYYY-MM)
+  const currentDate = new Date();
+  const [selectedPeriod, setSelectedPeriod] = useState(
+    `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+  );
 
   // Métricas
   const [metrics, setMetrics] = useState<{
@@ -32,16 +116,37 @@ const PosVendasPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [selectedUnit]);
+  }, [selectedUnit, selectedPeriod]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const filters: any = {};
       
-      if (selectedUnit && profile?.role !== 'super_admin') {
+      // Sempre filtrar pela unidade selecionada (exceto super_admin sem unidade)
+      if (selectedUnit) {
         filters.unit_id = selectedUnit;
+      } else if (profile?.role !== 'super_admin') {
+        // Se não houver unidade selecionada e não for super_admin, não carrega nada
+        setAllRecords([]);
+        setMetrics({
+          totalContatos: 0,
+          nps: null,
+          taxaReagendamento: 0,
+          distribuicaoNotas: []
+        });
+        setLoading(false);
+        return;
       }
+
+      // Filtrar pelo mês/ano selecionado
+      const [year, month] = selectedPeriod.split('-');
+      const startDate = `${year}-${month}-01`;
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+      const endDate = `${year}-${month}-${lastDay}`;
+
+      filters.startDate = startDate;
+      filters.endDate = endDate;
 
       const [data, metricsData] = await Promise.all([
         fetchPosVendas(filters),
@@ -235,20 +340,27 @@ const PosVendasPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Pós-Vendas</h1>
           <p className="text-sm text-text-secondary mt-1">
             Gestão de feedback e satisfação dos clientes
           </p>
         </div>
-        <button
-          onClick={handleNew}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Icon name="Plus" className="w-4 h-4" />
-          Novo Registro
-        </button>
+        <div className="flex items-center gap-3">
+          <PeriodSelector
+            value={selectedPeriod}
+            onChange={setSelectedPeriod}
+            disabled={loading}
+          />
+          <button
+            onClick={handleNew}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Icon name="Plus" className="w-4 h-4" />
+            Novo Registro
+          </button>
+        </div>
       </div>
 
       {/* Cards de Navegação */}
