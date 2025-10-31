@@ -65,6 +65,30 @@ export interface AccessCredential {
   description: string | null;
 }
 
+// ============================================================================
+// Batch Operations Types
+// ============================================================================
+
+/**
+ * Interface para atualização de position em lote
+ * Usado em drag & drop de Kanban (Recrutadora, Comercial, Módulos)
+ */
+export interface BatchPositionUpdate {
+  id: string;
+  position: number;
+}
+
+/**
+ * Resultado de operação batch
+ */
+export interface BatchUpdateResult {
+  success: boolean;
+  updated_count: number;
+  failed_count: number;
+  total: number;
+  error?: string;
+}
+
 export interface DataRecord {
   id?: number;
   created_at?: string;
