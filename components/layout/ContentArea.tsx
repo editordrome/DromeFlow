@@ -18,6 +18,7 @@ const ProfissionaisPage = lazy(() => import('../pages/ProfissionaisPage'));
 const PrestadorasPage = lazy(() => import('../pages/PrestadorasPage'));
 const UnitKeysPage = lazy(() => import('../pages/UnitKeysPage'));
 const ComercialPage = lazy(() => import('../pages/ComercialPage'));
+const PosVendasPage = lazy(() => import('../pages/PosVendasPage'));
 
 // Loading component
 const PageLoader = () => (
@@ -100,6 +101,9 @@ const ContentArea: React.FC = () => {
     }
     if (activeView === 'comercial') {
         return <Suspense fallback={<PageLoader />}><ComercialPage /></Suspense>;
+    }
+    if (activeView === 'pos_vendas') {
+        return <Suspense fallback={<PageLoader />}><PosVendasPage /></Suspense>;
     }
     
     // Default to module view

@@ -252,3 +252,42 @@ export interface ComercialCard {
   updated_at: string;
   position: number;
 }
+
+// Pós-Vendas
+export interface PosVenda {
+  id: string;
+  ATENDIMENTO_ID: string | null;
+  chat_id: string | null;
+  nome: string | null;
+  contato: string | null;
+  unit_id: string | null;
+  data: string | null; // ISO timestamp
+  status: 'pendente' | 'contatado' | 'finalizado' | null;
+  nota: number | null; // 1-5
+  reagendou: boolean;
+  feedback: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PosVendaFormData {
+  ATENDIMENTO_ID?: string | null;
+  chat_id?: string | null;
+  nome?: string | null;
+  contato?: string | null;
+  unit_id?: string | null;
+  data?: string | null;
+  status?: 'pendente' | 'contatado' | 'finalizado' | null;
+  nota?: number | null;
+  reagendou?: boolean;
+  feedback?: string | null;
+}
+
+export interface AtendimentoSearchResult {
+  ATENDIMENTO_ID: string;
+  ORCAMENTO: string;
+  CLIENTE: string;
+  DATA: string;
+  SERVICO: string;
+  ENDERECO: string;
+}
