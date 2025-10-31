@@ -2,6 +2,72 @@ import { supabase } from '../supabaseClient';
 import type { PosVenda, PosVendaFormData, AtendimentoSearchResult } from '../../types';
 
 /**
+ * Busca registros pendentes diretamente de processed_data
+ * Usa a coluna "pos vendas" como status (NULL = pendente)
+ */
+export const fetchPendenteWithProfissional = async (filters?: {
+  unit_id?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<Array<PosVenda & { PROFISSIONAL: string | null }>> => {
+  // Busca diretamente de processed_data onde "pos vendas" é NULL ou 'pendente'
+  let query = supabase
+    .from('processed_data')
+    .select('*')
+    .order('DATA', { ascending: false });
+
+  // Filtro por status pendente (coluna "pos vendas" NULL ou 'pendente')
+  query = query.or('"pos vendas".is.null,"pos vendas".eq.pendente');
+
+  // Filtro por unidade (usando unit_code da tabela units)
+  if (filters?.unit_id) {
+    // Busca o unit_code correspondente ao unit_id
+    const { data: unitData } = await supabase
+      .from('units')
+      .select('unit_code')
+      .eq('id', filters.unit_id)
+      .single();
+    
+    if (unitData?.unit_code) {
+      query = query.eq('unidade_code', unitData.unit_code);
+    }
+  }
+
+  if (filters?.startDate) {
+    query = query.gte('DATA', filters.startDate);
+  }
+
+  if (filters?.endDate) {
+    query = query.lte('DATA', filters.endDate);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Erro ao buscar pendentes de processed_data:', error);
+    throw error;
+  }
+
+  // Mapeia para o formato PosVenda
+  return (data || []).map((row: any) => ({
+    id: row.ATENDIMENTO_ID || `temp-${Date.now()}-${Math.random()}`,
+    ATENDIMENTO_ID: row.ATENDIMENTO_ID,
+    chat_id: null,
+    nome: row.CLIENTE,
+    contato: row.CONTATO || null,
+    unit_id: filters?.unit_id || null,
+    data: row.DATA,
+    status: (row['pos vendas'] as 'pendente' | 'contatado' | 'finalizado' | null) || 'pendente',
+    nota: null,
+    reagendou: false,
+    feedback: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    PROFISSIONAL: row.PROFISSIONAL
+  }));
+};
+
+/**
  * Busca registros de pós-vendas com filtros opcionais
  */
 export const fetchPosVendas = async (filters?: {
@@ -204,6 +270,8 @@ export const getMetrics = async (filters?: {
   endDate?: string;
 }): Promise<{
   totalContatos: number;
+  totalContatados: number;
+  totalFinalizados: number;
   nps: number | null;
   taxaReagendamento: number;
   distribuicaoNotas: { nota: number; count: number }[];
@@ -234,6 +302,10 @@ export const getMetrics = async (filters?: {
 
   const records = data || [];
   const totalContatos = records.length;
+
+  // Contar por status (funil de respostas)
+  const totalContatados = records.filter(r => r.status === 'contatado' || r.status === 'finalizado').length;
+  const totalFinalizados = records.filter(r => r.status === 'finalizado').length;
 
   // Calcular NPS (Net Promoter Score)
   const notasValidas = records.filter(r => r.nota !== null);
@@ -272,6 +344,8 @@ export const getMetrics = async (filters?: {
 
   return {
     totalContatos,
+    totalContatados,
+    totalFinalizados,
     nps,
     taxaReagendamento,
     distribuicaoNotas,
