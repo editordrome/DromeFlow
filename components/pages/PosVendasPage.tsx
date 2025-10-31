@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useApp } from '../../contexts/AppContext';
+import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from '../ui/Icon';
 import type { PosVenda } from '../../types';
 import {
@@ -12,7 +12,7 @@ import PosVendaFormModal from '../ui/PosVendaFormModal';
 
 const PosVendasPage: React.FC = () => {
   const { profile } = useAuth();
-  const { selectedUnit } = useApp();
+  const { selectedUnit } = useAppContext();
 
   const [records, setRecords] = useState<PosVenda[]>([]);
   const [loading, setLoading] = useState(true);

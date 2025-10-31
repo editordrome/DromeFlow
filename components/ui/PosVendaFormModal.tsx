@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icon';
-import { useApp } from '../../contexts/AppContext';
+import { useAppContext } from '../../contexts/AppContext';
 import type { PosVenda, PosVendaFormData, AtendimentoSearchResult } from '../../types';
 import {
   createPosVenda,
@@ -15,7 +15,7 @@ interface PosVendaFormModalProps {
 }
 
 const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }) => {
-  const { selectedUnit } = useApp();
+  const { selectedUnit } = useAppContext();
 
   const [formData, setFormData] = useState<PosVendaFormData>({
     ATENDIMENTO_ID: record?.ATENDIMENTO_ID || null,
