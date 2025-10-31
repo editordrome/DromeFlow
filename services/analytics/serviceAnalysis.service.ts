@@ -35,6 +35,36 @@ export const fetchServiceAnalysisData = async (
   return (data as ServiceAnalysisRecord[]) || [];
 };
 
+export const fetchServicePeriodAnalysisData = async (
+  unitCode: string,
+  period: string
+): Promise<{ PERÍODO: string }[]> => {
+  if (!/^\d{4}-\d{2}$/.test(period)) return [];
+  const [year, month] = period.split('-').map(Number);
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
+  
+  const { data, error } = await supabase
+    .from('processed_data')
+    .select('"PERÍODO"')
+    .eq('unidade_code', unitCode)
+    .gte('DATA', startDate)
+    .lte('DATA', endDate);
+    
+  if (error) {
+    console.error('Error fetching period data:', error);
+    throw error;
+  }
+  
+  console.log('🔍 Period Data from Supabase:', {
+    total: data?.length || 0,
+    first5: data?.slice(0, 5),
+    uniquePeriods: [...new Set(data?.map(d => d.PERÍODO))].filter(Boolean)
+  });
+  
+  return (data as { PERÍODO: string }[]) || [];
+};
+
 export const fetchClientAnalysisData = async (
   unitCode: string,
   period: string
@@ -48,7 +78,7 @@ export const fetchClientAnalysisData = async (
   const [currentPeriodDetailsRes, previousClientsRes] = await Promise.all([
     supabase
       .from('processed_data')
-      .select('CLIENTE, TIPO')
+      .select('CLIENTE, "PERÍODO"')
       .eq('unidade_code', unitCode)
       .gte('DATA', startDate)
       .lte('DATA', endDate),
@@ -63,7 +93,7 @@ export const fetchClientAnalysisData = async (
   if (previousClientsRes.error) throw previousClientsRes.error;
 
   const clientDetails =
-    ((currentPeriodDetailsRes.data as { CLIENTE: string; TIPO: string }[]) || []);
+    ((currentPeriodDetailsRes.data as { CLIENTE: string; PERÍODO: string }[]) || []);
 
   const currentMonthClients = new Set(
     clientDetails.map((r) => r.CLIENTE).filter(Boolean)

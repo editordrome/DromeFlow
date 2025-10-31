@@ -24,12 +24,14 @@ interface MonthlyComparisonChartProps {
     | 'margin'
     | 'marginPerService';
   isLoading?: boolean;
+  invertColors?: boolean; // Para métricas onde maior = pior (ex: Churn)
 }
 
 const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
   data,
   selectedMetric,
   isLoading = false,
+  invertColors = false,
 }) => {
   const getMetricConfig = () => {
     switch (selectedMetric) {
@@ -54,7 +56,7 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
       case 'margin':
         return {
           title: 'Margem por Mês',
-          color: '#22C55E',
+          color: '#3B82F6',
           formatter: (value: number) =>
             value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
           yAxisFormatter: (value: number) =>
@@ -63,7 +65,7 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
       case 'marginPerService':
         return {
           title: 'Margem por Atendimento (Mês)',
-          color: '#F43F5E',
+          color: '#3B82F6',
           formatter: (value: number) =>
             value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
           yAxisFormatter: (value: number) =>
@@ -72,7 +74,7 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
       case 'totalServices':
         return {
           title: 'Atendimentos por Mês',
-          color: '#10B981',
+          color: '#F59E0B',
           formatter: (value: number) => `${Math.round(value)} atendimentos`,
           yAxisFormatter: (value: number) => Math.round(value).toString()
         };
@@ -146,36 +148,36 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
     return itemMonth <= currentMonth;
   });
 
-  // Para métricas monetárias, usar LineChart; para contagens, usar BarChart
-  const monetaryMetrics = new Set(['totalRevenue', 'totalRepasse', 'averageTicket', 'margin', 'marginPerService']);
-  const useLineChart = monetaryMetrics.has(selectedMetric);
-
-  // Calcula os valores máximo e mínimo para anotações
-  const maxValue = filteredData.length > 0 
-    ? filteredData.reduce((max, current) => 
-        current[selectedMetric] > max[selectedMetric] ? current : max
-      )
-    : null;
-  
-  const minValue = filteredData.length > 0
-    ? filteredData.reduce((min, current) => 
-        current[selectedMetric] < min[selectedMetric] ? current : min
-      )
-    : null;
-
-  // Calcula campos derivados no dataset (margin, marginPerService)
-  const enrichedData = data.map((d: any) => ({
+  // Calcula campos derivados no dataset (margin, marginPerService) ANTES de calcular min/max
+  const enrichedData = filteredData.map((d: any) => ({
     ...d,
     // já existe averageTicket nos dados
     margin: (d.totalRevenue || 0) - (d.totalRepasse || 0),
     marginPerService: d.totalServices > 0 ? (((d.totalRevenue || 0) - (d.totalRepasse || 0)) / d.totalServices) : 0,
   }));
 
+  // Para métricas monetárias, usar LineChart; para contagens, usar BarChart
+  const monetaryMetrics = new Set(['totalRevenue', 'totalRepasse', 'averageTicket', 'margin', 'marginPerService']);
+  const useLineChart = monetaryMetrics.has(selectedMetric);
+
+  // Calcula os valores máximo e mínimo para anotações usando os dados enriquecidos
+  const maxValue = enrichedData.length > 0 
+    ? enrichedData.reduce((max, current) => 
+        current[selectedMetric] > max[selectedMetric] ? current : max
+      )
+    : null;
+  
+  const minValue = enrichedData.length > 0
+    ? enrichedData.reduce((min, current) => 
+        current[selectedMetric] < min[selectedMetric] ? current : min
+      )
+    : null;
+
   return (
     <div className="h-60">
         <ResponsiveContainer width="100%" height="100%">
           {useLineChart ? (
-            <LineChart data={filteredData.map((d) => ({ ...d, ...enrichedData.find((e) => e.month === d.month) }))} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={enrichedData} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis 
                 dataKey="monthName" 
@@ -197,12 +199,20 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
                   const isMax = maxValue && props.payload.monthName === maxValue.monthName;
                   const isMin = minValue && props.payload.monthName === minValue.monthName;
                   
+                  // Inverte cores se invertColors=true (ex: Churn - maior é pior)
+                  const maxColor = invertColors ? '#EF4444' : '#10B981';
+                  const minColor = invertColors ? '#10B981' : '#EF4444';
+                  const maxLabel = invertColors ? '↑ MAIOR' : '↑ MAIOR';
+                  const minLabel = invertColors ? '↓ MENOR' : '↓ MENOR';
+                  const maxFill = invertColors ? 'fill-red-600' : 'fill-green-600';
+                  const minFill = invertColors ? 'fill-green-600' : 'fill-red-600';
+                  
                   if (isMax) {
                     return (
                       <g>
-                        <circle cx={props.cx} cy={props.cy} r="6" fill="#10B981" stroke="#fff" strokeWidth="2" />
-                        <text x={props.cx} y={props.cy - 15} textAnchor="middle" className="text-xs font-semibold fill-green-600">
-                          ↑ MAIOR
+                        <circle cx={props.cx} cy={props.cy} r="6" fill={maxColor} stroke="#fff" strokeWidth="2" />
+                        <text x={props.cx} y={props.cy - 15} textAnchor="middle" className={`text-xs font-semibold ${maxFill}`}>
+                          {maxLabel}
                         </text>
                       </g>
                     );
@@ -211,9 +221,9 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
                   if (isMin) {
                     return (
                       <g>
-                        <circle cx={props.cx} cy={props.cy} r="6" fill="#EF4444" stroke="#fff" strokeWidth="2" />
-                        <text x={props.cx} y={props.cy - 15} textAnchor="middle" className="text-xs font-semibold fill-red-600">
-                          ↓ MENOR
+                        <circle cx={props.cx} cy={props.cy} r="6" fill={minColor} stroke="#fff" strokeWidth="2" />
+                        <text x={props.cx} y={props.cy - 15} textAnchor="middle" className={`text-xs font-semibold ${minFill}`}>
+                          {minLabel}
                         </text>
                       </g>
                     );
@@ -225,7 +235,7 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
               />
             </LineChart>
           ) : (
-            <BarChart data={filteredData.map((d) => ({ ...d, ...enrichedData.find((e) => e.month === d.month) }))} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
+            <BarChart data={enrichedData} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis 
                 dataKey="monthName" 
@@ -245,9 +255,15 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
                   const isMax = maxValue && props.payload && props.payload.monthName === maxValue.monthName;
                   const isMin = minValue && props.payload && props.payload.monthName === minValue.monthName;
                   
+                  // Inverte cores se invertColors=true (ex: Churn - maior é pior)
+                  const maxColor = invertColors ? '#EF4444' : '#10B981'; // vermelho se invertido
+                  const minColor = invertColors ? '#10B981' : '#EF4444'; // verde se invertido
+                  const maxLabel = invertColors ? '↑ MAIOR' : '↑ MAIOR';
+                  const minLabel = invertColors ? '↓ MENOR' : '↓ MENOR';
+                  
                   let barColor = config.color;
-                  if (isMax) barColor = '#10B981'; // verde
-                  else if (isMin) barColor = '#EF4444'; // vermelho
+                  if (isMax) barColor = maxColor;
+                  else if (isMin) barColor = minColor;
                   
                   return (
                     <g>
@@ -266,9 +282,9 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
                           y={props.y - 8}
                           textAnchor="middle"
                           className="text-xs font-bold"
-                          fill="#10B981"
+                          fill={maxColor}
                         >
-                          ↑ MAIOR
+                          {maxLabel}
                         </text>
                       )}
                       {isMin && (
@@ -277,9 +293,9 @@ const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
                           y={props.y - 8}
                           textAnchor="middle"
                           className="text-xs font-bold"
-                          fill="#EF4444"
+                          fill={minColor}
                         >
-                          ↓ MENOR
+                          {minLabel}
                         </text>
                       )}
                     </g>

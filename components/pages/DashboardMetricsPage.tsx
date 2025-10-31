@@ -3,11 +3,12 @@ import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchDashboardMetrics, fetchDashboardMetricsMulti, fetchMonthlyChartData } from '../../services/analytics/dashboard.service';
 import type { MonthlyChartData } from '../../services/analytics/dashboard.service';
-import { fetchServiceAnalysisData, fetchClientAnalysisData, fetchServiceMonthlySubmetrics, fetchServiceMonthlySubmetricsMulti, fetchClientMonthlySubmetrics, fetchClientMonthlySubmetricsMulti, type ServiceMonthlySubmetrics, type ClientMonthlySubmetrics } from '../../services/analytics/serviceAnalysis.service';
+import { fetchServiceAnalysisData, fetchServicePeriodAnalysisData, fetchClientAnalysisData, fetchServiceMonthlySubmetrics, fetchServiceMonthlySubmetricsMulti, fetchClientMonthlySubmetrics, fetchClientMonthlySubmetricsMulti, type ServiceMonthlySubmetrics, type ClientMonthlySubmetrics } from '../../services/analytics/serviceAnalysis.service';
 import { fetchRepasseAnalysisData } from '../../services/analytics/repasse.service';
 import { DashboardMetrics, ServiceAnalysisRecord, ClientAnalysisData, RepasseAnalysisRecord } from '../../types';
 import { Icon } from '../ui/Icon';
 import MonthlyComparisonChart from '../ui/MonthlyComparisonChart';
+import { supabase } from '../../services/supabaseClient';
 import {
   BarChart,
   Bar,
@@ -16,7 +17,10 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 
 
@@ -223,12 +227,14 @@ type MetricType = 'totalRevenue' | 'totalServices' | 'uniqueClients' | 'totalRep
 type RevenueSubMetric = 'none' | 'averageTicket' | 'margin' | 'marginPerService';
 type ServicesSubMetric = 'none' | 'startOfMonth' | 'evolution' | 'productiveDayAvg';
 type ClientsSubMetric = 'none' | 'recurringCount' | 'servicesPerClient' | 'churnRate';
+type RepasseSubMetric = 'none' | 'averagePerService' | 'averagePerWeek' | 'averagePerProfessional';
 type ServiceAnalysis = {
     startOfMonthCount: number;
     evolutionCount: number;
     averagePerDay: string;
     dayOfWeekAnalysis: { day: string; percentage: number }[];
     dailyEvolutionData: { day: string; 'Atend. (Clientes Antigos)': number; 'Atend. (Clientes Novos)': number }[];
+    periodAnalysis: { type: string; percentage: number; count: number }[];
 };
 type ClientAnalysis = {
     recurringCount: number;
@@ -245,6 +251,13 @@ type RepasseAnalysis = {
     professionalRanking: { professional: string; total: number }[];
 };
 
+type RepasseMonthlySubmetrics = {
+    month: string;
+    averagePerService: number;
+    averagePerWeek: number;
+    averagePerProfessional: number;
+};
+
 
 const DashboardMetricsPage: React.FC = () => {
     const { selectedUnit } = useAppContext();
@@ -259,11 +272,13 @@ const DashboardMetricsPage: React.FC = () => {
     const [monthlyData, setMonthlyData] = useState<MonthlyChartData[]>([]);
     const [servicesMonthlyData, setServicesMonthlyData] = useState<ServiceMonthlySubmetrics[]>([]);
     const [clientsMonthlyData, setClientsMonthlyData] = useState<ClientMonthlySubmetrics[]>([]);
+    const [repasseMonthlyData, setRepasseMonthlyData] = useState<RepasseMonthlySubmetrics[]>([]);
     const [serviceAnalysis, setServiceAnalysis] = useState<ServiceAnalysis | null>(null);
     const [clientAnalysis, setClientAnalysis] = useState<ClientAnalysis | null>(null);
     const [repasseAnalysis, setRepasseAnalysis] = useState<RepasseAnalysis | null>(null);
     const [isChartVisible, setIsChartVisible] = useState(true);
     const [isEvolutionChartVisible, setIsEvolutionChartVisible] = useState(true);
+    const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
     const [isLoading, setIsLoading] = useState(true);
     const [isChartLoading, setIsChartLoading] = useState(false);
@@ -280,6 +295,7 @@ const DashboardMetricsPage: React.FC = () => {
     const [selectedRevenueSubMetric, setSelectedRevenueSubMetric] = useState<RevenueSubMetric>('none');
     const [selectedServicesSubMetric, setSelectedServicesSubMetric] = useState<ServicesSubMetric>('none');
     const [selectedClientsSubMetric, setSelectedClientsSubMetric] = useState<ClientsSubMetric>('none');
+    const [selectedRepasseSubMetric, setSelectedRepasseSubMetric] = useState<RepasseSubMetric>('none');
 
     const getPreviousPeriod = (period: string): string => {
         const [year, month] = period.split('-').map(Number);
@@ -348,9 +364,115 @@ const DashboardMetricsPage: React.FC = () => {
                     averageTicket: m.totalServices > 0 ? m.totalRevenue / m.totalServices : 0
                 })).sort((a,b)=>a.month.localeCompare(b.month));
                 setMonthlyData(finalArray);
+                
+                // Calcular submétricas mensais de repasse para ALL
+                const repasseMonthly: RepasseMonthlySubmetrics[] = await Promise.all(
+                    finalArray.map(async (m) => {
+                        const totalRepasse = m.totalRepasse || 0;
+                        const totalServices = m.totalServices || 0;
+                        
+                        // Média por atendimento
+                        const averagePerService = totalServices > 0 ? totalRepasse / totalServices : 0;
+                        
+                        // Média por semana - usando ciclos de 7 dias (sexta a quinta)
+                        const monthNum = parseInt(m.month); // m.month é "01", "02", etc.
+                        const daysInMonth = new Date(currentYear, monthNum, 0).getDate();
+                        const weeksInMonth = daysInMonth / 7; // Ciclos completos de 7 dias
+                        const averagePerWeek = weeksInMonth > 0 ? totalRepasse / weeksInMonth : 0;
+                        
+                        // Média por profissional - buscar número real de profissionais únicos no mês
+                        let averagePerProfessional = 0;
+                        try {
+                            const startDate = `${currentYear}-${m.month}-01`;
+                            const nextMonthNum = monthNum === 12 ? 1 : monthNum + 1;
+                            const nextYear = monthNum === 12 ? currentYear + 1 : currentYear;
+                            const endDate = `${nextYear}-${String(nextMonthNum).padStart(2, '0')}-01`;
+                            
+                            const { data: profData } = await supabase
+                                .from('processed_data')
+                                .select('PROFISSIONAL')
+                                .in('unidade_code', multiUnits)
+                                .gte('DATA', startDate)
+                                .lt('DATA', endDate)
+                                .not('PROFISSIONAL', 'is', null);
+                            
+                            const uniqueProfessionals = new Set(
+                                (profData || [])
+                                    .map((r: any) => r.PROFISSIONAL)
+                                    .filter((p: string) => p && p.trim())
+                            ).size;
+                            
+                            averagePerProfessional = uniqueProfessionals > 0 ? totalRepasse / uniqueProfessionals : 0;
+                            console.log(`[Repasse Monthly ${m.month}] Repasse: ${totalRepasse.toFixed(2)}, Dias: ${daysInMonth}, Semanas: ${weeksInMonth.toFixed(2)}, Média/Sem: ${averagePerWeek.toFixed(2)}, Profs: ${uniqueProfessionals}, Média/Prof: ${averagePerProfessional.toFixed(2)}`);
+                        } catch (error) {
+                            console.error(`[Repasse Monthly ${m.month}] Erro ao buscar profissionais:`, error);
+                        }
+                        
+                        return {
+                            month: m.month,
+                            averagePerService,
+                            averagePerWeek,
+                            averagePerProfessional
+                        };
+                    })
+                );
+                setRepasseMonthlyData(repasseMonthly);
             } else {
                 const result = await fetchMonthlyChartData(selectedUnit.unit_code, currentYear);
                 setMonthlyData(result);
+                
+                // Calcular submétricas mensais de repasse para unidade específica
+                const repasseMonthly: RepasseMonthlySubmetrics[] = await Promise.all(
+                    result.map(async (m) => {
+                        const totalRepasse = m.totalRepasse || 0;
+                        const totalServices = m.totalServices || 0;
+                        
+                        // Média por atendimento
+                        const averagePerService = totalServices > 0 ? totalRepasse / totalServices : 0;
+                        
+                        // Média por semana - usando ciclos de 7 dias (sexta a quinta)
+                        const monthNum = parseInt(m.month); // m.month é "01", "02", etc.
+                        const daysInMonth = new Date(currentYear, monthNum, 0).getDate();
+                        const weeksInMonth = daysInMonth / 7; // Ciclos completos de 7 dias
+                        const averagePerWeek = weeksInMonth > 0 ? totalRepasse / weeksInMonth : 0;
+                        
+                        // Média por profissional - buscar número real de profissionais únicos no mês
+                        let averagePerProfessional = 0;
+                        try {
+                            const startDate = `${currentYear}-${m.month}-01`;
+                            const nextMonthNum = monthNum === 12 ? 1 : monthNum + 1;
+                            const nextYear = monthNum === 12 ? currentYear + 1 : currentYear;
+                            const endDate = `${nextYear}-${String(nextMonthNum).padStart(2, '0')}-01`;
+                            
+                            const { data: profData } = await supabase
+                                .from('processed_data')
+                                .select('PROFISSIONAL')
+                                .eq('unidade_code', selectedUnit.unit_code)
+                                .gte('DATA', startDate)
+                                .lt('DATA', endDate)
+                                .not('PROFISSIONAL', 'is', null);
+                            
+                            const uniqueProfessionals = new Set(
+                                (profData || [])
+                                    .map((r: any) => r.PROFISSIONAL)
+                                    .filter((p: string) => p && p.trim())
+                            ).size;
+                            
+                            averagePerProfessional = uniqueProfessionals > 0 ? totalRepasse / uniqueProfessionals : 0;
+                            console.log(`[Repasse Monthly ${m.month}] Repasse: ${totalRepasse.toFixed(2)}, Dias: ${daysInMonth}, Semanas: ${weeksInMonth.toFixed(2)}, Média/Sem: ${averagePerWeek.toFixed(2)}, Profs: ${uniqueProfessionals}, Média/Prof: ${averagePerProfessional.toFixed(2)}`);
+                        } catch (error) {
+                            console.error(`[Repasse Monthly ${m.month}] Erro ao buscar profissionais:`, error);
+                        }
+                        
+                        return {
+                            month: m.month,
+                            averagePerService,
+                            averagePerWeek,
+                            averagePerProfessional
+                        };
+                    })
+                );
+                setRepasseMonthlyData(repasseMonthly);
             }
                         // também carregar submétricas de atendimentos para o ano
                                     if (selectedUnit.unit_code === 'ALL') {
@@ -369,6 +491,7 @@ const DashboardMetricsPage: React.FC = () => {
                         setMonthlyData([]);
                         setServicesMonthlyData([]);
                         setClientsMonthlyData([]);
+                        setRepasseMonthlyData([]);
         } finally {
             setIsChartLoading(false);
         }
@@ -455,7 +578,22 @@ const DashboardMetricsPage: React.FC = () => {
                 };
             });
 
-            setServiceAnalysis({ startOfMonthCount, evolutionCount, averagePerDay, dayOfWeekAnalysis, dailyEvolutionData });
+            // Busca dados de PERÍODO
+            const periodData = await fetchServicePeriodAnalysisData(selectedUnit.unit_code, selectedPeriod);
+            const periodCounts: { [key: string]: number } = {};
+            periodData.forEach(item => {
+                const periodo = item.PERÍODO?.trim() || 'Não especificado';
+                periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
+            });
+            
+            const totalRecords = periodData.length;
+            const periodAnalysis = Object.keys(periodCounts).map(type => ({
+                type,
+                count: periodCounts[type],
+                percentage: totalRecords > 0 ? (periodCounts[type] / totalRecords) * 100 : 0
+            })).sort((a, b) => b.count - a.count);
+
+            setServiceAnalysis({ startOfMonthCount, evolutionCount, averagePerDay, dayOfWeekAnalysis, dailyEvolutionData, periodAnalysis });
 
         } catch (e) {
             console.error("Failed to load analysis data", e);
@@ -490,24 +628,21 @@ const DashboardMetricsPage: React.FC = () => {
             const newClientsCount = [...currentClients].filter(c => !allHistoricClientsBeforeThisMonth.has(c)).length;
             const baseClientsCount = currentClients.size - recurringCount - newClientsCount;
 
-            const uniqueClientTypes = new Map<string, string>();
-            currentData.clientDetails.forEach(detail => {
-                if (detail.CLIENTE && !uniqueClientTypes.has(detail.CLIENTE)) {
-                    uniqueClientTypes.set(detail.CLIENTE, detail.TIPO || 'Não especificado');
-                }
+            // Conta TODOS os atendimentos por período (não apenas clientes únicos)
+            const periodCounts: { [key: string]: number } = {};
+            currentData.clientDetails.forEach((detail) => {
+                const periodo = detail.PERÍODO?.trim() || 'Não especificado';
+                periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
             });
-            
-            const typeCounts: { [key: string]: number } = {};
-            for (const type of uniqueClientTypes.values()) {
-                const cleanType = type.trim() || 'Não especificado';
-                typeCounts[cleanType] = (typeCounts[cleanType] || 0) + 1;
-            }
 
             const totalUniqueClients = currentClients.size;
-            const typeAnalysis = Object.keys(typeCounts).map(type => ({
+            
+            // Usa periodCounts para mostrar TODOS os atendimentos por período
+            const totalAttendances = currentData.clientDetails.length;
+            const typeAnalysis = Object.keys(periodCounts).map(type => ({
                 type,
-                count: typeCounts[type],
-                percentage: totalUniqueClients > 0 ? (typeCounts[type] / totalUniqueClients) * 100 : 0
+                count: periodCounts[type],
+                percentage: totalAttendances > 0 ? (periodCounts[type] / totalAttendances) * 100 : 0
             })).sort((a, b) => b.count - a.count);
 
             setClientAnalysis({
@@ -582,18 +717,12 @@ const DashboardMetricsPage: React.FC = () => {
     useEffect(() => {
         if (selectedMetric === 'totalServices' && metrics) {
             loadServiceAnalysisData();
-        } else {
-            setServiceAnalysis(null);
         }
         if (selectedMetric === 'uniqueClients' && metrics && previousMonthMetrics) {
             loadClientAnalysis();
-        } else {
-            setClientAnalysis(null);
         }
-         if (selectedMetric === 'totalRepasse' && metrics) {
+        if (selectedMetric === 'totalRepasse' && metrics) {
             loadRepasseAnalysis();
-        } else {
-            setRepasseAnalysis(null);
         }
     }, [selectedMetric, metrics, previousMonthMetrics, loadServiceAnalysisData, loadClientAnalysis, loadRepasseAnalysis]);
 
@@ -617,14 +746,141 @@ const DashboardMetricsPage: React.FC = () => {
                             if (selectedClientsSubMetric === 'churnRate') return { title: 'Churn por Mês' };
                             return { title: 'Clientes por Mês' };
                         }
-            // Pode ajustar título conforme submétrica de clientes, se necessário
-            case 'totalRepasse': return { title: 'Repasse por Mês' };
+            case 'totalRepasse': {
+                if (selectedRepasseSubMetric === 'averagePerService') return { title: 'Média/Atend. (Repasse) por Mês' };
+                if (selectedRepasseSubMetric === 'averagePerWeek') return { title: 'Média/Semana (Repasse) por Mês' };
+                if (selectedRepasseSubMetric === 'averagePerProfessional') return { title: 'Média/Profissional (Repasse) por Mês' };
+                return { title: 'Repasse por Mês' };
+            }
             default: return { title: 'Métricas por Mês' };
         }
     };
 
     const formatCurrency = (value: number) => {
         return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+
+    const getMinMaxStats = (data: MonthlyChartData[], metric: MetricType) => {
+        if (!data || data.length === 0) return null;
+
+        // Filtrar apenas meses até o atual
+        const currentMonth = new Date().getMonth() + 1;
+        const filteredData = data.filter(item => parseInt(item.month) <= currentMonth);
+        
+        if (filteredData.length === 0) return null;
+
+        // Calcular campos derivados
+        const enrichedData = filteredData.map((d: any) => ({
+            ...d,
+            margin: (d.totalRevenue || 0) - (d.totalRepasse || 0),
+            marginPerService: d.totalServices > 0 ? (((d.totalRevenue || 0) - (d.totalRepasse || 0)) / d.totalServices) : 0,
+        }));
+
+        // Determinar qual campo usar baseado na métrica selecionada e submétricas
+        let fieldToUse = metric;
+        if (metric === 'totalRevenue') {
+            if (selectedRevenueSubMetric === 'averageTicket') fieldToUse = 'averageTicket';
+            else if (selectedRevenueSubMetric === 'margin') fieldToUse = 'margin';
+            else if (selectedRevenueSubMetric === 'marginPerService') fieldToUse = 'marginPerService';
+        } else if (metric === 'totalServices') {
+            if (selectedServicesSubMetric === 'startOfMonth') {
+                const s = servicesMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    totalServices: s.find(x => x.month === m.month)?.startOfMonth || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'totalServices');
+            } else if (selectedServicesSubMetric === 'evolution') {
+                const s = servicesMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    totalServices: s.find(x => x.month === m.month)?.evolution || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'totalServices');
+            } else if (selectedServicesSubMetric === 'productiveDayAvg') {
+                const s = servicesMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    totalServices: s.find(x => x.month === m.month)?.productiveDayAvg || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'totalServices');
+            }
+        } else if (metric === 'uniqueClients') {
+            if (selectedClientsSubMetric === 'recurringCount') {
+                const c = clientsMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    uniqueClients: c.find(x => x.month === m.month)?.recurringCount || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'uniqueClients');
+            } else if (selectedClientsSubMetric === 'servicesPerClient') {
+                const c = clientsMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    uniqueClients: c.find(x => x.month === m.month)?.servicesPerClient || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'uniqueClients');
+            } else if (selectedClientsSubMetric === 'churnRate') {
+                const c = clientsMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    uniqueClients: c.find(x => x.month === m.month)?.churnRate || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'uniqueClients');
+            }
+        } else if (metric === 'totalRepasse') {
+            if (selectedRepasseSubMetric === 'averagePerService') {
+                const r = repasseMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    totalRepasse: r.find(x => x.month === m.month)?.averagePerService || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'totalRepasse');
+            } else if (selectedRepasseSubMetric === 'averagePerWeek') {
+                const r = repasseMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    totalRepasse: r.find(x => x.month === m.month)?.averagePerWeek || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'totalRepasse');
+            } else if (selectedRepasseSubMetric === 'averagePerProfessional') {
+                const r = repasseMonthlyData;
+                const dataWithSub = enrichedData.map(m => ({
+                    ...m,
+                    totalRepasse: r.find(x => x.month === m.month)?.averagePerProfessional || 0
+                }));
+                return getMinMaxFromData(dataWithSub, 'totalRepasse');
+            }
+        }
+
+        return getMinMaxFromData(enrichedData, fieldToUse);
+    };
+
+    const getMinMaxFromData = (data: any[], field: string) => {
+        const maxItem = data.reduce((max, current) => 
+            current[field] > max[field] ? current : max
+        );
+        const minItem = data.reduce((min, current) => 
+            current[field] < min[field] ? current : min
+        );
+
+        return {
+            max: { value: maxItem[field], month: maxItem.monthName },
+            min: { value: minItem[field], month: minItem.monthName }
+        };
+    };
+
+    const formatMetricValue = (value: number, metric: MetricType) => {
+        const monetaryMetrics = ['totalRevenue', 'totalRepasse', 'averageTicket', 'margin', 'marginPerService'];
+        if (monetaryMetrics.includes(metric) || 
+            (metric === 'totalRevenue' && ['averageTicket', 'margin', 'marginPerService'].includes(selectedRevenueSubMetric)) ||
+            (metric === 'totalRepasse' && selectedRepasseSubMetric !== 'none')) {
+            return formatCurrency(value);
+        }
+        if (metric === 'uniqueClients' && selectedClientsSubMetric === 'churnRate') {
+            return `${value.toFixed(1)}%`;
+        }
+        return Math.round(value).toString();
     };
 
     if (!selectedUnit) {
@@ -669,7 +925,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="chart"
                             iconBgColor="bg-blue-500"
                             isSelected={selectedMetric === 'totalRevenue'}
-                            onClick={() => { setSelectedMetric('totalRevenue'); setSelectedServicesSubMetric('none'); }}
+                            onClick={() => { setSelectedMetric('totalRevenue'); setSelectedServicesSubMetric('none'); setSelectedClientsSubMetric('none'); setSelectedRepasseSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Atendimentos"
@@ -677,7 +933,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="briefcase"
                             iconBgColor="bg-green-500"
                             isSelected={selectedMetric === 'totalServices'}
-                            onClick={() => { setSelectedMetric('totalServices'); setSelectedRevenueSubMetric('none'); setSelectedClientsSubMetric('none'); }}
+                            onClick={() => { setSelectedMetric('totalServices'); setSelectedRevenueSubMetric('none'); setSelectedClientsSubMetric('none'); setSelectedRepasseSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Clientes"
@@ -685,7 +941,7 @@ const DashboardMetricsPage: React.FC = () => {
                             icon="users"
                             iconBgColor="bg-yellow-500"
                             isSelected={selectedMetric === 'uniqueClients'}
-                            onClick={() => { setSelectedMetric('uniqueClients'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); setSelectedClientsSubMetric('none'); }}
+                            onClick={() => { setSelectedMetric('uniqueClients'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); setSelectedRepasseSubMetric('none'); }}
                         />
                          <MetricCard 
                             title="Repasse"
@@ -697,6 +953,692 @@ const DashboardMetricsPage: React.FC = () => {
                         />
                     </div>
 
+                    {/* Cards secundários de Faturamento - posicionados antes do gráfico */}
+                    {!isLoading && selectedMetric === 'totalRevenue' && metrics && (
+                        <div className="mt-6">
+                            {/* 4 colunas em telas largas para manter tudo na mesma linha */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Margem Total (Faturamento - Repasse) */}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedRevenueSubMetric === 'margin'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'margin' ? 'none' : 'margin')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'margin' ? null : 'margin');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {formatCurrency((metrics.totalRevenue || 0) - (metrics.totalRepasse || 0))}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Margem
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'margin' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Margem Total</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Diferença entre o Faturamento total e o Repasse. Representa o lucro bruto da operação.
+                                                </p>
+                                                <p className="text-xs text-text-secondary mt-2 italic">
+                                                    Fórmula: Faturamento - Repasse
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                                
+                                {/* Média por Atendimento */}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedRevenueSubMetric === 'averageTicket'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'averageTicket' ? 'none' : 'averageTicket')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'averageTicket' ? null : 'averageTicket');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {formatCurrency(metrics.averageTicket || 0)}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Média por Atendimento
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'averageTicket' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Média por Atendimento</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Valor médio faturado por cada atendimento realizado no período.
+                                                </p>
+                                                <p className="text-xs text-text-secondary mt-2 italic">
+                                                    Fórmula: Faturamento Total / Número de Atendimentos
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                                
+                                {/* Margem por Atendimento */}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedRevenueSubMetric === 'marginPerService'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'marginPerService' ? 'none' : 'marginPerService')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'marginPerService' ? null : 'marginPerService');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {formatCurrency(metrics.totalServices > 0 ? ((metrics.totalRevenue - metrics.totalRepasse) / metrics.totalServices) : 0)}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Margem por Atendimento
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'marginPerService' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Margem por Atendimento</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Lucro médio obtido por cada atendimento após descontar o repasse.
+                                                </p>
+                                                <p className="text-xs text-text-secondary mt-2 italic">
+                                                    Fórmula: (Faturamento - Repasse) / Número de Atendimentos
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                                
+                                {/* Comparação com mês anterior */}
+                                {(() => {
+                                    if (!previousMonthMetrics) {
+                                        return (
+                                            <div className="flex items-center justify-center text-center h-full">
+                                                <div>
+                                                    <p className="text-2xl font-bold text-text-secondary mb-1">--</p>
+                                                    <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    const { totalRevenue: current } = metrics;
+                                    const { totalRevenue: previous } = previousMonthMetrics;
+                                    if (previous === 0) {
+                                        return (
+                                            <div className="flex items-center justify-center text-center h-full">
+                                                <div>
+                                                    <p className="text-2xl font-bold text-text-secondary mb-1">N/A</p>
+                                                    <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    const change = ((current - previous) / previous) * 100;
+                                    const isPositive = change >= 0;
+                                    return (
+                                        <div className="flex items-center justify-center text-center h-full">
+                                            <div>
+                                                <p className={`text-2xl font-bold mb-1 ${isPositive ? 'text-success' : 'text-danger'}`}>
+                                                    {isPositive ? '+' : ''}{change.toFixed(1)}%
+                                                </p>
+                                                <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Cards secundários de Atendimentos - posicionados antes do gráfico principal */}
+                    {!isLoading && selectedMetric === 'totalServices' && metrics && serviceAnalysis && (
+                        <div className="mt-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Início Mês */}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedServicesSubMetric === 'startOfMonth'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'startOfMonth' ? 'none' : 'startOfMonth')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'startOfMonth' ? null : 'startOfMonth');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {serviceAnalysis.startOfMonthCount || 0}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Início Mês
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'startOfMonth' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Início Mês</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Número de atendimentos realizados para clientes que já existiam no início do mês.
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Evolução */}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedServicesSubMetric === 'evolution'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'evolution' ? 'none' : 'evolution')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'evolution' ? null : 'evolution');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {serviceAnalysis.evolutionCount || 0}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Evolução
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'evolution' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Evolução</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Número de atendimentos realizados para novos clientes que surgiram durante o mês.
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Média por Dia Produtivo */}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedServicesSubMetric === 'productiveDayAvg'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'productiveDayAvg' ? 'none' : 'productiveDayAvg')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'productiveDayAvg' ? null : 'productiveDayAvg');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {serviceAnalysis.averagePerDay || 0}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Média/Dia Produtivo
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'productiveDayAvg' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Média por Dia Produtivo</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Média de atendimentos realizados apenas em dias produtivos (dias com mais de 5 atendimentos).
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Comparação com mês anterior */}
+                                {(() => {
+                                    if (!previousMonthMetrics) {
+                                        return (
+                                            <div className="flex items-center justify-center text-center h-full">
+                                                <div>
+                                                    <p className="text-2xl font-bold text-text-secondary mb-1">--</p>
+                                                    <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    const { totalServices: current } = metrics;
+                                    const { totalServices: previous } = previousMonthMetrics;
+                                    if (previous === 0) {
+                                        return (
+                                            <div className="flex items-center justify-center text-center h-full">
+                                                <div>
+                                                    <p className="text-2xl font-bold text-text-secondary mb-1">N/A</p>
+                                                    <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    const change = ((current - previous) / previous) * 100;
+                                    const isPositive = change >= 0;
+                                    return (
+                                        <div className="flex items-center justify-center text-center h-full">
+                                            <div>
+                                                <p className={`text-2xl font-bold mb-1 ${isPositive ? 'text-success' : 'text-danger'}`}>
+                                                    {isPositive ? '+' : ''}{change.toFixed(1)}%
+                                                </p>
+                                                <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Cards secundários de Clientes - posicionados antes do gráfico principal */}
+                    {!isLoading && selectedMetric === 'uniqueClients' && metrics && previousMonthMetrics && clientAnalysis && (
+                        <div className="mt-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Recorrentes */}
+                                <div 
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedClientsSubMetric === 'recurringCount'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedClientsSubMetric(prev => prev === 'recurringCount' ? 'none' : 'recurringCount')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'clients-recurring' ? null : 'clients-recurring');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {clientAnalysis.recurringCount}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Recorrentes
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'clients-recurring' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Clientes Recorrentes</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Clientes que estavam ativos no mês anterior e continuaram no mês atual.
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Atendimentos por Cliente */}
+                                <div 
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedClientsSubMetric === 'servicesPerClient'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedClientsSubMetric(prev => prev === 'servicesPerClient' ? 'none' : 'servicesPerClient')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'clients-services' ? null : 'clients-services');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {clientAnalysis.servicesPerClient}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Atend. por Cliente
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'clients-services' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Atendimentos por Cliente</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Média de atendimentos realizados por cliente no mês.
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Churn */}
+                                <div 
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedClientsSubMetric === 'churnRate'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedClientsSubMetric(prev => prev === 'churnRate' ? 'none' : 'churnRate')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'clients-churn' ? null : 'clients-churn');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-danger mb-1">
+                                            {clientAnalysis.churnRate}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Churn
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'clients-churn' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Taxa de Churn</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Percentual de clientes do mês anterior que não retornaram neste mês.
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Comparação Mês Anterior */}
+                                {(() => {
+                                    const { uniqueClients: current } = metrics;
+                                    const { uniqueClients: previous } = previousMonthMetrics;
+                                    if (previous === 0) {
+                                        return (
+                                            <div className="flex items-center justify-center text-center h-full">
+                                                <div>
+                                                    <p className="text-2xl font-bold text-text-secondary mb-1">N/A</p>
+                                                    <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    const change = ((current - previous) / previous) * 100;
+                                    const isPositive = change >= 0;
+                                    return (
+                                        <div className="flex items-center justify-center text-center h-full">
+                                            <div>
+                                                <p className={`text-2xl font-bold mb-1 ${isPositive ? 'text-success' : 'text-danger'}`}>
+                                                    {isPositive ? '+' : ''}{change.toFixed(1)}%
+                                                </p>
+                                                <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Cards secundários de Repasse - posicionados antes do gráfico principal */}
+                    {!isLoading && selectedMetric === 'totalRepasse' && metrics && previousMonthMetrics && repasseAnalysis && (
+                        <div className="mt-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Média por Atendimento */}
+                                <div 
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedRepasseSubMetric === 'averagePerService'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedRepasseSubMetric(prev => prev === 'averagePerService' ? 'none' : 'averagePerService')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'repasse-service' ? null : 'repasse-service');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {formatCurrency(repasseAnalysis.averagePerService)}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Média/Atend.
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'repasse-service' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Média por Atendimento</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Valor médio de repasse por atendimento realizado (Repasse total ÷ Total de atendimentos).
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Média por Semana */}
+                                <div 
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedRepasseSubMetric === 'averagePerWeek'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedRepasseSubMetric(prev => prev === 'averagePerWeek' ? 'none' : 'averagePerWeek')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'repasse-week' ? null : 'repasse-week');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {formatCurrency(repasseAnalysis.averagePerWeek)}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Média/Semana
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'repasse-week' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Média por Semana</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Valor médio de repasse semanal (Repasse total ÷ 4,3 semanas).
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Média por Profissional */}
+                                <div 
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                        selectedRepasseSubMetric === 'averagePerProfessional'
+                                            ? 'bg-blue-100 border-blue-500'
+                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                    }`}
+                                    onClick={() => setSelectedRepasseSubMetric(prev => prev === 'averagePerProfessional' ? 'none' : 'averagePerProfessional')}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTooltip(activeTooltip === 'repasse-professional' ? null : 'repasse-professional');
+                                        }}
+                                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-bg-secondary/50 transition-colors z-10"
+                                        title="Informações sobre esta métrica"
+                                    >
+                                        <Icon name="Info" className="w-4 h-4 text-accent-primary" />
+                                    </button>
+                                    <div className="flex flex-col items-center justify-center text-center h-full">
+                                        <p className="text-2xl font-bold text-text-primary mb-1">
+                                            {formatCurrency(repasseAnalysis.averagePerProfessional)}
+                                        </p>
+                                        <p className="text-xs font-medium text-text-secondary">
+                                            Média/Profissional
+                                        </p>
+                                    </div>
+                                    {activeTooltip === 'repasse-professional' && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setActiveTooltip(null)}
+                                            />
+                                            <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
+                                                <p className="text-xs text-text-primary font-semibold mb-1">Média por Profissional</p>
+                                                <p className="text-xs text-text-secondary">
+                                                    Valor médio de repasse por profissional ativo (Repasse total ÷ Número de profissionais).
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Comparação Mês Anterior */}
+                                {(() => {
+                                    const { totalRepasse: current } = metrics;
+                                    const { totalRepasse: previous } = previousMonthMetrics;
+                                    if (previous === 0) {
+                                        return (
+                                            <div className="flex items-center justify-center text-center h-full">
+                                                <div>
+                                                    <p className="text-2xl font-bold text-text-secondary mb-1">N/A</p>
+                                                    <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    const change = ((current - previous) / previous) * 100;
+                                    const isPositive = change >= 0;
+                                    return (
+                                        <div className="flex items-center justify-center text-center h-full">
+                                            <div>
+                                                <p className={`text-2xl font-bold mb-1 ${isPositive ? 'text-success' : 'text-danger'}`}>
+                                                    {isPositive ? '+' : ''}{change.toFixed(1)}%
+                                                </p>
+                                                <p className="text-xs text-text-secondary">Mês Anterior</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="mt-6">
                         <div className="bg-bg-secondary rounded-lg shadow-md">
                             <div
@@ -707,6 +1649,34 @@ const DashboardMetricsPage: React.FC = () => {
                                 <h3 className="text-lg font-semibold text-text-primary">
                                     {getMetricConfig(selectedMetric).title}
                                 </h3>
+                                {(() => {
+                                    const stats = getMinMaxStats(monthlyData, selectedMetric);
+                                    if (stats) {
+                                        return (
+                                            <div className="flex gap-6 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="flex items-center gap-1 text-green-600 font-medium">
+                                                        <Icon name="trending-up" className="w-4 h-4" />
+                                                        Maior:
+                                                    </span>
+                                                    <span className="text-text-secondary">
+                                                        {stats.max.month} - <span className="font-semibold text-text-primary">{formatMetricValue(stats.max.value, selectedMetric)}</span>
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="flex items-center gap-1 text-red-600 font-medium">
+                                                        <Icon name="trending-down" className="w-4 h-4" />
+                                                        Menor:
+                                                    </span>
+                                                    <span className="text-text-secondary">
+                                                        {stats.min.month} - <span className="font-semibold text-text-primary">{formatMetricValue(stats.min.value, selectedMetric)}</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                                 <button className="p-1 rounded-full hover:bg-bg-tertiary">
                                     <Icon name={isChartVisible ? 'chevron-up' : 'chevron-down'} className="w-5 h-5 text-text-secondary" />
                                 </button>
@@ -739,6 +1709,24 @@ const DashboardMetricsPage: React.FC = () => {
                                                                                                                                                 : (c?.churnRate || 0),
                                                                                                                                         } as MonthlyChartData;
                                                                                                                                     })
+                                                                                                                            : selectedMetric === 'totalRepasse' && selectedRepasseSubMetric !== 'none'
+                                                                                                                                ? (() => {
+                                                                                                                                    console.log('[Chart Data] repasseMonthlyData:', repasseMonthlyData);
+                                                                                                                                    console.log('[Chart Data] selectedRepasseSubMetric:', selectedRepasseSubMetric);
+                                                                                                                                    const mappedData = monthlyData.map((m) => {
+                                                                                                                                        const r = repasseMonthlyData.find(x => x.month === m.month);
+                                                                                                                                        console.log(`[Chart Data] Month ${m.month}: found=${!!r}, value=${selectedRepasseSubMetric === 'averagePerService' ? (r?.averagePerService || 0) : selectedRepasseSubMetric === 'averagePerWeek' ? (r?.averagePerWeek || 0) : (r?.averagePerProfessional || 0)}`);
+                                                                                                                                        return {
+                                                                                                                                            ...m,
+                                                                                                                                            totalRepasse:
+                                                                                                                                                selectedRepasseSubMetric === 'averagePerService' ? (r?.averagePerService || 0)
+                                                                                                                                                : selectedRepasseSubMetric === 'averagePerWeek' ? (r?.averagePerWeek || 0)
+                                                                                                                                                : (r?.averagePerProfessional || 0),
+                                                                                                                                        } as MonthlyChartData;
+                                                                                                                                    });
+                                                                                                                                    console.log('[Chart Data] Final mapped data:', mappedData);
+                                                                                                                                    return mappedData;
+                                                                                                                                })()
                                                                                                                                 : monthlyData
                                                                                                                     }
                                                                                                                     selectedMetric={
@@ -747,60 +1735,12 @@ const DashboardMetricsPage: React.FC = () => {
                                                                                                                             : selectedMetric
                                                                                                                     }
                                                                                                                     isLoading={isChartLoading}
+                                                                                                                    invertColors={selectedMetric === 'uniqueClients' && selectedClientsSubMetric === 'churnRate'}
                                                                                                             />
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    {!isLoading && selectedMetric === 'totalRevenue' && metrics && (
-                        <div className="mt-6">
-                            {/* 4 colunas em telas largas para manter tudo na mesma linha */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                {/* Margem Total (Faturamento - Repasse) */}
-                                <SubMetricCard
-                                    title="Margem"
-                                    value={formatCurrency((metrics.totalRevenue || 0) - (metrics.totalRepasse || 0))}
-                                    subtext="Faturamento - Repasse"
-                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'margin' ? 'none' : 'margin')}
-                                    isActive={selectedRevenueSubMetric === 'margin'}
-                                />
-                                {/* Média por Atendimento (já existente) */}
-                                <SubMetricCard
-                                    title="Média por Atendimento"
-                                    value={formatCurrency(metrics.averageTicket || 0)}
-                                    subtext="Faturamento / Atendimentos"
-                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'averageTicket' ? 'none' : 'averageTicket')}
-                                    isActive={selectedRevenueSubMetric === 'averageTicket'}
-                                />
-                                {/* Margem por Atendimento (derivada) */}
-                                <SubMetricCard
-                                    title="Margem por Atendimento"
-                                    value={formatCurrency(metrics.totalServices > 0 ? ((metrics.totalRevenue - metrics.totalRepasse) / metrics.totalServices) : 0)}
-                                    subtext="(Faturamento - Repasse) / Atendimentos"
-                                    onClick={() => setSelectedRevenueSubMetric(prev => prev === 'marginPerService' ? 'none' : 'marginPerService')}
-                                    isActive={selectedRevenueSubMetric === 'marginPerService'}
-                                />
-                                {/* Comparação com mês anterior */}
-                                {(() => {
-                                    if (!previousMonthMetrics) return <SubMetricCard title="Mês Anterior" value="--" />;
-                                    const { totalRevenue: current } = metrics;
-                                    const { totalRevenue: previous } = previousMonthMetrics;
-                                    if (previous === 0) return <SubMetricCard title="Mês Anterior" value="N/A" subtext="Mês anterior sem faturamento" />;
-                                    const change = ((current - previous) / previous) * 100;
-                                    const isPositive = change >= 0;
-                                    return (
-                                        <SubMetricCard
-                                            title="Mês Anterior"
-                                            value={`${isPositive ? '+' : ''}${change.toFixed(1)}%`}
-                                            valueColor={isPositive ? 'text-success' : 'text-danger'}
-                                            subtext={`vs ${formatCurrency(previous)}`}
-                                        />
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                    )}
                     
                                         {!isLoading && selectedMetric === 'totalServices' && (
                       isAnalysisLoading ? (
@@ -848,42 +1788,76 @@ const DashboardMetricsPage: React.FC = () => {
                                 </div>
                             </div>
                             
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                                                <SubMetricCard title="Início Mês" value={String(serviceAnalysis.startOfMonthCount)} subtext="Atendimentos de clientes existentes"
-                                                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'startOfMonth' ? 'none' : 'startOfMonth')}
-                                                                    isActive={selectedServicesSubMetric === 'startOfMonth'}
-                                                                />
-                                                                <SubMetricCard title="Evolução" value={String(serviceAnalysis.evolutionCount)} subtext="Atendimentos de novos clientes"
-                                                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'evolution' ? 'none' : 'evolution')}
-                                                                    isActive={selectedServicesSubMetric === 'evolution'}
-                                                                />
-                                                                <SubMetricCard title="Média/Dia Produtivo" value={String(serviceAnalysis.averagePerDay)} subtext="Dias com >5 atendimentos"
-                                                                    onClick={() => setSelectedServicesSubMetric(prev => prev === 'productiveDayAvg' ? 'none' : 'productiveDayAvg')}
-                                                                    isActive={selectedServicesSubMetric === 'productiveDayAvg'}
-                                                                />
-                                {(() => {
-                                    if (!previousMonthMetrics) return <SubMetricCard title="Mês Anterior" value="--" />;
-                                    const { totalServices: current } = metrics;
-                                    const { totalServices: previous } = previousMonthMetrics;
-                                    if (previous === 0) return <SubMetricCard title="Mês Anterior" value="N/A" subtext="Mês anterior sem atendimentos" />;
-                                    const change = ((current - previous) / previous) * 100;
-                                    const isPositive = change >= 0;
-                                    return (
-                                        <SubMetricCard
-                                            title="Mês Anterior"
-                                            value={`${isPositive ? '+' : ''}${change.toFixed(1)}%`}
-                                            valueColor={isPositive ? 'text-success' : 'text-danger'}
-                                            subtext={`vs ${previous}`}
-                                        />
-                                    );
-                                })()}
-                            </div>
-                            <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-                                <h4 className="text-lg font-semibold text-center text-text-primary mb-4">Análise por Dia da Semana</h4>
-                                <div className="space-y-2">
-                                    {serviceAnalysis.dayOfWeekAnalysis.map(item => (
-                                        <DayAnalysisBar key={item.day} day={item.day} percentage={item.percentage} />
-                                    ))}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Análise por Dia da Semana */}
+                                <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
+                                    <h4 className="text-lg font-semibold text-center text-text-primary mb-4">Análise por Dia da Semana</h4>
+                                    <div className="space-y-2">
+                                        {serviceAnalysis.dayOfWeekAnalysis.map(item => (
+                                            <DayAnalysisBar key={item.day} day={item.day} percentage={item.percentage} />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Período de Atendimento */}
+                                <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
+                                    <h4 className="text-lg font-semibold text-center text-text-primary mb-4">Período de Atendimento</h4>
+                                    <div className="h-96">
+                                        {(() => {
+                                            // Usa os dados de periodAnalysis do serviceAnalysis
+                                            const periodAnalysis = serviceAnalysis?.periodAnalysis || [];
+
+                                            const chartData = periodAnalysis.map(item => ({
+                                                name: `${item.type} horas`,
+                                                value: item.count
+                                            }));
+
+                                            // Cores para o gráfico de pizza
+                                            const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+                                            if (chartData.length === 0) {
+                                                return (
+                                                    <div className="flex items-center justify-center h-full">
+                                                        <p className="text-text-secondary text-sm">Sem dados de período de atendimento</p>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={chartData}
+                                                            cx="40%"
+                                                            cy="50%"
+                                                            labelLine={false}
+                                                            label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                                            outerRadius={100}
+                                                            fill="#8884d8"
+                                                            dataKey="value"
+                                                        >
+                                                            {chartData.map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                            ))}
+                                                        </Pie>
+                                                        <Legend 
+                                                            layout="vertical" 
+                                                            align="right" 
+                                                            verticalAlign="middle"
+                                                            iconType="circle"
+                                                            formatter={(value, entry: any) => {
+                                                                const item = chartData.find(d => d.name === value);
+                                                                return `${value} (${item?.value || 0})`;
+                                                            }}
+                                                        />
+                                                        <Tooltip 
+                                                            formatter={(value: any, name: any) => [`${value} atendimentos`, name]}
+                                                        />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -893,37 +1867,8 @@ const DashboardMetricsPage: React.FC = () => {
                     {!isLoading && selectedMetric === 'uniqueClients' && (
                         isAnalysisLoading ? (
                             <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div></div>
-                        ) : clientAnalysis && metrics && previousMonthMetrics && (
+                        ) : clientAnalysis && (
                             <div className="mt-8 space-y-8">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <SubMetricCard title="Recorrentes" value={String(clientAnalysis.recurringCount)} subtext="Clientes do mês anterior"
-                                      onClick={() => setSelectedClientsSubMetric(prev => prev === 'recurringCount' ? 'none' : 'recurringCount')}
-                                      isActive={selectedClientsSubMetric === 'recurringCount'}
-                                    />
-                                    <SubMetricCard title="Atend. por Cliente" value={clientAnalysis.servicesPerClient} subtext="Média de atendimentos"
-                                      onClick={() => setSelectedClientsSubMetric(prev => prev === 'servicesPerClient' ? 'none' : 'servicesPerClient')}
-                                      isActive={selectedClientsSubMetric === 'servicesPerClient'}
-                                    />
-                                    <SubMetricCard title="Churn" value={clientAnalysis.churnRate} valueColor="text-danger" subtext="Clientes não retornaram"
-                                      onClick={() => setSelectedClientsSubMetric(prev => prev === 'churnRate' ? 'none' : 'churnRate')}
-                                      isActive={selectedClientsSubMetric === 'churnRate'}
-                                    />
-                                    {(() => {
-                                        const { uniqueClients: current } = metrics;
-                                        const { uniqueClients: previous } = previousMonthMetrics;
-                                        if (previous === 0) return <SubMetricCard title="Mês Anterior" value="N/A" subtext="Mês anterior sem clientes" />;
-                                        const change = ((current - previous) / previous) * 100;
-                                        const isPositive = change >= 0;
-                                        return (
-                                            <SubMetricCard
-                                                title="Mês Anterior"
-                                                value={`${isPositive ? '+' : ''}${change.toFixed(1)}%`}
-                                                valueColor={isPositive ? 'text-success' : 'text-danger'}
-                                                subtext={`vs ${previous} clientes`}
-                                            />
-                                        );
-                                    })()}
-                                </div>
                                 <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
                                     <h4 className="text-lg font-semibold text-text-primary mb-4">Composição de Clientes</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -948,28 +1893,8 @@ const DashboardMetricsPage: React.FC = () => {
                     {!isLoading && selectedMetric === 'totalRepasse' && (
                         isAnalysisLoading ? (
                              <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div></div>
-                        ) : repasseAnalysis && metrics && previousMonthMetrics && (
+                        ) : repasseAnalysis && (
                             <div className="mt-8 space-y-8">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <SubMetricCard title="Média/Atend." value={formatCurrency(repasseAnalysis.averagePerService)} subtext="Repasse / Atendimentos" />
-                                    <SubMetricCard title="Média/Semana" value={formatCurrency(repasseAnalysis.averagePerWeek)} subtext="Repasse total / 4.3" />
-                                    <SubMetricCard title="Média/Profissional" value={formatCurrency(repasseAnalysis.averagePerProfessional)} subtext="Repasse / Profissionais" />
-                                     {(() => {
-                                        const { totalRepasse: current } = metrics;
-                                        const { totalRepasse: previous } = previousMonthMetrics;
-                                        if (previous === 0) return <SubMetricCard title="Mês Anterior" value="N/A" subtext="Mês anterior sem repasse" />;
-                                        const change = ((current - previous) / previous) * 100;
-                                        const isPositive = change >= 0;
-                                        return (
-                                            <SubMetricCard
-                                                title="Mês Anterior"
-                                                value={`${isPositive ? '+' : ''}${change.toFixed(1)}%`}
-                                                valueColor={isPositive ? 'text-success' : 'text-danger'}
-                                                subtext={`vs ${formatCurrency(previous)}`}
-                                            />
-                                        );
-                                    })()}
-                                </div>
                                 <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
                                     <h4 className="text-lg font-semibold text-text-primary mb-4">Ranking de Profissionais (Top 10)</h4>
                                     <div className="space-y-3">

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchClients, fetchClientMetricsFromProcessed, fetchAllUnitClientsWithHistory, fetchLastAttendance } from '../../services/analytics/clients.service';
+import { fetchClients, fetchClientMetricsFromProcessed, fetchAllUnitClientsWithHistory, fetchLastAttendance, updateClientAction } from '../../services/analytics/clients.service';
 import { Icon } from '../ui/Icon';
 import ClientDetailModal from '../ui/ClientDetailModal';
 
@@ -9,8 +9,10 @@ interface ClientRow {
   id: string;
   nome: string;
   tipo: string | null;
+  contato?: string | null;
   lastAttendance?: string | null;
   categoria?: string | null;
+  acao?: string | null;
   monthlyCounts?: Record<string, number>;
 }
 
@@ -52,6 +54,9 @@ const ClientsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'ativo' | 'atencao' | 'inativo'>('all');
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement | null>(null);
+  // Estado para controlar qual dropdown de ação está aberto
+  const [openAcaoDropdown, setOpenAcaoDropdown] = useState<string | null>(null);
+  const acaoDropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Normalização local (alinha com o serviço) para chavear overrides por nome
   const normalizeName = (value?: string | null) => {
@@ -169,6 +174,25 @@ const ClientsPage: React.FC = () => {
     };
   }, [isStatusMenuOpen]);
 
+  // Fecha o dropdown de Ação ao clicar fora ou pressionar Esc
+  useEffect(() => {
+    if (!openAcaoDropdown) return;
+    const onClick = (e: MouseEvent) => {
+      if (acaoDropdownRef.current && !acaoDropdownRef.current.contains(e.target as Node)) {
+        setOpenAcaoDropdown(null);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenAcaoDropdown(null);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [openAcaoDropdown]);
+
 
   // Enriquecer a página atual com fallback do último atendimento quando TOTAL estiver ativo
   useEffect(() => {
@@ -220,7 +244,6 @@ const ClientsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary">Clientes{selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
         <div className="flex items-center gap-3">
-          <div className="min-w-[190px]"><PeriodDropdown value={period} onChange={setPeriod} /></div>
           <input
             type="text"
             className="px-3 py-2 rounded-md bg-bg-tertiary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary w-48"
@@ -228,6 +251,7 @@ const ClientsPage: React.FC = () => {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
+          <div className="min-w-[190px]"><PeriodDropdown value={period} onChange={setPeriod} /></div>
         </div>
       </div>
 
@@ -291,8 +315,10 @@ const ClientsPage: React.FC = () => {
           <table className="min-w-full text-sm">
             {activeFilter !== 'atencao' && (
               <colgroup>
-                <col className="w-[45%]" />
+                <col className="w-12" />
+                <col className="w-[35%]" />
                 <col className="w-24" />
+                <col className="w-[20%]" />
                 <col className="w-32" />
                 {/* Status apenas no TOTAL */}
                 {activeFilter === 'total' && <col className="w-32" />}
@@ -300,6 +326,7 @@ const ClientsPage: React.FC = () => {
             )}
             <thead className="bg-bg-tertiary text-text-secondary">
               <tr>
+                <th className="px-2 py-3 text-center w-12">#</th>
                 <th className="px-4 py-3 text-left">Nome</th>
                 {activeFilter === 'atencao' ? (
                   <>
@@ -320,10 +347,12 @@ const ClientsPage: React.FC = () => {
                         <th key={k} className="px-4 py-3 text-center">{fmt(k)}</th>
                       ));
                     })()}
+                    <th className="px-4 py-3 text-center">Ação</th>
                   </>
                 ) : (
                   <>
                     <th className="px-4 py-3 text-center">Tipo</th>
+                    <th className="px-4 py-3 text-center">Contato</th>
                     <th className="px-4 py-3 text-center">Último Atendimento</th>
                     {activeFilter === 'total' && (
                       <th className="px-4 py-3 text-center">
@@ -385,27 +414,77 @@ const ClientsPage: React.FC = () => {
                     className="hover:bg-bg-tertiary cursor-pointer transition-colors duration-150 border-t border-border-secondary"
                     onDoubleClick={() => { setSelectedClientName(c.nome); setIsClientModalOpen(true); }}
                   >
-                    <td className="px-4 py-2 font-medium text-text-primary truncate whitespace-nowrap" title={c.nome}>{c.nome}</td>
+                    <td className="px-2 py-2 text-center text-text-secondary text-xs">{start + idx + 1}</td>
+                    <td className="px-4 py-2 text-sm font-medium text-text-primary truncate whitespace-nowrap" title={c.nome}>{c.nome}</td>
                     {activeFilter === 'atencao' ? (
                       <>
-                        <td className="px-4 py-2 text-center">{c.tipo || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-center">{c.tipo || '-'}</td>
                         {(() => {
                           const keys = c.monthlyCounts ? Object.keys(c.monthlyCounts).sort().reverse() : [];
                           return keys.map((k:string) => (
-                            <td key={k} className="px-4 py-2 text-center">{c.monthlyCounts[k]}</td>
+                            <td key={k} className="px-4 py-2 text-sm text-center">{c.monthlyCounts[k]}</td>
                           ));
                         })()}
+                        <td className="px-4 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          {(() => {
+                            const acaoValue = c.acao || 'Nenhuma';
+                            const styles = {
+                              'Nenhuma': 'bg-gray-500/10 text-gray-600 border-gray-500/30',
+                              'Cancelou': 'bg-red-500/10 text-red-500 border-red-500/30',
+                              'Contatado': 'bg-blue-500/10 text-blue-500 border-blue-500/30'
+                            };
+                            const isOpen = openAcaoDropdown === c.id;
+                            return (
+                              <div className="relative inline-block" ref={isOpen ? acaoDropdownRef : null}>
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenAcaoDropdown(isOpen ? null : c.id)}
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border cursor-pointer ${styles[acaoValue as keyof typeof styles] || ''}`}
+                                >
+                                  {acaoValue}
+                                </button>
+                                {isOpen && (
+                                  <div className="absolute right-0 mt-2 z-20 w-32 rounded-md border border-border-secondary bg-bg-secondary shadow-lg">
+                                    {['Nenhuma', 'Cancelou', 'Contatado'].map(opt => (
+                                      <button
+                                        key={opt}
+                                        className={`block w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-bg-tertiary ${acaoValue === opt ? 'bg-accent-primary text-text-on-accent' : 'text-text-primary'}`}
+                                        onClick={async () => {
+                                          if (!selectedUnit) return;
+                                          const success = await updateClientAction(selectedUnit.unit_code, c.nome, opt);
+                                          if (success) {
+                                            setAtencaoList(prev => 
+                                              prev.map(item => 
+                                                item.id === c.id ? { ...item, acao: opt } : item
+                                              )
+                                            );
+                                          }
+                                          setOpenAcaoDropdown(null);
+                                        }}
+                                      >
+                                        {opt}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
                       </>
                     ) : (
                       <>
-                        <td className="px-4 py-2 text-center">{c.tipo || '-'}</td>
-                        <td className="px-4 py-2 text-center">{(() => {
+                        <td className="px-4 py-2 text-sm text-center">{c.tipo || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-center text-text-secondary truncate" title={c.contato || '-'}>
+                          {c.contato || '-'}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-center">{(() => {
                           const overrideKey = normalizeName(c.nome);
                           const chosen = c.lastAttendance ?? fallbackLastAttendance[overrideKey] ?? null;
                           return chosen ? new Date(chosen + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
                         })()}</td>
                         {activeFilter === 'total' && (
-                          <td className="px-4 py-2 text-center">
+                          <td className="px-4 py-2 text-sm text-center">
                             {(() => {
                               const status = computeStatus(c);
                               const styles = {

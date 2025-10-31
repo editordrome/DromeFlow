@@ -128,7 +128,7 @@ export interface ServiceAnalysisRecord {
 export interface ClientAnalysisData {
   currentMonthClients: Set<string>;
   allPreviousClients: Set<string>;
-  clientDetails: { CLIENTE: string, TIPO: string }[];
+  clientDetails: { CLIENTE: string, PERÍODO: string }[];
 }
 
 export interface RepasseAnalysisRecord {
@@ -144,6 +144,7 @@ export interface UnitClient {
   tipo: string | null;
   endereco: string | null;
   contato: string | null;
+  responsavel?: string | null;
   created_at?: string;
   updated_at?: string;
 }
