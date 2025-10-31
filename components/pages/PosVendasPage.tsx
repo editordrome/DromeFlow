@@ -124,8 +124,8 @@ const PosVendasPage: React.FC = () => {
       const filters: any = {};
       
       // Sempre filtrar pela unidade selecionada (exceto super_admin sem unidade)
-      if (selectedUnit) {
-        filters.unit_id = selectedUnit;
+      if (selectedUnit && selectedUnit.id !== 'ALL') {
+        filters.unit_id = selectedUnit.id;
       } else if (profile?.role !== 'super_admin') {
         // Se não houver unidade selecionada e não for super_admin, não carrega nada
         setAllRecords([]);
