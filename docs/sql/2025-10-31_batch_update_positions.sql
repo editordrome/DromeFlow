@@ -26,6 +26,7 @@ DECLARE
   v_updated_count integer := 0;
   v_failed_count integer := 0;
   v_allowed_tables text[] := ARRAY['recrutadora', 'comercial', 'comercial_columns', 'modules'];
+  v_has_updated_at boolean;
 BEGIN
   -- Validação: apenas tabelas permitidas
   IF NOT (p_table_name = ANY(v_allowed_tables)) THEN
@@ -38,6 +39,14 @@ BEGIN
     RAISE EXCEPTION 'p_updates deve ser um array JSON';
   END IF;
 
+  -- Verifica se a tabela tem coluna updated_at (compatibilidade)
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = p_table_name 
+      AND column_name = 'updated_at'
+  ) INTO v_has_updated_at;
+
   -- Loop pelos updates
   FOR v_update IN SELECT * FROM jsonb_array_elements(p_updates)
   LOOP
@@ -48,12 +57,22 @@ BEGIN
       END IF;
 
       -- Executa o UPDATE de forma segura (identificador escapado, parâmetros parametrizados)
-      EXECUTE format(
-        'UPDATE %I SET position = $1, updated_at = NOW() WHERE id = $2',
-        p_table_name
-      ) USING 
-        (v_update->>'position')::integer,
-        (v_update->>'id')::uuid;
+      -- Atualiza updated_at apenas se a coluna existir
+      IF v_has_updated_at THEN
+        EXECUTE format(
+          'UPDATE %I SET position = $1, updated_at = NOW() WHERE id = $2',
+          p_table_name
+        ) USING 
+          (v_update->>'position')::integer,
+          (v_update->>'id')::uuid;
+      ELSE
+        EXECUTE format(
+          'UPDATE %I SET position = $1 WHERE id = $2',
+          p_table_name
+        ) USING 
+          (v_update->>'position')::integer,
+          (v_update->>'id')::uuid;
+      END IF;
 
       -- Incrementa contador de sucesso
       v_updated_count := v_updated_count + 1;
