@@ -78,6 +78,16 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
 -   Módulos de Administração:
   -   Usuários, Módulos, Unidades: Interfaces de CRUD que interagem com `profiles`, `modules`, `units` via serviços segmentados.
   -   Permissões: Atribuições em `user_units` e `user_modules` pelo modal de "Editar Usuário".
+-   **Pós-Vendas (Sincronização Automática)**:
+  -   **Fonte de Dados**: Tabelas `pos_vendas` (principal) e `processed_data` (origem).
+  -   **Triggers Bidirecionais**:
+    - `auto_create_pos_vendas_from_processed`: Cria registros em `pos_vendas` ao inserir em `processed_data` (AFTER INSERT).
+    - `sync_pos_vendas_status`: Atualiza coluna `"pos vendas"` em `processed_data` quando `status` muda (AFTER UPDATE).
+  -   **Chave Lógica**: `ATENDIMENTO_ID` (UNIQUE constraint em `pos_vendas`).
+  -   **Status Padrão**: Novos registros criados com `status = 'pendente'` e `reagendou = false`.
+  -   **Serviço**: `services/posVendas/posVendas.service.ts` (CRUD + métricas).
+  -   **UI**: `components/pages/PosVendasPage.tsx` com cards filtráveis, tabelas paginadas e webhook opcional.
+  -   **Performance**: Trigger usa `ON CONFLICT DO NOTHING` para evitar duplicações; índice em `ATENDIMENTO_ID`.
   -   Ícones e Visibilidade de Módulos: Em "Gerenciar Módulos", define ícone (lucide) e `allowed_profiles`.
 
 -   Recrutadora:

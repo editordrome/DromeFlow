@@ -98,6 +98,12 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
  - **Unit Keys Admin**: Serviços administrativos expostos em `services/units/unitKeysAdmin.service.ts` (p.ex. `getUnitKeysColumnsStats`, rename/add/drop, set status) e UI correspondente em `components/pages/UnitKeysPage.tsx`.
 - **Centralização**: Qualquer nova regra de upload / métricas deve ir para os serviços segmentados apropriados (por exemplo, `services/ingestion/upload.service.ts` ou `services/analytics/*.service.ts`), não duplique em componentes.
  - **Evolução**: Próxima otimização para reorder será RPC única (batch JSON) reduzindo round-trips.
+ - **Sincronização Pós-Vendas**: 
+   - Fluxo bidirecional via triggers: `processed_data` (INSERT) → `pos_vendas` (criação automática) e `pos_vendas` (UPDATE status) → `processed_data` (coluna `"pos vendas"`).
+   - Chave: `ATENDIMENTO_ID` (UNIQUE); registros duplicados ignorados via `ON CONFLICT DO NOTHING`.
+   - Campos auto-populados: `nome` (CLIENTE), `contato` (whatscliente), `unit_id` (lookup via unidade_code), `data` (DATA).
+   - Status padrão: `pendente`; reagendamento: `false`.
+   - População retroativa: Script SQL [`populate_pos_vendas_from_processed_data()`](docs/sql/2025-10-31_populate_pos_vendas.sql).
 
 ## Guia Rápido: Criar um Novo Módulo (padrão)
 

@@ -30,6 +30,30 @@ Comportamento na UI (layout atual):
 Requisitos de backend:
 - RLS habilitado e políticas permissivas (SELECT/INSERT/UPDATE/DELETE) foram aplicadas para permitir o fluxo atual, com a restrição de permissão feita na UI (apenas super_admin vê/edita Keys). Em produção, recomenda‑se vincular a role via JWT (Supabase Auth) e restringir as políticas pelo claim.
 
+## Pós-Vendas - Sincronização Automática
+
+### Fluxo Bidirecional
+- **processed_data → pos_vendas**: Trigger `auto_create_pos_vendas_from_processed` cria registros automaticamente ao inserir novos atendimentos com `ATENDIMENTO_ID`.
+- **pos_vendas → processed_data**: Trigger `sync_pos_vendas_status` atualiza coluna `"pos vendas"` quando `status` muda.
+
+### Campos Mapeados
+| pos_vendas | ← | processed_data |
+|-----------|---|----------------|
+| `ATENDIMENTO_ID` | ← | `ATENDIMENTO_ID` |
+| `nome` | ← | `CLIENTE` |
+| `contato` | ← | `whatscliente` |
+| `unit_id` | ← | `units.id` (via `unidade_code`) |
+| `data` | ← | `DATA` |
+| `status` | ← | `'pendente'` (padrão) |
+| `reagendou` | ← | `false` (padrão) |
+
+### Comportamento
+- População inicial: Script [`populate_pos_vendas_from_processed_data()`](docs/sql/2025-10-31_populate_pos_vendas.sql)
+- Novos registros: Criados automaticamente via trigger (ON CONFLICT DO NOTHING)
+- Atualizações: Status editado em `pos_vendas` reflete em `processed_data."pos vendas"`
+
+---
+
 - Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).  
    Nota: O barrel `services/index.ts` e o arquivo de compatibilidade `services/mockApi.ts` seguem ativos até a Fase 6 de limpeza.
 - Módulos dinâmicos (icones + allowed_profiles + ordenação drag & drop persistida).

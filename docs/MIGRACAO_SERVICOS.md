@@ -284,6 +284,28 @@ Commit: “refactor(services): remove barrel e mockApi.ts; imports apontam para 
 - Conferir políticas RLS e permissões de leitura/escrita para as tabelas envolvidas.
 - Verificar índices necessários para consultas de analytics.
 
+### Triggers de Sincronização
+
+#### Pós-Vendas (Bidirecionais)
+1. **`auto_create_pos_vendas_from_processed`**
+   - Evento: `AFTER INSERT` em `processed_data`
+   - Função: Cria registros em `pos_vendas` automaticamente
+   - Validação: `ATENDIMENTO_ID` não nulo e não vazio
+   - Conflito: `ON CONFLICT (ATENDIMENTO_ID) DO NOTHING`
+
+2. **`sync_pos_vendas_status`**
+   - Evento: `AFTER UPDATE` em `pos_vendas`
+   - Função: Atualiza coluna `"pos vendas"` em `processed_data`
+   - Condição: Mudança no campo `status`
+
+#### Checklist de Verificação
+- [ ] Índice em `pos_vendas.ATENDIMENTO_ID` (UNIQUE)
+- [ ] Índice em `processed_data.ATENDIMENTO_ID`
+- [ ] Constraint `UNIQUE (ATENDIMENTO_ID)` em `pos_vendas`
+- [ ] RLS configurado em ambas as tabelas
+- [ ] Função `auto_create_pos_vendas_from_processed()` criada
+- [ ] Trigger `trigger_auto_create_pos_vendas` ativo
+
 ## Armadilhas e notas de TypeScript/Build (observadas)
 
 Estas questões não foram introduzidas pela migração de serviços e podem ser tratadas em PRs paralelos, sem bloquear a segmentação:
