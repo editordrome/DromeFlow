@@ -277,23 +277,31 @@ export const getMetrics = async (filters?: {
   distribuicaoNotas: { nota: number; count: number }[];
   statusDistribution: { status: string; count: number }[];
 }> => {
+  console.log('[DEBUG getMetrics] Filtros recebidos:', filters);
+  
   let query = supabase
     .from('pos_vendas')
-    .select('nota, reagendou, status');
+    .select('data, nota, reagendou, status');
 
   if (filters?.unit_id) {
+    console.log('[DEBUG getMetrics] Aplicando filtro unit_id:', filters.unit_id);
     query = query.eq('unit_id', filters.unit_id);
   }
 
   if (filters?.startDate) {
+    console.log('[DEBUG getMetrics] Aplicando filtro startDate:', filters.startDate);
     query = query.gte('data', filters.startDate);
   }
 
   if (filters?.endDate) {
+    console.log('[DEBUG getMetrics] Aplicando filtro endDate:', filters.endDate);
     query = query.lte('data', filters.endDate);
   }
 
   const { data, error } = await query;
+  
+  console.log('[DEBUG getMetrics] Query executada, erro:', error);
+  console.log('[DEBUG getMetrics] Data retornada:', data);
 
   if (error) {
     console.error('Erro ao calcular métricas:', error);
@@ -301,11 +309,30 @@ export const getMetrics = async (filters?: {
   }
 
   const records = data || [];
+  
+  // Debug: Log para verificar os dados
+  console.log('[DEBUG getMetrics] Total de registros:', records.length);
+  console.log('[DEBUG getMetrics] Registros:', records);
+  console.log('[DEBUG getMetrics] Status únicos:', [...new Set(records.map(r => r.status))]);
+  
+  // Contar por status específico
+  const totalContatados = records.filter(r => r.status === 'contatado').length;
+  const totalFinalizados = records.filter(r => r.status === 'finalizado').length;
+  
+  console.log('[DEBUG getMetrics] Total Contatados:', totalContatados);
+  console.log('[DEBUG getMetrics] Total Finalizados:', totalFinalizados);
+  
+  // Soma de contatados + finalizados
+  const totalRespostas = totalContatados + totalFinalizados;
+  
+  // Total de contatos (todos os registros)
   const totalContatos = records.length;
 
-  // Contar por status (funil de respostas)
-  const totalContatados = records.filter(r => r.status === 'contatado' || r.status === 'finalizado').length;
-  const totalFinalizados = records.filter(r => r.status === 'finalizado').length;
+  // Calcular taxa de conversão: percentual que contatados representa no montante (contatados + finalizados)
+  // Se não houver respostas, a taxa é 0%
+  const taxaConversao = totalRespostas > 0 
+    ? Math.round((totalContatados / totalRespostas) * 100) 
+    : 0;
 
   // Calcular NPS (Net Promoter Score)
   const notasValidas = records.filter(r => r.nota !== null);
