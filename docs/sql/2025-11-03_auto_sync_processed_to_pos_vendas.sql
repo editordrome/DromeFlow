@@ -39,7 +39,7 @@ BEGIN
     NEW."ATENDIMENTO_ID",
     v_unit_id,
     NEW."CLIENTE",
-    NEW."CONTATO",
+    NEW.whatscliente, -- Corrigido: campo correto é whatscliente, não CONTATO
     NEW."DATA",
     COALESCE(NEW."pos vendas", 'pendente')::text, -- Se "pos vendas" for NULL, usa 'pendente'
     NULL, -- nota inicial NULL

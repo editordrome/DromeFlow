@@ -2,6 +2,104 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2025-11-03] - Módulo Agendamentos: Atualização em Tempo Real
+
+### ✨ Nova Funcionalidade
+**Sincronização automática da tabela de agendamentos via Realtime**
+
+#### Descrição
+Implementado sistema de atualização em tempo real para o módulo Agendamentos usando Supabase Realtime. A tabela agora reflete mudanças no banco de dados instantaneamente, sem necessidade de recarregar a página.
+
+#### Funcionalidades Implementadas
+
+##### 1. Subscription Realtime
+- **Hook**: `useRealtimeSubscription` configurado para tabela `processed_data`
+- **Eventos Monitorados**:
+  - INSERT: Novos agendamentos aparecem automaticamente
+  - UPDATE: Mudanças de status refletem instantaneamente
+  - DELETE: Registros removidos desaparecem da lista
+- **Filtros Inteligentes**:
+  - Por data ativa (YYYY-MM-DD)
+  - Por unidade selecionada (suporta "Todos")
+  - Evita duplicatas na lista
+
+##### 2. Sincronização de Status
+- **Tempo Real**: Status (Pendente, Aguardando, Confirmado, Recusado) atualiza automaticamente
+- **Multi-Usuário**: Mudanças feitas por outros usuários aparecem instantaneamente
+- **Performance**: Apenas registros relevantes (data + unidade) são monitorados
+- **Logs**: Console logs para debugging (INSERT/UPDATE/DELETE)
+
+#### Configuração do Supabase
+- **SQL**: `docs/sql/2025-11-03_enable_realtime_processed_data.sql`
+- **Comando**: `ALTER PUBLICATION supabase_realtime ADD TABLE processed_data;`
+- **Nota**: Requer execução no Supabase Dashboard ou CLI
+
+#### Arquivos Modificados
+- `components/pages/AppointmentsPage.tsx`: Implementação do hook de realtime
+- `hooks/useRealtimeSubscription.ts`: Hook reutilizável (já existente)
+
+#### Benefícios
+- ✅ Eliminação de refresh manual da página
+- ✅ Experiência multi-usuário sincronizada
+- ✅ Feedback instantâneo de mudanças
+- ✅ Redução de chamadas desnecessárias ao servidor
+- ✅ UX moderna e responsiva
+
+#### Casos de Uso
+- Atendente atualiza status → Todos veem a mudança imediatamente
+- Novo agendamento criado → Aparece na lista automaticamente
+- Status alterado por webhook → Interface reflete mudança sem delay
+
+---
+
+# Changelog
+
+Registro de todas as mudanças notáveis no projeto DromeFlow.
+
+## [2025-11-03] - Correção Crítica: Trigger pos_vendas (Campo CONTATO)
+
+### 🐛 Correção de Bug
+**Erro no trigger de sincronização processed_data → pos_vendas**
+
+#### Problema Identificado
+- **Erro**: `record "new" has no field "CONTATO"`
+- **Causa**: Trigger `sync_processed_data_to_pos_vendas` estava tentando acessar campo `NEW."CONTATO"` que não existe na tabela `processed_data`
+- **Impacto**: Upload de arquivos XLSX falhava ao tentar inserir dados em `processed_data`
+
+#### Solução Aplicada
+- **Campo correto**: `whatscliente` (não `CONTATO`)
+- **Arquivo corrigido**: `docs/sql/2025-11-03_auto_sync_processed_to_pos_vendas.sql`
+- **Script de fix**: `docs/sql/2025-11-03_fix_trigger_contato_field.sql`
+
+#### Para Aplicar a Correção no Supabase
+Execute o script SQL no Editor SQL do Supabase:
+```sql
+CREATE OR REPLACE FUNCTION sync_processed_data_to_pos_vendas()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_unit_id uuid;
+BEGIN
+  SELECT id INTO v_unit_id FROM units WHERE unit_code = NEW.unidade_code LIMIT 1;
+  IF v_unit_id IS NULL THEN
+    RAISE WARNING 'Unidade não encontrada para unit_code: %', NEW.unidade_code;
+  END IF;
+  
+  INSERT INTO pos_vendas (
+    "ATENDIMENTO_ID", unit_id, nome, contato, data, status, nota, reagendou, feedback, created_at, updated_at
+  )
+  VALUES (
+    NEW."ATENDIMENTO_ID", v_unit_id, NEW."CLIENTE", NEW.whatscliente, NEW."DATA",
+    COALESCE(NEW."pos vendas", 'pendente')::text, NULL, FALSE, NULL, NOW(), NOW()
+  )
+  ON CONFLICT ("ATENDIMENTO_ID") DO NOTHING;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+---
+
 ## [2025-11-03] - Módulo Profissionais: CRUD Completo e Toggle de Status
 
 ### ✨ Nova Funcionalidade
