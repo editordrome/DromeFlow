@@ -130,13 +130,13 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         // Quando recolhido, mostrar o nome do módulo como tooltip nativo
         title={isCollapsed ? label : undefined}
         aria-label={isCollapsed ? label : undefined}
-        className={`flex items-center w-full px-4 py-2.5 text-sm rounded-lg transition-colors duration-200 ${
+        className={`flex items-center ${isCollapsed ? 'justify-center' : ''} w-full px-4 py-2.5 text-sm rounded-lg transition-colors duration-200 ${
           isActive
             ? 'bg-accent-primary text-text-on-accent'
             : 'text-gray-300 hover:bg-white/10 hover:text-brand-snow-white'
         } ${className || ''}`}
       >
-        <Icon name={icon} />
+        <Icon name={icon} className={isCollapsed ? 'w-8 h-8' : 'w-5 h-5'} />
         {!isCollapsed && (
           <>
             <span className="ml-4">{label}</span>
@@ -247,7 +247,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
           {!isCollapsed && <span className="ml-2 text-xl font-bold truncate">DromeFlow</span>}
         </div>
         <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1 rounded-full hover:bg-white/10">
-          <Icon name={isCollapsed ? 'menu-unfold' : 'menu-fold'} />
+          <Icon name={isCollapsed ? 'menu-unfold' : 'menu-fold'} className={isCollapsed ? 'w-8 h-8' : 'w-5 h-5'} />
         </button>
       </div>
 
@@ -257,19 +257,27 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
             <label htmlFor="unit-select-top" className="block text-xs font-medium text-gray-400 mb-1">
               Unidade
             </label>
-            <select
-              id="unit-select-top"
-              value={selectedUnit?.id || ''}
-              onChange={handleUnitChange}
-              className="block w-full rounded-md border-gray-600 bg-bg-secondary py-1.5 pl-2 pr-8 text-xs text-text-primary focus:border-accent-primary focus:outline-none focus:ring-accent-primary"
-            >
-              <option value="ALL">Todos</option>
-              {userUnits.map(unit => (
-                <option key={unit.id} value={unit.id}>
-                  {unit.unit_name}
-                </option>
-              ))}
-            </select>
+            {userUnits.length === 1 ? (
+              // Apenas uma unidade: exibir como texto fixo
+              <div className="block w-full rounded-md border border-gray-600 bg-bg-tertiary py-1.5 pl-2 pr-2 text-xs text-text-primary">
+                {userUnits[0].unit_name}
+              </div>
+            ) : (
+              // Múltiplas unidades: exibir dropdown
+              <select
+                id="unit-select-top"
+                value={selectedUnit?.id || ''}
+                onChange={handleUnitChange}
+                className="block w-full rounded-md border-gray-600 bg-bg-secondary py-1.5 pl-2 pr-8 text-xs text-text-primary focus:border-accent-primary focus:outline-none focus:ring-accent-primary"
+              >
+                <option value="ALL">Todos</option>
+                {userUnits.map(unit => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.unit_name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         )}
         <nav className="space-y-2 pt-2">
@@ -301,9 +309,9 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
               onClick={logout}
               aria-label="Sair"
               title="Sair"
-              className="flex items-center justify-center w-9 h-9 rounded-md bg-danger/80 text-brand-snow-white hover:bg-danger focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-2 focus:ring-offset-brand-dark-blue"
+              className="flex items-center justify-center w-12 h-12 rounded-md bg-danger/80 text-brand-snow-white hover:bg-danger focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-2 focus:ring-offset-brand-dark-blue"
             >
-              <Icon name="logout" />
+              <Icon name="logout" className="w-7 h-7" />
             </button>
           </div>
         ) : (
@@ -330,7 +338,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
               aria-label="Sair"
               title="Sair"
             >
-              <Icon name="logout" />
+              <Icon name="logout" className="w-5 h-5" />
             </button>
           </div>
         )}

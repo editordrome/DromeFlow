@@ -105,11 +105,16 @@ export const UserFormModal: React.FC<{
     };
 
     if (user) {
+      // Se um admin está tentando editar um super_admin, força o role para admin
+      const roleToSet = (currentAdminProfile?.role === 'admin' && user.role === UserRole.SUPER_ADMIN) 
+        ? UserRole.ADMIN 
+        : user.role;
+      
       setFormData({
         full_name: user.full_name,
         email: user.email,
         password: '',
-        role: user.role,
+        role: roleToSet,
       });
     } else {
       setFormData({ full_name: '', email: '', password: '', role: UserRole.USER });
@@ -197,7 +202,9 @@ export const UserFormModal: React.FC<{
                 <div>
                   <label htmlFor="role" className="block text-sm font-medium text-text-secondary">Função</label>
                   <select name="role" id="role" value={formData.role} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary">
-                    <option value={UserRole.SUPER_ADMIN}>Super Admin</option>
+                    {currentAdminProfile?.role === 'super_admin' && (
+                      <option value={UserRole.SUPER_ADMIN}>Super Admin</option>
+                    )}
                     <option value={UserRole.ADMIN}>Admin</option>
                     <option value={UserRole.USER}>Usuário</option>
                   </select>

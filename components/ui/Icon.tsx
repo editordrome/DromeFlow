@@ -64,7 +64,7 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
   if (iconPath) {
     return (
       <svg
-        className={`w-6 h-6 flex-shrink-0 ${className || ''}`}
+        className={`flex-shrink-0 ${className || 'w-6 h-6'}`}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -78,7 +78,7 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
   // Último recurso: placeholder
   return (
     <svg
-      className={`w-6 h-6 flex-shrink-0 ${className || ''}`}
+      className={`flex-shrink-0 ${className || 'w-6 h-6'}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
