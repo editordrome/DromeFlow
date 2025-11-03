@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from './Icon';
 import type { Profissional } from '../../services/profissionais/profissionais.service';
 import { useAppContext } from '../../contexts/AppContext';
-import { fetchProfessionalHistory, fetchProfessionalPosVendaMetrics, updateProfissional } from '../../services/profissionais/profissionais.service';
+import { fetchProfessionalHistory, fetchProfessionalPosVendaMetrics, updateProfissional, createProfissional } from '../../services/profissionais/profissionais.service';
 import DataDetailModal from './DataDetailModal';
 import { fetchDataRecordById } from '../../services/data/dataTable.service';
 
@@ -11,11 +11,13 @@ interface Props {
   onClose: () => void;
   profissional: Profissional | null;
   onEdit?: (updated: Profissional) => void;
+  onCreate?: (created: Profissional) => void;
 }
 
-const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissional, onEdit }) => {
+const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissional, onEdit, onCreate }) => {
   const { selectedUnit } = useAppContext();
   const unitCode = (selectedUnit as any)?.unit_code || null;
+  const isCreating = !profissional; // Modo criação quando profissional é null
 
   const [activeTab, setActiveTab] = useState<'inicio' | 'dados' | 'historico'>('inicio');
   const [selectedPeriod, setSelectedPeriod] = useState<string>(() => {
@@ -52,6 +54,11 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
 
   // Detecta mudanças
   const hasChanges = useMemo(() => {
+    // Modo criação: verifica se tem nome preenchido
+    if (isCreating) {
+      return editNome.trim().length > 0;
+    }
+    // Modo edição: verifica se houve alteração
     if (!profissional) return false;
     return (
       editNome !== (profissional.nome || '') ||
@@ -71,35 +78,100 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
       editTelRecado !== (profissional.tel_recado || '') ||
       editObservacao !== (profissional.observacao || '')
     );
-  }, [profissional, editNome, editWhatsapp, editRg, editCpf, editDataNasc, editTipo, editPreferencia, editHabilidade, editEstadoCivil, editFumante, editFilhos, editQtoFilhos, editEndereco, editNomeRecado, editTelRecado, editObservacao]);
+  }, [isCreating, profissional, editNome, editWhatsapp, editRg, editCpf, editDataNasc, editTipo, editPreferencia, editHabilidade, editEstadoCivil, editFumante, editFilhos, editQtoFilhos, editEndereco, editNomeRecado, editTelRecado, editObservacao]);
 
   useEffect(() => {
-    if (profissional && isOpen) {
-      setEditNome(profissional.nome || '');
-      setEditWhatsapp(profissional.whatsapp || '');
-      setEditRg(profissional.rg || '');
-      setEditCpf(profissional.cpf || '');
-      setEditDataNasc(profissional.data_nasc || '');
-      setEditTipo(profissional.tipo || '');
-      setEditPreferencia(profissional.preferencia || '');
-      setEditHabilidade(profissional.habilidade || '');
-      setEditEstadoCivil(profissional.estado_civil || '');
-      setEditFumante(profissional.fumante || '');
-      setEditFilhos(profissional.filhos || '');
-      setEditQtoFilhos(profissional.qto_filhos || '');
-      setEditEndereco(profissional.endereco || '');
-      setEditNomeRecado(profissional.nome_recado || '');
-      setEditTelRecado(profissional.tel_recado || '');
-      setEditObservacao(profissional.observacao || '');
-      setIsEditing(false);
+    if (isOpen) {
+      if (profissional) {
+        // Modo edição - carrega dados existentes
+        setEditNome(profissional.nome || '');
+        setEditWhatsapp(profissional.whatsapp || '');
+        setEditRg(profissional.rg || '');
+        setEditCpf(profissional.cpf || '');
+        setEditDataNasc(profissional.data_nasc || '');
+        setEditTipo(profissional.tipo || '');
+        setEditPreferencia(profissional.preferencia || '');
+        setEditHabilidade(profissional.habilidade || '');
+        setEditEstadoCivil(profissional.estado_civil || '');
+        setEditFumante(profissional.fumante || '');
+        setEditFilhos(profissional.filhos || '');
+        setEditQtoFilhos(profissional.qto_filhos || '');
+        setEditEndereco(profissional.endereco || '');
+        setEditNomeRecado(profissional.nome_recado || '');
+        setEditTelRecado(profissional.tel_recado || '');
+        setEditObservacao(profissional.observacao || '');
+        setIsEditing(false);
+      } else {
+        // Modo criação - limpa campos
+        setEditNome('');
+        setEditWhatsapp('');
+        setEditRg('');
+        setEditCpf('');
+        setEditDataNasc('');
+        setEditTipo('');
+        setEditPreferencia('');
+        setEditHabilidade('');
+        setEditEstadoCivil('');
+        setEditFumante('');
+        setEditFilhos('');
+        setEditQtoFilhos('');
+        setEditEndereco('');
+        setEditNomeRecado('');
+        setEditTelRecado('');
+        setEditObservacao('');
+        setIsEditing(true); // Sempre em modo edição na criação
+      }
       setIsSaving(false);
     }
   }, [profissional, isOpen]);
 
   const onSave = async () => {
-    if (!profissional || !hasChanges) return;
     try {
       setIsSaving(true);
+      
+      // Modo criação
+      if (isCreating) {
+        if (!editNome.trim()) {
+          alert('Nome é obrigatório');
+          return;
+        }
+        
+        const newProfissional: any = {
+          nome: editNome,
+          whatsapp: editWhatsapp || null,
+          rg: editRg || null,
+          cpf: editCpf || null,
+          data_nasc: editDataNasc || null,
+          tipo: editTipo || null,
+          preferencia: editPreferencia || null,
+          habilidade: editHabilidade || null,
+          estado_civil: editEstadoCivil || null,
+          fumante: editFumante || null,
+          filhos: editFilhos || null,
+          qto_filhos: editQtoFilhos || null,
+          endereco: editEndereco || null,
+          nome_recado: editNomeRecado || null,
+          tel_recado: editTelRecado || null,
+          observacao: editObservacao || null,
+          status: 'Ativa', // Status padrão
+          unit_id: selectedUnit && selectedUnit.unit_code !== 'ALL' ? (selectedUnit as any).id : null,
+          recrutadora_id: 0 // Valor padrão, ajustar conforme necessário
+        };
+        
+        console.log('ProfissionalDetailModal: Criando profissional:', newProfissional);
+        const created = await createProfissional(newProfissional);
+        console.log('ProfissionalDetailModal: Resposta do create:', created);
+        
+        if (created && onCreate) {
+          onCreate(created);
+        }
+        onClose();
+        return;
+      }
+      
+      // Modo edição
+      if (!profissional || !hasChanges) return;
+      
       const patch: any = {};
       if (editNome !== (profissional.nome || '')) patch.nome = editNome;
       if (editWhatsapp !== (profissional.whatsapp || '')) patch.whatsapp = editWhatsapp;
@@ -207,14 +279,14 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
     </label>
   );
 
-  if (!isOpen || !profissional) return null;
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" aria-modal="true" role="dialog" onClick={onClose}>
       <div className="w-full max-w-3xl max-h-[90vh] bg-bg-secondary rounded-lg shadow-lg flex flex-col" onClick={(e)=>e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary">
           <div className="min-w-0 flex items-center gap-3">
-            {!isEditing ? (
+            {!isEditing && profissional ? (
               <>
                 <h2 className="text-lg font-semibold text-text-primary truncate" title={profissional.nome || 'Profissional'}>
                   {profissional.nome || 'Profissional'}
@@ -230,12 +302,17 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                   placeholder="Nome do profissional"
                   className="flex-1 min-w-0 px-3 py-1.5 text-lg font-semibold bg-bg-tertiary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs ${profissional.status ? 'border-accent-primary text-accent-primary' : 'border-border-secondary text-text-secondary'}`}>{profissional.status || 'Sem status'}</span>
+                {profissional && (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs ${profissional.status ? 'border-accent-primary text-accent-primary' : 'border-border-secondary text-text-secondary'}`}>{profissional.status || 'Sem status'}</span>
+                )}
+                {isCreating && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs border-emerald-500 text-emerald-500">Novo Cadastro</span>
+                )}
               </div>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {!isEditing ? (
+            {!isEditing && !isCreating ? (
               <button 
                 onClick={() => setIsEditing(true)} 
                 className="p-2 text-sm rounded-md text-text-secondary hover:bg-bg-tertiary"
@@ -255,29 +332,34 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                 </button>
                 <button 
                   onClick={() => {
-                    setIsEditing(false);
-                    // Restaura valores originais
-                    if (profissional) {
-                      setEditNome(profissional.nome || '');
-                      setEditWhatsapp(profissional.whatsapp || '');
-                      setEditRg(profissional.rg || '');
-                      setEditCpf(profissional.cpf || '');
-                      setEditDataNasc(profissional.data_nasc || '');
-                      setEditTipo(profissional.tipo || '');
-                      setEditPreferencia(profissional.preferencia || '');
-                      setEditHabilidade(profissional.habilidade || '');
-                      setEditEstadoCivil(profissional.estado_civil || '');
-                      setEditFumante(profissional.fumante || '');
-                      setEditFilhos(profissional.filhos || '');
-                      setEditQtoFilhos(profissional.qto_filhos || '');
-                      setEditEndereco(profissional.endereco || '');
-                      setEditNomeRecado(profissional.nome_recado || '');
-                      setEditTelRecado(profissional.tel_recado || '');
-                      setEditObservacao(profissional.observacao || '');
+                    if (isCreating) {
+                      // Modo criação: fecha o modal
+                      onClose();
+                    } else {
+                      // Modo edição: cancela edição e restaura valores
+                      setIsEditing(false);
+                      if (profissional) {
+                        setEditNome(profissional.nome || '');
+                        setEditWhatsapp(profissional.whatsapp || '');
+                        setEditRg(profissional.rg || '');
+                        setEditCpf(profissional.cpf || '');
+                        setEditDataNasc(profissional.data_nasc || '');
+                        setEditTipo(profissional.tipo || '');
+                        setEditPreferencia(profissional.preferencia || '');
+                        setEditHabilidade(profissional.habilidade || '');
+                        setEditEstadoCivil(profissional.estado_civil || '');
+                        setEditFumante(profissional.fumante || '');
+                        setEditFilhos(profissional.filhos || '');
+                        setEditQtoFilhos(profissional.qto_filhos || '');
+                        setEditEndereco(profissional.endereco || '');
+                        setEditNomeRecado(profissional.nome_recado || '');
+                        setEditTelRecado(profissional.tel_recado || '');
+                        setEditObservacao(profissional.observacao || '');
+                      }
                     }
                   }} 
                   className="p-2 text-sm rounded-md text-text-secondary hover:bg-bg-tertiary"
-                  title="Cancelar"
+                  title={isCreating ? "Fechar" : "Cancelar"}
                 >
                   <Icon name="x" className="w-5 h-5" />
                 </button>
@@ -292,7 +374,9 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
           <div className="flex items-center gap-2 border-b border-border-secondary">
             <button className={`px-3 py-2 text-sm ${activeTab==='inicio' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary'}`} onClick={()=>setActiveTab('inicio')}>Início</button>
             <button className={`px-3 py-2 text-sm ${activeTab==='dados' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary'}`} onClick={()=>setActiveTab('dados')}>Dados</button>
-            <button className={`px-3 py-2 text-sm ${activeTab==='historico' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary'}`} onClick={()=>setActiveTab('historico')}>Histórico</button>
+            {!isCreating && (
+              <button className={`px-3 py-2 text-sm ${activeTab==='historico' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary'}`} onClick={()=>setActiveTab('historico')}>Histórico</button>
+            )}
             {activeTab === 'historico' && unitCode !== 'ALL' && (
               <div className="ml-auto flex items-center gap-2 py-2">
                 <button
@@ -352,7 +436,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                 <StarMetric title="Comercial" value={metrics.comercial} />
                 <StarMetric title="Residencial" value={metrics.residencial} />
               </div>
-              {!isEditing ? (
+              {!isEditing && profissional ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Item label="WhatsApp" value={profissional.whatsapp} />
                   <Item label="RG" value={profissional.rg} />
@@ -362,7 +446,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                   <Item label="Preferência" value={profissional.preferencia} />
                   <Item label="Habilidade" value={profissional.habilidade} />
                 </div>
-              ) : (
+              ) : isEditing ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <LabeledInput label="WhatsApp" value={editWhatsapp} onChange={setEditWhatsapp} />
                   <LabeledInput label="RG" value={editRg} onChange={setEditRg} />
@@ -372,11 +456,11 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                   <LabeledInput label="Preferência" value={editPreferencia} onChange={setEditPreferencia} />
                   <LabeledInput label="Habilidade" value={editHabilidade} onChange={setEditHabilidade} />
                 </div>
-              )}
+              ) : null}
             </div>
           )}
           {activeTab === 'dados' && (
-            !isEditing ? (
+            !isEditing && profissional ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Item label="Estado Civil" value={profissional.estado_civil} />
                 <Item label="Fumante" value={profissional.fumante} />
@@ -387,7 +471,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                 <Item label="Tel Recado" value={profissional.tel_recado} />
                 <Item label="Observação" value={profissional.observacao} />
               </div>
-            ) : (
+            ) : isEditing ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <LabeledInput label="Estado Civil" value={editEstadoCivil} onChange={setEditEstadoCivil} />
                 <LabeledInput label="Fumante" value={editFumante} onChange={setEditFumante} />
@@ -398,7 +482,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                 <LabeledInput label="Tel Recado" value={editTelRecado} onChange={setEditTelRecado} />
                 <LabeledTextarea label="Observação" value={editObservacao} onChange={setEditObservacao} />
               </div>
-            )
+            ) : null
           )}
           {activeTab === 'historico' && (
             unitCode === 'ALL' ? (

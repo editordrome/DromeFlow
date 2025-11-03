@@ -152,27 +152,40 @@ const ProfissionaisPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-text-primary">
           Profissionais{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}
         </h1>
-        <div className="relative">
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-secondary">
-            <Icon name="search" className="h-4 w-4" />
-          </span>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nome ou WhatsApp"
-            className="w-full max-w-72 pl-9 pr-9 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
-              aria-label="Limpar busca"
-            >
-              <Icon name="x" className="h-4 w-4" />
-            </button>
-          )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setSelected(null);
+              setModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent-primary rounded-lg hover:bg-accent-secondary transition-colors"
+            title="Cadastrar novo profissional"
+          >
+            <Icon name="user-plus" className="w-4 h-4" />
+            Novo Cadastro
+          </button>
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-secondary">
+              <Icon name="search" className="h-4 w-4" />
+            </span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nome ou WhatsApp"
+              className="w-full max-w-72 pl-9 pr-9 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
+                aria-label="Limpar busca"
+              >
+                <Icon name="x" className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -258,24 +271,34 @@ const ProfissionaisPage: React.FC = () => {
                         <td className="px-6 py-3 text-sm text-text-primary cursor-pointer">
                           {r.whatsapp || '-'}
                         </td>
-                        <td className="px-6 py-3 text-center">
-                          <button
-                            onClick={(e) => handleToggleStatus(r, e)}
-                            disabled={isUpdating}
-                            className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                              isAtiva
-                                ? 'bg-green-500/10 text-green-600 border border-green-500/30 hover:bg-green-500/20'
-                                : 'bg-red-500/10 text-red-600 border border-red-500/30 hover:bg-red-500/20'
-                            } ${isUpdating ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
-                            title={isAtiva ? 'Clique para inativar' : 'Clique para ativar'}
-                          >
-                            {isUpdating ? (
-                              <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <Icon name={isAtiva ? 'user-check' : 'user-x'} className="w-3 h-3" />
-                            )}
-                            {isAtiva ? 'Ativa' : 'Inativa'}
-                          </button>
+                        <td className="px-6 py-3">
+                          <div className="flex items-center justify-center gap-3">
+                            <span className={`text-xs font-medium ${isAtiva ? 'text-green-600' : 'text-red-600'}`}>
+                              {isAtiva ? 'Ativa' : 'Inativa'}
+                            </span>
+                            <button
+                              onClick={(e) => handleToggleStatus(r, e)}
+                              disabled={isUpdating}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 ${
+                                isUpdating ? 'opacity-50 cursor-wait' : 'cursor-pointer'
+                              } ${isAtiva ? 'bg-green-500' : 'bg-gray-400'}`}
+                              title={isAtiva ? 'Clique para inativar' : 'Clique para ativar'}
+                              role="switch"
+                              aria-checked={isAtiva}
+                            >
+                              {isUpdating ? (
+                                <span className="absolute inset-0 flex items-center justify-center">
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                </span>
+                              ) : (
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    isAtiva ? 'translate-x-6' : 'translate-x-1'
+                                  }`}
+                                />
+                              )}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -300,6 +323,10 @@ const ProfissionaisPage: React.FC = () => {
           if (selected && selected.id === updated.id) {
             setSelected(updated);
           }
+        }}
+        onCreate={(created) => {
+          // Adiciona o novo profissional à lista
+          setRows(prev => [created, ...prev]);
         }}
       />
     </div>

@@ -81,53 +81,91 @@ export const fetchProfessionalPosVendaMetrics = async (
     return { geral: null, comercial: null, residencial: null };
   }
 
-  const parseScore = (v: any): number | null => {
-    if (v === null || v === undefined) return null;
-    if (typeof v === 'number') {
-      const n = Math.max(0, Math.min(5, v));
-      return Number.isFinite(n) ? n : null;
+  try {
+    // Buscar avaliações da tabela pos_vendas juntamente com dados de processed_data
+    // usando ATENDIMENTO_ID como chave de ligação
+    const { data: posVendasData, error: posVendasError } = await supabase
+      .from('pos_vendas')
+      .select('ATENDIMENTO_ID, nota, status')
+      .eq('status', 'finalizado')
+      .not('nota', 'is', null);
+
+    if (posVendasError) {
+      console.error('Erro ao buscar avaliações de pos_vendas:', posVendasError);
+      return { geral: null, comercial: null, residencial: null };
     }
-    const s = String(v).trim();
-    if (!s) return null;
-    // tenta pegar primeiro número 0-5
-    const m = s.match(/[0-5](?:[.,][0-9])?/);
-    if (m) {
-      const n = parseFloat(m[0].replace(',', '.'));
-      if (!Number.isNaN(n)) return Math.max(0, Math.min(5, n));
+
+    if (!posVendasData || posVendasData.length === 0) {
+      return { geral: null, comercial: null, residencial: null };
     }
-    const n2 = parseFloat(s.replace(',', '.'));
-    if (!Number.isNaN(n2)) return Math.max(0, Math.min(5, n2));
-    return null;
-  };
 
-  const avg = (arr: any[]): number | null => {
-    const vals = arr.map((x) => parseScore((x as any)["pos vendas"]))
-      .filter((n): n is number => typeof n === 'number');
-    if (!vals.length) return null;
-    const sum = vals.reduce((a, b) => a + b, 0);
-    return +(sum / vals.length).toFixed(1);
-  };
+    // Obter ATENDIMENTO_IDs das avaliações
+    const atendimentoIds = posVendasData.map(pv => pv.ATENDIMENTO_ID).filter(Boolean);
 
-  const base = supabase
-    .from('processed_data')
-    .select('"pos vendas", TIPO')
-    .eq('unidade_code', unitCode)
-    .ilike('PROFISSIONAL', `%${profissionalNome}%`)
-    .order('DATA', { ascending: false });
+    if (atendimentoIds.length === 0) {
+      return { geral: null, comercial: null, residencial: null };
+    }
 
-  const baseFiltered = base.clone().not('"pos vendas"', 'is', null).neq('"pos vendas"', '');
+    // Buscar dados de processed_data para obter TIPO e PROFISSIONAL
+    const { data: processedData, error: processedError } = await supabase
+      .from('processed_data')
+      .select('ATENDIMENTO_ID, TIPO, PROFISSIONAL')
+      .eq('unidade_code', unitCode)
+      .ilike('PROFISSIONAL', `%${profissionalNome}%`)
+      .in('ATENDIMENTO_ID', atendimentoIds);
 
-  const [allRes, comercialRes, residencialRes] = await Promise.all([
-    baseFiltered.clone(),
-    baseFiltered.clone().ilike('TIPO', '%comercial%'),
-    baseFiltered.clone().ilike('TIPO', '%residencial%'),
-  ]);
+    if (processedError) {
+      console.error('Erro ao buscar processed_data:', processedError);
+      return { geral: null, comercial: null, residencial: null };
+    }
 
-  const geral = allRes.error ? null : avg((allRes.data as any[]) || []);
-  const comercial = comercialRes.error ? null : avg((comercialRes.data as any[]) || []);
-  const residencial = residencialRes.error ? null : avg((residencialRes.data as any[]) || []);
+    if (!processedData || processedData.length === 0) {
+      return { geral: null, comercial: null, residencial: null };
+    }
 
-  return { geral, comercial, residencial };
+    // Criar mapa de ATENDIMENTO_ID -> nota
+    const notaMap = new Map<string, number>();
+    posVendasData.forEach(pv => {
+      if (pv.ATENDIMENTO_ID && pv.nota) {
+        notaMap.set(pv.ATENDIMENTO_ID, pv.nota);
+      }
+    });
+
+    // Calcular médias por tipo
+    const comercialNotas: number[] = [];
+    const residencialNotas: number[] = [];
+
+    processedData.forEach(item => {
+      if (item.ATENDIMENTO_ID && notaMap.has(item.ATENDIMENTO_ID)) {
+        const nota = notaMap.get(item.ATENDIMENTO_ID)!;
+        const tipo = (item.TIPO || '').toLowerCase();
+        
+        if (tipo.includes('comercial')) {
+          comercialNotas.push(nota);
+        } else if (tipo.includes('residencial')) {
+          residencialNotas.push(nota);
+        }
+      }
+    });
+
+    // Calcular média geral (comercial + residencial)
+    const todasNotas = [...comercialNotas, ...residencialNotas];
+
+    const calcMedia = (notas: number[]): number | null => {
+      if (notas.length === 0) return null;
+      const soma = notas.reduce((acc, n) => acc + n, 0);
+      return +(soma / notas.length).toFixed(1);
+    };
+
+    return {
+      geral: calcMedia(todasNotas),
+      comercial: calcMedia(comercialNotas),
+      residencial: calcMedia(residencialNotas)
+    };
+  } catch (err) {
+    console.error('Erro ao calcular métricas de pós-vendas:', err);
+    return { geral: null, comercial: null, residencial: null };
+  }
 };
 
 // Atualizar dados do profissional
@@ -167,6 +205,28 @@ export const updateProfissional = async (
     console.error('profissionais.service: Erro do Supabase:', error);
     throw new Error(`Erro ao atualizar profissional: ${error.message} (Código: ${error.code})`);
   }
+  return (data as Profissional) || null;
+};
+
+// Criar novo profissional
+export const createProfissional = async (
+  profissionalData: Partial<Omit<Profissional, 'id' | 'created_at' | 'updated_at'>>
+): Promise<Profissional | null> => {
+  console.log('profissionais.service: Criando profissional:', profissionalData);
+  
+  const { data, error } = await supabase
+    .from('profissionais')
+    .insert(profissionalData)
+    .select('*')
+    .single();
+  
+  console.log('profissionais.service: Resposta do INSERT:', { data, error });
+  
+  if (error) {
+    console.error('profissionais.service: Erro ao criar profissional:', error);
+    throw new Error(`Erro ao criar profissional: ${error.message} (Código: ${error.code})`);
+  }
+  
   return (data as Profissional) || null;
 };
 

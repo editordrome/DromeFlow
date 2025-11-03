@@ -109,12 +109,28 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Serviço: `services/units/unitKeys.service.ts` com `fetchUnitKeys`, `createUnitKey`, `updateUnitKey`, `deleteUnitKey`.
   -   UI: Em “Gerenciar Unidades” → Editar → aba “Keys” (somente `super_admin`). Layout atual em formato de tabela com colunas NOME (tipo da key) e KEY (valor), com edição inline e ação de excluir por linha. O botão “Adicionar Key” agora fica na mesma barra das abas.
 
+-   **Profissionais (CRUD Completo)**:
+  -   **Fonte de Dados**: Tabela `profissionais` (gestão de prestadores de serviço).
+  -   **Funcionalidades**:
+    - **Listagem**: Visualização paginada (25 itens/página) com busca por nome/WhatsApp.
+    - **Filtros por Status**: Abas "Todas", "Ativas", "Inativas" com contadores dinâmicos.
+    - **Cadastro**: Botão "Novo Cadastro" no cabeçalho abre modal para criar profissional.
+    - **Edição**: Duplo clique na linha abre modal `ProfissionalDetailModal` com 3 abas (Início, Dados, Histórico).
+    - **Toggle de Status**: Switch moderno (verde/cinza) para ativar/inativar com um clique.
+  -   **Modal de Detalhes**:
+    - Suporta **modo criação** (profissional = null) e **modo edição**.
+    - Campos disponíveis: Nome*, WhatsApp, RG, CPF, Data Nascimento, Tipo, Preferência, Habilidade, Estado Civil, Fumante, Filhos, Endereço, Contatos de Recado, Observações.
+    - Aba "Histórico": Lista últimos atendimentos da profissional filtrados por período (YYYY-MM).
+    - Métricas de pós-venda: Avaliação média geral, comercial e residencial (estrelas 0-5).
+  -   **Serviços**: `services/profissionais/profissionais.service.ts` com `fetchProfissionais`, `createProfissional`, `updateProfissional`, `updateProfissionalStatus`, `fetchProfessionalHistory`, `fetchProfessionalPosVendaMetrics`.
+  -   **UX Aprimorada**: Toggle switch intuitivo, validação de campos obrigatórios, feedback visual de loading.
+
 -   Prestadoras (Profissionais + Recrutadora):
     - Ponto de entrada: `components/pages/PrestadorasPage.tsx`.
     - Serviços: `services/analytics/prestadoras.service.ts` (contagens, métricas mensais, ranking e drill‑down).
     - Cards: Profissionais (ativos), Recrutadora (cadastros), Atendimentos (mês).
     - Painel Profissionais: resumo (médias e atuantes) + ranking (ordenável por atendimentos ou ganhos). Ao clicar numa linha abre modal com atendimentos do profissional no mês.
-    - Painel Recrutadora: métricas mensais inline (cadastros, qualificadas, não aprovadas, desistentes) + “Ativadas no mês (profissionais)” a partir da tabela `profissionais`.
+    - Painel Recrutadora: métricas mensais inline (cadastros, qualificadas, não aprovadas, desistentes) + "Ativadas no mês (profissionais)" a partir da tabela `profissionais`.
     - Comportamento: o ranking fica oculto quando o painel Recrutadora está ativo; Profissionais recarrega automaticamente ao mudar período/unidade quando ativo e é auto-ativado ao entrar.
 
 -   **Clientes**:

@@ -2,6 +2,54 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2025-11-03] - Módulo Profissionais: CRUD Completo e Toggle de Status
+
+### ✨ Nova Funcionalidade
+**Cadastro de profissionais e toggle de status aprimorado**
+
+#### Descrição
+Implementado sistema completo de gerenciamento de profissionais com capacidade de criar novos cadastros e alternância intuitiva de status ativa/inativa.
+
+#### Funcionalidades Implementadas
+
+##### 1. Cadastro de Novos Profissionais
+- **Botão "Novo Cadastro"**: Adicionado no cabeçalho da página Profissionais
+- **Modal de Criação**: `ProfissionalDetailModal` adaptado para suportar modo criação (quando `profissional` é `null`)
+- **Campos disponíveis**:
+  - Nome (obrigatório)
+  - WhatsApp, RG, CPF
+  - Data de Nascimento
+  - Tipo, Preferência, Habilidade
+  - Estado Civil, Fumante, Filhos
+  - Endereço, Contatos de Recado
+  - Observações
+- **Status padrão**: Ativa
+- **Validação**: Nome obrigatório, campos opcionais
+
+##### 2. Toggle Switch de Status
+- **Substituição do botão**: Botão clicável substituído por toggle switch moderno
+- **Visual intuitivo**: 
+  - Verde quando ativa
+  - Cinza quando inativa
+  - Animação suave de transição
+- **Label clara**: Texto "Ativa"/"Inativa" ao lado do toggle
+- **Loading integrado**: Spinner durante atualização
+- **Acessibilidade**: Atributos `role="switch"` e `aria-checked`
+
+#### Arquivos Modificados
+- `services/profissionais/profissionais.service.ts`: Função `createProfissional()` adicionada
+- `components/ui/ProfissionalDetailModal.tsx`: Suporte para modo criação
+- `components/pages/ProfissionaisPage.tsx`: Botão "Novo Cadastro" e toggle switch
+
+#### Benefícios
+- ✅ CRUD completo para profissionais (Create, Read, Update, Delete/Status)
+- ✅ UX moderna e intuitiva com toggle switch
+- ✅ Processo de cadastro simplificado
+- ✅ Feedback visual claro do status
+- ✅ Validação de campos obrigatórios
+
+---
+
 ## [2025-11-03] - Trigger Automático: processed_data → pos_vendas
 
 ### ✨ Nova Funcionalidade
