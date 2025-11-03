@@ -102,14 +102,27 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
 
                 setMessage('Validando colunas...');
                 
+                // Buscar cabeçalhos começando da linha 2 (índice 1), pulando linha 1 que pode estar vazia
                 let headerRowIndex = -1;
                 let headers: string[] = [];
-                for (let i = 0; i < Math.min(jsonData.length, 5); i++) {
+                for (let i = 1; i < Math.min(jsonData.length, 6); i++) {
                     const row = jsonData[i];
-                    if (row && row.some(cell => String(cell).trim().toLowerCase() === 'número')) {
+                    if (row && row.length > 0 && row.some(cell => String(cell).trim().toLowerCase() === 'número')) {
                         headerRowIndex = i;
                         headers = row.map(h => String(h).trim());
                         break;
+                    }
+                }
+                
+                // Fallback: se não encontrar a partir da linha 2, tentar desde a linha 1
+                if (headerRowIndex === -1) {
+                    for (let i = 0; i < Math.min(jsonData.length, 3); i++) {
+                        const row = jsonData[i];
+                        if (row && row.length > 0 && row.some(cell => String(cell).trim().toLowerCase() === 'número')) {
+                            headerRowIndex = i;
+                            headers = row.map(h => String(h).trim());
+                            break;
+                        }
                     }
                 }
                 
@@ -169,11 +182,13 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
 
                     const numero = String(row[headerMap['número']] || row[headerMap['numero']] || '').trim();
                     const dataOriginal = String(row[headerMap['data']] || '').trim();
-                    const valorOriginal = String(row[headerMap['valor (r$)']] || '0').trim();
+                    const valorOriginal = String(row[headerMap['valor']] || row[headerMap['valor (r$)']] || '0').trim();
                     const clienteOriginal = String(row[headerMap['cliente']] || '').trim();
                     const servicoOriginal = String(row[headerMap['serviço']] || row[headerMap['servico']] || '').trim();
                     
-                    if (!numero || !dataOriginal || !clienteOriginal || !servicoOriginal) {
+                    // Validação rigorosa: todos os campos obrigatórios devem ter conteúdo
+                    const numeroTrimmed = numero.trim();
+                    if (!numeroTrimmed || !dataOriginal || !clienteOriginal || !servicoOriginal) {
                         console.warn(`Linha pulada por falta de dados obrigatórios: Número='${numero}', Data='${dataOriginal}', Cliente='${clienteOriginal}', Serviço='${servicoOriginal}'`);
                         continue;
                     }
@@ -195,7 +210,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                     const horasValor = horasIdx !== undefined ? String(row[horasIdx] || '').trim() : '';
 
                     const record: RawDataRecordForUpload = {
-                        orcamento: numero,
+                        ATENDIMENTO_ID: numeroTrimmed,  // Usa a coluna "Número" como ATENDIMENTO_ID
                         DATA: formatarData(dataOriginal),
                         HORARIO: String(row[headerMap['horário']] || '').trim(),
                         VALOR: formatarMoeda(valorOriginal),
@@ -211,17 +226,19 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                         // Novo mapeamento: coluna "Horas" (H) do XLSX -> campo 'PERÍODO'
                         'PERÍODO': horasValor || null,
                         CLIENTE: clienteNome,
-                        PROFISSIONAL: String(row[headerMap['profissionais']] || '').trim(),
+                        // Fix: Converter string vazia em null para compatibilidade com UNIQUE constraint
+                        PROFISSIONAL: (() => {
+                            const val = String(row[headerMap['profissionais']] || '').trim();
+                            return val === '' ? null : val;
+                        })(),
                         ENDEREÇO: String(row[headerMap['local de atendimento']] || '').trim(),
                         DIA: String(row[headerMap['dia da semana']] || '').trim(),
-                        REPASSE: String(row[headerMap['repasse (r$)']] || '0').trim(), // Passa o valor bruto (string)
+                        REPASSE: String(row[headerMap['repasse (r$)']] || row[headerMap['repasse']] || '0').trim(), // Passa o valor bruto (string)
                         whatscliente,
-                        CUPOM: String(row[headerMap['cupom de desconto']] || '').trim(),
+                        CUPOM: String(row[headerMap['cupom de desconto']] || row[headerMap['descontos']] || '').trim(),
                         ORIGEM: String(row[headerMap['origem']] || '').trim(),
                         CADASTRO: formatarData(String(row[headerMap['data de cadastro']] || '').trim()),
-                        NÚMERO: numero,
-                        // Campos que serão definidos no backend
-                        ATENDIMENTO_ID: '',
+                        // Campo IS_DIVISAO será definido no backend durante processamento multi-profissional
                         IS_DIVISAO: '',
                         // Campos padrão
                         ACAO: null,

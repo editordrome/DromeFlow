@@ -127,7 +127,7 @@ export const getPosVenda = async (id: string): Promise<PosVenda | null> => {
 
 /**
  * Busca atendimentos na tabela processed_data para autocomplete
- * Pesquisa por ORCAMENTO, CLIENTE ou DATA
+ * Pesquisa por ATENDIMENTO_ID, CLIENTE ou DATA
  */
 export const searchAtendimentos = async (
   searchTerm: string,
@@ -135,8 +135,8 @@ export const searchAtendimentos = async (
 ): Promise<AtendimentoSearchResult[]> => {
   let query = supabase
     .from('processed_data')
-    .select('ATENDIMENTO_ID, ORCAMENTO, CLIENTE, DATA, SERVIÇO, ENDEREÇO')
-    .or(`ORCAMENTO.ilike.%${searchTerm}%,CLIENTE.ilike.%${searchTerm}%,DATA.ilike.%${searchTerm}%`)
+    .select('ATENDIMENTO_ID, CLIENTE, DATA, SERVIÇO, ENDEREÇO')
+    .or(`ATENDIMENTO_ID.ilike.%${searchTerm}%,CLIENTE.ilike.%${searchTerm}%,DATA.ilike.%${searchTerm}%`)
     .order('DATA', { ascending: false })
     .limit(20);
 
@@ -153,7 +153,6 @@ export const searchAtendimentos = async (
 
   return (data || []).map(item => ({
     ATENDIMENTO_ID: item.ATENDIMENTO_ID,
-    ORCAMENTO: item.ORCAMENTO,
     CLIENTE: item.CLIENTE,
     DATA: item.DATA,
     SERVICO: item['SERVIÇO'],
@@ -167,7 +166,7 @@ export const searchAtendimentos = async (
 export const getAtendimentoById = async (atendimentoId: string): Promise<AtendimentoSearchResult | null> => {
   const { data, error } = await supabase
     .from('processed_data')
-    .select('ATENDIMENTO_ID, ORCAMENTO, CLIENTE, DATA, SERVIÇO, ENDEREÇO')
+    .select('ATENDIMENTO_ID, CLIENTE, DATA, SERVIÇO, ENDEREÇO')
     .eq('ATENDIMENTO_ID', atendimentoId)
     .single();
 
@@ -180,7 +179,6 @@ export const getAtendimentoById = async (atendimentoId: string): Promise<Atendim
 
   return {
     ATENDIMENTO_ID: data.ATENDIMENTO_ID,
-    ORCAMENTO: data.ORCAMENTO,
     CLIENTE: data.CLIENTE,
     DATA: data.DATA,
     SERVICO: data['SERVIÇO'],
@@ -277,31 +275,23 @@ export const getMetrics = async (filters?: {
   distribuicaoNotas: { nota: number; count: number }[];
   statusDistribution: { status: string; count: number }[];
 }> => {
-  console.log('[DEBUG getMetrics] Filtros recebidos:', filters);
-  
   let query = supabase
     .from('pos_vendas')
     .select('data, nota, reagendou, status');
 
   if (filters?.unit_id) {
-    console.log('[DEBUG getMetrics] Aplicando filtro unit_id:', filters.unit_id);
     query = query.eq('unit_id', filters.unit_id);
   }
 
   if (filters?.startDate) {
-    console.log('[DEBUG getMetrics] Aplicando filtro startDate:', filters.startDate);
     query = query.gte('data', filters.startDate);
   }
 
   if (filters?.endDate) {
-    console.log('[DEBUG getMetrics] Aplicando filtro endDate:', filters.endDate);
     query = query.lte('data', filters.endDate);
   }
 
   const { data, error } = await query;
-  
-  console.log('[DEBUG getMetrics] Query executada, erro:', error);
-  console.log('[DEBUG getMetrics] Data retornada:', data);
 
   if (error) {
     console.error('Erro ao calcular métricas:', error);
@@ -310,17 +300,9 @@ export const getMetrics = async (filters?: {
 
   const records = data || [];
   
-  // Debug: Log para verificar os dados
-  console.log('[DEBUG getMetrics] Total de registros:', records.length);
-  console.log('[DEBUG getMetrics] Registros:', records);
-  console.log('[DEBUG getMetrics] Status únicos:', [...new Set(records.map(r => r.status))]);
-  
   // Contar por status específico
   const totalContatados = records.filter(r => r.status === 'contatado').length;
   const totalFinalizados = records.filter(r => r.status === 'finalizado').length;
-  
-  console.log('[DEBUG getMetrics] Total Contatados:', totalContatados);
-  console.log('[DEBUG getMetrics] Total Finalizados:', totalFinalizados);
   
   // Soma de contatados + finalizados
   const totalRespostas = totalContatados + totalFinalizados;

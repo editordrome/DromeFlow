@@ -155,7 +155,21 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   - O `AppContext` expõe a unidade selecionada; os serviços e páginas adotam ramificações específicas para ALL.
 - Dashboard: Agrega por múltiplas unidades respeitando o período ativo; serviços e clientes são conjuntos únicos unificados entre unidades; receita e repasse são somas diretas (ticket médio recalculado). As submétricas mensais de Atendimentos e Clientes possuem variantes multi-unidade dedicadas nos serviços de análise mensal.
 - Dados: `fetchDataTableMulti` aplica `.in('unidade_code', ...)` e filtros de período/paginação de forma unificada.
-- Agendamentos: `fetchAppointmentsMulti` agrega por data; o envio de webhook fica desabilitado quando a unidade selecionada é "Todos" (por segurança e semântica do endpoint).
+-   **Agendamentos (Realtime)**:
+  -   **Fonte de Dados**: Tabela `processed_data` filtrada por data (`DATA`) e unidade (`unidade_code`).
+  -   **Atualização em Tempo Real**: Implementado via `useRealtimeSubscription` hook.
+  -   **Eventos Monitorados**:
+    - INSERT: Novos agendamentos aparecem automaticamente na lista
+    - UPDATE: Status e dados atualizados instantaneamente (sem refresh)
+    - DELETE: Registros removidos desaparecem da tabela
+  -   **Filtros Aplicados**:
+    - Por data ativa (YYYY-MM-DD)
+    - Por unidade selecionada (suporta "Todos" com múltiplos `unit_code`)
+    - Prevenção de duplicatas na renderização
+  -   **Multi-Unidade**: `fetchAppointmentsMulti` agrega por data; o envio de webhook fica desabilitado quando a unidade selecionada é "Todos" (por segurança e semântica do endpoint).
+  -   **Webhook**: Envio POST JSON completo com fallback GET chunked; payload mínimo (`unidade_code`, `data`, opcional `keyword`/`atendimento_id`).
+  -   **Configuração**: Requer `ALTER PUBLICATION supabase_realtime ADD TABLE processed_data;` no Supabase.
+  -   **Performance**: Apenas registros da data ativa são monitorados; logs de debug no console.
 - Clientes: Visualização multi-unidade ainda não implementada; a página informa explicitamente essa limitação quando "Todos" é selecionado.
 - Recrutadora: Semântica ALL específica (vide acima), com DnD restrito e colunas globais.
 

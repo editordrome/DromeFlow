@@ -126,111 +126,56 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Busca de Atendimento */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Buscar Atendimento (opcional)
-            </label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => handleSearchAtendimentos(e.target.value)}
-              placeholder="Digite orçamento, cliente ou data..."
-              className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            
-            {/* Resultados do autocomplete */}
-            {showSearchResults && searchResults.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-bg-primary border border-border-primary rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                {searchResults.map((atendimento) => (
-                  <button
-                    key={atendimento.ATENDIMENTO_ID}
-                    type="button"
-                    onClick={() => handleSelectAtendimento(atendimento)}
-                    className="w-full px-3 py-2 text-left hover:bg-bg-tertiary transition-colors border-b border-border-primary last:border-b-0"
-                  >
-                    <p className="text-sm font-medium text-text-primary">
-                      {atendimento.ORCAMENTO} - {atendimento.CLIENTE}
-                    </p>
-                    <p className="text-xs text-text-secondary">
-                      {atendimento.SERVICO} • {atendimento.DATA}
-                    </p>
-                    {atendimento.ENDERECO && (
-                      <p className="text-xs text-text-secondary">{atendimento.ENDERECO}</p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Atendimento selecionado */}
-            {selectedAtendimento && (
-              <div className="mt-2 p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-text-primary">
-                      {selectedAtendimento.ORCAMENTO} - {selectedAtendimento.CLIENTE}
-                    </p>
-                    <p className="text-xs text-text-secondary mt-1">
-                      ID: {selectedAtendimento.ATENDIMENTO_ID}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedAtendimento(null);
-                      setSearchTerm('');
-                      setFormData(prev => ({ ...prev, ATENDIMENTO_ID: null }));
-                    }}
-                    className="text-text-secondary hover:text-text-primary"
-                  >
-                    <Icon name="X" className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Nome */}
+            {/* ATENDIMENTO_ID - FIXO */}
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
-                Nome do Cliente *
+                ATENDIMENTO ID
               </label>
               <input
                 type="text"
-                value={formData.nome || ''}
-                onChange={(e) => handleChange('nome', e.target.value)}
-                required
-                className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                value={formData.ATENDIMENTO_ID || '-'}
+                readOnly
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-border-primary rounded-lg text-text-secondary cursor-not-allowed"
               />
             </div>
 
-            {/* Contato */}
+            {/* Nome - FIXO */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Nome do Cliente
+              </label>
+              <input
+                type="text"
+                value={formData.nome || '-'}
+                readOnly
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-border-primary rounded-lg text-text-secondary cursor-not-allowed"
+              />
+            </div>
+
+            {/* Contato - FIXO */}
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
                 Contato (Telefone)
               </label>
               <input
                 type="text"
-                value={formData.contato || ''}
-                onChange={(e) => handleChange('contato', e.target.value)}
-                placeholder="(00) 00000-0000"
-                className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                value={formData.contato || '-'}
+                readOnly
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-border-primary rounded-lg text-text-secondary cursor-not-allowed"
               />
             </div>
 
-            {/* Chat ID */}
+            {/* Chat ID - FIXO */}
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
                 Chat ID (WhatsApp)
               </label>
               <input
                 type="text"
-                value={formData.chat_id || ''}
-                onChange={(e) => handleChange('chat_id', e.target.value)}
-                placeholder="5511999999999@c.us"
-                className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                value={formData.chat_id || '-'}
+                readOnly
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-border-primary rounded-lg text-text-secondary cursor-not-allowed"
               />
             </div>
 
@@ -270,33 +215,101 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
               <label className="block text-sm font-medium text-text-secondary mb-2">
                 Avaliação (1-5)
               </label>
+              <div className="flex items-center gap-1 p-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => {
+                      // Se clicar na estrela já selecionada, remove a avaliação
+                      if (formData.nota === star) {
+                        handleChange('nota', null);
+                      } else {
+                        handleChange('nota', star);
+                      }
+                    }}
+                    onMouseEnter={(e) => {
+                      // Efeito hover: iluminar até a estrela atual
+                      const stars = e.currentTarget.parentElement?.querySelectorAll('button');
+                      stars?.forEach((btn, idx) => {
+                        const icon = btn.querySelector('svg');
+                        if (idx < star && icon) {
+                          icon.classList.add('text-yellow-400', 'fill-yellow-400');
+                          icon.classList.remove('text-gray-300');
+                        }
+                      });
+                    }}
+                    onMouseLeave={(e) => {
+                      // Restaurar estado original baseado na nota
+                      const stars = e.currentTarget.parentElement?.querySelectorAll('button');
+                      stars?.forEach((btn, idx) => {
+                        const icon = btn.querySelector('svg');
+                        if (icon) {
+                          if (formData.nota && idx < formData.nota) {
+                            icon.classList.add('text-yellow-400', 'fill-yellow-400');
+                            icon.classList.remove('text-gray-300');
+                          } else {
+                            icon.classList.add('text-gray-300');
+                            icon.classList.remove('text-yellow-400', 'fill-yellow-400');
+                          }
+                        }
+                      });
+                    }}
+                    className="transition-transform hover:scale-110 focus:outline-none"
+                    title={
+                      star === 1 ? 'Muito insatisfeito' :
+                      star === 2 ? 'Insatisfeito' :
+                      star === 3 ? 'Neutro' :
+                      star === 4 ? 'Satisfeito' :
+                      'Muito satisfeito'
+                    }
+                  >
+                    <Icon
+                      name="Star"
+                      className={`w-8 h-8 transition-colors ${
+                        formData.nota && star <= formData.nota
+                          ? 'text-yellow-400 fill-yellow-400'
+                          : 'text-gray-300'
+                      }`}
+                    />
+                  </button>
+                ))}
+                {formData.nota && (
+                  <button
+                    type="button"
+                    onClick={() => handleChange('nota', null)}
+                    className="ml-2 px-2 py-1 text-xs text-text-secondary hover:text-text-primary transition-colors"
+                    title="Remover avaliação"
+                  >
+                    <Icon name="X" className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {formData.nota && (
+                <p className="text-xs text-text-secondary mt-1">
+                  {formData.nota === 1 && 'Muito insatisfeito'}
+                  {formData.nota === 2 && 'Insatisfeito'}
+                  {formData.nota === 3 && 'Neutro'}
+                  {formData.nota === 4 && 'Satisfeito'}
+                  {formData.nota === 5 && 'Muito satisfeito'}
+                </p>
+              )}
+            </div>
+
+            {/* Reagendou */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Reagendou
+              </label>
               <select
-                value={formData.nota || ''}
-                onChange={(e) => handleChange('nota', e.target.value ? parseInt(e.target.value) : null)}
+                value={formData.reagendou ? 'sim' : 'nao'}
+                onChange={(e) => handleChange('reagendou', e.target.value === 'sim')}
                 className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="">Sem avaliação</option>
-                <option value="1">⭐ 1 - Muito insatisfeito</option>
-                <option value="2">⭐⭐ 2 - Insatisfeito</option>
-                <option value="3">⭐⭐⭐ 3 - Neutro</option>
-                <option value="4">⭐⭐⭐⭐ 4 - Satisfeito</option>
-                <option value="5">⭐⭐⭐⭐⭐ 5 - Muito satisfeito</option>
+                <option value="nao">Não</option>
+                <option value="sim">Sim</option>
               </select>
             </div>
-          </div>
-
-          {/* Reagendou */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="reagendou"
-              checked={formData.reagendou || false}
-              onChange={(e) => handleChange('reagendou', e.target.checked)}
-              className="w-4 h-4 text-primary bg-bg-primary border-border-primary rounded focus:ring-2 focus:ring-primary"
-            />
-            <label htmlFor="reagendou" className="text-sm font-medium text-text-secondary">
-              Cliente reagendou o serviço
-            </label>
           </div>
 
           {/* Feedback */}

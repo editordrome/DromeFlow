@@ -5,6 +5,7 @@ import { fetchAppointments, fetchAppointmentsMulti } from '../../services/data/d
 import { DataRecord } from '../../types';
 import DataDetailModal from '../ui/DataDetailModal';
 import { Icon } from '../ui/Icon';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 
 interface DayTab {
   label: string;
@@ -53,7 +54,7 @@ const AppointmentsPage: React.FC = () => {
   // Campo de busca
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const recordKey = (r: DataRecord) => String((r as any).id ?? r.orcamento);
+  const recordKey = (r: DataRecord) => String((r as any).id ?? r.ATENDIMENTO_ID);
 
   // Localiza webhook do módulo de agendamentos (heurística: nome contém 'agend' ou view_id === 'appointments')
   const appointmentsWebhook = useMemo(() => {
@@ -174,7 +175,7 @@ const AppointmentsPage: React.FC = () => {
       return next;
     });
     try {
-      const atendimentoId = String(((rec as any).ATENDIMENTO_ID || (rec as any).id || rec.orcamento) ?? '');
+      const atendimentoId = String(((rec as any).ATENDIMENTO_ID || (rec as any).id) ?? '');
       const result = await sendWebhookPayload([], 0, 'cliente', atendimentoId);
       if (result?.ok) {
         setSendFeedback({ type: 'success', message: 'Envio realizado.' });
@@ -300,6 +301,46 @@ const AppointmentsPage: React.FC = () => {
     }
   }, [activeDate, selectedUnit]);
 
+  // Subscription em tempo real para atualizar automaticamente quando dados mudarem
+  useRealtimeSubscription({
+    table: 'processed_data',
+    enabled: !!activeDate && !!selectedUnit,
+    filter: (record: any) => {
+      // Filtra apenas registros da data ativa
+      if (!activeDate) return false;
+      const recordDate = record.DATA?.split('T')[0] || record.DATA;
+      if (recordDate !== activeDate) return false;
+      
+      // Filtra por unidade
+      if (selectedUnit?.unit_code === 'ALL') {
+        const unitCodes = (userUnits || []).map(u => u.unit_code);
+        return unitCodes.includes(record.unidade_code);
+      }
+      return record.unidade_code === selectedUnit?.unit_code;
+    },
+    callbacks: {
+      onInsert: (newRecord: any) => {
+        console.log('[Realtime] Novo agendamento inserido:', newRecord);
+        setAppointments(prev => {
+          // Evita duplicatas
+          const exists = prev.find(r => (r as any).id === newRecord.id);
+          if (exists) return prev;
+          return [...prev, newRecord as DataRecord];
+        });
+      },
+      onUpdate: (updatedRecord: any) => {
+        console.log('[Realtime] Agendamento atualizado:', updatedRecord);
+        setAppointments(prev =>
+          prev.map(r => ((r as any).id === updatedRecord.id ? updatedRecord as DataRecord : r))
+        );
+      },
+      onDelete: (deletedRecord: any) => {
+        console.log('[Realtime] Agendamento deletado:', deletedRecord);
+        setAppointments(prev => prev.filter(r => (r as any).id !== deletedRecord.id));
+      }
+    }
+  });
+
   const handleCustomDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setActiveDate(e.target.value);
   };
@@ -413,48 +454,80 @@ const AppointmentsPage: React.FC = () => {
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md space-y-6">
       <div className="flex items-center flex-wrap gap-3 justify-between">
         <h1 className="text-2xl font-bold text-text-primary flex items-center flex-wrap gap-x-2">
-          <span>Agendamentos{selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</span>
+          <span>Agendamentos</span>
           {activeDateInfo && (
             <span className="text-base font-normal text-text-secondary">
               {activeDateInfo.formatted} - {activeDateInfo.weekday}
             </span>
           )}
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* Campo de busca */}
           <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center text-text-secondary pointer-events-none">
-              <Icon name="search" className="w-4 h-4" />
-            </span>
+            <label htmlFor="appointments-search" className="sr-only">
+              Buscar agendamentos
+            </label>
             <input
+              id="appointments-search"
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por cliente, profissional..."
-              className="w-full max-w-64 pl-9 pr-9 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary text-text-primary placeholder:text-text-tertiary"
+              className="w-full max-w-64 rounded-md border border-border-secondary bg-bg-tertiary px-3 py-2 pr-8 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
                 aria-label="Limpar busca"
               >
-                <Icon name="x" className="w-4 h-4" />
+                <Icon name="close" className="h-4 w-4" />
               </button>
             )}
           </div>
+
+          {/* Filtros de Status - Apenas ícones */}
+          <div className="flex items-center gap-2">
+            {([
+              { key: 'pendente', label: 'Pendente', icon: 'Clock', color: 'text-amber-500', value: metrics.pendente },
+              { key: 'aguardando', label: 'Aguardando', icon: 'Hourglass', color: 'text-brand-cyan', value: metrics.aguardando },
+              { key: 'confirmado', label: 'Confirmado', icon: 'CheckCircle', color: 'text-brand-green', value: metrics.confirmado },
+              { key: 'recusado', label: 'Recusado', icon: 'XCircle', color: 'text-danger', value: metrics.recusado }
+            ] as const).map(m => {
+              const isActive = activeMetricFilter === (m.key as any);
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setActiveMetricFilter(prev => (prev === m.key ? 'all' : (m.key as any)))}
+                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                    isActive
+                      ? 'border-accent-primary bg-accent-primary text-text-on-accent'
+                      : 'border-border-secondary bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/70'
+                  }`}
+                  aria-pressed={isActive}
+                  aria-label={`Filtrar por ${m.label}`}
+                  title={`${m.label}: ${m.value}`}
+                >
+                  <Icon name={m.icon as any} className={`h-4 w-4 ${isActive ? 'text-text-on-accent' : m.color}`} />
+                </button>
+              );
+            })}
+          </div>
           
           {sendFeedback && (
-            <div className={`text-sm px-3 py-1 rounded-md border ${sendFeedback.type === 'success' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/40' : 'bg-rose-500/10 text-rose-500 border-rose-500/40'}`}>\n+              {sendFeedback.message}\n+            </div>
+            <div className={`text-sm px-3 py-1 rounded-md border ${sendFeedback.type === 'success' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/40' : 'bg-rose-500/10 text-rose-500 border-rose-500/40'}`}>
+              {sendFeedback.message}
+            </div>
           )}
           <button
             type="button"
             disabled={!appointmentsWebhook || isSending || selectedUnit.unit_code === 'ALL'}
             onClick={handleSendWebhook}
-            className={`inline-flex items-center gap-2 h-10 px-5 rounded-md text-sm font-semibold tracking-wide border transition focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm
-              ${appointmentsWebhook ? 'bg-accent-primary text-text-on-accent border-accent-primary hover:bg-accent-primary/90' : 'bg-bg-tertiary text-text-tertiary border-border-secondary'}
-            `}
+            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow transition focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+              appointmentsWebhook ? 'bg-accent-primary text-text-on-accent hover:bg-accent-primary/90 focus:ring-accent-primary' : 'bg-bg-tertiary text-text-tertiary border border-border-secondary'
+            }`}
             aria-disabled={!appointmentsWebhook || isSending}
           >
             {isSending ? (
@@ -472,48 +545,38 @@ const AppointmentsPage: React.FC = () => {
         </div>
       </div>
       
-      {/* Métricas */}
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-            {([
-              { key: 'all', label: 'Total', value: metrics.total, icon: 'calendar', bgColor: 'bg-blue-500' },
-              { key: 'comercial', label: 'Comercial', value: metrics.comercial, icon: 'briefcase', bgColor: 'bg-indigo-500' },
-              { key: 'residencial', label: 'Residencial', value: metrics.residencial, icon: 'home', bgColor: 'bg-purple-500' },
-              { key: 'pendente', label: 'Pendente', value: metrics.pendente, icon: 'clock', bgColor: 'bg-yellow-500' },
-              { key: 'aguardando', label: 'Aguardando', value: metrics.aguardando, icon: 'hourglass', bgColor: 'bg-blue-400' },
-              { key: 'confirmado', label: 'Confirmado', value: metrics.confirmado, icon: 'check-circle', bgColor: 'bg-emerald-500' },
-              { key: 'recusado', label: 'Recusado', value: metrics.recusado, icon: 'x-circle', bgColor: 'bg-rose-500' }
-            ] as const).map(card => {
-              const isActive = activeMetricFilter === card.key;
-              return (
-                <button
-                  key={card.key}
-                  type="button"
-                  onClick={() => setActiveMetricFilter(prev => prev === card.key ? 'all' : card.key as any)}
-                  className={`p-3 rounded-lg shadow-sm flex items-center transition-all group border ${
-                    isActive 
-                      ? 'bg-accent-primary border-accent-secondary' 
-                      : 'bg-bg-secondary hover:bg-bg-tertiary border-transparent'
-                  }`}
-                  aria-pressed={isActive}
-                  aria-label={`Filtrar por ${card.label}`}
-                >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${card.bgColor} text-white group-hover:scale-105 transition-transform ${
-                    isActive ? 'ring-2 ring-white/40' : ''
-                  }`}>
-                    <Icon name={card.icon} className="w-5 h-5" />
-                  </div>
-                  <div className="ml-4 text-left">
-                    <p className={`text-[0.7rem] font-medium uppercase tracking-wide ${
-                      isActive ? 'text-white' : 'text-text-secondary'
-                    }`}>{card.label}</p>
-                    <p className={`text-xl font-bold ${
-                      isActive ? 'text-white' : 'text-text-primary'
-                    }`}>{card.value}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+      {/* Métricas - Cards principais TOTAL, COMERCIAL, RESIDENCIAL */}
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {([
+          { key: 'all', label: 'Total', value: metrics.total, icon: 'calendar', bgColor: 'bg-accent-primary' },
+          { key: 'comercial', label: 'Comercial', value: metrics.comercial, icon: 'briefcase', bgColor: 'bg-brand-cyan' },
+          { key: 'residencial', label: 'Residencial', value: metrics.residencial, icon: 'Home', bgColor: 'bg-brand-green' }
+        ] as const).map(card => {
+          const isActive = activeMetricFilter === card.key;
+          return (
+            <button
+              key={card.key}
+              type="button"
+              onClick={() => setActiveMetricFilter(prev => prev === card.key ? 'all' : card.key as any)}
+              className={`p-3 rounded-lg border transition-all ${
+                isActive 
+                  ? `${card.bgColor} text-white border-transparent shadow-lg` 
+                  : 'bg-bg-secondary border-border-primary hover:shadow-md'
+              }`}
+              aria-pressed={isActive}
+              aria-label={`Filtrar por ${card.label}`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon name={card.icon} className="w-5 h-5" />
+                <span className="text-sm font-medium">{card.label}</span>
+                <span className={`ml-auto text-lg font-bold ${isActive ? 'text-white' : 'text-text-primary'}`}>
+                  {card.value}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
         
         {/* Barra de abas de dias */}
         <div className="mt-4 rounded-lg shadow-md overflow-visible">
@@ -638,7 +701,7 @@ const AppointmentsPage: React.FC = () => {
               ) : (
                 filteredAppointments.map(rec => (
                   <tr
-                    key={rec.id || rec.orcamento}
+                    key={rec.id || rec.ATENDIMENTO_ID}
                     className="border-t border-border-secondary hover:bg-bg-tertiary cursor-pointer"
                     onClick={() => setSelectedRecord(rec)}
                   >
@@ -713,7 +776,7 @@ const AppointmentsPage: React.FC = () => {
           // Atualiza lista e o registro selecionado
           setAppointments(prev => prev.map(r => {
             const sameId = (r.id != null && updated.id != null && r.id === updated.id);
-            const sameKey = r.orcamento && updated.orcamento && r.orcamento === updated.orcamento;
+            const sameKey = r.ATENDIMENTO_ID && updated.ATENDIMENTO_ID && r.ATENDIMENTO_ID === updated.ATENDIMENTO_ID;
             return (sameId || sameKey) ? { ...r, ...updated } as any : r;
           }));
           setSelectedRecord(prev => prev ? ({ ...(prev as any), ...updated } as any) : prev);

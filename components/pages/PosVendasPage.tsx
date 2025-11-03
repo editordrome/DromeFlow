@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from '../ui/Icon';
@@ -10,6 +10,7 @@ import {
   getMetrics
 } from '../../services/posVendas/posVendas.service';
 import PosVendaFormModal from '../ui/PosVendaFormModal';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 
 type ActiveCard = 'geral' | 'finalizados' | 'pendente' | 'contatado';
 
@@ -37,14 +38,12 @@ const PeriodSelector: React.FC<{
   ];
 
   const currentYear = new Date().getFullYear();
-  const years = [currentYear - 1, currentYear, currentYear + 1];
 
-  const options = years.flatMap(year =>
-    months.map(month => ({
-      value: `${year}-${month.value}`,
-      label: `${month.label} ${year}`
-    }))
-  );
+  // Apenas meses do ano atual
+  const options = months.map(month => ({
+    value: `${currentYear}-${month.value}`,
+    label: `${month.label} ${currentYear}`
+  }));
 
   const getDisplayLabel = () => {
     const [year, monthNum] = value.split('-');
@@ -96,6 +95,8 @@ const PosVendasPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
 
   const [allRecords, setAllRecords] = useState<PosVenda[]>([]);
+  const [contatadosRecords, setContatadosRecords] = useState<PosVenda[]>([]);
+  const [finalizadosRecords, setFinalizadosRecords] = useState<PosVenda[]>([]);
   const [pendentesProfissional, setPendentesProfissional] = useState<Array<PosVenda & { PROFISSIONAL: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -103,12 +104,19 @@ const PosVendasPage: React.FC = () => {
   const [activeCard, setActiveCard] = useState<ActiveCard>('geral');
   const [sendingWebhook, setSendingWebhook] = useState<Set<string>>(new Set());
   const [webhookFeedback, setWebhookFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [specificDate, setSpecificDate] = useState<string>(''); // Filtro de data específica
+  const ITEMS_PER_PAGE = 25;
 
   // Localiza webhook do módulo pós-vendas
   const posVendasWebhook = useMemo(() => {
-    const module = userModules.find(m =>
-      m.code === 'pos_vendas' || m.name.toLowerCase().includes('pós-vendas')
-    );
+    const module = userModules.find(m => {
+      const nameMatch = m.name.toLowerCase().includes('pós') || m.name.toLowerCase().includes('vendas');
+      const viewMatch = m.view_id === 'pos_vendas';
+      return nameMatch || viewMatch;
+    });
+    
     return module?.webhook_url || null;
   }, [userModules]);
 
@@ -138,9 +146,9 @@ const PosVendasPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [selectedUnit, selectedPeriod]);
+  }, [selectedUnit, selectedPeriod, specificDate]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const filters: any = {};
@@ -172,30 +180,212 @@ const PosVendasPage: React.FC = () => {
       filters.startDate = startDate;
       filters.endDate = endDate;
 
-      const [data, metricsData, pendenteData] = await Promise.all([
+      // Buscar contatados e finalizados do mês (baseado na data do atendimento)
+      const contatadosFilters = { ...filters, status: 'contatado' };
+      const finalizadosFilters = { ...filters, status: 'finalizado' };
+
+      const [data, metricsData, pendenteData, contatadosData, finalizadosData] = await Promise.all([
         fetchPosVendas(filters),
         getMetrics(filters),
-        fetchPendenteWithProfissional(filters)
+        fetchPendenteWithProfissional(filters),
+        fetchPosVendas(contatadosFilters),
+        fetchPosVendas(finalizadosFilters)
       ]);
 
+      // Filtrar pendentes até o dia anterior E dentro do mês selecionado
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      
+      const startOfMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      
+      const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
+      endOfMonth.setHours(23, 59, 59, 999);
+      
+      let pendentesFiltrados = pendenteData.filter(record => {
+        if (!record.data) return false;
+        // Criar data sem conversão de timezone - comparar strings diretas
+        const dataStr = record.data; // Formato: YYYY-MM-DD
+        const recordDate = new Date(dataStr + 'T00:00:00'); // Adiciona hora para evitar timezone
+        recordDate.setHours(0, 0, 0, 0);
+        
+        const isInMonth = recordDate >= startOfMonth && recordDate <= endOfMonth;
+        const isBeforeToday = recordDate < hoje;
+        
+        // Apenas registros dentro do mês selecionado e anteriores a hoje
+        return isInMonth && isBeforeToday;
+      });
+
+      // Se houver data específica selecionada, filtrar ainda mais
+      if (specificDate) {
+        const targetDate = new Date(specificDate + 'T00:00:00');
+        targetDate.setHours(0, 0, 0, 0);
+        
+        pendentesFiltrados = pendentesFiltrados.filter(record => {
+          if (!record.data) return false;
+          const recordDate = new Date(record.data + 'T00:00:00');
+          recordDate.setHours(0, 0, 0, 0);
+          return recordDate.getTime() === targetDate.getTime();
+        });
+      }
+
       setAllRecords(data);
+      setContatadosRecords(contatadosData);
+      setFinalizadosRecords(finalizadosData);
       setMetrics(metricsData);
-      setPendentesProfissional(pendenteData);
+      setPendentesProfissional(pendentesFiltrados);
     } catch (error) {
       console.error('Erro ao carregar pós-vendas:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedUnit, selectedPeriod, specificDate, profile]);
+
+  // Realtime Subscription para pos_vendas
+  useRealtimeSubscription<PosVenda>({
+    table: 'pos_vendas',
+    filter: (record) => {
+      // Filtrar por unidade (se não for super_admin sem unidade)
+      if (selectedUnit && selectedUnit.id !== 'ALL' && record.unit_id !== selectedUnit.id) {
+        return false;
+      }
+      
+      // Filtrar por período
+      if (record.data) {
+        const [year, month] = selectedPeriod.split('-');
+        const recordDate = new Date(record.data);
+        const recordMonth = recordDate.getMonth() + 1;
+        const recordYear = recordDate.getFullYear();
+        
+        if (recordYear !== parseInt(year) || recordMonth !== parseInt(month)) {
+          return false;
+        }
+      }
+      
+      return true;
+    },
+    callbacks: {
+      onInsert: (newRecord) => {
+        setAllRecords(prev => [...prev, newRecord]);
+        
+        // Se for pendente, adicionar à lista de pendentes com profissional
+        if (newRecord.status === 'pendente') {
+          loadData(); // Recarregar para pegar o join com profissional
+        }
+      },
+      onUpdate: (updatedRecord) => {
+        setAllRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+        
+        // Atualizar também na lista de pendentes se aplicável
+        setPendentesProfissional(prev => 
+          prev.map(r => r.id === updatedRecord.id ? { ...r, ...updatedRecord } : r)
+        );
+        
+        // Atualizar contatados e finalizados
+        if (updatedRecord.status === 'contatado') {
+          setContatadosRecords(prev => {
+            const exists = prev.some(r => r.id === updatedRecord.id);
+            if (exists) {
+              return prev.map(r => r.id === updatedRecord.id ? updatedRecord : r);
+            } else {
+              return [...prev, updatedRecord];
+            }
+          });
+          setFinalizadosRecords(prev => prev.filter(r => r.id !== updatedRecord.id));
+        } else if (updatedRecord.status === 'finalizado') {
+          setFinalizadosRecords(prev => {
+            const exists = prev.some(r => r.id === updatedRecord.id);
+            if (exists) {
+              return prev.map(r => r.id === updatedRecord.id ? updatedRecord : r);
+            } else {
+              return [...prev, updatedRecord];
+            }
+          });
+          setContatadosRecords(prev => prev.filter(r => r.id !== updatedRecord.id));
+        } else {
+          // Se mudou para pendente, remover de contatados/finalizados
+          setContatadosRecords(prev => prev.filter(r => r.id !== updatedRecord.id));
+          setFinalizadosRecords(prev => prev.filter(r => r.id !== updatedRecord.id));
+        }
+      },
+      onDelete: (deletedRecord) => {
+        setAllRecords(prev => prev.filter(r => r.id !== deletedRecord.id));
+        setPendentesProfissional(prev => prev.filter(r => r.id !== deletedRecord.id));
+        setContatadosRecords(prev => prev.filter(r => r.id !== deletedRecord.id));
+        setFinalizadosRecords(prev => prev.filter(r => r.id !== deletedRecord.id));
+      }
+    },
+    enabled: !loading // Apenas habilitar após carregamento inicial
+  });
 
   // Filtrar registros por status
   const getRecordsByStatus = (status: string): PosVenda[] => {
     return allRecords.filter(record => record.status === status);
   };
 
-  const pendentes = getRecordsByStatus('pendente');
-  const contatados = getRecordsByStatus('contatado');
-  const finalizados = getRecordsByStatus('finalizado');
+  // Filtrar pendentes apenas até o dia anterior (ontem) E dentro do mês selecionado
+  const getPendentesFiltrados = (): PosVenda[] => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); // Zera as horas para comparar apenas a data
+    
+    // Extrair ano e mês do período selecionado
+    const [year, month] = selectedPeriod.split('-');
+    const startOfMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    
+    const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
+    endOfMonth.setHours(23, 59, 59, 999);
+    
+    return getRecordsByStatus('pendente').filter(record => {
+      if (!record.data) return false;
+      // Criar data sem conversão de timezone
+      const recordDate = new Date(record.data + 'T00:00:00');
+      recordDate.setHours(0, 0, 0, 0);
+      
+      // Retorna apenas registros:
+      // 1. Dentro do mês selecionado
+      // 2. Com data anterior a hoje
+      return recordDate >= startOfMonth && 
+             recordDate <= endOfMonth && 
+             recordDate < hoje;
+    });
+  };
+
+  const pendentes = getPendentesFiltrados();
+  // Contatados e finalizados vêm de estados separados, filtrados pelo mês do atendimento
+  const contatados = contatadosRecords;
+  const finalizados = finalizadosRecords;
+
+  // Filtrar pela busca (aplicado à lista de pendentes com profissional)
+  const pendentesFiltradosPorBusca = useMemo(() => {
+    if (!searchTerm.trim()) return pendentesProfissional;
+    
+    const term = searchTerm.toLowerCase();
+    return pendentesProfissional.filter(record => 
+      (record.nome?.toLowerCase() || '').includes(term) ||
+      (record.ATENDIMENTO_ID?.toLowerCase() || '').includes(term) ||
+      (record.PROFISSIONAL?.toLowerCase() || '').includes(term)
+    );
+  }, [pendentesProfissional, searchTerm]);
+
+  // Resetar para página 1 quando o termo de busca mudar
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Paginação
+  const totalPages = Math.ceil(pendentesFiltradosPorBusca.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const pendentesPaginados = pendentesFiltradosPorBusca.slice(startIndex, endIndex);
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Deseja realmente excluir este registro?')) return;
@@ -294,7 +484,8 @@ const PosVendasPage: React.FC = () => {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    const date = new Date(dateStr);
+    // Adiciona T00:00:00 para evitar problemas de timezone com datas tipo DATE
+    const date = new Date(dateStr + 'T00:00:00');
     return date.toLocaleDateString('pt-BR');
   };
 
@@ -328,6 +519,152 @@ const PosVendasPage: React.FC = () => {
       </div>
     );
   };
+
+  // Tabela específica para contatados (data, ID, cliente, data de envio)
+  const renderContatadosTable = (records: PosVenda[], emptyMessage: string) => (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-bg-tertiary">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Data
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              ID
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Cliente
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Data de Envio
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border-primary">
+          {records.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-8 text-center text-text-secondary">
+                {emptyMessage}
+              </td>
+            </tr>
+          ) : (
+            records.map((record) => (
+              <tr 
+                key={record.id} 
+                className="hover:bg-bg-tertiary transition-colors cursor-pointer"
+                onDoubleClick={() => handleEdit(record)}
+                title="Duplo clique para editar"
+              >
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary">
+                  {formatDate(record.data)}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary font-mono">
+                  {record.ATENDIMENTO_ID || '-'}
+                </td>
+                <td className="px-4 py-3 text-sm text-text-primary">
+                  <div>
+                    <p className="font-medium">{record.nome || '-'}</p>
+                  </div>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary">
+                  {record.updated_at ? new Date(record.updated_at).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                  }) : '-'}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+      {records.length > 0 && (
+        <div className="px-4 py-3 bg-bg-tertiary text-center text-sm text-text-secondary">
+          Mostrando {records.length} registro{records.length !== 1 ? 's' : ''}
+        </div>
+      )}
+    </div>
+  );
+
+  // Tabela específica para finalizados (data, ID, cliente, nota, reagendou, data de finalização)
+  const renderFinalizadosTable = (records: PosVenda[], emptyMessage: string) => (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-bg-tertiary">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Data
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              ID
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Cliente
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Nota
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Reagendou
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Data de Finalização
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border-primary">
+          {records.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="px-4 py-8 text-center text-text-secondary">
+                {emptyMessage}
+              </td>
+            </tr>
+          ) : (
+            records.map((record) => (
+              <tr 
+                key={record.id} 
+                className="hover:bg-bg-tertiary transition-colors cursor-pointer"
+                onDoubleClick={() => handleEdit(record)}
+                title="Duplo clique para editar"
+              >
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary">
+                  {formatDate(record.data)}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary font-mono">
+                  {record.ATENDIMENTO_ID || '-'}
+                </td>
+                <td className="px-4 py-3 text-sm text-text-primary">
+                  <p className="font-medium">{record.nome || '-'}</p>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {renderStars(record.nota)}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary">
+                  {record.reagendou ? (
+                    <Icon name="Check" className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <Icon name="X" className="w-5 h-5 text-gray-400" />
+                  )}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary">
+                  {record.updated_at ? new Date(record.updated_at).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                  }) : '-'}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+      {records.length > 0 && (
+        <div className="px-4 py-3 bg-bg-tertiary text-center text-sm text-text-secondary">
+          Mostrando {records.length} registro{records.length !== 1 ? 's' : ''}
+        </div>
+      )}
+    </div>
+  );
 
   const renderTable = (records: PosVenda[], emptyMessage: string) => (
     <div className="overflow-x-auto">
@@ -436,23 +773,68 @@ const PosVendasPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Pós-Vendas</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Gestão de feedback e satisfação dos clientes
-          </p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="relative">
+            <label htmlFor="posvendas-search" className="sr-only">
+              Buscar registros
+            </label>
+            <input
+              id="posvendas-search"
+              type="text"
+              placeholder="Buscar cliente, ID ou profissional..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full max-w-64 rounded-md border border-border-secondary bg-bg-tertiary px-3 py-2 pr-8 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                aria-label="Limpar busca"
+              >
+                <Icon name="close" className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="relative">
+            <input
+              type="date"
+              value={specificDate}
+              onChange={(e) => setSpecificDate(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+              style={{ 
+                width: '40px',
+                height: '40px'
+              }}
+              title={specificDate ? `Filtrado por: ${new Date(specificDate).toLocaleDateString('pt-BR')}` : 'Filtrar por data'}
+            />
+            <button
+              className={`p-2 rounded-md border transition-colors ${
+                specificDate 
+                  ? 'bg-primary text-white border-primary' 
+                  : 'bg-bg-secondary text-text-secondary border-border-primary'
+              }`}
+              title={specificDate ? `Filtrado por: ${new Date(specificDate).toLocaleDateString('pt-BR')}` : 'Filtrar por data'}
+            >
+              <Icon name="Calendar" className="w-5 h-5" />
+            </button>
+          </div>
           <PeriodSelector
             value={selectedPeriod}
             onChange={setSelectedPeriod}
             disabled={loading}
           />
-          <button
-            onClick={handleNew}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            <Icon name="Plus" className="w-4 h-4" />
-            Novo Registro
-          </button>
+          {specificDate && (
+            <button
+              onClick={() => setSpecificDate('')}
+              className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+              title="Limpar filtro de data"
+            >
+              <Icon name="X" className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -461,80 +843,69 @@ const PosVendasPage: React.FC = () => {
         {/* Card Geral */}
         <button
           onClick={() => setActiveCard('geral')}
-          className={`p-4 rounded-lg border transition-all ${
+          className={`p-3 rounded-lg border transition-all ${
             activeCard === 'geral'
-              ? 'bg-pink-500 text-white border-pink-500 shadow-lg'
-              : 'bg-bg-secondary border-border-primary hover:border-pink-500'
+              ? 'bg-accent-primary text-white border-accent-primary shadow-lg'
+              : 'bg-bg-secondary border-border-primary hover:border-accent-primary'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <Icon name="BarChart3" className="w-6 h-6" />
-            <div className="text-left">
-              <p className="text-sm font-medium">Geral</p>
-              <p className={`text-xs ${activeCard === 'geral' ? 'text-white/80' : 'text-text-secondary'}`}>
-                Métricas
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <Icon name="BarChart3" className="w-5 h-5" />
+            <span className="text-sm font-medium">Geral</span>
           </div>
         </button>
 
         {/* Card Pendente */}
         <button
           onClick={() => setActiveCard('pendente')}
-          className={`p-4 rounded-lg border transition-all ${
+          className={`p-3 rounded-lg border transition-all ${
             activeCard === 'pendente'
-              ? 'bg-yellow-500 text-white border-yellow-500 shadow-lg'
-              : 'bg-bg-secondary border-border-primary hover:border-yellow-500'
+              ? 'bg-amber-500 text-white border-amber-500 shadow-lg'
+              : 'bg-bg-secondary border-border-primary hover:border-amber-500'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <Icon name="Clock" className="w-6 h-6" />
-            <div className="text-left">
-              <p className="text-sm font-medium">Pendente</p>
-              <p className={`text-xs ${activeCard === 'pendente' ? 'text-white/80' : 'text-text-secondary'}`}>
-                {pendentes.length} registros
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <Icon name="Clock" className="w-5 h-5" />
+            <span className="text-sm font-medium">Pendente</span>
+            <span className={`ml-auto text-lg font-bold ${activeCard === 'pendente' ? 'text-white' : 'text-amber-500'}`}>
+              {pendentesProfissional.length}
+            </span>
           </div>
         </button>
 
         {/* Card Contatado */}
         <button
           onClick={() => setActiveCard('contatado')}
-          className={`p-4 rounded-lg border transition-all ${
+          className={`p-3 rounded-lg border transition-all ${
             activeCard === 'contatado'
-              ? 'bg-blue-500 text-white border-blue-500 shadow-lg'
-              : 'bg-bg-secondary border-border-primary hover:border-blue-500'
+              ? 'bg-brand-cyan text-white border-brand-cyan shadow-lg'
+              : 'bg-bg-secondary border-border-primary hover:border-brand-cyan'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <Icon name="Phone" className="w-6 h-6" />
-            <div className="text-left">
-              <p className="text-sm font-medium">Contatado</p>
-              <p className={`text-xs ${activeCard === 'contatado' ? 'text-white/80' : 'text-text-secondary'}`}>
-                {contatados.length} registros
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <Icon name="Phone" className="w-5 h-5" />
+            <span className="text-sm font-medium">Contatado</span>
+            <span className={`ml-auto text-lg font-bold ${activeCard === 'contatado' ? 'text-white' : 'text-brand-cyan'}`}>
+              {contatados.length}
+            </span>
           </div>
         </button>
 
         {/* Card Finalizado */}
         <button
           onClick={() => setActiveCard('finalizados')}
-          className={`p-4 rounded-lg border transition-all ${
+          className={`p-3 rounded-lg border transition-all ${
             activeCard === 'finalizados'
-              ? 'bg-green-500 text-white border-green-500 shadow-lg'
-              : 'bg-bg-secondary border-border-primary hover:border-green-500'
+              ? 'bg-brand-green text-white border-brand-green shadow-lg'
+              : 'bg-bg-secondary border-border-primary hover:border-brand-green'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <Icon name="CheckCircle" className="w-6 h-6" />
-            <div className="text-left">
-              <p className="text-sm font-medium">Finalizado</p>
-              <p className={`text-xs ${activeCard === 'finalizados' ? 'text-white/80' : 'text-text-secondary'}`}>
-                {finalizados.length} registros
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <Icon name="CheckCircle" className="w-5 h-5" />
+            <span className="text-sm font-medium">Finalizado</span>
+            <span className={`ml-auto text-lg font-bold ${activeCard === 'finalizados' ? 'text-white' : 'text-brand-green'}`}>
+              {finalizados.length}
+            </span>
           </div>
         </button>
       </div>
@@ -542,107 +913,244 @@ const PosVendasPage: React.FC = () => {
       {/* Conteúdo do Card Ativo */}
       <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
         {activeCard === 'geral' && metrics && (
-          <div className="p-6 space-y-6">
-            {/* Métricas Principais - Funil de Respostas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon name="TrendingUp" className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <span className="text-sm font-medium text-purple-800 dark:text-purple-300">Taxa de Conversão</span>
-                </div>
-                <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
-                  {metrics.totalContatados > 0 
-                    ? `${((metrics.totalFinalizados / metrics.totalContatados) * 100).toFixed(1)}%`
-                    : '0%'}
-                </p>
-                <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                  {metrics.totalFinalizados} de {metrics.totalContatados} contatados
-                </p>
-              </div>
-
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon name="Send" className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm font-medium text-blue-800 dark:text-blue-300">Total Contatados</span>
-                </div>
-                <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{metrics.totalContatados}</p>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Avaliação enviada</p>
-              </div>
-
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon name="CheckCircle2" className="w-5 h-5 text-green-600 dark:text-green-400" />
-                  <span className="text-sm font-medium text-green-800 dark:text-green-300">Finalizados</span>
-                </div>
-                <p className="text-3xl font-bold text-green-900 dark:text-green-100">{metrics.totalFinalizados}</p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">Responderam avaliação</p>
-              </div>
-            </div>
-
-            {/* Métricas Principais - Linha 2: Indicadores de Qualidade */}
-            <div>
-              <h3 className="text-lg font-semibold text-text-primary mb-3">Indicadores de Qualidade</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 bg-bg-tertiary rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon name="Users" className="w-5 h-5 text-primary" />
-                    <span className="text-sm font-medium text-text-secondary">Total de Contatos</span>
-                  </div>
-                  <p className="text-3xl font-bold text-text-primary">{metrics.totalContatos}</p>
-                </div>
-
-                <div className="p-4 bg-bg-tertiary rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon name="TrendingUp" className="w-5 h-5 text-primary" />
-                    <span className="text-sm font-medium text-text-secondary">NPS</span>
-                  </div>
-                  <p className="text-3xl font-bold text-text-primary">
-                    {metrics.nps !== null ? `${metrics.nps}%` : '-'}
-                  </p>
-                </div>
-
-                <div className="p-4 bg-bg-tertiary rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon name="RefreshCw" className="w-5 h-5 text-primary" />
-                    <span className="text-sm font-medium text-text-secondary">Taxa de Reagendamento</span>
-                  </div>
-                  <p className="text-3xl font-bold text-text-primary">{metrics.taxaReagendamento}%</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Distribuição de Notas */}
-            <div>
-              <h3 className="text-lg font-semibold text-text-primary mb-4">Distribuição de Avaliações</h3>
-              <div className="space-y-3">
-                {metrics.distribuicaoNotas.map(({ nota, count }) => {
-                  const total = metrics.totalContatos;
-                  const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-                  return (
-                    <div key={nota} className="flex items-center gap-4">
-                      <div className="flex gap-0.5 w-24">
-                        {[1, 2, 3, 4, 5].map(star => (
-                          <Icon
-                            key={star}
-                            name="Star"
-                            className={`w-4 h-4 ${star <= nota ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+          <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Gráfico de Pizza - Taxa de Finalização */}
+              <div className="bg-bg-tertiary rounded-lg border border-border-primary p-6">
+                <h3 className="text-lg font-semibold text-text-primary mb-6">Status de Avaliações</h3>
+                <div className="flex flex-col items-center">
+                  {/* Pizza Chart SVG */}
+                  <svg viewBox="0 0 200 200" className="w-48 h-48">
+                    {(() => {
+                      const total = metrics.totalContatados + metrics.totalFinalizados;
+                      if (total === 0) {
+                        return (
+                          <circle cx="100" cy="100" r="80" fill="#e5e7eb" />
+                        );
+                      }
+                      const finalizadosPercent = (metrics.totalFinalizados / total) * 100;
+                      
+                      // Calcular ângulo para finalizados
+                      const finalizadosAngle = (finalizadosPercent / 100) * 360;
+                      
+                      // Função para calcular coordenadas do arco
+                      const getArcPath = (startAngle: number, endAngle: number) => {
+                        const start = (startAngle - 90) * (Math.PI / 180);
+                        const end = (endAngle - 90) * (Math.PI / 180);
+                        const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+                        
+                        const x1 = 100 + 80 * Math.cos(start);
+                        const y1 = 100 + 80 * Math.sin(start);
+                        const x2 = 100 + 80 * Math.cos(end);
+                        const y2 = 100 + 80 * Math.sin(end);
+                        
+                        return `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                      };
+                      
+                      return (
+                        <>
+                          {/* Fatia Finalizados (verde) */}
+                          <path
+                            d={getArcPath(0, finalizadosAngle)}
+                            fill="#10b981"
+                            className="transition-all hover:opacity-80"
                           />
-                        ))}
+                          {/* Fatia Pendentes/Em andamento (cyan) */}
+                          <path
+                            d={getArcPath(finalizadosAngle, 360)}
+                            fill="#06b6d4"
+                            className="transition-all hover:opacity-80"
+                          />
+                          {/* Texto central com percentual */}
+                          <text x="100" y="95" textAnchor="middle" className="fill-text-primary font-bold text-2xl">
+                            {Math.round(finalizadosPercent)}%
+                          </text>
+                          <text x="100" y="115" textAnchor="middle" className="fill-text-secondary text-xs">
+                            Finalizados
+                          </text>
+                        </>
+                      );
+                    })()}
+                  </svg>
+                  
+                  {/* Legenda */}
+                  <div className="mt-6 space-y-3 w-full">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-brand-green"></div>
+                        <span className="text-sm text-text-secondary">Finalizados</span>
                       </div>
-                      <div className="flex-1">
-                        <div className="h-6 bg-bg-primary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary transition-all"
-                            style={{ width: `${percentage}%` }}
-                          />
+                      <div className="text-right">
+                        <span className="text-lg font-bold text-text-primary">{metrics.totalFinalizados}</span>
+                        <span className="text-xs text-text-secondary ml-2">
+                          ({metrics.totalContatados + metrics.totalFinalizados > 0 
+                            ? Math.round((metrics.totalFinalizados / (metrics.totalContatados + metrics.totalFinalizados)) * 100)
+                            : 0}%)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-brand-cyan"></div>
+                        <span className="text-sm text-text-secondary">Em Andamento</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-lg font-bold text-text-primary">{metrics.totalContatados}</span>
+                        <span className="text-xs text-text-secondary ml-2">
+                          ({metrics.totalContatados + metrics.totalFinalizados > 0 
+                            ? Math.round((metrics.totalContatados / (metrics.totalContatados + metrics.totalFinalizados)) * 100)
+                            : 0}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gráfico de Colunas - Avaliações */}
+              <div className="bg-bg-tertiary rounded-lg border border-border-primary p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-text-primary">Avaliações</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-text-secondary">Nota Média:</span>
+                    <span className="text-lg font-bold text-text-primary">
+                      {(() => {
+                        const somaNotas = metrics.distribuicaoNotas.reduce((acc, { nota, count }) => acc + (nota * count), 0);
+                        const totalRespostas = metrics.distribuicaoNotas.reduce((acc, { count }) => acc + count, 0);
+                        const media = totalRespostas > 0 ? (somaNotas / totalRespostas).toFixed(1) : '0.0';
+                        return media;
+                      })()}
+                    </span>
+                    <Icon name="Star" className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                  </div>
+                </div>
+                <div className="h-64 flex items-end justify-around gap-2 px-4">
+                  {[...metrics.distribuicaoNotas].reverse().map(({ nota, count }) => {
+                    const total = metrics.totalContatos;
+                    const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+                    const heightPercent = total > 0 ? (count / Math.max(...metrics.distribuicaoNotas.map(d => d.count))) * 100 : 0;
+                    
+                    return (
+                      <div key={nota} className="flex-1 flex flex-col items-center gap-2">
+                        {/* Barra */}
+                        <div className="w-full bg-bg-primary rounded-t-lg relative group" style={{ height: '200px' }}>
+                          <div 
+                            className="absolute bottom-0 w-full bg-gradient-to-t from-accent-primary to-brand-cyan rounded-t-lg transition-all duration-300 hover:opacity-80"
+                            style={{ height: `${heightPercent}%` }}
+                          >
+                            {/* Valor no topo da barra */}
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-center">
+                              <span className="text-sm font-bold text-text-primary">{percentage}%</span>
+                              <span className="block text-xs text-text-secondary">({count})</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Label com estrelas */}
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <Icon
+                              key={star}
+                              name="Star"
+                              className={`w-3 h-3 ${star <= nota ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+                            />
+                          ))}
                         </div>
                       </div>
-                      <span className="text-sm font-medium text-text-primary w-20 text-right">
-                        {count} ({percentage}%)
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Tabela de Finalizados */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-4 px-6">
+                <h3 className="text-lg font-semibold text-text-primary">Registros Finalizados</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-text-secondary">Taxa de Reagendamento:</span>
+                  <span className="text-lg font-bold text-brand-green">
+                    {(() => {
+                      const totalFinalizados = finalizados.length;
+                      const totalReagendou = finalizados.filter(r => r.reagendou === true).length;
+                      const percentual = totalFinalizados > 0 ? Math.round((totalReagendou / totalFinalizados) * 100) : 0;
+                      return `${percentual}%`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-bg-tertiary">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                        Data Finalização
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                        Cliente
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                        Profissional
+                      </th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                        Nota
+                      </th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                        Reagendou
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-primary">
+                    {finalizados.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-3 py-6 text-center text-text-secondary">
+                          Nenhum registro finalizado
+                        </td>
+                      </tr>
+                    ) : (
+                      finalizados.map((record) => (
+                        <tr 
+                          key={record.id} 
+                          className="hover:bg-bg-tertiary transition-colors cursor-pointer"
+                          onDoubleClick={() => handleEdit(record)}
+                          title="Duplo clique para editar"
+                        >
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-text-primary">
+                            {record.data_finalizacao ? formatDate(record.data_finalizacao) : formatDate(record.data)}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-text-primary">
+                            {record.cliente}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-text-primary">
+                            {record.profissional || '-'}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {record.nota ? (
+                              <div className="flex items-center justify-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map(star => (
+                                  <Icon
+                                    key={star}
+                                    name="Star"
+                                    className={`w-3 h-3 ${star <= record.nota! ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+                                  />
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-text-secondary">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {record.reagendou ? (
+                              <Icon name="CheckCircle" className="w-5 h-5 text-brand-green mx-auto" />
+                            ) : (
+                              <Icon name="XCircle" className="w-5 h-5 text-text-tertiary mx-auto" />
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -650,6 +1158,19 @@ const PosVendasPage: React.FC = () => {
 
         {activeCard === 'pendente' && (
           <div className="overflow-x-auto">
+            {!posVendasWebhook && (
+              <div className="mb-4 p-3 rounded-lg bg-orange-100 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-800">
+                <div className="flex items-center gap-2 text-orange-800 dark:text-orange-300">
+                  <Icon name="AlertTriangle" className="w-5 h-5" />
+                  <div>
+                    <p className="font-medium">Webhook não configurado</p>
+                    <p className="text-sm text-orange-700 dark:text-orange-400">
+                      Configure a URL do webhook no módulo "Pós-Vendas" em Gerenciar Módulos para habilitar o envio de avaliações.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             {webhookFeedback && (
               <div className={`mb-4 p-3 rounded-lg ${webhookFeedback.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                 {webhookFeedback.message}
@@ -658,54 +1179,68 @@ const PosVendasPage: React.FC = () => {
             <table className="w-full">
               <thead className="bg-bg-tertiary">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                     Data
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                    ID
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                     Cliente
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                     Profissional
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                  <th className="px-3 py-2 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
                     Ação
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-primary">
-                {pendentesProfissional.length === 0 ? (
+                {pendentesFiltradosPorBusca.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-text-secondary">
-                      Nenhum registro pendente
+                    <td colSpan={5} className="px-3 py-6 text-center text-text-secondary">
+                      {searchTerm ? 'Nenhum registro encontrado com esse termo' : 'Nenhum registro pendente'}
                     </td>
                   </tr>
                 ) : (
-                  pendentesProfissional.map((record) => (
-                    <tr key={record.id} className="hover:bg-bg-tertiary transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary">
+                  pendentesPaginados.map((record) => (
+                    <tr 
+                      key={record.id} 
+                      className="hover:bg-bg-tertiary transition-colors cursor-pointer"
+                      onDoubleClick={() => handleEdit(record)}
+                      title="Duplo clique para editar"
+                    >
+                      <td className="px-3 py-2 whitespace-nowrap text-sm text-text-primary">
                         {formatDate(record.data)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-text-primary">
+                      <td className="px-3 py-2 whitespace-nowrap text-sm text-text-secondary">
+                        {record.ATENDIMENTO_ID || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-text-primary">
                         <div>
                           <p className="font-medium">{record.nome || '-'}</p>
-                          {record.ATENDIMENTO_ID && (
-                            <p className="text-xs text-text-secondary">ID: {record.ATENDIMENTO_ID}</p>
-                          )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-text-primary">
+                      <td className="px-3 py-2 text-sm text-text-primary">
                         {record.PROFISSIONAL || '-'}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2 text-center">
                         <button
                           onClick={() => handleSendWebhook(record)}
                           disabled={sendingWebhook.has(record.id) || !posVendasWebhook}
-                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
+                          title={!posVendasWebhook ? 'Webhook não configurado para este módulo' : 'Enviar avaliação'}
+                          className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 mx-auto text-sm"
                         >
                           {sendingWebhook.has(record.id) ? (
                             <>
                               <Icon name="Loader2" className="w-4 h-4 animate-spin" />
                               Enviando...
+                            </>
+                          ) : !posVendasWebhook ? (
+                            <>
+                              <Icon name="AlertCircle" className="w-4 h-4" />
+                              Sem webhook
                             </>
                           ) : (
                             <>
@@ -720,15 +1255,43 @@ const PosVendasPage: React.FC = () => {
                 )}
               </tbody>
             </table>
-            {pendentesProfissional.length > 0 && (
-              <div className="px-4 py-3 bg-bg-tertiary text-center text-sm text-text-secondary">
-                {pendentesProfissional.length} registro(s) pendente(s)
+            {pendentesFiltradosPorBusca.length > 0 && (
+              <div className="bg-bg-tertiary border-t border-border-primary">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="text-sm text-text-secondary">
+                    Mostrando {startIndex + 1}-{Math.min(endIndex, pendentesFiltradosPorBusca.length)} de {pendentesFiltradosPorBusca.length} registro(s)
+                    {searchTerm && pendentesFiltradosPorBusca.length !== pendentesProfissional.length && (
+                      <span className="ml-1">(filtrado de {pendentesProfissional.length})</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handlePreviousPage}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-primary border-border-primary text-text-primary"
+                    >
+                      <Icon name="ChevronLeft" className="w-4 h-4" />
+                      Anterior
+                    </button>
+                    <span className="text-sm text-text-primary px-2">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    <button
+                      onClick={handleNextPage}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-primary border-border-primary text-text-primary"
+                    >
+                      Próxima
+                      <Icon name="ChevronRight" className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         )}
-        {activeCard === 'contatado' && renderTable(contatados, 'Nenhum registro contatado')}
-        {activeCard === 'finalizados' && renderTable(finalizados, 'Nenhum registro finalizado')}
+        {activeCard === 'contatado' && renderContatadosTable(contatados, 'Nenhum registro contatado')}
+        {activeCard === 'finalizados' && renderFinalizadosTable(finalizados, 'Nenhum registro finalizado')}
       </div>
 
       {/* Modal */}

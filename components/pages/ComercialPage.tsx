@@ -325,12 +325,11 @@ const ComercialPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleOpenModal('leads')}
-            className="flex items-center gap-2 rounded-md bg-accent-primary px-3 py-2 text-sm font-semibold text-text-on-accent shadow hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary"
+            className="flex items-center justify-center rounded-md bg-accent-primary p-2 text-sm font-semibold text-text-on-accent shadow hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary"
             disabled={isAllUnits}
             title={isAllUnits ? 'Selecione uma unidade específica para adicionar oportunidades.' : 'Nova oportunidade'}
           >
             <Icon name="Plus" className="h-4 w-4" />
-            Nova oportunidade
           </button>
         </div>
       </div>

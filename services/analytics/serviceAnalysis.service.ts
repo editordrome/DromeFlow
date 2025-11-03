@@ -38,7 +38,7 @@ export const fetchServiceAnalysisData = async (
 export const fetchServicePeriodAnalysisData = async (
   unitCode: string,
   period: string
-): Promise<{ PERÍODO: string }[]> => {
+): Promise<{ PERÍODO: string; TIPO?: string }[]> => {
   if (!/^\d{4}-\d{2}$/.test(period)) return [];
   const [year, month] = period.split('-').map(Number);
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -46,7 +46,7 @@ export const fetchServicePeriodAnalysisData = async (
   
   const { data, error } = await supabase
     .from('processed_data')
-    .select('"PERÍODO"')
+    .select('"PERÍODO", "TIPO"')
     .eq('unidade_code', unitCode)
     .gte('DATA', startDate)
     .lte('DATA', endDate);
@@ -59,10 +59,11 @@ export const fetchServicePeriodAnalysisData = async (
   console.log('🔍 Period Data from Supabase:', {
     total: data?.length || 0,
     first5: data?.slice(0, 5),
-    uniquePeriods: [...new Set(data?.map(d => d.PERÍODO))].filter(Boolean)
+    uniquePeriods: [...new Set(data?.map(d => d.PERÍODO))].filter(Boolean),
+    uniqueTypes: [...new Set(data?.map(d => d.TIPO))].filter(Boolean)
   });
   
-  return (data as { PERÍODO: string }[]) || [];
+  return (data as { PERÍODO: string; TIPO?: string }[]) || [];
 };
 
 export const fetchClientAnalysisData = async (
@@ -78,7 +79,7 @@ export const fetchClientAnalysisData = async (
   const [currentPeriodDetailsRes, previousClientsRes] = await Promise.all([
     supabase
       .from('processed_data')
-      .select('CLIENTE, "PERÍODO"')
+      .select('CLIENTE, "PERÍODO", TIPO')
       .eq('unidade_code', unitCode)
       .gte('DATA', startDate)
       .lte('DATA', endDate),
@@ -93,7 +94,7 @@ export const fetchClientAnalysisData = async (
   if (previousClientsRes.error) throw previousClientsRes.error;
 
   const clientDetails =
-    ((currentPeriodDetailsRes.data as { CLIENTE: string; PERÍODO: string }[]) || []);
+    ((currentPeriodDetailsRes.data as { CLIENTE: string; PERÍODO: string; TIPO: string }[]) || []);
 
   const currentMonthClients = new Set(
     clientDetails.map((r) => r.CLIENTE).filter(Boolean)
@@ -134,7 +135,7 @@ export const fetchServiceMonthlySubmetrics = async (
 
     const { data, error } = await supabase
       .from('processed_data')
-      .select('CADASTRO, DATA, ATENDIMENTO_ID, IS_DIVISAO, orcamento')
+      .select('CADASTRO, DATA, ATENDIMENTO_ID, IS_DIVISAO')
       .eq('unidade_code', unitCode)
       .gte('DATA', startDate)
       .lt('DATA', endDate);
@@ -149,10 +150,10 @@ export const fetchServiceMonthlySubmetrics = async (
     let evolution = 0;
     const dailyCounts: Record<string, number> = {};
 
-    // serviços únicos por orçamento original
+    // serviços únicos por atendimento original
     const original = records.filter(r => r.IS_DIVISAO !== 'SIM');
     const uniqueBudgets = new Set<string>();
-    original.forEach(r => { if (r.orcamento) uniqueBudgets.add(r.orcamento); });
+    original.forEach(r => { if (r.ATENDIMENTO_ID) uniqueBudgets.add(r.ATENDIMENTO_ID); });
     const totalServices = uniqueBudgets.size;
 
     records.forEach(r => {
@@ -203,7 +204,7 @@ export const fetchServiceMonthlySubmetricsMulti = async (
 
     let query = supabase
       .from('processed_data')
-      .select('CADASTRO, DATA, ATENDIMENTO_ID, IS_DIVISAO, orcamento, unidade_code')
+      .select('CADASTRO, DATA, ATENDIMENTO_ID, IS_DIVISAO, unidade_code')
       .in('unidade_code', unitCodes)
       .gte('DATA', startDate)
       .lt('DATA', endDate);
@@ -221,7 +222,7 @@ export const fetchServiceMonthlySubmetricsMulti = async (
 
     const original = records.filter(r => r.IS_DIVISAO !== 'SIM');
     const uniqueBudgets = new Set<string>();
-    original.forEach(r => { if (r.orcamento) uniqueBudgets.add(r.orcamento); });
+    original.forEach(r => { if (r.ATENDIMENTO_ID) uniqueBudgets.add(r.ATENDIMENTO_ID); });
     const totalServices = uniqueBudgets.size;
 
     records.forEach(r => {
@@ -270,13 +271,13 @@ export const fetchClientMonthlySubmetrics = async (
     const [currRes, prevRes] = await Promise.all([
       supabase
         .from('processed_data')
-        .select('CLIENTE, IS_DIVISAO, orcamento')
+        .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID')
         .eq('unidade_code', unitCode)
         .gte('DATA', startDate)
         .lt('DATA', endDate),
       supabase
         .from('processed_data')
-        .select('CLIENTE, IS_DIVISAO, orcamento')
+        .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID')
         .eq('unidade_code', unitCode)
         .gte('DATA', prevStart)
         .lt('DATA', prevEnd),
@@ -293,7 +294,7 @@ export const fetchClientMonthlySubmetrics = async (
     const prevClients = new Set<string>(prevOriginal.map(r => r.CLIENTE).filter(Boolean));
     // serviços únicos do mês
     const currBudgets = new Set<string>();
-    currOriginal.forEach(r => { if (r.orcamento) currBudgets.add(r.orcamento); });
+    currOriginal.forEach(r => { if (r.ATENDIMENTO_ID) currBudgets.add(r.ATENDIMENTO_ID); });
     const totalServices = currBudgets.size;
     const uniqueClients = currClients.size;
     const servicesPerClient = uniqueClients > 0 ? totalServices / uniqueClients : 0;
@@ -335,13 +336,13 @@ export const fetchClientMonthlySubmetricsMulti = async (
     const [currRes, prevRes] = await Promise.all([
       supabase
         .from('processed_data')
-        .select('CLIENTE, IS_DIVISAO, orcamento, unidade_code')
+        .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID, unidade_code')
         .in('unidade_code', unitCodes)
         .gte('DATA', startDate)
         .lt('DATA', endDate),
       supabase
         .from('processed_data')
-        .select('CLIENTE, IS_DIVISAO, orcamento, unidade_code')
+        .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID, unidade_code')
         .in('unidade_code', unitCodes)
         .gte('DATA', prevStart)
         .lt('DATA', prevEnd),
@@ -357,7 +358,7 @@ export const fetchClientMonthlySubmetricsMulti = async (
     const currClients = new Set<string>(currOriginal.map(r => r.CLIENTE).filter(Boolean));
     const prevClients = new Set<string>(prevOriginal.map(r => r.CLIENTE).filter(Boolean));
     const currBudgets = new Set<string>();
-    currOriginal.forEach(r => { if (r.orcamento) currBudgets.add(r.orcamento); });
+    currOriginal.forEach(r => { if (r.ATENDIMENTO_ID) currBudgets.add(r.ATENDIMENTO_ID); });
     const totalServices = currBudgets.size;
     const uniqueClients = currClients.size;
     const servicesPerClient = uniqueClients > 0 ? totalServices / uniqueClients : 0;

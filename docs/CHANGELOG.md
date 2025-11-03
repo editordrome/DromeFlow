@@ -2,6 +2,43 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2025-11-03] - Fix: Restauração da Configuração de Upload
+
+### 🔧 Correção Crítica
+**Restauração da configuração original de upload de XLSX**
+
+#### Problema Identificado
+- Durante tentativas de correção, foram criadas versões duplicadas da função `process_xlsx_upload`
+- Constraints UNIQUE duplicados estavam causando conflitos
+- A configuração que **já funcionava corretamente** foi temporariamente alterada
+
+#### Solução Aplicada
+1. **Remoção de função duplicada**: Removida versão incorreta `process_xlsx_upload(text, jsonb[])`
+2. **Limpeza de constraints**: Removidos constraints duplicados e incorretos
+3. **Restauração da lógica original**: Mantida apenas a configuração que funcionava
+
+#### Configuração Final (Correta)
+- **Função RPC**: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)`
+- **Constraint**: `UNIQUE (unidade_code, orcamento)`
+- **ON CONFLICT**: `(unidade_code, orcamento)`
+
+#### Mapeamento Correto
+| Coluna XLSX | Campo DB (Original) | Campo DB (Derivado _N) | Campo ATENDIMENTO_ID |
+|-------------|---------------------|------------------------|----------------------|
+| Número | `orcamento` | `orcamento_1, _2...` | Sempre original |
+
+#### Arquivos
+- `docs/sql/2025-11-03_fix_upload_configuration.sql`: Script de restauração
+- `components/ui/UploadModal.tsx`: Mantido código original (git restore)
+
+#### Benefícios
+- ✅ Upload de XLSX funcionando novamente
+- ✅ Configuração limpa e sem duplicações
+- ✅ Constraint único correto para upsert
+- ✅ Trigger de pós-vendas funcionando corretamente
+
+---
+
 ## [2025-11-03] - Módulo Agendamentos: Atualização em Tempo Real
 
 ### ✨ Nova Funcionalidade
@@ -56,6 +93,37 @@ Implementado sistema de atualização em tempo real para o módulo Agendamentos 
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2025-11-03] - Correção Crítica: process_xlsx_upload (Tratamento de NULL)
+
+### 🐛 Correção de Bug
+**Erro no upload XLSX com valores NULL em orcamento**
+
+#### Problema Identificado
+- **Erro**: `there is no unique or exclusion constraint matching the ON CONFLICT specification`
+- **Causa**: RPC `process_xlsx_upload` usava `ON CONFLICT (unidade_code, orcamento)` mas UNIQUE constraints não funcionam com valores NULL
+- **Impacto**: Upload falhava quando planilha continha linhas com orçamento vazio/NULL
+
+#### Solução Aplicada
+- **Validação Prévia**: Verificar se `orcamento` é NULL ou vazio antes do INSERT
+- **Comportamento**: Registros sem orçamento são ignorados e contabilizados separadamente
+```sql
+-- Validação adicionada
+IF orcamento_val IS NULL OR orcamento_val = '' THEN
+    ignored_count := ignored_count + 1;
+    CONTINUE;
+END IF;
+```
+
+#### Arquivos Criados
+- `docs/sql/2025-11-03_fix_process_xlsx_upload_null_handling.sql`
+
+#### Resultado
+- ✅ Upload funciona mesmo com linhas sem orçamento
+- ✅ Estatísticas incluem contagem de registros ignorados
+- ✅ Não gera mais erro de constraint
+
+---
+
 ## [2025-11-03] - Correção Crítica: Trigger pos_vendas (Campo CONTATO)
 
 ### 🐛 Correção de Bug
@@ -63,7 +131,7 @@ Registro de todas as mudanças notáveis no projeto DromeFlow.
 
 #### Problema Identificado
 - **Erro**: `record "new" has no field "CONTATO"`
-- **Causa**: Trigger `sync_processed_data_to_pos_vendas` estava tentando acessar campo `NEW."CONTATO"` que não existe na tabela `processed_data`
+- **Causa**: Trigger `auto_create_pos_vendas_from_processed` estava tentando acessar campo `NEW."CONTATO"` que não existe na tabela `processed_data`
 - **Impacto**: Upload de arquivos XLSX falhava ao tentar inserir dados em `processed_data`
 
 #### Solução Aplicada

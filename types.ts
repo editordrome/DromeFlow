@@ -92,7 +92,7 @@ export interface BatchUpdateResult {
 export interface DataRecord {
   id?: number;
   created_at?: string;
-  orcamento: string;
+  // Removido: orcamento e NÚMERO (agora usa apenas ATENDIMENTO_ID)
   DATA: string | null;
   HORARIO: string;
   VALOR: number;
@@ -104,7 +104,7 @@ export interface DataRecord {
   // Novo campo com acento 'PERÍODO' para armazenar coluna Horas (coluna H do XLSX)
   'PERÍODO'?: string | null;
   CLIENTE: string;
-  PROFISSIONAL: string;
+  PROFISSIONAL: string | null; // Aceita null quando não há profissional atribuído
   ENDEREÇO: string;
   DIA: string;
   REPASSE: number;
@@ -115,8 +115,6 @@ export interface DataRecord {
   IS_DIVISAO: string;
   CADASTRO: string | null;
   ACAO: string | null;
-  // Fix: Added missing NÚMERO property to DataRecord to fix type error on assignment.
-  NÚMERO: string;
   // Novas colunas
   confirmacao: boolean | null;
   status: string | null;
@@ -152,11 +150,11 @@ export interface ServiceAnalysisRecord {
 export interface ClientAnalysisData {
   currentMonthClients: Set<string>;
   allPreviousClients: Set<string>;
-  clientDetails: { CLIENTE: string, PERÍODO: string }[];
+  clientDetails: { CLIENTE: string, PERÍODO: string, TIPO: string }[];
 }
 
 export interface RepasseAnalysisRecord {
-  PROFISSIONAL: string;
+  PROFISSIONAL: string | null; // Aceita null quando não há profissional
   REPASSE: number;
 }
 
@@ -285,7 +283,6 @@ export interface PosVendaFormData {
 
 export interface AtendimentoSearchResult {
   ATENDIMENTO_ID: string;
-  ORCAMENTO: string;
   CLIENTE: string;
   DATA: string;
   SERVICO: string;

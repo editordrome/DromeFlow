@@ -39,7 +39,7 @@ BEGIN
     NEW."ATENDIMENTO_ID",
     v_unit_id,
     NEW."CLIENTE",
-    NEW.whatscliente, -- Corrigido: campo correto é whatscliente, não CONTATO
+    NEW.whatscliente, -- CORRETO: campo é whatscliente (não CONTATO que não existe)
     NEW."DATA",
     COALESCE(NEW."pos vendas", 'pendente')::text, -- Se "pos vendas" for NULL, usa 'pendente'
     NULL, -- nota inicial NULL
@@ -64,10 +64,18 @@ CREATE TRIGGER trigger_sync_processed_to_pos_vendas
   EXECUTE FUNCTION sync_processed_data_to_pos_vendas();
 
 -- ============================================================================
+-- PRÉ-REQUISITOS CRÍTICOS
+-- ============================================================================
+-- IMPORTANTE: Este trigger requer constraint UNIQUE em pos_vendas.ATENDIMENTO_ID
+-- Execute ANTES: docs/sql/2025-11-03_fix_pos_vendas_unique_constraint.sql
+
+-- ============================================================================
 -- Comentários:
 -- - Este trigger sincroniza APENAS novos INSERTs (não UPDATEs)
 -- - O trigger reverso (pos_vendas → processed_data) já existe para UPDATEs
 -- - Usa ON CONFLICT DO NOTHING para evitar erros de duplicação
+-- - REQUER: constraint UNIQUE em pos_vendas.ATENDIMENTO_ID (veja fix acima)
+-- - Campo correto: whatscliente (NÃO "CONTATO" que não existe)
 -- - Se unit_code não for encontrado, insere com unit_id NULL (aviso no log)
 -- - Status inicial: pega de "pos vendas" ou usa 'pendente' como padrão
 -- ============================================================================

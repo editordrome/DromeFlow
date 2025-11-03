@@ -7,6 +7,7 @@ import { Icon } from '../ui/Icon';
 import UploadModal from '../ui/UploadModal';
 import DataDetailModal from '../ui/DataDetailModal';
 import EditRecordModal from '../ui/EditRecordModal';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 
 const PeriodDropdown: React.FC<{
   value: string;
@@ -88,7 +89,7 @@ const DataPage: React.FC = () => {
   const [selectedRecord, setSelectedRecord] = useState<DataRecord | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [searchColumn, setSearchColumn] = useState<'cliente' | 'orcamento'>('cliente');
+  const [searchColumn, setSearchColumn] = useState<'cliente' | 'atendimento'>('cliente');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DataRecord | null>(null);
   const [deleteConfirmRecord, setDeleteConfirmRecord] = useState<DataRecord | null>(null);
@@ -165,6 +166,43 @@ const DataPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Realtime Subscription para processed_data (DataPage)
+  useRealtimeSubscription<DataRecord>({
+    table: 'processed_data',
+    filter: (record) => {
+      // Filtrar por unidade(s)
+      if (selectedUnit && selectedUnit.unit_code !== 'ALL') {
+        if (record.unidade_code !== selectedUnit.unit_code) return false;
+      } else if (multiUnits.length > 0) {
+        if (!multiUnits.includes(record.unidade_code)) return false;
+      }
+      // Filtrar por período
+      if (record.DATA) {
+        const [year, month] = selectedPeriod.split('-');
+        const recordDate = new Date(record.DATA);
+        const recordMonth = recordDate.getMonth() + 1;
+        const recordYear = recordDate.getFullYear();
+        if (recordYear !== parseInt(year) || recordMonth !== parseInt(month)) return false;
+      }
+      return true;
+    },
+    callbacks: {
+      onInsert: (newRecord) => {
+        console.log('[DataPage] Novo registro, recarregando...');
+        loadData();
+      },
+      onUpdate: (updatedRecord) => {
+        console.log('[DataPage] Registro atualizado');
+        setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+      },
+      onDelete: (deletedRecord) => {
+        console.log('[DataPage] Registro deletado');
+        setRecords(prev => prev.filter(r => r.id !== deletedRecord.id));
+      }
+    },
+    enabled: !isLoading
+  });
 
   const handleUploadSuccess = () => {
     setIsUploadModalOpen(false);
@@ -308,11 +346,11 @@ const DataPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <select
                 value={searchColumn}
-                onChange={(e) => setSearchColumn(e.target.value as 'cliente' | 'orcamento')}
+                onChange={(e) => setSearchColumn(e.target.value as 'cliente' | 'atendimento')}
                 className="px-3 py-2 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 <option value="cliente">Cliente</option>
-                <option value="orcamento">Orçamento</option>
+                <option value="atendimento">Atendimento ID</option>
               </select>
               <div className="relative">
                 <span className="absolute inset-y-0 left-3 flex items-center text-text-secondary pointer-events-none">
@@ -411,7 +449,7 @@ const DataPage: React.FC = () => {
                       />
                     </th>
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Data</th>
-                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Orçamento</th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Atendimento ID</th>
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Cliente</th>
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Valor</th>
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Profissional</th>
@@ -449,10 +487,10 @@ const DataPage: React.FC = () => {
                       </td>
                       <td 
                         className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary font-mono cursor-pointer" 
-                        title={row.orcamento}
+                        title={row.ATENDIMENTO_ID}
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
-                        {row.orcamento}
+                        {row.ATENDIMENTO_ID}
                       </td>
                       <td 
                         className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-primary cursor-pointer" 

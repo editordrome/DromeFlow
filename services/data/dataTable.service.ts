@@ -6,7 +6,7 @@ export const fetchDataTable = async (
   page: number,
   pageSize: number,
   searchTerm?: string,
-  searchColumn?: 'cliente' | 'orcamento',
+  searchColumn?: 'cliente' | 'atendimento',
   period?: string
 ): Promise<{ data: DataRecord[]; count: number }> => {
   const from = (page - 1) * pageSize;
@@ -25,7 +25,7 @@ export const fetchDataTable = async (
   }
 
   if (searchTerm && searchColumn) {
-    const columnName = searchColumn === 'cliente' ? 'CLIENTE' : 'orcamento';
+    const columnName = searchColumn === 'cliente' ? 'CLIENTE' : 'ATENDIMENTO_ID';
     query = query.ilike(columnName, `%${searchTerm}%`);
   }
 
@@ -44,7 +44,7 @@ export const fetchDataTableMulti = async (
   page: number,
   pageSize: number,
   searchTerm?: string,
-  searchColumn?: 'cliente' | 'orcamento',
+  searchColumn?: 'cliente' | 'atendimento',
   period?: string
 ): Promise<{ data: DataRecord[]; count: number }> => {
   if (!unitCodes || unitCodes.length === 0) return { data: [], count: 0 };
@@ -64,7 +64,7 @@ export const fetchDataTableMulti = async (
   }
 
   if (searchTerm && searchColumn) {
-    const columnName = searchColumn === 'cliente' ? 'CLIENTE' : 'orcamento';
+    const columnName = searchColumn === 'cliente' ? 'CLIENTE' : 'ATENDIMENTO_ID';
     query = query.ilike(columnName, `%${searchTerm}%`);
   }
 
@@ -124,7 +124,7 @@ export const updateDataRecord = async (
     CLIENTE: updatedData.CLIENTE,
     VALOR: updatedData.VALOR,
     STATUS: (updatedData as any).STATUS ?? updatedData.status,
-    orcamento: updatedData.orcamento,
+    ATENDIMENTO_ID: updatedData.ATENDIMENTO_ID,
     // Campos de texto livres
     observacao: updatedData.observacao,
     comentario: updatedData.comentario,

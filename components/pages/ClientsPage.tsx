@@ -262,16 +262,14 @@ const ClientsPage: React.FC = () => {
               key={cfg.key}
               type="button"
               onClick={() => setActiveFilter(prev => prev === cfg.key ? null : cfg.key)}
-              className={`p-3 rounded-lg shadow-sm flex items-center transition-all group border ${activeFilter === cfg.key ? 'bg-accent-primary border-accent-secondary' : 'bg-bg-secondary hover:bg-bg-tertiary border-transparent'}`}
+              className={`p-3 rounded-lg border transition-all ${activeFilter === cfg.key ? `${cfg.color} text-white border-transparent shadow-lg` : 'bg-bg-secondary border-border-primary hover:shadow-md'}`}
             >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${cfg.color} text-white group-hover:scale-105 transition-transform ${activeFilter === cfg.key ? 'ring-2 ring-white/40' : ''}`}>
+              <div className="flex items-center gap-2">
                 <Icon name={cfg.icon} className="w-5 h-5" />
-              </div>
-              <div className="ml-4 text-left">
-                <p className={`text-[0.7rem] font-medium uppercase tracking-wide ${activeFilter === cfg.key ? 'text-white' : 'text-text-secondary'}`}>{cfg.label}</p>
-                <p className={`text-xl font-bold ${activeFilter === cfg.key ? 'text-white' : 'text-text-primary'}`}>
+                <span className="text-sm font-medium">{cfg.label}</span>
+                <span className={`ml-auto text-lg font-bold ${activeFilter === cfg.key ? 'text-white' : 'text-text-primary'}`}>
                   {cfg.formatter((metrics as ClientMetrics)[cfg.key], metrics as ClientMetrics)}
-                </p>
+                </span>
               </div>
             </button>
           ))}

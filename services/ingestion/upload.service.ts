@@ -7,7 +7,8 @@ import { syncUnitClientsFromProcessed } from '../data/clientsDirectory.service';
 import { DataRecord, UploadMetrics } from '../../types';
 
 // Fix: Create a helper type to corretamente tipar dados brutos do XLSX onde REPASSE pode ser string.
-export type RawDataRecordForUpload = Omit<DataRecord, 'REPASSE'> & { REPASSE: string | number };
+// Removido 'orcamento' e 'NÚMERO' - agora usa apenas ATENDIMENTO_ID
+export type RawDataRecordForUpload = Omit<DataRecord, 'REPASSE' | 'orcamento' | 'NÚMERO'> & { REPASSE: string | number };
 
 // Função auxiliar: Processa valores de repasse corretamente
 const processRepasseValues = (repasseOriginal: any, profissionaisCount: number): number[] => {
@@ -43,8 +44,10 @@ const processRepasseValues = (repasseOriginal: any, profissionaisCount: number):
 const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]): DataRecord[] => {
 	const finalRecords: DataRecord[] = [];
 	records.forEach((record) => {
-		const originalOrcamento = String(record.orcamento || record.NÚMERO || '').trim();
-		const professionalString = String(record.PROFISSIONAL || '').trim();
+		const originalAtendimentoId = String(record.ATENDIMENTO_ID || '').trim();
+		// Preserva null quando PROFISSIONAL é null (não converte para string vazia)
+		const professionalValue = record.PROFISSIONAL;
+		const professionalString = professionalValue === null ? '' : String(professionalValue).trim();
 		if (professionalString.includes(';')) {
 			const professionals = professionalString
 				.split(';')
@@ -54,32 +57,30 @@ const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]):
 			if (professionals.length > 0) {
 				professionals.forEach((professional, index) => {
 					const isFirst = index === 0;
-					const newOrcamento = isFirst ? originalOrcamento : `${originalOrcamento}_${index}`;
 					finalRecords.push({
 						...record,
 						PROFISSIONAL: professional,
 						REPASSE: repasses[index] || 0,
-						orcamento: newOrcamento,
 						VALOR: isFirst ? record.VALOR : 0,
-						ATENDIMENTO_ID: originalOrcamento,
+						ATENDIMENTO_ID: originalAtendimentoId,
 						IS_DIVISAO: isFirst ? 'NAO' : 'SIM',
 					});
 				});
 			} else {
 				finalRecords.push({
 					...record,
-					orcamento: originalOrcamento,
+					PROFISSIONAL: professionalString || null, // Mantém null se vazio
 					REPASSE: parseFloat(String(record.REPASSE).replace(',', '.')) || 0,
-					ATENDIMENTO_ID: originalOrcamento,
+					ATENDIMENTO_ID: originalAtendimentoId,
 					IS_DIVISAO: 'NAO',
 				});
 			}
 		} else {
 			finalRecords.push({
 				...record,
-				orcamento: originalOrcamento,
+				PROFISSIONAL: professionalString || null, // Mantém null se vazio
 				REPASSE: parseFloat(String(record.REPASSE).replace(',', '.')) || 0,
-				ATENDIMENTO_ID: originalOrcamento,
+				ATENDIMENTO_ID: originalAtendimentoId,
 				IS_DIVISAO: 'NAO',
 			});
 		}
@@ -87,53 +88,53 @@ const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]):
 	return finalRecords;
 };
 
-// Remove registros obsoletos usando 'orcamento' base como chave lógica
+// Remove registros obsoletos usando 'ATENDIMENTO_ID' base como chave lógica
 const removeObsoleteRecords = async (
 	unitCode: string,
 	startDate: string,
 	endDate: string,
-	baseBudgetsInFile: Set<string>
+	baseAtendimentosInFile: Set<string>
 ): Promise<number> => {
 	const { data: existingRecords, error: fetchError } = await supabase
 		.from('processed_data')
-		.select('orcamento, IS_DIVISAO')
+		.select('ATENDIMENTO_ID, IS_DIVISAO')
 		.eq('unidade_code', unitCode)
 		.gte('DATA', startDate)
 		.lte('DATA', endDate);
 	if (fetchError) return 0;
 	if (!existingRecords || existingRecords.length === 0) return 0;
 
-	const baseFromOrcamento = (orc: any, isDivisao: any): string => {
-		if (isDivisao === 'SIM' && typeof orc === 'string') {
-			const match = orc.match(/^(.*)_\d+$/);
+	const baseFromAtendimento = (atendId: any, isDivisao: any): string => {
+		if (isDivisao === 'SIM' && typeof atendId === 'string') {
+			const match = atendId.match(/^(.*)_\d+$/);
 			if (match) return match[1];
 		}
-		return String(orc || '').trim();
+		return String(atendId || '').trim();
 	};
 
-	const existingBaseBudgets = new Set<string>();
-	const recordsWithBase: { orcamento: string; base: string }[] = [];
+	const existingBaseAtendimentos = new Set<string>();
+	const recordsWithBase: { ATENDIMENTO_ID: string; base: string }[] = [];
 	(existingRecords || []).forEach((r: any) => {
-		const base = baseFromOrcamento(r.orcamento, r.IS_DIVISAO);
-		recordsWithBase.push({ orcamento: r.orcamento, base });
-		if (r.IS_DIVISAO !== 'SIM') existingBaseBudgets.add(base);
+		const base = baseFromAtendimento(r.ATENDIMENTO_ID, r.IS_DIVISAO);
+		recordsWithBase.push({ ATENDIMENTO_ID: r.ATENDIMENTO_ID, base });
+		if (r.IS_DIVISAO !== 'SIM') existingBaseAtendimentos.add(base);
 	});
 
-	const basesToRemove = Array.from(existingBaseBudgets).filter((b) => !baseBudgetsInFile.has(b));
+	const basesToRemove = Array.from(existingBaseAtendimentos).filter((b) => !baseAtendimentosInFile.has(b));
 	if (basesToRemove.length === 0) return 0;
 
-	const orcamentosParaRemoverSet = new Set<string>();
+	const atendimentosParaRemoverSet = new Set<string>();
 	recordsWithBase.forEach((r) => {
-		if (basesToRemove.includes(r.base)) orcamentosParaRemoverSet.add(r.orcamento);
+		if (basesToRemove.includes(r.base)) atendimentosParaRemoverSet.add(r.ATENDIMENTO_ID);
 	});
-	const orcamentosParaRemover = Array.from(orcamentosParaRemoverSet).filter(Boolean);
-	if (orcamentosParaRemover.length === 0) return 0;
+	const atendimentosParaRemover = Array.from(atendimentosParaRemoverSet).filter(Boolean);
+	if (atendimentosParaRemover.length === 0) return 0;
 
 	const { error: deleteError, count } = await supabase
 		.from('processed_data')
 		.delete({ count: 'exact' })
 		.eq('unidade_code', unitCode)
-		.in('orcamento', orcamentosParaRemover);
+		.in('ATENDIMENTO_ID', atendimentosParaRemover);
 	if (deleteError) return 0;
 	return count || 0;
 };
@@ -164,12 +165,12 @@ export const uploadXlsxData = async (
 	});
 
 	if (minDate && maxDate) {
-		const baseBudgetsInFile = new Set(
-			processedRecords.filter((r) => r.IS_DIVISAO === 'NAO').map((r) => r.orcamento).filter(Boolean)
+		const baseAtendimentosInFile = new Set(
+			processedRecords.filter((r) => r.IS_DIVISAO === 'NAO').map((r) => r.ATENDIMENTO_ID).filter(Boolean)
 		);
 		const startDate = minDate.toISOString().split('T')[0];
 		const endDate = maxDate.toISOString().split('T')[0];
-		deletedCount = await removeObsoleteRecords(unitCode, startDate, endDate, baseBudgetsInFile);
+		deletedCount = await removeObsoleteRecords(unitCode, startDate, endDate, baseAtendimentosInFile);
 	}
 
 	const sanitizeRecord = (r: any) => {
@@ -209,19 +210,19 @@ export const uploadXlsxData = async (
 			const endDate = maxDate.toISOString().split('T')[0];
 			const { data: existing } = await supabase
 				.from('processed_data')
-				.select('id, orcamento')
+				.select('id, ATENDIMENTO_ID')
 				.eq('unidade_code', unitCode)
 				.gte('DATA', startDate)
 				.lte('DATA', endDate);
 			(existing || []).forEach((r: any) => {
-				if (r.orcamento) existingMap.set(r.orcamento, { id: r.id });
+				if (r.ATENDIMENTO_ID) existingMap.set(r.ATENDIMENTO_ID, { id: r.id });
 			});
 		}
 		const toInsert: any[] = [];
 		const toUpdate: any[] = [];
 		processedRecords.forEach((r) => {
 			const clean = sanitizeRecord(r);
-			if (clean.orcamento && existingMap.has(clean.orcamento)) toUpdate.push(clean);
+			if (clean.ATENDIMENTO_ID && existingMap.has(clean.ATENDIMENTO_ID)) toUpdate.push(clean);
 			else toInsert.push(clean);
 		});
 		let inserted = 0,
@@ -245,11 +246,11 @@ export const uploadXlsxData = async (
 				IS_DIVISAO: r.IS_DIVISAO,
 				PROFISSIONAL: (r as any).PROFISSIONAL,
 			};
-			const { error: upErr } = await supabase
-				.from('processed_data')
-				.update(updPayload)
-				.eq('unidade_code', unitCode)
-				.eq('orcamento', r.orcamento);
+		const { error: upErr } = await supabase
+			.from('processed_data')
+			.update(updPayload)
+			.eq('unidade_code', unitCode)
+			.eq('ATENDIMENTO_ID', r.ATENDIMENTO_ID);
 			if (upErr) throw new Error(`Falha no update fallback: ${upErr.message}`);
 			updated += 1;
 		}

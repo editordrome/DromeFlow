@@ -1,0 +1,34 @@
+-- ============================================================================
+-- Foreign Key Constraint: pos_vendas → processed_data
+-- Data: 2025-11-03
+-- Objetivo: Criar integridade referencial entre as tabelas
+-- Status: NÃO APLICADO
+-- ============================================================================
+
+-- BLOQUEIO: Não é possível criar FK devido a duplicatas em processed_data
+-- 
+-- Problema identificado:
+-- - 954 ATENDIMENTO_IDs duplicados em processed_data
+-- - Exemplo: ATENDIMENTO_ID "26787" aparece 5 vezes
+-- - processed_data não tem UNIQUE constraint em ATENDIMENTO_ID
+-- - Isso é por design: suporta expansão multi-profissional (sufixos _N)
+-- 
+-- Decisão:
+-- - NÃO criar FK constraint
+-- - Manter conexão apenas lógica via ATENDIMENTO_ID
+-- - Triggers garantem sincronização aplicacional
+-- - Índices B-tree em ambas tabelas garantem performance
+-- 
+-- Arquitetura Final:
+-- processed_data (tabela origem, permite duplicatas)
+--   ↓ trigger INSERT
+--   ↓ (sem FK, apenas índice)
+-- pos_vendas (tabela derivada, ATENDIMENTO_ID único via lógica)
+--   ↓ trigger UPDATE
+--   ↓ sincroniza coluna "pos vendas"
+-- processed_data
+-- 
+-- ============================================================================
+-- ESTE ARQUIVO É APENAS DOCUMENTAÇÃO DO BLOQUEIO
+-- NÃO EXECUTAR ESTA MIGRATION
+-- ============================================================================
