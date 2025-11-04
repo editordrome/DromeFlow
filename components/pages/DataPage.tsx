@@ -355,14 +355,14 @@ const DataPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-primary">
+    <div className="p-4 sm:p-6 bg-bg-secondary rounded-lg shadow-md">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-text-primary">
           Dados{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}
         </h1>
         
         {selectedUnit && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch gap-3">
             {/* Campo de busca com seletor de coluna */}
             <div className="flex items-center gap-2">
               <select
@@ -373,7 +373,7 @@ const DataPage: React.FC = () => {
                 <option value="cliente">Cliente</option>
                 <option value="atendimento">Atendimento ID</option>
               </select>
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-initial">
                 <span className="absolute inset-y-0 left-3 flex items-center text-text-secondary pointer-events-none">
                   <Icon name="search" className="w-4 h-4" />
                 </span>
@@ -382,7 +382,7 @@ const DataPage: React.FC = () => {
                   placeholder="Buscar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-48 pl-9 pr-9 py-2 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full sm:w-48 pl-9 pr-9 py-2 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
                 {searchTerm && (
                   <button

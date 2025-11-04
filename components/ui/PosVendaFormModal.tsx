@@ -110,10 +110,10 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-bg-secondary rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-bg-secondary rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border-primary">
-          <h2 className="text-xl font-semibold text-text-primary">
+        <div className="sticky top-0 bg-bg-secondary flex items-center justify-between p-4 sm:p-6 border-b border-border-primary z-10">
+          <h2 className="text-lg sm:text-xl font-semibold text-text-primary">
             {record ? 'Editar' : 'Novo'} Registro de Pós-Venda
           </h2>
           <button
@@ -125,7 +125,7 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* ATENDIMENTO_ID - FIXO */}
             <div>
@@ -327,18 +327,18 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
           </div>
 
           {/* Botões */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-primary">
+          <div className="sticky bottom-0 bg-bg-secondary flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-border-primary -mx-4 sm:-mx-6 px-4 sm:px-6 pb-4 sm:pb-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-text-secondary hover:text-text-primary transition-colors"
+              className="w-full sm:w-auto px-4 py-2 text-text-secondary hover:text-text-primary transition-colors border border-border-primary rounded-lg sm:border-0"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading && <Icon name="Loader2" className="w-4 h-4 animate-spin" />}
               {loading ? 'Salvando...' : 'Salvar'}

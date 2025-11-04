@@ -259,21 +259,23 @@ const ClientsPage: React.FC = () => {
   }
 
   return (
-  <div className="p-6 bg-bg-secondary rounded-lg shadow-md space-y-4">
+  <div className="p-4 sm:p-6 bg-bg-secondary rounded-lg shadow-md space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-text-primary">Clientes{selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <h1 className="text-xl sm:text-2xl font-bold text-text-primary">Clientes{selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
             <Icon name="Search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-secondary" />
             <input
               type="text"
-              className="pl-9 pr-3 py-2 rounded-md bg-bg-tertiary border border-border-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary w-64"
+              className="pl-9 pr-3 py-2 rounded-md bg-bg-tertiary border border-border-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary w-full sm:w-64"
               placeholder="Buscar cliente..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <PeriodDropdown value={period} onChange={setPeriod} availableYears={availableYears} />
+          <div className="w-full sm:w-auto">
+            <PeriodDropdown value={period} onChange={setPeriod} availableYears={availableYears} />
+          </div>
         </div>
       </div>
 

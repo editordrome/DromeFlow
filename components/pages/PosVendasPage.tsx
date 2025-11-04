@@ -778,8 +778,8 @@ const PosVendasPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Pós-Vendas</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 sm:flex-initial">
             <label htmlFor="posvendas-search" className="sr-only">
               Buscar registros
             </label>
@@ -789,7 +789,7 @@ const PosVendasPage: React.FC = () => {
               placeholder="Buscar cliente, ID ou profissional..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full max-w-64 rounded-md border border-border-secondary bg-bg-tertiary px-3 py-2 pr-8 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
+              className="w-full sm:w-64 rounded-md border border-border-secondary bg-bg-tertiary px-3 py-2 pr-8 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
             />
             {searchTerm && (
               <button
@@ -802,49 +802,53 @@ const PosVendasPage: React.FC = () => {
               </button>
             )}
           </div>
-          <div className="relative">
-            <input
-              type="date"
-              value={specificDate}
-              onChange={(e) => setSpecificDate(e.target.value)}
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              style={{ 
-                width: '40px',
-                height: '40px'
-              }}
-              title={specificDate ? `Filtrado por: ${new Date(specificDate).toLocaleDateString('pt-BR')}` : 'Filtrar por data'}
-            />
-            <button
-              className={`p-2 rounded-md border transition-colors ${
-                specificDate 
-                  ? 'bg-primary text-white border-primary' 
-                  : 'bg-bg-secondary text-text-secondary border-border-primary'
-              }`}
-              title={specificDate ? `Filtrado por: ${new Date(specificDate).toLocaleDateString('pt-BR')}` : 'Filtrar por data'}
-            >
-              <Icon name="Calendar" className="w-5 h-5" />
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <input
+                type="date"
+                value={specificDate}
+                onChange={(e) => setSpecificDate(e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                style={{ 
+                  width: '40px',
+                  height: '40px'
+                }}
+                title={specificDate ? `Filtrado por: ${new Date(specificDate).toLocaleDateString('pt-BR')}` : 'Filtrar por data'}
+              />
+              <button
+                className={`p-2 rounded-md border transition-colors ${
+                  specificDate 
+                    ? 'bg-primary text-white border-primary' 
+                    : 'bg-bg-secondary text-text-secondary border-border-primary'
+                }`}
+                title={specificDate ? `Filtrado por: ${new Date(specificDate).toLocaleDateString('pt-BR')}` : 'Filtrar por data'}
+              >
+                <Icon name="Calendar" className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 sm:flex-initial">
+              <PeriodSelector
+                value={selectedPeriod}
+                onChange={setSelectedPeriod}
+                disabled={loading}
+                availableYears={availableYears}
+              />
+            </div>
+            {specificDate && (
+              <button
+                onClick={() => setSpecificDate('')}
+                className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+                title="Limpar filtro de data"
+              >
+                <Icon name="X" className="w-4 h-4" />
+              </button>
+            )}
           </div>
-          <PeriodSelector
-            value={selectedPeriod}
-            onChange={setSelectedPeriod}
-            disabled={loading}
-            availableYears={availableYears}
-          />
-          {specificDate && (
-            <button
-              onClick={() => setSpecificDate('')}
-              className="p-2 text-text-secondary hover:text-text-primary transition-colors"
-              title="Limpar filtro de data"
-            >
-              <Icon name="X" className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
 
       {/* Cards de Navegação */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card Geral */}
         <button
           onClick={() => setActiveCard('geral')}
@@ -1162,7 +1166,7 @@ const PosVendasPage: React.FC = () => {
         )}
 
         {activeCard === 'pendente' && (
-          <div className="overflow-x-auto">
+          <div>
             {!posVendasWebhook && (
               <div className="mb-4 p-3 rounded-lg bg-orange-100 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-800">
                 <div className="flex items-center gap-2 text-orange-800 dark:text-orange-300">
@@ -1181,7 +1185,10 @@ const PosVendasPage: React.FC = () => {
                 {webhookFeedback.message}
               </div>
             )}
-            <table className="w-full">
+            
+            {/* Tabela Desktop */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full">
               <thead className="bg-bg-tertiary">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
@@ -1259,17 +1266,85 @@ const PosVendasPage: React.FC = () => {
                   ))
                 )}
               </tbody>
-            </table>
+              </table>
+            </div>
+            
+            {/* Cards Mobile */}
+            <div className="lg:hidden space-y-3">
+              {pendentesFiltradosPorBusca.length === 0 ? (
+                <div className="bg-bg-secondary rounded-lg p-6 text-center">
+                  <p className="text-text-secondary">
+                    {searchTerm ? 'Nenhum registro encontrado com esse termo' : 'Nenhum registro pendente'}
+                  </p>
+                </div>
+              ) : (
+                pendentesPaginados.map((record) => (
+                  <div
+                    key={record.id}
+                    className="bg-bg-secondary rounded-lg p-4 space-y-3 border border-border-primary"
+                    onDoubleClick={() => handleEdit(record)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm text-text-primary">{record.nome || '-'}</p>
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          ID: {record.ATENDIMENTO_ID || '-'}
+                        </p>
+                      </div>
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 text-xs rounded-full">
+                        Pendente
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-text-secondary">Data:</span>
+                        <p className="text-text-primary font-medium">{formatDate(record.data)}</p>
+                      </div>
+                      <div>
+                        <span className="text-text-secondary">Profissional:</span>
+                        <p className="text-text-primary font-medium">{record.PROFISSIONAL || '-'}</p>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleSendWebhook(record)}
+                      disabled={sendingWebhook.has(record.id) || !posVendasWebhook}
+                      className="w-full px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                    >
+                      {sendingWebhook.has(record.id) ? (
+                        <>
+                          <Icon name="Loader2" className="w-4 h-4 animate-spin" />
+                          Enviando...
+                        </>
+                      ) : !posVendasWebhook ? (
+                        <>
+                          <Icon name="AlertCircle" className="w-4 h-4" />
+                          Sem webhook
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="Send" className="w-4 h-4" />
+                          Enviar Avaliação
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            {/* Paginação */}
             {pendentesFiltradosPorBusca.length > 0 && (
-              <div className="bg-bg-tertiary border-t border-border-primary">
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div className="text-sm text-text-secondary">
+              <div className="bg-bg-tertiary border-t border-border-primary mt-4 lg:mt-0 rounded-b-lg">
+                <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 gap-3">
+                  <div className="text-xs sm:text-sm text-text-secondary text-center sm:text-left">
                     Mostrando {startIndex + 1}-{Math.min(endIndex, pendentesFiltradosPorBusca.length)} de {pendentesFiltradosPorBusca.length} registro(s)
                     {searchTerm && pendentesFiltradosPorBusca.length !== pendentesProfissional.length && (
                       <span className="ml-1">(filtrado de {pendentesProfissional.length})</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
                     <button
                       onClick={handlePreviousPage}
                       disabled={currentPage === 1}
