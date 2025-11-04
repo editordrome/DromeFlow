@@ -17,14 +17,13 @@ interface ClientRow {
 }
 
 type ClientMetrics = { total: number; mes: number; recorrente: number; atencao: number; outros: number; churnRatePercent: string };
-type MetricKey = 'total' | 'mes' | 'recorrente' | 'atencao' | 'outros';
+type MetricKey = 'total' | 'mes' | 'recorrente' | 'atencao';
 
 const metricCards: { key: MetricKey; label: string; icon: string; color: string; formatter: (v: number, m: ClientMetrics) => string }[] = [
   { key: 'total', label: 'Total', icon: 'users', color: 'bg-accent-primary', formatter: (v) => String(v) },
   { key: 'mes', label: 'Mês', icon: 'calendar', color: 'bg-blue-600', formatter: (v) => String(v) },
   { key: 'recorrente', label: 'Recorrentes', icon: 'archive', color: 'bg-purple-600', formatter: (v) => String(v) },
   { key: 'atencao', label: 'Atenção', icon: 'support', color: 'bg-amber-600', formatter: (v) => String(v) },
-  { key: 'outros', label: 'Outros', icon: 'user-plus', color: 'bg-slate-600', formatter: (v) => String(v) },
 ];
 
 const ClientsPage: React.FC = () => {
@@ -97,7 +96,6 @@ const ClientsPage: React.FC = () => {
     const base = [...clients];
     if (!activeFilter || activeFilter === 'mes') return base;
     if (activeFilter === 'recorrente') return base.filter(c => c.categoria === 'recorrente');
-    if (activeFilter === 'outros') return base.filter(c => c.categoria === 'outro');
     return base;
   }, [activeFilter, atencaoList, allHistoricalClients, clients]);
 
@@ -244,19 +242,22 @@ const ClientsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary">Clientes{selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
         <div className="flex items-center gap-3">
-          <input
-            type="text"
-            className="px-3 py-2 rounded-md bg-bg-tertiary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary w-48"
-            placeholder="Buscar..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <div className="min-w-[190px]"><PeriodDropdown value={period} onChange={setPeriod} /></div>
+          <div className="relative">
+            <Icon name="Search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-secondary" />
+            <input
+              type="text"
+              className="pl-9 pr-3 py-2 rounded-md bg-bg-tertiary border border-border-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary w-64"
+              placeholder="Buscar cliente..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <PeriodDropdown value={period} onChange={setPeriod} />
         </div>
       </div>
 
       {metrics && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {metricCards.map(cfg => (
             <button
               key={cfg.key}
@@ -530,46 +531,66 @@ const ClientsPage: React.FC = () => {
 
 export default ClientsPage;
 
-// Componente local PeriodDropdown (alinhado ao dashboard) - versão compacta
-const PeriodDropdown: React.FC<{ value: string; onChange: (v: string) => void; disabled?: boolean }> = ({ value, onChange, disabled }) => {
-  const [open, setOpen] = useState(false);
-  const currentYear = new Date().getFullYear();
-  const years = [currentYear, currentYear - 1, currentYear - 2];
+// Componente local PeriodDropdown (padrão alinhado aos demais módulos)
+const PeriodDropdown: React.FC<{ value: string; onChange: (v: string) => void; disabled?: boolean }> = ({ value, onChange, disabled = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
   const months = [
     { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' }, { value: '03', label: 'Março' },
     { value: '04', label: 'Abril' }, { value: '05', label: 'Maio' }, { value: '06', label: 'Junho' },
     { value: '07', label: 'Julho' }, { value: '08', label: 'Agosto' }, { value: '09', label: 'Setembro' },
     { value: '10', label: 'Outubro' }, { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' }
   ];
+
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2];
+  
+  // Gera opções para todos os anos disponíveis
   const options: { value: string; label: string }[] = [];
-  years.forEach(y => months.forEach(m => options.push({ value: `${y}-${m.value}`, label: `${m.label} ${y}` })));
-  const label = (() => {
-    const [y, m] = value.split('-');
-    const found = months.find(mm => mm.value === m);
-    return found ? `${found.label} ${y}` : value;
-  })();
+  years.forEach(year => {
+    months.forEach(month => {
+      options.push({ value: `${year}-${month.value}`, label: `${month.label} ${year}` });
+    });
+  });
+
+  const getDisplayLabel = () => {
+    const [year, monthNum] = value.split('-');
+    const month = months.find(m => m.value === monthNum);
+    return month ? `${month.label} ${year}` : value;
+  };
+
   return (
-    <div className="relative text-xs">
+    <div className="relative">
       <button
         type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        onClick={() => !disabled && setOpen(o => !o)}
-        className="px-2 py-1 w-48 bg-bg-tertiary rounded-md border border-border-secondary flex items-center justify-between hover:bg-bg-secondary"
+        className="flex items-center justify-between w-64 px-3 py-2 text-left border rounded-md bg-bg-secondary border-border-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
       >
-        <span className="truncate text-text-primary">{label}</span>
-        <span className="text-text-secondary">{open ? '▲' : '▼'}</span>
+        <span className="text-sm text-text-primary">{getDisplayLabel()}</span>
+        <Icon name={isOpen ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4 text-text-secondary" />
       </button>
-      {open && !disabled && (
+
+      {isOpen && !disabled && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 w-60 max-h-64 overflow-y-auto bg-bg-secondary border border-border-secondary rounded-md shadow-lg">
-            {options.map(o => (
-              <button
-                key={o.value}
-                onClick={() => { onChange(o.value); setOpen(false); }}
-                className={`block w-full text-left px-3 py-2 hover:bg-bg-tertiary ${o.value === value ? 'bg-accent-primary text-white' : 'text-text-primary'}`}
-              >{o.label}</button>
-            ))}
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 z-20 w-64 mt-1 bg-bg-secondary border rounded-md shadow-lg border-border-primary max-h-80 overflow-y-auto">
+            <div className="py-1">
+              {options.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${
+                    value === option.value ? 'bg-accent-primary text-white' : 'text-text-primary'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
         </>
       )}
