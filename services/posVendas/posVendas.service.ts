@@ -3,43 +3,56 @@ import type { PosVenda, PosVendaFormData, AtendimentoSearchResult } from '../../
 
 /**
  * Busca registros pendentes diretamente de processed_data
- * Usa a coluna "pos vendas" como status (NULL = pendente)
+ * Usa a coluna "pos vendas" como status (NULL ou 'pendente' = pendente)
+ * Filtra automaticamente do início do mês até o dia anterior (ontem)
  */
 export const fetchPendenteWithProfissional = async (filters?: {
   unit_id?: string;
   startDate?: string;
   endDate?: string;
 }): Promise<Array<PosVenda & { PROFISSIONAL: string | null }>> => {
+  // Calcular data limite: dia anterior (ontem)
+  const hoje = new Date();
+  const ontem = new Date(hoje);
+  ontem.setDate(ontem.getDate() - 1);
+  const dataLimite = ontem.toISOString().split('T')[0]; // Formato: YYYY-MM-DD
+
+  // Busca o unit_code correspondente ao unit_id (se fornecido)
+  let unitCode: string | null = null;
+  if (filters?.unit_id) {
+    const { data: unitData } = await supabase
+      .from('units')
+      .select('unit_code, id')
+      .eq('id', filters.unit_id)
+      .single();
+    
+    unitCode = unitData?.unit_code || null;
+  }
+
   // Busca diretamente de processed_data onde "pos vendas" é NULL ou 'pendente'
   let query = supabase
     .from('processed_data')
-    .select('*')
+    .select('*, unit_id')
     .order('DATA', { ascending: false });
 
   // Filtro por status pendente (coluna "pos vendas" NULL ou 'pendente')
   query = query.or('"pos vendas".is.null,"pos vendas".eq.pendente');
 
-  // Filtro por unidade (usando unit_code da tabela units)
-  if (filters?.unit_id) {
-    // Busca o unit_code correspondente ao unit_id
-    const { data: unitData } = await supabase
-      .from('units')
-      .select('unit_code')
-      .eq('id', filters.unit_id)
-      .single();
-    
-    if (unitData?.unit_code) {
-      query = query.eq('unidade_code', unitData.unit_code);
-    }
+  // Filtro por unidade (usando unidade_code)
+  if (unitCode) {
+    query = query.eq('unidade_code', unitCode);
   }
 
+  // Filtro de data: do início do mês até ontem (dia anterior)
   if (filters?.startDate) {
     query = query.gte('DATA', filters.startDate);
   }
-
-  if (filters?.endDate) {
-    query = query.lte('DATA', filters.endDate);
-  }
+  
+  // Sempre limita até ontem, mas respeita endDate se for anterior a ontem
+  const dataFinal = filters?.endDate && filters.endDate < dataLimite 
+    ? filters.endDate 
+    : dataLimite;
+  query = query.lte('DATA', dataFinal);
 
   const { data, error } = await query;
 
@@ -54,8 +67,8 @@ export const fetchPendenteWithProfissional = async (filters?: {
     ATENDIMENTO_ID: row.ATENDIMENTO_ID,
     chat_id: null,
     nome: row.CLIENTE,
-    contato: row.CONTATO || null,
-    unit_id: filters?.unit_id || null,
+    contato: row.whatscliente || null, // CORRIGIDO: usa whatscliente ao invés de CONTATO
+    unit_id: row.unit_id || filters?.unit_id || null, // CORRIGIDO: usa unit_id da row
     data: row.DATA,
     status: (row['pos vendas'] as 'pendente' | 'contatado' | 'finalizado' | null) || 'pendente',
     nota: null,

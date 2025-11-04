@@ -187,45 +187,20 @@ const PosVendasPage: React.FC = () => {
       const [data, metricsData, pendenteData, contatadosData, finalizadosData] = await Promise.all([
         fetchPosVendas(filters),
         getMetrics(filters),
-        fetchPendenteWithProfissional(filters),
+        fetchPendenteWithProfissional(filters), // Já vem filtrado do início do mês até ontem
         fetchPosVendas(contatadosFilters),
         fetchPosVendas(finalizadosFilters)
       ]);
 
-      // Filtrar pendentes até o dia anterior E dentro do mês selecionado
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
+      // Aplicar filtro de data específica se fornecido
+      let pendentesFiltrados = pendenteData;
       
-      const startOfMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
-      startOfMonth.setHours(0, 0, 0, 0);
-      
-      const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
-      endOfMonth.setHours(23, 59, 59, 999);
-      
-      let pendentesFiltrados = pendenteData.filter(record => {
-        if (!record.data) return false;
-        // Criar data sem conversão de timezone - comparar strings diretas
-        const dataStr = record.data; // Formato: YYYY-MM-DD
-        const recordDate = new Date(dataStr + 'T00:00:00'); // Adiciona hora para evitar timezone
-        recordDate.setHours(0, 0, 0, 0);
-        
-        const isInMonth = recordDate >= startOfMonth && recordDate <= endOfMonth;
-        const isBeforeToday = recordDate < hoje;
-        
-        // Apenas registros dentro do mês selecionado e anteriores a hoje
-        return isInMonth && isBeforeToday;
-      });
-
-      // Se houver data específica selecionada, filtrar ainda mais
       if (specificDate) {
-        const targetDate = new Date(specificDate + 'T00:00:00');
-        targetDate.setHours(0, 0, 0, 0);
-        
-        pendentesFiltrados = pendentesFiltrados.filter(record => {
+        pendentesFiltrados = pendenteData.filter(record => {
           if (!record.data) return false;
-          const recordDate = new Date(record.data + 'T00:00:00');
-          recordDate.setHours(0, 0, 0, 0);
-          return recordDate.getTime() === targetDate.getTime();
+          // Comparar strings diretas no formato YYYY-MM-DD
+          const dataStr = record.data.split('T')[0]; // Garante formato YYYY-MM-DD
+          return dataStr === specificDate;
         });
       }
 
