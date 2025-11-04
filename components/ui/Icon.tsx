@@ -56,7 +56,13 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
   // Tenta componente pronto do lucide-react (PascalCase)
   const LucideComp = (Lucide as any)[name] as any;
   if (LucideComp) {
-    return React.createElement(LucideComp, { className: className || 'w-6 h-6' });
+    // Garante que className sempre tenha precedência sobre o padrão
+    // Adiciona flex-shrink-0 para garantir que o ícone não seja redimensionado
+    const finalClassName = className ? `flex-shrink-0 ${className}` : 'flex-shrink-0 w-5 h-5';
+    return React.createElement(LucideComp, { 
+      className: finalClassName,
+      strokeWidth: 2 // Padroniza a espessura do traço
+    });
   }
 
   // Fallback: usa nossos paths custom
@@ -64,7 +70,7 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
   if (iconPath) {
     return (
       <svg
-        className={`flex-shrink-0 ${className || 'w-6 h-6'}`}
+        className={`flex-shrink-0 ${className || 'w-5 h-5'}`}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -78,7 +84,7 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
   // Último recurso: placeholder
   return (
     <svg
-      className={`flex-shrink-0 ${className || 'w-6 h-6'}`}
+      className={`flex-shrink-0 ${className || 'w-5 h-5'}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"

@@ -136,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
             : 'text-gray-300 hover:bg-white/10 hover:text-brand-snow-white'
         } ${className || ''}`}
       >
-        <Icon name={icon} className={isCollapsed ? 'w-8 h-8' : 'w-5 h-5'} />
+        <Icon name={icon} className={isCollapsed ? 'w-6 h-6' : 'w-5 h-5'} />
         {!isCollapsed && (
           <>
             <span className="ml-4">{label}</span>
@@ -209,7 +209,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleParent(parent.id); } }}
                   className="p-1 rounded hover:bg-white/10 text-gray-300 cursor-pointer"
                 >
-                  <Icon name={isExpanded ? 'ChevronDown' : 'ChevronRight'} />
+                  <Icon name={isExpanded ? 'ChevronDown' : 'ChevronRight'} className="w-4 h-4" />
                 </span>
               ) : null
             }
