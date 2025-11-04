@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from '../ui/Icon';
+import { EvolutionConfigModal } from '../ui/EvolutionConfigModal';
 import type { EvolutionInstance, EvolutionStats } from '../../types';
 import {
   fetchInstances,
@@ -28,6 +29,7 @@ export function EvolutionInstancesPage() {
   const [syncingAll, setSyncingAll] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<EvolutionInstance | null>(null);
 
   // Carregar dados
@@ -157,14 +159,23 @@ export function EvolutionInstancesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Instâncias WhatsApp</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowConfigModal(true)}
+            disabled={!selectedUnit || selectedUnit.unit_code === 'ALL'}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title={!selectedUnit || selectedUnit.unit_code === 'ALL' ? 'Selecione uma unidade específica' : 'Configurar servidor Evolution'}
+          >
+            <Icon name="Settings" />
+            Configurar API
+          </button>
           <button
             onClick={handleSyncAll}
             disabled={syncingAll}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
           >
             <Icon name={syncingAll ? "Loader2" : "RefreshCw"} className={syncingAll ? "animate-spin" : ""} />
-            {syncingAll ? 'Sincronizando...' : 'Sincronizar Todas'}
+            {syncingAll ? 'Sincronizando...' : 'Sincronizar'}
           </button>
           <button
             onClick={handleNew}
@@ -447,6 +458,18 @@ export function EvolutionInstancesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Configuração Evolution API */}
+      {showConfigModal && selectedUnit && selectedUnit.unit_code !== 'ALL' && (
+        <EvolutionConfigModal
+          unitId={selectedUnit.id}
+          unitName={selectedUnit.unit_name}
+          onClose={() => setShowConfigModal(false)}
+          onSave={() => {
+            loadData();
+          }}
+        />
       )}
     </div>
   );
