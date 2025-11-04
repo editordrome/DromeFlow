@@ -35,6 +35,7 @@ export interface UnitKey {
   organizationID: string | null;
   trigger: string | null;
   description: string | null;
+  conexao: string | null; // Campo de conexão da unidade
   is_active: boolean;
 }
 

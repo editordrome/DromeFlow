@@ -12,6 +12,25 @@ export async function fetchUnitKeys(unitId: string): Promise<UnitKey[]> {
   return (data || []) as UnitKey[];
 }
 
+// Busca o valor de conexao para uma unidade específica
+export async function fetchConexao(unitId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('unit_keys')
+    .select('conexao')
+    .eq('unit_id', unitId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single();
+  
+  if (error) {
+    console.warn(`Erro ao buscar conexao para unit_id ${unitId}:`, error.message);
+    return null;
+  }
+  
+  return data?.conexao ?? null;
+}
+
 export async function createUnitKey(unitId: string, payload: Partial<UnitKey>): Promise<UnitKey> {
   // Monta o corpo dinamicamente: envia apenas as chaves presentes no payload
   const dynamic: Record<string, any> = {};

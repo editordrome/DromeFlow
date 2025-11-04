@@ -96,9 +96,15 @@ const AppointmentsPage: React.FC = () => {
       if (!appointmentsWebhook) return;
       if (!activeDate) return;
       const unidadeCode = selectedUnit?.unit_code || '';
+      
+      // Busca o valor de conexao da unidade
+      const { fetchConexao } = await import('../../services/units/unitKeys.service');
+      const conexao = selectedUnit ? await fetchConexao(selectedUnit.id) : null;
+
       const payload = {
         unidade_code: unidadeCode,
         data: activeDate,
+        conexao,
         ...(keyword ? { keyword } : {}),
         ...(atendimentoId ? { atendimento_id: String(atendimentoId) } : {})
       } as any;
@@ -128,6 +134,7 @@ const AppointmentsPage: React.FC = () => {
         const url = new URL(appointmentsWebhook);
         url.searchParams.set('u', unidadeCode);
         url.searchParams.set('d', activeDate);
+        url.searchParams.set('cx', conexao || '');
         if (keyword) url.searchParams.set('kw', keyword);
         if (atendimentoId) url.searchParams.set('aid', String(atendimentoId));
         const r = await fetch(url.toString(), { method: 'GET' });

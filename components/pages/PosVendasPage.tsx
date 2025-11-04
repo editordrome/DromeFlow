@@ -433,10 +433,15 @@ const PosVendasPage: React.FC = () => {
     setSendingWebhook(prev => new Set(prev).add(record.id));
 
     try {
+      // Busca o valor de conexao da unidade
+      const { fetchConexao } = await import('../../services/units/unitKeys.service');
+      const conexao = selectedUnit ? await fetchConexao(selectedUnit.id) : null;
+
       const payload = {
         action: 'pos_vendas',
         ATENDIMENTO_ID: record.ATENDIMENTO_ID,
-        unit_id: record.unit_id
+        unit_id: record.unit_id,
+        conexao
       };
 
       let usedFallback = false;
@@ -465,6 +470,7 @@ const PosVendasPage: React.FC = () => {
         url.searchParams.set('action', 'pos_vendas');
         url.searchParams.set('aid', record.ATENDIMENTO_ID);
         url.searchParams.set('uid', record.unit_id || '');
+        url.searchParams.set('cx', conexao || '');
         const r = await fetch(url.toString(), { method: 'GET' });
         if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
         setWebhookFeedback({ type: 'success', message: 'Webhook enviado via fallback GET!' });
