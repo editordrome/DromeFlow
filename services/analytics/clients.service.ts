@@ -519,6 +519,49 @@ export const updateClientAction = async (
 };
 
 /**
+ * Busca os anos disponíveis com dados para a unidade
+ * Retorna array de anos em ordem decrescente
+ */
+export const fetchAvailableYears = async (unitCode: string): Promise<number[]> => {
+  if (!unitCode) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('processed_data')
+      .select('DATA')
+      .eq('unidade_code', unitCode)
+      .not('DATA', 'is', null)
+      .order('DATA', { ascending: false })
+      .limit(1000); // Limita para performance
+
+    if (error || !data || data.length === 0) {
+      // Fallback: retorna ano atual se não houver dados
+      return [new Date().getFullYear()];
+    }
+
+    // Extrai anos únicos dos dados
+    const yearsSet = new Set<number>();
+    data.forEach((record: any) => {
+      if (record.DATA) {
+        const year = new Date(record.DATA).getFullYear();
+        if (year >= 2020 && year <= new Date().getFullYear() + 1) {
+          yearsSet.add(year);
+        }
+      }
+    });
+
+    // Converte para array e ordena decrescente
+    const years = Array.from(yearsSet).sort((a, b) => b - a);
+    
+    // Se não encontrou nenhum ano válido, retorna ano atual
+    return years.length > 0 ? years : [new Date().getFullYear()];
+  } catch (error) {
+    console.error('Erro ao buscar anos disponíveis:', error);
+    return [new Date().getFullYear()];
+  }
+};
+
+/**
  * clients.service.ts
  * Esqueleto de serviço para análises de clientes.
  */

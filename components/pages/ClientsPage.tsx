@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchClients, fetchClientMetricsFromProcessed, fetchAllUnitClientsWithHistory, fetchLastAttendance, updateClientAction } from '../../services/analytics/clients.service';
+import { fetchClients, fetchClientMetricsFromProcessed, fetchAllUnitClientsWithHistory, fetchLastAttendance, updateClientAction, fetchAvailableYears } from '../../services/analytics/clients.service';
 import { Icon } from '../ui/Icon';
 import ClientDetailModal from '../ui/ClientDetailModal';
 
@@ -56,6 +56,8 @@ const ClientsPage: React.FC = () => {
   // Estado para controlar qual dropdown de ação está aberto
   const [openAcaoDropdown, setOpenAcaoDropdown] = useState<string | null>(null);
   const acaoDropdownRef = useRef<HTMLDivElement | null>(null);
+  // Anos disponíveis com dados
+  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
 
   // Normalização local (alinha com o serviço) para chavear overrides por nome
   const normalizeName = (value?: string | null) => {
@@ -147,6 +149,25 @@ const ClientsPage: React.FC = () => {
     };
     load();
   }, [selectedUnit, search, period]);
+
+  // Carregar anos disponíveis quando a unidade mudar
+  useEffect(() => {
+    const loadYears = async () => {
+      if (!selectedUnit || selectedUnit.unit_code === 'ALL') {
+        setAvailableYears([new Date().getFullYear()]);
+        return;
+      }
+      
+      try {
+        const years = await fetchAvailableYears(selectedUnit.unit_code);
+        setAvailableYears(years);
+      } catch (error) {
+        console.error('Erro ao carregar anos disponíveis:', error);
+        setAvailableYears([new Date().getFullYear()]);
+      }
+    };
+    loadYears();
+  }, [selectedUnit]);
 
   // Resetar página quando filtro ativo muda
   useEffect(() => { setPage(1); }, [activeFilter]);
@@ -252,7 +273,7 @@ const ClientsPage: React.FC = () => {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <PeriodDropdown value={period} onChange={setPeriod} />
+          <PeriodDropdown value={period} onChange={setPeriod} availableYears={availableYears} />
         </div>
       </div>
 
@@ -532,7 +553,12 @@ const ClientsPage: React.FC = () => {
 export default ClientsPage;
 
 // Componente local PeriodDropdown (padrão alinhado aos demais módulos)
-const PeriodDropdown: React.FC<{ value: string; onChange: (v: string) => void; disabled?: boolean }> = ({ value, onChange, disabled = false }) => {
+const PeriodDropdown: React.FC<{ 
+  value: string; 
+  onChange: (v: string) => void; 
+  disabled?: boolean;
+  availableYears?: number[];
+}> = ({ value, onChange, disabled = false, availableYears }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   const months = [
@@ -542,8 +568,10 @@ const PeriodDropdown: React.FC<{ value: string; onChange: (v: string) => void; d
     { value: '10', label: 'Outubro' }, { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' }
   ];
 
-  const currentYear = new Date().getFullYear();
-  const years = [currentYear, currentYear - 1, currentYear - 2];
+  // Usa os anos disponíveis dos dados, ou fallback para os últimos 3 anos
+  const years = availableYears && availableYears.length > 0 
+    ? availableYears 
+    : [new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2];
   
   // Gera opções para todos os anos disponíveis
   const options: { value: string; label: string }[] = [];
