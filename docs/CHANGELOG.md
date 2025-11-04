@@ -2,40 +2,61 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2025-11-04] - Migração: ATENDIMENTO_ID como Chave Única
+
+### 🔧 Mudança Estrutural
+**Substituição de `orcamento` por `ATENDIMENTO_ID` como identificador único**
+
+#### Motivação
+- Coluna `orcamento` não existe mais na tabela `processed_data`
+- `ATENDIMENTO_ID` já era utilizado como identificador lógico do atendimento
+- Necessidade de simplificar constraint e alinhar com estrutura real dos dados
+
+#### Mudanças Aplicadas
+1. **Constraint atualizado**: `UNIQUE (unidade_code, ATENDIMENTO_ID)` (antes era `unidade_code, orcamento`)
+2. **RPC atualizado**: `process_xlsx_upload` usa `ON CONFLICT (unidade_code, ATENDIMENTO_ID) DO UPDATE`
+3. **Migração de dados**: 256 registros existentes receberam sufixos `_1`, `_2` no `ATENDIMENTO_ID` para registros derivados
+4. **Trigger atualizado**: `sync_processed_data_to_pos_vendas` ignora registros derivados (regex `_\d+$`)
+5. **STATUS automático**: Implementado `applyWaitStatusForAfternoonShifts()` que marca `STATUS="esperar"` para atendimentos "Tarde" quando profissional tem múltiplos atendimentos no dia
+
+#### Configuração Final
+- **Função RPC**: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)`
+- **Constraint**: `UNIQUE (unidade_code, ATENDIMENTO_ID)`
+- **ON CONFLICT**: `(unidade_code, ATENDIMENTO_ID)`
+- **Campos atualizados**: DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade, STATUS
+- **Campos preservados**: `id`, `created_at` (idempotência)
+
+#### Comportamento de Upload
+| Situação | Ação | Descrição |
+|----------|------|-----------|
+| Novo ATENDIMENTO_ID | INSERT | Cria novo registro |
+| ATENDIMENTO_ID existente | UPDATE | Atualiza todos os campos, preserva id/created_at |
+| ID não está mais no arquivo | DELETE | `removeObsoleteRecords()` limpa registros obsoletos no período |
+| Multi-profissionais | INSERT múltiplos | Original sem sufixo + derivados com `_1`, `_2`, etc. |
+| Tarde + múltiplos atend./dia | UPDATE STATUS | `STATUS="esperar"` aplicado automaticamente |
+
+#### Arquivos
+- `docs/sql/2025-11-04_migrate_orcamento_to_atendimento_id.sql`: Script de migração completo
+- `docs/sql/2025-11-04_fix_pos_vendas_trigger_derivados.sql`: Atualização do trigger
+- `services/ingestion/upload.service.ts`: Lógica de upload com STATUS automático
+- `.github/copilot-instructions.md`: Documentação atualizada
+
+#### Benefícios
+- ✅ Alinhamento com estrutura real da tabela
+- ✅ Constraint simplificado e eficiente
+- ✅ Upsert correto por ATENDIMENTO_ID
+- ✅ Trigger de pós-vendas ignora derivados corretamente
+- ✅ STATUS automático para gestão operacional
+- ✅ Idempotência garantida (re-upload não duplica)
+
+---
+
 ## [2025-11-03] - Fix: Restauração da Configuração de Upload
 
 ### 🔧 Correção Crítica
-**Restauração da configuração original de upload de XLSX**
+**[OBSOLETO - Ver migração 2025-11-04 acima]**
 
-#### Problema Identificado
-- Durante tentativas de correção, foram criadas versões duplicadas da função `process_xlsx_upload`
-- Constraints UNIQUE duplicados estavam causando conflitos
-- A configuração que **já funcionava corretamente** foi temporariamente alterada
-
-#### Solução Aplicada
-1. **Remoção de função duplicada**: Removida versão incorreta `process_xlsx_upload(text, jsonb[])`
-2. **Limpeza de constraints**: Removidos constraints duplicados e incorretos
-3. **Restauração da lógica original**: Mantida apenas a configuração que funcionava
-
-#### Configuração Final (Correta)
-- **Função RPC**: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)`
-- **Constraint**: `UNIQUE (unidade_code, orcamento)`
-- **ON CONFLICT**: `(unidade_code, orcamento)`
-
-#### Mapeamento Correto
-| Coluna XLSX | Campo DB (Original) | Campo DB (Derivado _N) | Campo ATENDIMENTO_ID |
-|-------------|---------------------|------------------------|----------------------|
-| Número | `orcamento` | `orcamento_1, _2...` | Sempre original |
-
-#### Arquivos
-- `docs/sql/2025-11-03_fix_upload_configuration.sql`: Script de restauração
-- `components/ui/UploadModal.tsx`: Mantido código original (git restore)
-
-#### Benefícios
-- ✅ Upload de XLSX funcionando novamente
-- ✅ Configuração limpa e sem duplicações
-- ✅ Constraint único correto para upsert
-- ✅ Trigger de pós-vendas funcionando corretamente
+Esta entrada foi substituída pela migração para `ATENDIMENTO_ID` como chave única.
 
 ---
 

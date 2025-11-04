@@ -17,6 +17,20 @@ A aplicação está organizada da seguinte forma:
   - `supabaseClient.ts`: Configura e exporta o cliente Supabase, conectando a aplicação ao banco de dados.
   - `auth/users.service.ts`, `units/units.service.ts`, `modules/modules.service.ts`, `analytics/*.service.ts`, `data/dataTable.service.ts`, `ingestion/upload.service.ts`, `content/content.service.ts`, `access/accessCredentials.service.ts`.
   - Barrel temporário `services/index.ts` e compatibilidade `services/mockApi.ts` permanecem ativos até a Fase 6 de limpeza (não remover até PR dedicado atualizar todos os imports).
+  
+### Upload de XLSX - Comportamento de Atendimentos Existentes
+
+**Chave Única**: `(unidade_code, ATENDIMENTO_ID)`
+
+Quando um arquivo XLSX é enviado, o sistema identifica atendimentos existentes pela combinação de unidade + ATENDIMENTO_ID:
+
+- **Registro Novo** (`INSERT`): Se o `ATENDIMENTO_ID` não existir para aquela unidade, cria um novo registro.
+- **Registro Existente** (`UPDATE`): Se já existir, atualiza todos os campos (DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade, STATUS), preservando `id` e `created_at`.
+- **Limpeza de Obsoletos**: Após o upload, `removeObsoleteRecords()` remove registros cujo `ATENDIMENTO_ID` base (sem sufixos) não está mais presente no arquivo, limitado ao período (min/max DATA) e unidade do arquivo.
+
+**STATUS Automático**: A função `applyWaitStatusForAfternoonShifts()` marca `STATUS="esperar"` para atendimentos onde `MOMENTO` contém "tarde" quando a mesma profissional tem múltiplos atendimentos no mesmo dia.
+
+**Sufixos para Multi-Profissionais**: Registros derivados (quando múltiplos profissionais atendem o mesmo serviço) recebem sufixos `_1`, `_2`, etc. no `ATENDIMENTO_ID` para garantir unicidade.
 - **`/components/`**: Onde residem todos os componentes React.
   - `/layout/`: Componentes estruturais como `Sidebar` e `ContentArea`.
   - `/pages/`: Componentes que representam as telas principais de cada módulo (Dashboard, Dados, Gerenciamento de Usuários, etc.).
@@ -71,10 +85,11 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Gráfico mensal: `components/ui/MonthlyComparisonChart.tsx` aceita métricas estendidas e calcula campos derivados (`margin`, `marginPerService`); alterna Line/Bar conforme tipo.
 -   Dados:
   -   Fonte de Dados: Tabela `processed_data`.
+  -   Chave Única: `(unidade_code, ATENDIMENTO_ID)` — garante que uploads subsequentes atualizem registros existentes em vez de duplicá-los.
   -   Upload (XLSX):
     1.  `UploadModal.tsx` lê arquivo com SheetJS.
-    2.  `uploadXlsxData` executa: expansão multi-profissional (sufixos `_N`), divisão de repasse (`processRepasseValues`), normalização de horários/datas, limpeza seletiva (`removeObsoleteRecords`) usando orçamento base (`IS_DIVISAO = 'NAO'`).
-    3.  Envio em lotes (500) para RPC `process_xlsx_upload`.
+    2.  `uploadXlsxData` executa: expansão multi-profissional (sufixos `_N` no ATENDIMENTO_ID), divisão de repasse (`processRepasseValues`), normalização de horários/datas, aplicação de STATUS automático (`applyWaitStatusForAfternoonShifts`), limpeza seletiva (`removeObsoleteRecords`) usando ATENDIMENTO_ID base.
+    3.  Envio em lotes (500) para RPC `process_xlsx_upload` com `ON CONFLICT (unidade_code, ATENDIMENTO_ID) DO UPDATE`.
 -   Módulos de Administração:
   -   Usuários, Módulos, Unidades: Interfaces de CRUD que interagem com `profiles`, `modules`, `units` via serviços segmentados.
   -   Permissões: Atribuições em `user_units` e `user_modules` pelo modal de "Editar Usuário".

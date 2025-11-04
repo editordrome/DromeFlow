@@ -189,13 +189,34 @@ Notas adicionais:
 ---
 ## 7. Upload de Dados (XLSX)
 
-Pipeline (`uploadXlsxData`):
-1. Lê arquivo (SheetJS) no browser.
-2. Expande multi-profissionais (`PROFISSIONAL` com `;`).
-3. Divide repasse (valores múltiplos ou divisão equitativa) – `processRepasseValues`.
-4. Identifica datas min/max → limpeza de obsoletos (`removeObsoleteRecords`) usando `orcamento` base (registros originais `IS_DIVISAO = 'NAO'`).
-5. Envia lotes (500) para RPC `process_xlsx_upload`.
-6. Agrega métricas de retorno (`inserted`, `updated`, `ignored`, `deleted`).
+### 7.1 Pipeline de Processamento
+
+`uploadXlsxData` em `services/ingestion/upload.service.ts`:
+
+1. **Leitura**: Arquivo XLSX lido no browser com SheetJS.
+2. **Expansão Multi-Profissionais**: Registros com `PROFISSIONAL` contendo `;` são expandidos:
+   - Registro original mantém `ATENDIMENTO_ID` sem sufixo, `VALOR` integral, `IS_DIVISAO='NAO'`
+   - Derivados recebem sufixos `_1`, `_2`, etc. no `ATENDIMENTO_ID`, `VALOR=0`, `IS_DIVISAO='SIM'`, repasse proporcional
+3. **Divisão de Repasse**: `processRepasseValues` divide valores múltiplos ou aplica divisão equitativa.
+4. **STATUS Automático**: `applyWaitStatusForAfternoonShifts` marca `STATUS="esperar"` para atendimentos "Tarde" quando profissional tem múltiplos atendimentos no mesmo dia.
+5. **Limpeza de Obsoletos**: `removeObsoleteRecords` remove registros cujo `ATENDIMENTO_ID` base não está mais no arquivo (escopo: período do arquivo + unidade).
+6. **Envio em Lotes**: Dados enviados em batches de 500 para RPC `process_xlsx_upload`.
+7. **Agregação de Métricas**: Retorna contadores (`inserted`, `updated`, `ignored`, `deleted`).
+
+### 7.2 Comportamento de Atendimentos Existentes
+
+**Chave Única**: `(unidade_code, ATENDIMENTO_ID)`
+
+| Situação | Ação | Descrição |
+|----------|------|-----------|
+| **Novo ATENDIMENTO_ID** | `INSERT` | Cria novo registro com todos os campos |
+| **ATENDIMENTO_ID existente** | `UPDATE` | Atualiza DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade, STATUS |
+| **ID não está mais no arquivo** | `DELETE` | Removido por `removeObsoleteRecords()` (limitado ao período do arquivo) |
+| **Multi-profissionais** | `INSERT múltiplos` | Original sem sufixo + derivados com `_1`, `_2`, etc. |
+
+**Campos Preservados no UPDATE**: `id`, `created_at` (garante idempotência - re-upload não duplica)
+
+**RPC**: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)` usa `ON CONFLICT (unidade_code, ATENDIMENTO_ID) DO UPDATE`.
 
 Convenções:
 - Registros derivados recebem sufixo `_N` em `orcamento` e `IS_DIVISAO = 'SIM'`.

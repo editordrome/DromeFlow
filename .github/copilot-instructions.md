@@ -80,15 +80,22 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
 
 - **Segurança de Conteúdo**: `ContentArea.tsx` só injeta HTML de URLs iniciando com `internal://`.
 - **Camada de Acesso a Dados** (serviços segmentados):
-    - Upload XLSX: expansão multi-profissional (sufixos `_N`), divisão de repasse e limpeza baseada em orçamentos base (`orcamento`).
-    - Sincronização: `removeObsoleteRecords` elimina registros cujo orçamento base não está mais presente no arquivo importado.
-    - Métricas: `fetchDashboardMetrics` e `fetchMonthlyChartData` recalculam contagem de serviços (orçamentos base, ignorando derivados) e repasse (soma total de originais + derivados).
+    - Upload XLSX: expansão multi-profissional (sufixos `_N` no `ATENDIMENTO_ID`), divisão de repasse e limpeza baseada em IDs base.
+    - Sincronização: `removeObsoleteRecords` elimina registros cujo `ATENDIMENTO_ID` base não está mais presente no arquivo importado.
+    - Métricas: `fetchDashboardMetrics` e `fetchMonthlyChartData` recalculam contagem de serviços (IDs base, ignorando derivados) e repasse (soma total de originais + derivados).
     - Ordenação de Módulos: drag & drop persistido via `updateModulesOrder` atualiza `position`.
 - **Mescla de Módulos**: Lógica no `AuthContext` já entrega a lista final (atribuições + `allowed_profiles` + públicos). Sidebar apenas filtra `is_active`.
 - **Gerenciamento de Estado**: Novos estados globais — decidir entre `AuthContext` (identidade/permissões) e `AppContext` (UI / view / unidade).
-- **Chave Lógica de Sincronização**: Usar `orcamento` (base) como identificador; evitar reutilizar `ATENDIMENTO_ID` (legado presente só em alguns registros antigos).
-- **Expansão de Profissionais**: Registro original mantém `VALOR`; derivados recebem `VALOR = 0` e mesma proporção de `REPASSE` (se aplicável).
-- **Contagem de Serviços**: Baseada exclusivamente em orçamentos originais (`IS_DIVISAO != 'SIM'`).
+ - **Chave Lógica de Sincronização**: Usar `ATENDIMENTO_ID` (com sufixos `_1`, `_2` para derivados) como identificador único por unidade. Constraint: `UNIQUE (unidade_code, ATENDIMENTO_ID)`.
+ - **Configuração de Upload (Atendimentos Existentes)**:
+   - Chave única: `(unidade_code, ATENDIMENTO_ID)` — registros com mesmo ID na mesma unidade são atualizados (upsert).
+   - RPC: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)` usa `ON CONFLICT (unidade_code, ATENDIMENTO_ID) DO UPDATE`.
+   - Campos atualizados: DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade, STATUS.
+   - Campos preservados: `id`, `created_at` (idempotência garantida).
+   - Limpeza de obsoletos: `removeObsoleteRecords()` remove registros cujo `ATENDIMENTO_ID` base não está mais presente no arquivo (escopo: período do arquivo + unidade).
+   - STATUS automático: `applyWaitStatusForAfternoonShifts()` marca STATUS="esperar" para atendimentos onde MOMENTO contém "tarde" quando a mesma profissional tem múltiplos atendimentos no mesmo dia.
+- **Expansão de Profissionais**: Registro original mantém `VALOR` e `ATENDIMENTO_ID` sem sufixo; derivados recebem `VALOR = 0`, `ATENDIMENTO_ID` com sufixo (`_1`, `_2`...) e mesma proporção de `REPASSE`.
+- **Contagem de Serviços**: Baseada exclusivamente em registros originais (`IS_DIVISAO != 'SIM'` ou `ATENDIMENTO_ID` sem sufixo).
 - **Repasse**: Sempre soma todos os registros (originais + derivados) para refletir distribuição integral.
 - **Futuro (Planejado)**: hash de senha, migração para `auth.users` + triggers, RPC batch para ordenação, políticas RLS restritivas e índices analíticos.
  - **Super Admin**: Exibe apenas módulos cujo `allowed_profiles` contém `super_admin` (sem herdar públicos automaticamente).
@@ -100,7 +107,7 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
  - **Evolução**: Próxima otimização para reorder será RPC única (batch JSON) reduzindo round-trips.
  - **Sincronização Pós-Vendas**: 
    - Fluxo bidirecional via triggers: `processed_data` (INSERT) → `pos_vendas` (criação automática) e `pos_vendas` (UPDATE status) → `processed_data` (coluna `"pos vendas"`).
-   - Chave: `ATENDIMENTO_ID` (UNIQUE); registros duplicados ignorados via `ON CONFLICT DO NOTHING`.
+   - Chave: `ATENDIMENTO_ID` sem sufixos (apenas registros originais, `IS_DIVISAO = 'NAO'`); registros derivados com sufixo (`_1`, `_2`) são ignorados pelo trigger.
    - Campos auto-populados: `nome` (CLIENTE), `contato` (whatscliente), `unit_id` (lookup via unidade_code), `data` (DATA).
    - Status padrão: `pendente`; reagendamento: `false`.
    - População retroativa: Script SQL [`populate_pos_vendas_from_processed_data()`](docs/sql/2025-10-31_populate_pos_vendas.sql).

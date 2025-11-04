@@ -41,6 +41,7 @@ const processRepasseValues = (repasseOriginal: any, profissionaisCount: number):
 };
 
 // Expansão multi-profissional e normalização
+// ATENDIMENTO_ID agora recebe sufixos (_1, _2...) para registros derivados
 const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]): DataRecord[] => {
 	const finalRecords: DataRecord[] = [];
 	records.forEach((record) => {
@@ -62,7 +63,8 @@ const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]):
 						PROFISSIONAL: professional,
 						REPASSE: repasses[index] || 0,
 						VALOR: isFirst ? record.VALOR : 0,
-						ATENDIMENTO_ID: originalAtendimentoId,
+						// ATENDIMENTO_ID com sufixo para derivados (ex: 12345_1, 12345_2)
+						ATENDIMENTO_ID: isFirst ? originalAtendimentoId : `${originalAtendimentoId}_${index}`,
 						IS_DIVISAO: isFirst ? 'NAO' : 'SIM',
 					});
 				});
@@ -88,7 +90,42 @@ const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]):
 	return finalRecords;
 };
 
+// Aplica lógica de STATUS "esperar" para atendimentos do período "Tarde"
+// quando a mesma profissional tem múltiplos atendimentos no mesmo dia
+const applyWaitStatusForAfternoonShifts = (records: DataRecord[]): DataRecord[] => {
+	// Agrupar registros por (PROFISSIONAL + DATA)
+	const groupedByProfessionalDate = new Map<string, DataRecord[]>();
+	
+	records.forEach((record) => {
+		if (!record.PROFISSIONAL || !record.DATA) return;
+		
+		const key = `${record.PROFISSIONAL}|${record.DATA}`;
+		if (!groupedByProfessionalDate.has(key)) {
+			groupedByProfessionalDate.set(key, []);
+		}
+		groupedByProfessionalDate.get(key)!.push(record);
+	});
+	
+	// Aplicar regra: Se profissional tem múltiplos atendimentos no dia,
+	// marcar atendimentos do período "Tarde" com STATUS = "esperar"
+	groupedByProfessionalDate.forEach((recordsGroup) => {
+		if (recordsGroup.length > 1) {
+			// Profissional tem múltiplos atendimentos no mesmo dia
+			recordsGroup.forEach((record) => {
+				// Verificar se MOMENTO contém "Tarde"
+				const momento = String(record.MOMENTO || '').toLowerCase();
+				if (momento.includes('tarde')) {
+					record.STATUS = 'esperar';
+				}
+			});
+		}
+	});
+	
+	return records;
+};
+
 // Remove registros obsoletos usando 'ATENDIMENTO_ID' base como chave lógica
+// Agora extrai a base do ATENDIMENTO_ID (remove sufixos _1, _2 dos derivados)
 const removeObsoleteRecords = async (
 	unitCode: string,
 	startDate: string,
@@ -104,18 +141,17 @@ const removeObsoleteRecords = async (
 	if (fetchError) return 0;
 	if (!existingRecords || existingRecords.length === 0) return 0;
 
-	const baseFromAtendimento = (atendId: any, isDivisao: any): string => {
-		if (isDivisao === 'SIM' && typeof atendId === 'string') {
-			const match = atendId.match(/^(.*)_\d+$/);
-			if (match) return match[1];
-		}
-		return String(atendId || '').trim();
+	// Extrai o ID base do ATENDIMENTO_ID (remove sufixos _1, _2, _3...)
+	const baseFromAtendimento = (atendId: any): string => {
+		const str = String(atendId || '').trim();
+		const match = str.match(/^(.+)_\d+$/);
+		return match ? match[1] : str;
 	};
 
 	const existingBaseAtendimentos = new Set<string>();
 	const recordsWithBase: { ATENDIMENTO_ID: string; base: string }[] = [];
 	(existingRecords || []).forEach((r: any) => {
-		const base = baseFromAtendimento(r.ATENDIMENTO_ID, r.IS_DIVISAO);
+		const base = baseFromAtendimento(r.ATENDIMENTO_ID);
 		recordsWithBase.push({ ATENDIMENTO_ID: r.ATENDIMENTO_ID, base });
 		if (r.IS_DIVISAO !== 'SIM') existingBaseAtendimentos.add(base);
 	});
@@ -148,7 +184,12 @@ export const uploadXlsxData = async (
 		return { total: 0, inserted: 0, updated: 0, ignored: 0, deleted: 0 };
 	}
 
-	const processedRecords = processMultipleProfessionalsRecords(records);
+	// Processar multi-profissionais e aplicar sufixos
+	let processedRecords = processMultipleProfessionalsRecords(records);
+	
+	// Aplicar lógica de STATUS "esperar" para atendimentos da Tarde
+	// quando a mesma profissional tem múltiplos atendimentos no dia
+	processedRecords = applyWaitStatusForAfternoonShifts(processedRecords);
 
 	let deletedCount = 0;
 	let minDate: Date | null = null;
