@@ -11,6 +11,7 @@ import {
 } from '../../services/posVendas/posVendas.service';
 import PosVendaFormModal from '../ui/PosVendaFormModal';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import { fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
 
 type ActiveCard = 'geral' | 'finalizados' | 'pendente' | 'contatado';
 
@@ -19,7 +20,8 @@ const PeriodSelector: React.FC<{
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
-}> = ({ value, onChange, disabled = false }) => {
+  availableYears?: number[];
+}> = ({ value, onChange, disabled = false, availableYears }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const months = [
@@ -37,13 +39,18 @@ const PeriodSelector: React.FC<{
     { value: '12', label: 'Dezembro' },
   ];
 
-  const currentYear = new Date().getFullYear();
+  // Usa os anos disponíveis dos dados
+  const years = availableYears && availableYears.length > 0 
+    ? availableYears 
+    : [new Date().getFullYear()];
 
-  // Apenas meses do ano atual
-  const options = months.map(month => ({
-    value: `${currentYear}-${month.value}`,
-    label: `${month.label} ${currentYear}`
-  }));
+  // Gera opções para todos os anos disponíveis
+  const options: { value: string; label: string }[] = [];
+  years.forEach(year => {
+    months.forEach(month => {
+      options.push({ value: `${year}-${month.value}`, label: `${month.label} ${year}` });
+    });
+  });
 
   const getDisplayLabel = () => {
     const [year, monthNum] = value.split('-');
@@ -134,6 +141,9 @@ const PosVendasPage: React.FC = () => {
     `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
   );
 
+  // Anos disponíveis com dados
+  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
+
   // Métricas
   const [metrics, setMetrics] = useState<{
     totalContatos: number;
@@ -143,6 +153,25 @@ const PosVendasPage: React.FC = () => {
     taxaReagendamento: number;
     distribuicaoNotas: { nota: number; count: number }[];
   } | null>(null);
+
+  // Carregar anos disponíveis quando a unidade mudar
+  useEffect(() => {
+    const loadYears = async () => {
+      if (!selectedUnit || selectedUnit.id === 'ALL') {
+        setAvailableYears([new Date().getFullYear()]);
+        return;
+      }
+      
+      try {
+        const years = await fetchAvailableYearsFromProcessedData(selectedUnit.unit_code);
+        setAvailableYears(years);
+      } catch (error) {
+        console.error('Erro ao carregar anos disponíveis:', error);
+        setAvailableYears([new Date().getFullYear()]);
+      }
+    };
+    loadYears();
+  }, [selectedUnit]);
 
   useEffect(() => {
     loadData();
@@ -800,6 +829,7 @@ const PosVendasPage: React.FC = () => {
             value={selectedPeriod}
             onChange={setSelectedPeriod}
             disabled={loading}
+            availableYears={availableYears}
           />
           {specificDate && (
             <button

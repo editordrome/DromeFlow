@@ -10,6 +10,7 @@ import { Icon } from '../ui/Icon';
 import MonthlyComparisonChart from '../ui/MonthlyComparisonChart';
 import { supabase } from '../../services/supabaseClient';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import { fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
 import {
   BarChart,
   Bar,
@@ -55,11 +56,12 @@ const PeriodDropdown: React.FC<{
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
-}> = ({ value, onChange, disabled }) => {
+  availableYears?: number[];
+}> = ({ value, onChange, disabled, availableYears }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   const currentYear = new Date().getFullYear();
-  const years = [currentYear, currentYear - 1, currentYear - 2]; // Últimos 3 anos
+  const years = availableYears && availableYears.length > 0 ? availableYears : [currentYear, currentYear - 1, currentYear - 2];
   
   const months = [
     { value: '01', label: 'Janeiro' },
@@ -335,6 +337,7 @@ const DashboardMetricsPage: React.FC = () => {
         const month = String(today.getMonth() + 1).padStart(2, '0');
         return `${year}-${month}`;
     });
+    const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
     const [selectedMetric, setSelectedMetric] = useState<MetricType>('totalRevenue');
     const [selectedRevenueSubMetric, setSelectedRevenueSubMetric] = useState<RevenueSubMetric>('none');
     const [selectedServicesSubMetric, setSelectedServicesSubMetric] = useState<ServicesSubMetric>('none');
@@ -349,6 +352,24 @@ const DashboardMetricsPage: React.FC = () => {
         const prevMonth = String(date.getMonth() + 1).padStart(2, '0');
         return `${prevYear}-${prevMonth}`;
     };
+
+    useEffect(() => {
+        if (!selectedUnit) {
+            setAvailableYears([new Date().getFullYear()]);
+            return;
+        }
+        const loadYears = async () => {
+            try {
+                const unitCode = selectedUnit.unit_code === 'ALL' ? multiUnits : selectedUnit.unit_code;
+                const years = await fetchAvailableYearsFromProcessedData(unitCode);
+                setAvailableYears(years);
+            } catch (error) {
+                console.error('Erro ao carregar anos disponíveis:', error);
+                setAvailableYears([new Date().getFullYear()]);
+            }
+        };
+        loadYears();
+    }, [selectedUnit, multiUnits]);
 
     const loadMetrics = useCallback(async () => {
         if (!selectedUnit) {
@@ -1104,6 +1125,7 @@ const DashboardMetricsPage: React.FC = () => {
                         value={selectedPeriod}
                         onChange={setSelectedPeriod}
                         disabled={isLoading}
+                        availableYears={availableYears}
                     />
                 </div>
             </div>

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Icon } from '../ui/Icon';
 import { countProfissionais, countRecrutadora, countProcessedDataForPeriod, getMonthlyActivitySummary, MonthlyActivitySummary, getProfessionalMonthlyStats, ProfessionalMonthlyStat, getProfessionalAppointmentsForPeriod, type ProfessionalAppointment, getRecrutadoraMonthlyMetrics, type RecrutadoraMonthlyMetrics, getProfissionaisActivatedForPeriod } from '../../services/analytics/prestadoras.service';
 import ProfessionalAppointmentsModal from '../ui/ProfessionalAppointmentsModal';
+import { fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
 
 const MetricCard: React.FC<{
   title: string;
@@ -32,10 +33,11 @@ const MetricCard: React.FC<{
 const PeriodDropdown: React.FC<{
   value: string;
   onChange: (value: string) => void;
-}> = ({ value, onChange }) => {
+  availableYears?: number[];
+}> = ({ value, onChange, availableYears }) => {
   const [isOpen, setIsOpen] = useState(false);
   const currentYear = new Date().getFullYear();
-  const years = [currentYear, currentYear - 1, currentYear - 2];
+  const years = availableYears && availableYears.length > 0 ? availableYears : [currentYear, currentYear - 1, currentYear - 2];
   const months = [
     { value: '01', label: 'Janeiro' },
     { value: '02', label: 'Fevereiro' },
@@ -88,6 +90,7 @@ const PrestadorasPage: React.FC = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   });
+  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
 
   const multiUnitIds = useMemo(() => {
     if (!selectedUnit) return [] as string[];
@@ -124,6 +127,24 @@ const PrestadorasPage: React.FC = () => {
     if (mi >= 0 && mi < 12) return `${months[mi]} ${y}`;
     return period;
   }, [period]);
+
+  useEffect(() => {
+    if (!selectedUnit) {
+      setAvailableYears([new Date().getFullYear()]);
+      return;
+    }
+    const loadYears = async () => {
+      try {
+        const unitCode = selectedUnit.unit_code === 'ALL' ? multiUnitCodes : selectedUnit.unit_code;
+        const years = await fetchAvailableYearsFromProcessedData(unitCode);
+        setAvailableYears(years);
+      } catch (error) {
+        console.error('Erro ao carregar anos disponíveis:', error);
+        setAvailableYears([new Date().getFullYear()]);
+      }
+    };
+    loadYears();
+  }, [selectedUnit, multiUnitCodes]);
 
   const load = useCallback(async () => {
     if (!selectedUnit) { setProfissionaisCount(0); setRecrutadoraCount(0); setProcessedCount(0); return; }
@@ -200,7 +221,7 @@ const PrestadorasPage: React.FC = () => {
     <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-text-primary">Prestadoras{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
-        <PeriodDropdown value={period} onChange={setPeriod} />
+        <PeriodDropdown value={period} onChange={setPeriod} availableYears={availableYears} />
       </div>
       {loading ? (
         <div className="flex items-center justify-center h-48">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
-import { fetchDataTable, fetchDataTableMulti, updateDataRecord, deleteDataRecord, deleteDataRecords } from '../../services/data/dataTable.service';
+import { fetchDataTable, fetchDataTableMulti, updateDataRecord, deleteDataRecord, deleteDataRecords, fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { DataRecord } from '../../types';
 import { Icon } from '../ui/Icon';
@@ -13,11 +13,12 @@ const PeriodDropdown: React.FC<{
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
-}> = ({ value, onChange, disabled }) => {
+  availableYears?: number[];
+}> = ({ value, onChange, disabled, availableYears }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   const currentYear = new Date().getFullYear();
-  const years = [currentYear, currentYear - 1, currentYear - 2];
+  const years = availableYears && availableYears.length > 0 ? availableYears : [currentYear, currentYear - 1, currentYear - 2];
   
   const months = [
     { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
@@ -99,6 +100,7 @@ const DataPage: React.FC = () => {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     return `${year}-${month}`;
   });
+  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(25);
@@ -123,6 +125,25 @@ const DataPage: React.FC = () => {
     setSelectedRecordIds(new Set());
   }, [currentPage]);
 
+  useEffect(() => {
+    if (!selectedUnit) {
+      setAvailableYears([new Date().getFullYear()]);
+      return;
+    }
+    const loadYears = async () => {
+      try {
+        const unitCode = selectedUnit.unit_code === 'ALL' 
+          ? (userUnits || []).map(u => u.unit_code)
+          : selectedUnit.unit_code;
+        const years = await fetchAvailableYearsFromProcessedData(unitCode);
+        setAvailableYears(years);
+      } catch (error) {
+        console.error('Erro ao carregar anos disponíveis:', error);
+        setAvailableYears([new Date().getFullYear()]);
+      }
+    };
+    loadYears();
+  }, [selectedUnit, userUnits]);
 
   const loadData = useCallback(async () => {
     if (!selectedUnit) {
@@ -381,6 +402,7 @@ const DataPage: React.FC = () => {
               value={selectedPeriod}
               onChange={setSelectedPeriod}
               disabled={isLoading}
+              availableYears={availableYears}
             />
             
             {/* Botão de upload */}
