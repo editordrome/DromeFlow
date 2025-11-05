@@ -36,10 +36,6 @@ export interface UnitKey {
   trigger: string | null;
   description: string | null;
   conexao: string | null; // Campo de conexão da unidade
-  // Evolution API Configuration
-  evolution_api_url?: string | null;
-  evolution_api_key?: string | null;
-  evolution_webhook_url?: string | null;
   is_active: boolean;
 }
 
@@ -246,9 +242,10 @@ export interface ComercialCard {
   id: string;
   unit_id: string;
   nome: string;
-  tipo: 'Residencial' | 'Comercial' | 'Pós Obra' | null;
+  tipo: string | null; // Campo texto livre (não mais enum)
   endereco: string | null;
   contato: string | null;
+  origem: string | null; // Nova coluna para rastreamento de origem
   status: string;
   observacao: string | null;
   created_at: string;
@@ -292,112 +289,4 @@ export interface AtendimentoSearchResult {
   DATA: string;
   SERVICO: string;
   ENDERECO: string;
-}
-
-// =====================================================
-// Evolution API - Tipos para gerenciamento de instâncias WhatsApp
-// =====================================================
-
-export type EvolutionInstanceStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
-
-export interface EvolutionInstance {
-  id: string;
-  unit_id: string;
-  instance_name: string; // Nome único usado nas URLs da API
-  display_name?: string | null; // Nome amigável para exibição
-  api_url: string;
-  api_key: string;
-  status: EvolutionInstanceStatus;
-  qr_code?: string | null; // Base64 do QR Code
-  phone_number?: string | null; // Número conectado (+5511999999999)
-  profile_name?: string | null;
-  profile_picture_url?: string | null;
-  connected_at?: string | null;
-  disconnected_at?: string | null;
-  last_sync?: string | null;
-  webhook_url?: string | null;
-  webhook_events?: string[] | null;
-  error_message?: string | null;
-  metadata?: Record<string, any>;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CreateEvolutionInstanceData {
-  unit_id: string;
-  instance_name: string;
-  display_name?: string;
-  api_url?: string; // Default: https://api.evolution-api.com
-  api_key: string;
-  webhook_url?: string;
-  webhook_events?: string[];
-}
-
-export interface UpdateEvolutionInstanceData {
-  display_name?: string;
-  api_url?: string;
-  api_key?: string;
-  webhook_url?: string;
-  webhook_events?: string[];
-  status?: EvolutionInstanceStatus;
-  qr_code?: string | null;
-  phone_number?: string | null;
-  profile_name?: string | null;
-  profile_picture_url?: string | null;
-  connected_at?: string | null;
-  disconnected_at?: string | null;
-  error_message?: string | null;
-  is_active?: boolean;
-}
-
-// Resposta da Evolution API ao criar instância
-export interface EvolutionApiInstanceResponse {
-  instance: {
-    instanceName: string;
-    status: string;
-  };
-  qrcode?: {
-    code: string; // Base64
-    base64: string; // URL completa data:image/png;base64,...
-  };
-  hash?: {
-    apikey: string;
-  };
-}
-
-// Resposta de status de conexão da Evolution API
-export interface EvolutionApiConnectionState {
-  instance: {
-    instanceName: string;
-    state: 'open' | 'close' | 'connecting';
-  };
-}
-
-// Resposta do QR Code da Evolution API
-export interface EvolutionApiQRCode {
-  code: string; // Base64
-  base64: string; // URL completa data:image/png;base64,...
-}
-
-// Webhook log
-export interface EvolutionWebhookLog {
-  id: string;
-  instance_id: string;
-  event_type: string;
-  event_data: Record<string, any>;
-  processed: boolean;
-  processed_at?: string | null;
-  error_message?: string | null;
-  received_at: string;
-  ip_address?: string | null;
-}
-
-// Estatísticas de instâncias
-export interface EvolutionStats {
-  total: number;
-  connected: number;
-  disconnected: number;
-  connecting: number;
-  error: number;
 }

@@ -22,12 +22,6 @@ const STATUS_OPTIONS = [
   { value: 'perdidos', label: 'Perdidos' },
 ];
 
-const TYPE_OPTIONS: Array<{ value: Exclude<ComercialCard['tipo'], null>; label: string }> = [
-  { value: 'Residencial', label: 'Residencial' },
-  { value: 'Comercial', label: 'Comercial' },
-  { value: 'Pós Obra', label: 'Pós Obra' },
-];
-
 const ComercialCardModal: React.FC<Props> = ({
   isOpen,
   onClose,
@@ -41,9 +35,10 @@ const ComercialCardModal: React.FC<Props> = ({
   onUpdate,
 }) => {
   const [nome, setNome] = useState('');
-  const [tipo, setTipo] = useState<ComercialCard['tipo']>(null);
+  const [tipo, setTipo] = useState('');
   const [endereco, setEndereco] = useState('');
   const [contato, setContato] = useState('');
+  const [origem, setOrigem] = useState('');
   const [status, setStatus] = useState(defaultStatus);
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
@@ -55,16 +50,18 @@ const ComercialCardModal: React.FC<Props> = ({
     setSaving(false);
     if (initialCard) {
       setNome(initialCard.nome || '');
-  setTipo(initialCard.tipo ?? null);
+      setTipo(initialCard.tipo || '');
       setEndereco(initialCard.endereco || '');
       setContato(initialCard.contato || '');
+      setOrigem(initialCard.origem || '');
       setStatus(initialCard.status || defaultStatus);
       setObservacao(initialCard.observacao || '');
     } else {
       setNome('');
-  setTipo(null);
+      setTipo('');
       setEndereco('');
       setContato('');
+      setOrigem('');
       setStatus(defaultStatus);
       setObservacao('');
     }
@@ -81,9 +78,10 @@ const ComercialCardModal: React.FC<Props> = ({
     try {
       const payload: Partial<ComercialCard> = {
         nome: nome.trim(),
-  tipo,
+        tipo: tipo.trim() || null,
         endereco: endereco.trim() || null,
         contato: contato.trim() || null,
+        origem: origem.trim() || null,
         status,
         observacao: observacao.trim() || null,
       } as Partial<ComercialCard>;
@@ -154,21 +152,12 @@ const ComercialCardModal: React.FC<Props> = ({
             </label>
             <label className="flex flex-col gap-1 text-sm text-text-secondary">
               Tipo
-              <select
-                value={tipo ?? ''}
-                onChange={e => {
-                  const value = e.target.value as Exclude<ComercialCard['tipo'], null> | '';
-                  setTipo(value === '' ? null : value);
-                }}
+              <input
+                value={tipo}
+                onChange={e => setTipo(e.target.value)}
                 className="rounded-md border border-border-secondary bg-bg-tertiary px-3 py-2 text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
-              >
-                <option value="">Selecione</option>
-                {TYPE_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                placeholder="Ex.: Residencial, Comercial, Pós Obra..."
+              />
             </label>
           </div>
 
@@ -190,6 +179,19 @@ const ComercialCardModal: React.FC<Props> = ({
                 placeholder="Telefone, email..."
               />
             </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm text-text-secondary">
+              Origem
+              <input
+                value={origem}
+                onChange={e => setOrigem(e.target.value)}
+                className="rounded-md border border-border-secondary bg-bg-tertiary px-3 py-2 text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
+                placeholder="Ex.: Indicação, Site, Instagram..."
+              />
+            </label>
+            <div></div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -400,14 +400,13 @@ const ComercialPage: React.FC = () => {
                                     onClick={() => handleOpenModal(column.code, card)}
                                   >
                                     <h3 className="text-base font-semibold leading-snug text-text-primary">{card.nome}</h3>
-                                    <p className="text-xs text-text-secondary">{card.tipo || 'Tipo não informado'}</p>
-                                    <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
-                                      {new Date(card.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                    </p>
-                                    {card.endereco && <p className="mt-1 text-xs text-text-tertiary">{card.endereco}</p>}
-                                    {card.observacao && (
-                                      <p className="mt-2 truncate text-xs italic text-text-secondary">“{card.observacao}”</p>
-                                    )}
+                                    <div className="mt-1 flex items-center justify-between gap-2">
+                                      <p className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+                                        {new Date(card.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                      </p>
+                                      {card.origem && <p className="text-xs text-text-tertiary">{card.origem}</p>}
+                                    </div>
+                                    {card.tipo && <p className="mt-1 text-xs text-text-secondary">{card.tipo}</p>}
                                   </div>
                                 );
                                 return dragSnapshot.isDragging ? createPortal(cardContent, document.body) : cardContent;

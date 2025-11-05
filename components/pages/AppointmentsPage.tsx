@@ -427,15 +427,22 @@ const AppointmentsPage: React.FC = () => {
   }, [activeDate, tabs]);
 
   // Métricas: Total, Comercial, Residencial + Status (PENDENTE, AGUARDANDO, CONFIRMADO, RECUSADO)
+  // IMPORTANTE: Exclui registros derivados (IS_DIVISAO = 'SIM') da contagem, conforme regra de negócio
   const metrics = useMemo(() => {
-    const total = appointments.length;
+    // Filtra apenas registros originais (não derivados da expansão multi-profissional)
+    const originalRecords = appointments.filter(a => {
+      const isDivisao = (a.IS_DIVISAO || '').toUpperCase();
+      return isDivisao !== 'SIM';
+    });
+    
+    const total = originalRecords.length;
     let comercial = 0;
     let residencial = 0;
     let pendente = 0;
     let aguardando = 0;
     let confirmado = 0;
     let recusado = 0;
-    appointments.forEach(a => {
+    originalRecords.forEach(a => {
       const tipo = (a.TIPO || '').toLowerCase();
       if (tipo.includes('comercial')) comercial++;
       if (tipo.includes('residencial')) residencial++;

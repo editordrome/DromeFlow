@@ -10,7 +10,7 @@ import { startOfTodayISO, startOfWeekISO, startOfMonthISO } from '../utils/dates
 
 export type ComercialPeriodMetrics = { today: number; week: number; month: number };
 
-const COMERCIAL_SELECT = 'id, unit_id, nome, tipo, endereco, contato, status, observacao, created_at, updated_at, position';
+const COMERCIAL_SELECT = 'id, unit_id, nome, tipo, endereco, contato, origem, status, observacao, created_at, updated_at, position';
 
 export const fetchComercialColumns = async (unitId: string | null): Promise<ComercialColumn[]> => {
   let query = supabase
