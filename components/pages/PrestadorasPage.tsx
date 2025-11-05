@@ -267,9 +267,9 @@ const PrestadorasPage: React.FC = () => {
               <button className={`px-2 py-1 rounded border ${rankSort==='ganhos' ? 'bg-accent-primary text-white border-transparent' : 'border-border-secondary text-text-primary hover:bg-bg-tertiary'}`} onClick={()=> setRankSort('ganhos')}>Ganhos</button>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="min-w-full divide-y divide-border-primary">
-              <thead className="bg-bg-tertiary">
+              <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-text-secondary uppercase">#</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-text-secondary uppercase">Profissional</th>
