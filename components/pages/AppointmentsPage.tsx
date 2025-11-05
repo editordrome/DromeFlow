@@ -677,18 +677,20 @@ const AppointmentsPage: React.FC = () => {
             </div>
           </div>
         
-          <div className="overflow-x-auto overflow-y-visible">
-          <table className="w-full text-sm table-fixed" style={{ minWidth: '900px' }}>
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <table className="w-full text-sm table-fixed" style={{ minWidth: '1000px' }}>
             <colgroup>
+              <col className="w-[10%]" />
               <col className="w-[8%]" />
-              <col className="w-[32%]" />
+              <col className="w-[28%]" />
               <col className="w-[10%]" />
               <col className="w-[12%]" />
-              <col className="w-[26%]" />
+              <col className="w-[20%]" />
               <col className="w-[12%]" />
             </colgroup>
-            <thead>
+            <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
               <tr className="bg-bg-tertiary text-text-secondary">
+                <th className="px-4 py-3 text-left font-semibold">ID</th>
                 <th className="px-4 py-3 text-left font-semibold">Horário</th>
                 <th className="px-4 py-3 text-left font-semibold">Cliente</th>
                 <th className="px-4 py-3 font-semibold text-center">Período</th>
@@ -700,17 +702,17 @@ const AppointmentsPage: React.FC = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center">
+                  <td colSpan={7} className="py-10 text-center">
                     <div className="w-10 h-10 border-4 border-gray-200 border-t-accent-primary rounded-full animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-danger">{error}</td>
+                  <td colSpan={7} className="py-6 text-center text-danger">{error}</td>
                 </tr>
               ) : filteredAppointments.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-text-secondary">Nenhum agendamento para esta data.</td>
+                  <td colSpan={7} className="py-6 text-center text-text-secondary">Nenhum agendamento para esta data.</td>
                 </tr>
               ) : (
                 filteredAppointments.map(rec => (
@@ -719,6 +721,7 @@ const AppointmentsPage: React.FC = () => {
                     className="border-t border-border-secondary hover:bg-bg-tertiary cursor-pointer"
                     onClick={() => setSelectedRecord(rec)}
                   >
+                    <td className="px-4 py-2 text-text-primary truncate" title={rec.ATENDIMENTO_ID}>{rec.ATENDIMENTO_ID}</td>
                     <td className="px-4 py-2 font-medium text-text-primary">{formatDisplayHour(rec.HORARIO)}</td>
                     <td className="px-4 py-2 text-text-primary truncate" title={rec.CLIENTE}>{rec.CLIENTE}</td>
                     <td className="px-4 py-2 text-text-secondary text-center">{(() => {

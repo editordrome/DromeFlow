@@ -4,6 +4,7 @@ import { Icon } from './Icon';
 import { updateDataRecord } from '../../services/data/dataTable.service';
 import { useAppContext } from '../../contexts/AppContext';
 import { fetchProfissionais, Profissional } from '../../services/profissionais/profissionais.service';
+import { fetchClientHistory, ClientHistoryRecord } from '../../services/data/clientHistory.service';
 
 interface DataDetailModalProps {
     isOpen: boolean;
@@ -18,8 +19,14 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
 
     const { selectedUnit } = useAppContext();
     const [isEditing, setIsEditing] = useState(false);
-    const [activeTab, setActiveTab] = useState<'info' | 'posvenda'>('info');
+    const [activeTab, setActiveTab] = useState<'info' | 'posvenda' | 'historico'>('info');
     const [profissionais, setProfissionais] = useState<Profissional[]>([]);
+    const [clientHistory, setClientHistory] = useState<ClientHistoryRecord[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [selectedPeriod, setSelectedPeriod] = useState<string>(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
     const [profissionalSel, setProfissionalSel] = useState<string>(record.PROFISSIONAL || '');
     const [statusSel, setStatusSel] = useState<string>(String((record as any).status ?? (record as any).STATUS ?? '') || '');
     const [savingHeader, setSavingHeader] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -63,6 +70,33 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         };
         load();
     }, [selectedUnit]);
+
+    // Carrega histórico do cliente quando a aba historico é ativada ou o período muda
+    useEffect(() => {
+        if (activeTab === 'historico' && record && record.CLIENTE && selectedUnit) {
+            const loadHistory = async () => {
+                setLoadingHistory(true);
+                try {
+                    const unitCode = (selectedUnit as any)?.unit_code || '';
+                    console.log('Carregando histórico para:', { cliente: record.CLIENTE, unitCode, period: selectedPeriod });
+                    const history = await fetchClientHistory(
+                        record.CLIENTE,
+                        unitCode,
+                        record.id,
+                        200,
+                        selectedPeriod
+                    );
+                    setClientHistory(history);
+                } catch (e) {
+                    console.error('Erro ao carregar histórico:', e);
+                    setClientHistory([]);
+                } finally {
+                    setLoadingHistory(false);
+                }
+            };
+            loadHistory();
+        }
+    }, [activeTab, record, selectedUnit, selectedPeriod]);
 
     // ressincroniza valores ao trocar de registro/abrir
     useEffect(() => {
@@ -412,6 +446,53 @@ Obrigada e tenha um ótimo atendimento😊`
                     >
                         Pós-venda
                     </button>
+                    <button
+                        type="button"
+                        className={`px-3 py-2 text-sm ${activeTab==='historico' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                        onClick={() => setActiveTab('historico')}
+                    >
+                        Histórico
+                    </button>
+                    {activeTab === 'historico' && (
+                        <div className="ml-auto flex items-center gap-2 py-2">
+                            <button
+                                type="button"
+                                className="px-2 py-1 rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary"
+                                title="Mês anterior"
+                                onClick={() => {
+                                    if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return;
+                                    const [y, m] = selectedPeriod.split('-').map(Number);
+                                    const d = new Date(Date.UTC(y, m - 1, 1));
+                                    d.setUTCMonth(d.getUTCMonth() - 1);
+                                    const ny = d.getUTCFullYear();
+                                    const nm = d.getUTCMonth() + 1;
+                                    setSelectedPeriod(`${ny}-${String(nm).padStart(2, '0')}`);
+                                }}
+                            >‹</button>
+                            <span className="text-xs text-text-secondary min-w-[140px] text-center">
+                                {(() => {
+                                    if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return '-';
+                                    const [yy, mm] = selectedPeriod.split('-').map(Number);
+                                    const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+                                    return `${meses[Math.max(1, Math.min(12, mm)) - 1]} ${yy}`;
+                                })()}
+                            </span>
+                            <button
+                                type="button"
+                                className="px-2 py-1 rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary"
+                                title="Próximo mês"
+                                onClick={() => {
+                                    if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return;
+                                    const [y, m] = selectedPeriod.split('-').map(Number);
+                                    const d = new Date(Date.UTC(y, m - 1, 1));
+                                    d.setUTCMonth(d.getUTCMonth() + 1);
+                                    const ny = d.getUTCFullYear();
+                                    const nm = d.getUTCMonth() + 1;
+                                    setSelectedPeriod(`${ny}-${String(nm).padStart(2, '0')}`);
+                                }}
+                            >›</button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="mt-4 space-y-4 pr-2 overflow-y-auto">
@@ -534,6 +615,59 @@ Obrigada e tenha um ótimo atendimento😊`
                                             </div>
                                         </div>
                                     </>
+                                )}
+
+                                {activeTab === 'historico' && (
+                                    <div className="mt-2">
+                                        {loadingHistory ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <div className="w-8 h-8 border-4 border-gray-200 border-t-accent-primary rounded-full animate-spin" />
+                                            </div>
+                                        ) : (
+                                            <div className="overflow-auto border border-white/10 rounded-md">
+                                                <table className="min-w-full text-sm">
+                                                    <thead className="bg-bg-tertiary text-text-secondary">
+                                                        <tr>
+                                                            <th className="px-3 py-2 text-left">ID</th>
+                                                            <th className="px-3 py-2 text-left">Data</th>
+                                                            <th className="px-3 py-2 text-left">Dia</th>
+                                                            <th className="px-3 py-2 text-left">Período</th>
+                                                            <th className="px-3 py-2 text-left">Pós-venda</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {clientHistory.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={5} className="px-3 py-4 text-center text-text-secondary">
+                                                                    Sem atendimentos registrados.
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            clientHistory.map((histRecord, idx) => {
+                                                                const periodo = (histRecord as any)['PERÍODO'] || (histRecord as any)['PERIODO'];
+                                                                const posVendaNota = (histRecord as any).pos_vendas_nota || (histRecord as any)['pos vendas'] || '-';
+                                                                
+                                                                return (
+                                                                    <tr 
+                                                                        key={histRecord.id || idx} 
+                                                                        className="border-t border-white/5 hover:bg-white/5 cursor-pointer"
+                                                                    >
+                                                                        <td className="px-3 py-2 text-text-primary">{histRecord.ATENDIMENTO_ID || '-'}</td>
+                                                                        <td className="px-3 py-2">
+                                                                            {histRecord.DATA ? new Date(histRecord.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+                                                                        </td>
+                                                                        <td className="px-3 py-2">{histRecord.DIA || '-'}</td>
+                                                                        <td className="px-3 py-2">{periodo ? `${periodo} horas` : '-'}</td>
+                                                                        <td className="px-3 py-2">{posVendaNota}</td>
+                                                                    </tr>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                 </div>
                  <div className="flex items-center justify-end gap-2 pt-4 mt-auto flex-shrink-0">
