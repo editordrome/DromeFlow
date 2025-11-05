@@ -248,29 +248,37 @@ export const ClientDetailModal: React.FC<{
               <table className="min-w-full text-sm">
                 <thead className="bg-bg-tertiary text-text-secondary">
                   <tr>
+                    <th className="px-3 py-2 text-left">ID</th>
                     <th className="px-3 py-2 text-left">Data</th>
                     <th className="px-3 py-2 text-left">Dia</th>
                     <th className="px-3 py-2 text-left">Profissional</th>
+                    <th className="px-3 py-2 text-left">Período</th>
                     <th className="px-3 py-2 text-left">Pós-venda</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(!history || history.length===0) ? (
-                    <tr><td colSpan={4} className="px-3 py-4 text-center text-text-secondary">Sem atendimentos registrados.</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-4 text-center text-text-secondary">Sem atendimentos registrados.</td></tr>
                   ) : (
-                    history.map((h, idx) => (
-                      <tr key={h.id || idx} className="border-t border-white/5 hover:bg-white/5 cursor-pointer" onDoubleClick={async ()=>{
-                        if (!h.id) return;
-                        const rec = await fetchDataRecordById(h.id as number);
-                        setDetailRecord(rec);
-                        setDetailOpen(true);
-                      }}>
-                        <td className="px-3 py-2">{h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
-                        <td className="px-3 py-2">{h.DIA || '-'}</td>
-                        <td className="px-3 py-2">{h.PROFISSIONAL || '-'}</td>
-                        <td className="px-3 py-2">{(h as any)['pos vendas'] || '-'}</td>
-                      </tr>
-                    ))
+                    history.map((h, idx) => {
+                      const periodo = (h as any)['PERÍODO'] || (h as any)['PERIODO'];
+                      
+                      return (
+                        <tr key={h.id || idx} className="border-t border-white/5 hover:bg-white/5 cursor-pointer" onDoubleClick={async ()=>{
+                          if (!h.id) return;
+                          const rec = await fetchDataRecordById(h.id as number);
+                          setDetailRecord(rec);
+                          setDetailOpen(true);
+                        }}>
+                          <td className="px-3 py-2 text-text-primary">{(h as any).ATENDIMENTO_ID || '-'}</td>
+                          <td className="px-3 py-2">{h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
+                          <td className="px-3 py-2">{h.DIA || '-'}</td>
+                          <td className="px-3 py-2">{h.PROFISSIONAL || '-'}</td>
+                          <td className="px-3 py-2">{periodo ? `${periodo} horas` : '-'}</td>
+                          <td className="px-3 py-2">{(h as any)['pos vendas'] || '-'}</td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

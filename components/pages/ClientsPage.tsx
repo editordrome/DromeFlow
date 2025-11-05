@@ -333,7 +333,7 @@ const ClientsPage: React.FC = () => {
               })}
             </div>
           </div>
-          <div className="overflow-auto">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="min-w-full text-sm">
             {activeFilter !== 'atencao' && (
               <colgroup>
@@ -346,7 +346,7 @@ const ClientsPage: React.FC = () => {
                 {activeFilter === 'total' && <col className="w-32" />}
               </colgroup>
             )}
-            <thead className="bg-bg-tertiary text-text-secondary">
+            <thead className="sticky top-0 z-10 bg-bg-tertiary text-text-secondary shadow-sm">
               <tr>
                 <th className="px-2 py-3 text-center w-12">#</th>
                 <th className="px-4 py-3 text-left">Nome</th>

@@ -153,17 +153,6 @@ const ProfissionaisPage: React.FC = () => {
           Profissionais{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}
         </h1>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              setSelected(null);
-              setModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent-primary rounded-lg hover:bg-accent-secondary transition-colors"
-            title="Cadastrar novo profissional"
-          >
-            <Icon name="user-plus" className="w-4 h-4" />
-            Novo Cadastro
-          </button>
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-secondary">
               <Icon name="search" className="h-4 w-4" />
@@ -186,6 +175,16 @@ const ProfissionaisPage: React.FC = () => {
               </button>
             )}
           </div>
+          <button
+            onClick={() => {
+              setSelected(null);
+              setModalOpen(true);
+            }}
+            className="p-2 text-white bg-accent-primary rounded-lg hover:bg-accent-secondary transition-colors"
+            title="Cadastrar novo profissional"
+          >
+            <Icon name="Plus" className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -197,56 +196,51 @@ const ProfissionaisPage: React.FC = () => {
         <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
       ) : (
         <>
-          {/* Abas de filtro */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <button
-              onClick={() => setStatusTab('todas')}
-              className={`px-6 py-3 text-sm font-medium rounded-lg transition-all ${
-                statusTab === 'todas'
-                  ? 'bg-accent-primary text-white shadow-md'
-                  : 'bg-bg-tertiary text-text-secondary hover:bg-bg-primary border border-border-secondary'
-              }`}
-            >
-              Todas ({metrics.total})
-            </button>
-            <button
-              onClick={() => setStatusTab('ativas')}
-              className={`px-6 py-3 text-sm font-medium rounded-lg transition-all ${
-                statusTab === 'ativas'
-                  ? 'bg-accent-primary text-white shadow-md'
-                  : 'bg-bg-tertiary text-text-secondary hover:bg-bg-primary border border-border-secondary'
-              }`}
-            >
-              Ativas ({metrics.ativas})
-            </button>
-            <button
-              onClick={() => setStatusTab('inativas')}
-              className={`px-6 py-3 text-sm font-medium rounded-lg transition-all ${
-                statusTab === 'inativas'
-                  ? 'bg-accent-primary text-white shadow-md'
-                  : 'bg-bg-tertiary text-text-secondary hover:bg-bg-primary border border-border-secondary'
-              }`}
-            >
-              Inativas ({metrics.inativas})
-            </button>
-          </div>
-
-          {/* Tabela */}
-          <div className="overflow-x-auto">
-            <table className="w-full divide-y table-fixed divide-border-primary">
+          <div className="rounded-lg shadow-md overflow-hidden">
+            {/* Cabeçalho das abas de filtro */}
+            <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
+              <div className="flex w-full gap-2">
+                {([
+                  { key: 'todas' as const, label: 'Todas', count: metrics.total },
+                  { key: 'ativas' as const, label: 'Ativas', count: metrics.ativas },
+                  { key: 'inativas' as const, label: 'Inativas', count: metrics.inativas },
+                ]).map(tab => {
+                  const isActive = statusTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setStatusTab(tab.key)}
+                      aria-pressed={isActive}
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${
+                        isActive
+                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                      }`}
+                    >
+                      {tab.label} ({tab.count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            
+            {/* Tabela */}
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table className="min-w-full text-sm">
               <colgroup>
                 <col style={{ width: '40%' }} />
                 <col style={{ width: '35%' }} />
                 <col style={{ width: '25%' }} />
               </colgroup>
-              <thead className="bg-bg-tertiary">
+              <thead className="sticky top-0 z-10 bg-bg-tertiary text-text-secondary shadow-sm">
                 <tr>
-                  <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
-                  <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">WhatsApp</th>
-                  <th className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">Status</th>
+                  <th className="px-6 py-3 text-left font-semibold">Nome</th>
+                  <th className="px-6 py-3 text-left font-semibold">WhatsApp</th>
+                  <th className="px-6 py-3 text-center font-semibold">Status</th>
                 </tr>
               </thead>
-              <tbody className="bg-bg-secondary divide-y divide-border-primary">
+              <tbody>
                 {paginatedRows.length === 0 ? (
                   <tr>
                     <td className="px-6 py-10 text-center text-text-secondary" colSpan={3}>
@@ -262,13 +256,13 @@ const ProfissionaisPage: React.FC = () => {
                     return (
                       <tr 
                         key={r.id} 
-                        className="hover:bg-bg-tertiary transition-colors"
+                        className="border-t border-border-secondary hover:bg-bg-tertiary cursor-pointer"
                         onDoubleClick={() => handleRowDoubleClick(r)}
                       >
-                        <td className="px-6 py-3 text-sm text-text-primary cursor-pointer">
+                        <td className="px-6 py-3 text-text-primary">
                           {r.nome || '-'}
                         </td>
-                        <td className="px-6 py-3 text-sm text-text-primary cursor-pointer">
+                        <td className="px-6 py-3 text-text-primary">
                           {r.whatsapp || '-'}
                         </td>
                         <td className="px-6 py-3">
@@ -306,6 +300,7 @@ const ProfissionaisPage: React.FC = () => {
                 )}
               </tbody>
             </table>
+          </div>
           </div>
 
           <Pagination />

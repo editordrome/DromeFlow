@@ -631,6 +631,7 @@ Obrigada e tenha um ótimo atendimento😊`
                                                             <th className="px-3 py-2 text-left">ID</th>
                                                             <th className="px-3 py-2 text-left">Data</th>
                                                             <th className="px-3 py-2 text-left">Dia</th>
+                                                            <th className="px-3 py-2 text-left">Profissional</th>
                                                             <th className="px-3 py-2 text-left">Período</th>
                                                             <th className="px-3 py-2 text-left">Pós-venda</th>
                                                         </tr>
@@ -638,7 +639,7 @@ Obrigada e tenha um ótimo atendimento😊`
                                                     <tbody>
                                                         {clientHistory.length === 0 ? (
                                                             <tr>
-                                                                <td colSpan={5} className="px-3 py-4 text-center text-text-secondary">
+                                                                <td colSpan={6} className="px-3 py-4 text-center text-text-secondary">
                                                                     Sem atendimentos registrados.
                                                                 </td>
                                                             </tr>
@@ -657,6 +658,7 @@ Obrigada e tenha um ótimo atendimento😊`
                                                                             {histRecord.DATA ? new Date(histRecord.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
                                                                         </td>
                                                                         <td className="px-3 py-2">{histRecord.DIA || '-'}</td>
+                                                                        <td className="px-3 py-2">{histRecord.PROFISSIONAL || '-'}</td>
                                                                         <td className="px-3 py-2">{periodo ? `${periodo} horas` : '-'}</td>
                                                                         <td className="px-3 py-2">{posVendaNota}</td>
                                                                     </tr>
