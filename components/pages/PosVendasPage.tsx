@@ -532,9 +532,9 @@ const PosVendasPage: React.FC = () => {
 
   // Tabela específica para contatados (data, ID, cliente, data de envio)
   const renderContatadosTable = (records: PosVenda[], emptyMessage: string) => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
       <table className="w-full">
-        <thead className="bg-bg-tertiary">
+        <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
               Data
@@ -598,9 +598,9 @@ const PosVendasPage: React.FC = () => {
 
   // Tabela específica para finalizados (data, ID, cliente, nota, reagendou, data de finalização)
   const renderFinalizadosTable = (records: PosVenda[], emptyMessage: string) => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
       <table className="w-full">
-        <thead className="bg-bg-tertiary">
+        <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
               Data
@@ -677,9 +677,9 @@ const PosVendasPage: React.FC = () => {
   );
 
   const renderTable = (records: PosVenda[], emptyMessage: string) => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
       <table className="w-full">
-        <thead className="bg-bg-tertiary">
+        <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
               Data
@@ -1094,9 +1094,9 @@ const PosVendasPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full">
-                  <thead className="bg-bg-tertiary">
+                  <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                         Data Finalização
@@ -1193,9 +1193,9 @@ const PosVendasPage: React.FC = () => {
             )}
             
             {/* Tabela Desktop */}
-            <div className="hidden lg:block overflow-x-auto">
+            <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full">
-              <thead className="bg-bg-tertiary">
+              <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                     Data
