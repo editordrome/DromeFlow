@@ -80,8 +80,16 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
     );
   }, [isCreating, profissional, editNome, editWhatsapp, editRg, editCpf, editDataNasc, editTipo, editPreferencia, editHabilidade, editEstadoCivil, editFumante, editFilhos, editQtoFilhos, editEndereco, editNomeRecado, editTelRecado, editObservacao]);
 
+  // Usar useRef para rastrear se já inicializamos os campos (não causa re-render)
+  const initializedRef = React.useRef(false);
+  const lastProfissionalIdRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (isOpen) {
+    // Detecta se é uma nova abertura do modal ou mudança de profissional
+    const profissionalId = profissional?.id || null;
+    const isNewModal = isOpen && (!initializedRef.current || lastProfissionalIdRef.current !== profissionalId);
+    
+    if (isNewModal) {
       if (profissional) {
         // Modo edição - carrega dados existentes
         setEditNome(profissional.nome || '');
@@ -122,6 +130,14 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
         setIsEditing(true); // Sempre em modo edição na criação
       }
       setIsSaving(false);
+      initializedRef.current = true;
+      lastProfissionalIdRef.current = profissionalId;
+    }
+    
+    // Resetar ref quando o modal fechar
+    if (!isOpen) {
+      initializedRef.current = false;
+      lastProfissionalIdRef.current = null;
     }
   }, [profissional, isOpen]);
 
@@ -430,23 +446,15 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {activeTab === 'inicio' && (
             <div className="space-y-4">
-              {/* Métricas de pós-venda com estrelas */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <StarMetric title="Geral" value={metrics.geral} />
-                <StarMetric title="Comercial" value={metrics.comercial} />
-                <StarMetric title="Residencial" value={metrics.residencial} />
-              </div>
-              {!isEditing && profissional ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Item label="WhatsApp" value={profissional.whatsapp} />
-                  <Item label="RG" value={profissional.rg} />
-                  <Item label="CPF" value={profissional.cpf} />
-                  <Item label="Data de Nascimento" value={profissional.data_nasc} />
-                  <Item label="Tipo" value={profissional.tipo} />
-                  <Item label="Preferência" value={profissional.preferencia} />
-                  <Item label="Habilidade" value={profissional.habilidade} />
+              {/* Métricas de pós-venda com estrelas - apenas para profissionais existentes */}
+              {!isCreating && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <StarMetric title="Geral" value={metrics.geral} />
+                  <StarMetric title="Comercial" value={metrics.comercial} />
+                  <StarMetric title="Residencial" value={metrics.residencial} />
                 </div>
-              ) : isEditing ? (
+              )}
+              {(isEditing || isCreating) ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <LabeledInput label="WhatsApp" value={editWhatsapp} onChange={setEditWhatsapp} />
                   <LabeledInput label="RG" value={editRg} onChange={setEditRg} />
@@ -456,22 +464,21 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                   <LabeledInput label="Preferência" value={editPreferencia} onChange={setEditPreferencia} />
                   <LabeledInput label="Habilidade" value={editHabilidade} onChange={setEditHabilidade} />
                 </div>
+              ) : profissional ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Item label="WhatsApp" value={profissional.whatsapp} />
+                  <Item label="RG" value={profissional.rg} />
+                  <Item label="CPF" value={profissional.cpf} />
+                  <Item label="Data de Nascimento" value={profissional.data_nasc} />
+                  <Item label="Tipo" value={profissional.tipo} />
+                  <Item label="Preferência" value={profissional.preferencia} />
+                  <Item label="Habilidade" value={profissional.habilidade} />
+                </div>
               ) : null}
             </div>
           )}
           {activeTab === 'dados' && (
-            !isEditing && profissional ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Item label="Estado Civil" value={profissional.estado_civil} />
-                <Item label="Fumante" value={profissional.fumante} />
-                <Item label="Filhos" value={profissional.filhos} />
-                <Item label="Qtd Filhos" value={profissional.qto_filhos} />
-                <Item label="Endereço" value={profissional.endereco} />
-                <Item label="Nome Recado" value={profissional.nome_recado} />
-                <Item label="Tel Recado" value={profissional.tel_recado} />
-                <Item label="Observação" value={profissional.observacao} />
-              </div>
-            ) : isEditing ? (
+            (isEditing || isCreating) ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <LabeledInput label="Estado Civil" value={editEstadoCivil} onChange={setEditEstadoCivil} />
                 <LabeledInput label="Fumante" value={editFumante} onChange={setEditFumante} />
@@ -481,6 +488,17 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                 <LabeledInput label="Nome Recado" value={editNomeRecado} onChange={setEditNomeRecado} />
                 <LabeledInput label="Tel Recado" value={editTelRecado} onChange={setEditTelRecado} />
                 <LabeledTextarea label="Observação" value={editObservacao} onChange={setEditObservacao} />
+              </div>
+            ) : profissional ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Item label="Estado Civil" value={profissional.estado_civil} />
+                <Item label="Fumante" value={profissional.fumante} />
+                <Item label="Filhos" value={profissional.filhos} />
+                <Item label="Qtd Filhos" value={profissional.qto_filhos} />
+                <Item label="Endereço" value={profissional.endereco} />
+                <Item label="Nome Recado" value={profissional.nome_recado} />
+                <Item label="Tel Recado" value={profissional.tel_recado} />
+                <Item label="Observação" value={profissional.observacao} />
               </div>
             ) : null
           )}

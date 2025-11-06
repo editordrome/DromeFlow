@@ -2,6 +2,42 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2025-11-06] - Correção: RLS Policy para INSERT em Profissionais
+
+### 🐛 Bug Crítico Corrigido
+
+#### Erro ao Criar Nova Profissional
+- **Sintoma**: `new row violates row-level security policy for table "profissionais" (Código: 42501)`
+- **Contexto**: Ao tentar criar nova profissional no módulo Recrutadora
+- **Causa**: Política RLS permitia INSERT apenas para role `authenticated`, mas sistema usa auth customizada com role `anon`
+
+### 🔧 Solução Aplicada
+
+#### Nova Política RLS
+```sql
+CREATE POLICY profissionais_insert_anon
+ON profissionais
+FOR INSERT
+TO anon
+WITH CHECK (true);
+```
+
+#### Arquivos Criados
+- `docs/sql/2025-11-06_profissionais_insert_anon_fix.sql` - Script de migração
+- `docs/FIX_PROFISSIONAIS_INSERT_RLS.md` - Documentação completa do fix
+
+### 📋 Ação Necessária
+⚠️ **Executar migração SQL no Supabase antes de criar novas profissionais**
+
+### 🔍 Contexto Técnico
+- Sistema usa autenticação customizada (valida em `profiles`)
+- Queries executam com chave pública (role `anon`)
+- RLS precisa permitir operações para `anon`, não apenas `authenticated`
+- Já corrigido anteriormente: UPDATE (2025-10-29)
+- Agora corrigido: INSERT (2025-11-06)
+
+---
+
 ## [2025-11-05] - Módulo Prestadoras: Aba Atenção e Coluna Último Atendimento
 
 ### ✨ Novas Funcionalidades
