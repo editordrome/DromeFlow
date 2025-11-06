@@ -238,3 +238,49 @@ export const getProfissionaisActivatedForPeriod = async (unitIds: string[], peri
   if (error) throw error;
   return count || 0;
 };
+
+/**
+ * Busca o último atendimento de cada profissional diretamente da tabela processed_data
+ */
+export const getLastAppointmentByProfessional = async (
+  unitCodes: string[]
+): Promise<Record<string, string>> => {
+  if (!unitCodes || unitCodes.length === 0) return {};
+
+  try {
+    // Buscar todos os atendimentos das unidades
+    const { data, error } = await supabase
+      .from('processed_data')
+      .select('PROFISSIONAL, DATA')
+      .in('unidade_code', unitCodes)
+      .not('PROFISSIONAL', 'is', null)
+      .not('PROFISSIONAL', 'eq', '')
+      .not('DATA', 'is', null)
+      .order('DATA', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao buscar último atendimento:', error);
+      return {};
+    }
+
+    // Agrupar por profissional e pegar a data mais recente
+    const result: Record<string, string> = {};
+    
+    if (data && Array.isArray(data)) {
+      data.forEach((row: any) => {
+        const profKey = (row.PROFISSIONAL || '').toLowerCase().trim();
+        if (!profKey) return;
+        
+        // Se ainda não temos registro dessa profissional, ou se esta data é mais recente
+        if (!result[profKey]) {
+          result[profKey] = row.DATA;
+        }
+      });
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Erro ao buscar últimos atendimentos:', error);
+    return {};
+  }
+};

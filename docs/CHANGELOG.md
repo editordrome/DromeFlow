@@ -2,6 +2,71 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2025-11-05] - Módulo Prestadoras: Aba Atenção e Coluna Último Atendimento
+
+### ✨ Novas Funcionalidades
+
+#### 1. Nova Aba "Atenção" no Módulo Prestadoras
+- **Objetivo**: Identificar profissionais ativas que necessitam atenção
+- **Critérios**:
+  - Profissionais ativas com mais de 15 dias sem atendimento
+  - Profissionais ativas que nunca tiveram atendimento
+- **Visual**: Botão laranja com ícone de alerta (AlertTriangle)
+- **Contador**: Exibe quantidade de profissionais em atenção
+
+#### 2. Nova Coluna "Último" na Tabela de Profissionais
+- **Posição**: Entre "WhatsApp" e "Status"
+- **Formato**: Data no formato brasileiro (DD/MM/AAAA)
+- **Destaque Visual**:
+  - 🟠 Laranja + negrito: >15 dias ou "Nunca" (ativas)
+  - Normal: ≤15 dias desde último atendimento
+  - Cinza: "-" para inativas sem atendimento
+- **Fonte de Dados**: Busca diretamente da tabela `processed_data`
+
+#### 3. Reorganização de Cards Principais
+- Nova ordem: "Profissionais (ativos)" → "Profissionais atuantes (mês)" → "Recrutadora (cadastros)"
+- "Profissionais Atuantes" agora aparece ao lado de "Profissionais"
+
+### 🐛 Correções
+
+#### Toggle de Status na Tabela
+- **Problema**: Toggle não funcionava na aba "Atenção" devido a conflito com `onDoubleClick`
+- **Solução**: 
+  - Adicionado `stopPropagation` na célula `<td>`
+  - Melhorado handler do `onClick` do botão
+  - Simplificada função `handleToggleStatus`
+
+### 🔧 Mudanças Técnicas
+
+#### Serviço de Analytics
+- **Arquivo**: `services/analytics/prestadoras.service.ts`
+- **Nova função**: `getLastAppointmentByProfessional(unitCodes: string[])`
+  - Busca diretamente de `processed_data`
+  - Ordena por `DATA` descendente
+  - Agrupa no cliente pegando primeira ocorrência
+  - Retorna `Record<string, string>` (nome → data)
+
+#### Componente PrestadorasPage
+- **Arquivo**: `components/pages/PrestadorasPage.tsx`
+- **Novos estados**:
+  - `statusTab`: Tipo atualizado para incluir `'atencao'`
+  - `lastAppointments`: `Record<string, string>`
+- **Métricas atualizadas**: `profMetrics.atencao`
+- **Filtros atualizados**: Suporte para aba "Atenção"
+- **Tabela**: 4 colunas (35%, 25%, 20%, 20%)
+
+### 📦 Impacto
+- **Sem migração de BD**: Funciona imediatamente sem alterações no banco
+- **Performance**: Busca executada uma vez ao carregar lista
+- **Cache**: Últimos atendimentos armazenados em estado local
+- **Normalização**: Nomes normalizados (lowercase + trim) para matching
+
+### 📚 Documentação
+- Criado `docs/features/prestadoras-atencao-ultimo-atendimento.md`
+- Documentação completa com exemplos e fluxos de dados
+
+---
+
 ## [2025-11-04] - Migração: ATENDIMENTO_ID como Chave Única
 
 ### 🔧 Mudança Estrutural
