@@ -149,7 +149,7 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-3">
             {/* Data e Orçamento na mesma linha */}
             <div className="flex gap-3">
               <label className="flex-1 flex flex-col gap-1.5">
@@ -204,27 +204,30 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
                 placeholder="0.00"
               />
             </label>
+          </div>
+        </div>
 
-            {/* Footer compacto - apenas ícone de salvar */}
-            <div className="flex items-center justify-between pt-3 border-t border-border-secondary mt-4">
-              <div className="flex items-center gap-1 text-xs text-text-secondary">
-                <Icon name="info" className="w-3 h-3" />
-                <span>* Obrigatório</span>
-              </div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
-                title={isLoading ? "Salvando..." : "Salvar"}
-              >
-                {isLoading ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <Icon name="Check" className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-          </form>
+        {/* Footer compacto - apenas ícones */}
+        <div className="flex items-center justify-between border-t border-border-secondary bg-bg-tertiary px-5 py-3">
+          <div className="flex items-center gap-1 text-xs text-text-secondary">
+            <Icon name="info" className="w-3 h-3" />
+            <span>* Obrigatório</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isLoading}
+              className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
+              title={isLoading ? "Salvando..." : "Salvar"}
+            >
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <Icon name="Check" className="w-4 h-4" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

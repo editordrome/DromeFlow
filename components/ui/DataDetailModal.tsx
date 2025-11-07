@@ -398,57 +398,85 @@ Obrigada e tenha um ótimo atendimento😊`
 
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onClick={onClose}>
-                        <div className="w-full max-w-2xl p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg max-h-[90vh] flex flex-col" onClick={(e)=>e.stopPropagation()}>
-                <div className="flex items-center justify-between pb-3 border-b border-border-primary flex-shrink-0">
-                    <div className="flex items-center gap-2 min-w-0">
-                        <h2 className="text-xl font-bold text-text-primary truncate" title={`${record.ATENDIMENTO_ID ? `ID ${record.ATENDIMENTO_ID} - ` : ''}${record.CLIENTE || 'Detalhes do Atendimento'}`}>
-                            {record.ATENDIMENTO_ID ? (
-                                <>
-                                  <span className="text-text-secondary mr-2">ID {record.ATENDIMENTO_ID}</span>
-                                  <span className="text-text-primary">- {record.CLIENTE || 'Detalhes do Atendimento'}</span>
-                                </>
-                            ) : (
-                                <>{record.CLIENTE && record.CLIENTE.trim() !== '' ? record.CLIENTE : 'Detalhes do Atendimento'}</>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" aria-modal="true" role="dialog" onClick={onClose}>
+            <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+                {/* Header compacto com gradiente */}
+                <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-bold text-text-primary truncate" title={`${record.ATENDIMENTO_ID ? `ID ${record.ATENDIMENTO_ID} - ` : ''}${record.CLIENTE || 'Detalhes do Atendimento'}`}>
+                                {record.ATENDIMENTO_ID ? (
+                                    <>
+                                      <span className="text-text-secondary mr-2">ID {record.ATENDIMENTO_ID}</span>
+                                      <span className="text-text-primary">- {record.CLIENTE || 'Detalhes do Atendimento'}</span>
+                                    </>
+                                ) : (
+                                    <>{record.CLIENTE && record.CLIENTE.trim() !== '' ? record.CLIENTE : 'Detalhes do Atendimento'}</>
+                                )}
+                            </h2>
+                            {/* Botão copiar confirmação para cliente */}
+                            <button
+                                type="button"
+                                onClick={handleCopyClient}
+                                className="p-1.5 text-text-secondary hover:bg-bg-tertiary rounded-lg flex-shrink-0 transition-colors"
+                                aria-label="Copiar confirmação"
+                                title="Copiar confirmação"
+                            >
+                                <Icon name="copy" className="w-3.5 h-3.5" />
+                            </button>
+                            {copiedClient && (
+                                <span className="text-[11px] text-text-tertiary">Copiado!</span>
                             )}
-                        </h2>
-                        {/* Botão copiar confirmação para cliente */}
-                        <button
-                            type="button"
-                            onClick={handleCopyClient}
-                            className="p-1.5 text-text-secondary hover:bg-bg-tertiary flex-shrink-0"
-                            aria-label="Copiar confirmação"
-                            title="Copiar confirmação"
-                        >
-                            <Icon name="copy" className="w-4 h-4" />
-                        </button>
-                        {copiedClient && (
-                            <span className="text-[11px] text-text-tertiary">Copiado!</span>
-                        )}
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                            {/* Status ao lado do botão fechar */}
+                            <label className="flex flex-col gap-1.5 min-w-[140px]">
+                                <span className="text-xs font-medium text-text-secondary">Status</span>
+                                <select
+                                    value={statusSel}
+                                    onChange={(e) => setStatusSel(e.target.value)}
+                                    disabled={!isEditing}
+                                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all disabled:opacity-50"
+                                >
+                                    <option value="">Selecione</option>
+                                    <option value="PENDENTE">Pendente</option>
+                                    <option value="CONFIRMADO">Confirmado</option>
+                                    <option value="CANCELADO">Cancelado</option>
+                                    <option value="REAGENDADO">Reagendado</option>
+                                </select>
+                            </label>
+                            
+                            <button 
+                                onClick={onClose} 
+                                className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
+                                aria-label="Fechar"
+                            >
+                                <Icon name="close" className="w-5 h-5" />
+                            </button>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary">
-                        <Icon name="close" />
-                    </button>
                 </div>
+                
                 {/* Tabs */}
-                <div className="mt-4 flex items-center gap-2 border-b border-border-secondary">
+                <div className="flex items-center gap-2 border-b border-border-secondary px-5">
                     <button
                         type="button"
-                        className={`px-3 py-2 text-sm ${activeTab==='info' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                        className={`px-3 py-2 text-sm transition-colors ${activeTab==='info' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
                         onClick={() => setActiveTab('info')}
                     >
                         Detalhes
                     </button>
                     <button
                         type="button"
-                        className={`px-3 py-2 text-sm ${activeTab==='posvenda' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                        className={`px-3 py-2 text-sm transition-colors ${activeTab==='posvenda' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
                         onClick={() => setActiveTab('posvenda')}
                     >
                         Pós-venda
                     </button>
                     <button
                         type="button"
-                        className={`px-3 py-2 text-sm ${activeTab==='historico' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                        className={`px-3 py-2 text-sm transition-colors ${activeTab==='historico' ? 'border-b-2 border-accent-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
                         onClick={() => setActiveTab('historico')}
                     >
                         Histórico
@@ -495,9 +523,10 @@ Obrigada e tenha um ótimo atendimento😊`
                     )}
                 </div>
 
-                <div className="mt-4 space-y-4 pr-2 overflow-y-auto">
-                {activeTab === 'info' && (
-                <>
+                {/* Body com scroll */}
+                <div className="max-h-[65vh] overflow-y-auto px-5 py-4">
+                    {activeTab === 'info' && (
+                    <>
                 {/* Linha 1: DATA, HORÁRIO, DIA DA SEMANA, VALOR, STATUS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-x-6">
                     {renderEditableField('Data', editData, setEditData, 'date')}
@@ -671,23 +700,25 @@ Obrigada e tenha um ótimo atendimento😊`
                                     </div>
                                 )}
                 </div>
-                 <div className="flex items-center justify-end gap-2 pt-4 mt-auto flex-shrink-0">
+                
+                {/* Footer compacto - apenas ícones */}
+                <div className="flex items-center justify-end gap-2 border-t border-border-secondary bg-bg-tertiary px-5 py-3">
                     <button
                         type="button"
                         onClick={handleCopy}
-                        className="p-2 text-sm font-medium rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary"
+                        className="rounded-lg p-2 border border-border-secondary text-text-secondary hover:bg-bg-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
                         aria-label="Copiar"
                         title="Copiar"
                     >
                         <Icon name="copy" className="w-5 h-5" />
                     </button>
                     {copied && (
-                        <span className="text-[11px] text-text-tertiary mr-2">Copiado!</span>
+                        <span className="text-xs text-text-tertiary">Copiado!</span>
                     )}
                     <button
                         type="button"
                         onClick={() => onDelete && onDelete(record)}
-                        className="p-2 text-sm font-medium text-white transition-colors bg-danger rounded-md hover:bg-red-700"
+                        className="rounded-lg p-2 text-danger hover:bg-danger/10 border border-danger/30 focus:outline-none focus:ring-2 focus:ring-danger/40 transition-all"
                         aria-label="Excluir"
                         title="Excluir"
                     >
@@ -742,11 +773,15 @@ Obrigada e tenha um ótimo atendimento😊`
                             // Se não há mudanças, apenas desativa o modo edição
                             setIsEditing(false);
                         }}
-                        className={`p-2 text-sm font-medium text-white transition-colors border border-transparent rounded-md ${(isEditing || hasHeaderChanges) ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-accent-primary hover:bg-accent-secondary'}`}
+                        className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all shadow-lg shadow-accent-primary/20"
                         aria-label={(isEditing || hasHeaderChanges) ? 'Salvar' : 'Editar'}
                         title={(isEditing || hasHeaderChanges) ? 'Salvar' : 'Editar'}
                     >
-                        <Icon name={(isEditing || hasHeaderChanges) ? 'check' : 'edit'} className="w-5 h-5" />
+                        {savingHeader === 'saving' ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        ) : (
+                            <Icon name={(isEditing || hasHeaderChanges) ? 'check' : 'edit'} className="w-4 h-4" />
+                        )}
                     </button>
                 </div>
             </div>

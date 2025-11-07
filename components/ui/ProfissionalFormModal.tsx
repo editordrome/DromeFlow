@@ -181,7 +181,6 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
           ...formData,
           status: 'Ativa',
           unit_id: selectedUnit && selectedUnit.unit_code !== 'ALL' ? (selectedUnit as any).id : null,
-          recrutadora_id: 0,
         };
         
         await createProfissional(newProfissional);
