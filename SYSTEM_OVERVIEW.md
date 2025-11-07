@@ -25,7 +25,8 @@ A aplicação está organizada da seguinte forma:
 Quando um arquivo XLSX é enviado, o sistema identifica atendimentos existentes pela combinação de unidade + ATENDIMENTO_ID:
 
 - **Registro Novo** (`INSERT`): Se o `ATENDIMENTO_ID` não existir para aquela unidade, cria um novo registro.
-- **Registro Existente** (`UPDATE`): Se já existir, atualiza todos os campos (DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade, STATUS), preservando `id` e `created_at`.
+- **Registro Existente** (`UPDATE`): Se já existir, atualiza todos os campos (DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade), preservando `id` e `created_at`.
+  - **STATUS condicional**: Preservado se PROFISSIONAL não mudou; atualizado se PROFISSIONAL mudou (permite reatribuição de atendimentos).
 - **Limpeza de Obsoletos**: Após o upload, `removeObsoleteRecords()` remove registros cujo `ATENDIMENTO_ID` base (sem sufixos) não está mais presente no arquivo, limitado ao período (min/max DATA) e unidade do arquivo.
 
 **STATUS Automático**: A função `applyWaitStatusForAfternoonShifts()` marca `STATUS="esperar"` para atendimentos onde `MOMENTO` contém "tarde" quando a mesma profissional tem múltiplos atendimentos no mesmo dia.
@@ -252,7 +253,7 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 | Ordenação de Módulos | Drag & Drop persistente | `@hello-pangea/dnd` + `updateModulesOrder` reatribui `position` denso (1..n). |
 | Mescla de Módulos | Consolidação no `AuthContext` | União de módulos atribuídos (`user_modules`) + permitidos (`allowed_profiles`) sem duplicação. |
 | Sidebar | Estado colapsado padrão | Inicia recolhida (`isCollapsed = true`) e footer adaptado (avatar + logout). |
-| Upload XLSX | Chave lógica alterada | Limpeza e sincronização agora usam `orcamento` base em vez de `ATENDIMENTO_ID`. |
+| Upload XLSX | Chave lógica | Usa `ATENDIMENTO_ID` como identificador único (com sufixos `_N` para derivados). |
 | Expansão Multi-profissional | Aprimorada | Sufixos `_N` + controle via `IS_DIVISAO`. Registro original mantém `VALOR`; derivados recebem `VALOR = 0`. |
 | Repasse | Recalculo consistente | Dashboard e gráficos usam soma de todos os registros (originais + derivados). |
 | Métricas Dashboard | Reimplementadas localmente | Reconta orçamentos originais únicos, repasse soma todos registros. |
@@ -260,7 +261,7 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 | Clientes – Atenção | Tabela com série de 3 meses | Colunas `M`, `M-1`, `M-2` com cabeçalhos `Abrev/AAAA` e metadados `tipo`/`lastAttendance`. |
 | Segurança (Provisório) | Policies permissivas | Backend aceita operações amplas (MVP) – reforço planejado. |
 | Edição de Usuário | Módulos fora de escopo | Exibidos como somente leitura quando pertencem ao usuário mas não ao admin atual. |
-| Limpeza de Dados | Remoção seletiva | `removeObsoleteRecords` identifica orçamentos base ausentes (originais) e remove derivados correlatos. |
+| Limpeza de Dados | Remoção seletiva | `removeObsoleteRecords` identifica ATENDIMENTO_ID base ausentes (originais) e remove derivados correlatos. |
 | Webhook Agendamentos | POST + Fallback GET | Envia JSON completo (inclui `endereco`); se falha rede/CORS, usa GET chunkado até 3000 chars com payload compactado. |
 | Comercial | DnD sem reload + fix 400 | Persistência por `update` individual (sem `upsert`), atualização silenciosa em ALL e stripe lateral com `border-left`. |
 | Recrutadora | Métricas rápidas por período | Chips inline (Hoje/Semana/Mês) no cabeçalho; serviços em `services/recrutadora/recrutadora.service.ts` com `services/utils/dates.ts`. |
@@ -274,10 +275,10 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 
 | Conceito | Regra |
 |----------|------|
-| Orçamento Base | Registro sem sufixo, `IS_DIVISAO = 'NAO'`. |
-| Derivado (Divisão) | `orcamento` com sufixo `_N`, `IS_DIVISAO = 'SIM'`. |
+| ATENDIMENTO_ID Base | Registro sem sufixo, `IS_DIVISAO = 'NAO'`. |
+| Derivado (Divisão) | `ATENDIMENTO_ID` com sufixo `_N`, `IS_DIVISAO = 'SIM'`. |
 | Repasse Derivado | Distribuído por valor individual ou divisão igual. |
-| Contagem de Serviços | Número de orçamentos base únicos no período. |
+| Contagem de Serviços | Número de ATENDIMENTO_ID base únicos no período. |
 | Ticket Médio | Receita (somente originais) / Serviços. |
 | Endereço (Agendamentos) | Incluído em payload webhook (`endereco` / chave compacta `e`). |
 | Webhook Fallback | GET com `payload` JSON compactado + chunking adaptativo. |
@@ -290,9 +291,10 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 1. Hash de senhas (bcrypt) + migração para `auth.users` integral.
 2. RPC batch para reordenar módulos (reduzir múltiplas round-trips).
 3. Reforço de RLS: políticas por unidade/módulo com base em joins.
-4. Índices: `(unidade_code, DATA, IS_DIVISAO)` e `(unidade_code, orcamento)`.
+4. Índices: `(unidade_code, DATA, IS_DIVISAO)` e `(unidade_code, ATENDIMENTO_ID)`.
 5. Cache de métricas agregadas mensais (materialized view ou tabela incremental).
 6. Logging estruturado para upload (tabela de auditoria).
+7. Implementação de Realtime em módulos adicionais (Comercial, Profissionais, etc.).
 
 ---
 ## 10. Notas para Colaboradores / Agentes
@@ -301,7 +303,7 @@ Ao adicionar nova feature:
 - Centralize a interação com Supabase nos serviços segmentados em `services/*/*.service.ts`.
 - Reuse as convenções de expansão de profissionais (não duplique lógica em componentes).
 - Mantenha ordenação de módulos consistente (sempre atualizar `position`).
-- Evite dependência residual em `ATENDIMENTO_ID` (legado). Priorize `orcamento` e flags existentes.
+- Use `ATENDIMENTO_ID` como chave lógica de sincronização (com sufixos `_N` para derivados).
 
 ## 11. Guia Rápido para Novos Módulos
 
