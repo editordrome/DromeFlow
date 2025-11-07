@@ -36,6 +36,11 @@ Requisitos de backend:
 - **processed_data → pos_vendas**: Trigger `auto_create_pos_vendas_from_processed` cria registros automaticamente ao inserir novos atendimentos com `ATENDIMENTO_ID`.
 - **pos_vendas → processed_data**: Trigger `sync_pos_vendas_status` atualiza coluna `"pos vendas"` quando `status` muda.
 
+### Realtime
+O módulo Pós-Vendas implementa atualizações em tempo real via Supabase Realtime. Mudanças feitas por qualquer usuário são refletidas instantaneamente para todos os visualizadores da página.
+
+**Status**: ✅ Implementado e funcionando. Para detalhes sobre Realtime em outros módulos, consulte [`docs/REALTIME_STATUS.md`](docs/REALTIME_STATUS.md).
+
 ### Campos Mapeados
 | pos_vendas | ← | processed_data |
 |-----------|---|----------------|
@@ -210,7 +215,7 @@ Notas adicionais:
 | Situação | Ação | Descrição |
 |----------|------|-----------|
 | **Novo ATENDIMENTO_ID** | `INSERT` | Cria novo registro com todos os campos |
-| **ATENDIMENTO_ID existente** | `UPDATE` | Atualiza DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade, STATUS |
+| **ATENDIMENTO_ID existente** | `UPDATE` | Atualiza DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade. **STATUS** é preservado se PROFISSIONAL não mudou; atualizado se PROFISSIONAL mudou |
 | **ID não está mais no arquivo** | `DELETE` | Removido por `removeObsoleteRecords()` (limitado ao período do arquivo) |
 | **Multi-profissionais** | `INSERT múltiplos` | Original sem sufixo + derivados com `_1`, `_2`, etc. |
 
@@ -219,7 +224,7 @@ Notas adicionais:
 **RPC**: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)` usa `ON CONFLICT (unidade_code, ATENDIMENTO_ID) DO UPDATE`.
 
 Convenções:
-- Registros derivados recebem sufixo `_N` em `orcamento` e `IS_DIVISAO = 'SIM'`.
+- Registros derivados recebem sufixo `_N` em `ATENDIMENTO_ID` e `IS_DIVISAO = 'SIM'`.
 - Métricas usam apenas originais para receita/contagem; repasse soma todos.
 
 ---
@@ -358,7 +363,7 @@ Super Admin:
 | Alta | Hash de senhas | Substituir armazenamento em texto plano |
 | Alta | RLS restritivo | Políticas por unidade/módulo reais |
 | Média | RPC batch order | Atualizar posições em lote (JSONB) |
-| Média | Índices métricas | Índices (`unidade_code, DATA, IS_DIVISAO`) e (`unidade_code, orcamento`) |
+| Média | Índices métricas | Índices (`unidade_code, DATA, IS_DIVISAO`) e (`unidade_code, ATENDIMENTO_ID`) |
 | Média | Persistir colapso Sidebar | Salvar preferência no `localStorage` |
 | Média | Assinatura Webhook | HMAC opcional para integridade do payload |
 | Baixa | Tooltips customizados | Melhorar UX em estado colapsado |
@@ -406,8 +411,9 @@ Projeto em estágio de MVP — defina licença antes de distribuição pública.
 | Pergunta | Resposta |
 |----------|----------|
 | Por que não usar ainda `supabase.auth`? | Adoção incremental; MVP priorizou velocidade. |
-| Como evitar duplicações no upload? | Limpeza por período + upsert RPC + chave lógica `orcamento`. |
+| Como evitar duplicações no upload? | Limpeza por período + upsert RPC + chave lógica `ATENDIMENTO_ID`. |
 | Por que recalcular repasse localmente? | Garantir consistência após expansão de profissionais. |
+| Quais módulos têm Realtime? | Pós-Vendas (completo). Consulte `docs/REALTIME_STATUS.md` para detalhes. |
 
 ---
 _Documento atualizado automaticamente para refletir estado atual do sistema._

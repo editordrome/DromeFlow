@@ -2,22 +2,59 @@
 
 Este guia descreve, passo a passo, como segmentar o arquivo `services/mockApi.ts` em serviços por domínio, mantendo a aplicação funcional durante todo o processo. Status: Fase 6 pendente.
 
-Última atualização: 11/10/2025 — Fase 5 concluída; Fase 6 pendente (barrel e mockApi ainda ativos)
+Última atualização: 07/11/2025 — Fase 5 concluída; Fase 6 pendente (barrel e mockApi ainda ativos)
 
 ## Estado atual da migração
 
-- Fase 0 concluída: estrutura de pastas criada e barrel `services/index.ts` adicionado (ainda ativo por compatibilidade).
-- Fase 1 aplicada: migradas para serviços dedicados e reexportadas no barrel
+✅ **Fase 0 concluída**: estrutura de pastas criada e barrel `services/index.ts` adicionado (ainda ativo por compatibilidade).
+
+✅ **Fase 1 aplicada**: migradas para serviços dedicados e reexportadas no barrel
   - `services/units/units.service.ts`: fetchAllUnits, createUnit, updateUnit, deleteUnit
   - `services/modules/modules.service.ts`: fetchAllModules, createModule, updateModule, deleteModule, toggleModuleStatus, updateModulesOrder
   - `services/access/accessCredentials.service.ts`: fetchAllAccessCredentials, createAccessCredential, updateAccessCredential, deleteAccessCredential
   - `services/content/content.service.ts`: fetchWebhookContent
-- Fase 1b (limpeza) concluída: implementações duplicadas removidas de `services/mockApi.ts` para os domínios acima; mantidos apenas reexports via barrel.
-- Fase 2 aplicada: `services/auth/users.service.ts` com fetchAllUsers, fetchUsersForAdminUnits, fetchUsersForUnit, fetchUserAssignments, createUser, updateUser, deleteUser. `mockApi.ts` reexporta e duplicatas foram removidas.
-- Fase 3 aplicada: `services/data/dataTable.service.ts` com fetchDataTable, fetchAppointments, updateDataRecord, deleteDataRecord. `mockApi.ts` reexporta e duplicatas foram removidas.
-- Fase 4 aplicada: `services/analytics/*` com dashboard/clients/repasse/serviceAnalysis migrados. `mockApi.ts` agora reexporta todas as funções de analytics e removeu implementações duplicadas; `MonthlyChartData` também reexportada.
-- Fase 5 aplicada: `services/ingestion/upload.service.ts` criado com `uploadXlsxData` e helpers (`processMultipleProfessionalsRecords`, `processRepasseValues`, `removeObsoleteRecords`). `mockApi.ts` reexporta tudo e as duplicatas foram removidas do legado.
-- Compatibilidade preservada durante migração: componentes continuam podendo importar de `services/mockApi.ts` (via reexport) até a Fase 6.
+
+✅ **Fase 1b (limpeza) concluída**: implementações duplicadas removidas de `services/mockApi.ts` para os domínios acima; mantidos apenas reexports via barrel.
+
+✅ **Fase 2 aplicada**: `services/auth/users.service.ts` com fetchAllUsers, fetchUsersForAdminUnits, fetchUsersForUnit, fetchUserAssignments, createUser, updateUser, deleteUser. `mockApi.ts` reexporta e duplicatas foram removidas.
+
+✅ **Fase 3 aplicada**: `services/data/dataTable.service.ts` com fetchDataTable, fetchAppointments, updateDataRecord, deleteDataRecord. `mockApi.ts` reexporta e duplicatas foram removidas.
+
+✅ **Fase 4 aplicada**: `services/analytics/*` com dashboard/clients/repasse/serviceAnalysis migrados. `mockApi.ts` agora reexporta todas as funções de analytics e removeu implementações duplicadas; `MonthlyChartData` também reexportada.
+
+✅ **Fase 5 aplicada**: `services/ingestion/upload.service.ts` criado com `uploadXlsxData` e helpers (`processMultipleProfessionalsRecords`, `processRepasseValues`, `removeObsoleteRecords`). `mockApi.ts` reexporta tudo e as duplicatas foram removidas do legado.
+
+✅ **Serviços adicionais implementados**:
+  - `services/comercial/comercial.service.ts`: CRUD e ordenação de cards no Kanban
+  - `services/profissionais/profissionais.service.ts`: Gestão de profissionais e recrutadora
+  - `services/posVendas/posVendas.service.ts`: Gestão de pós-vendas com sincronização automática
+  - `services/recrutadora/recrutadora.service.ts`: Métricas e análise de recrutamento
+  - `services/units/unitKeys.service.ts`: Configuração de keys por unidade
+  - `services/units/unitKeysAdmin.service.ts`: Administração de colunas dinâmicas
+
+✅ **Compatibilidade preservada durante migração**: componentes continuam podendo importar de `services/mockApi.ts` (via reexport) até a Fase 6.
+
+**Qualidade atual (Quality Gates):**
+- ✅ Tipos (tsc --noEmit): PASS
+- ✅ Build (vite build): PASS (apenas avisos de tamanho de bundle e import dinâmico/estático misto, sem impacto funcional)
+- ✅ Smoke (Analytics): PASS — Dashboard, Dashboard Metrics e Clientes funcionando sem erros.
+- ✅ Smoke (Ingestion): PASS — Upload testado com planilhas reais, expansão multi-profissional e limpeza funcionando.
+- ✅ Smoke (Comercial): PASS — Kanban com DnD, persistência otimista e sincronização.
+- ✅ Smoke (Profissionais): PASS — Ranking, drill-down e painel de recrutadora funcionais.
+- ✅ Smoke (Pós-Vendas): PASS — Sincronização bidirecional via triggers funcionando.
+
+Correções TypeScript aplicadas junto às fases (não alteram comportamento):
+- tsconfig: inclusão de `vite/client` em `compilerOptions.types` (tipagem de `import.meta.env`).
+- types/Profile: agora inclui `id: string` e `email?: string | null` para alinhar com o uso nos contexts/UI.
+- Icon: uso de `React.ReactElement` no mapa de ícones (evita erro de namespace JSX).
+- ManageModulesPage: ajuste do `key` (fora de `DraggableProps`, aplicado no `<tr>`).
+- ClientsPage: tipagem forte para cartões de métricas (elimina `never`).
+- PageView: adicionadas views `clients`, `comercial`, `profissionais`, `pos_vendas` e roteamento correspondente.
+
+**Próximos passos imediatos:**
+1) ✅ Smoke test completo de todos os módulos principais (concluído).
+2) 🔄 Iniciar Fase 6 — Encerramento: atualizar imports para apontar para os serviços segmentados, remover barrel e `mockApi.ts`.
+3) 📝 Documentar padrões de Realtime implementados (ver `docs/REALTIME_STATUS.md`).
 
 Qualidade atual (Quality Gates):
 - Tipos (tsc --noEmit): PASS
@@ -224,8 +261,8 @@ Commit: “feat(services): extrai analytics/*”.
 
 Regras críticas (preservar)
 - Expansão multi-profissional: sufixos `_N`. Registro original mantém `VALOR`; derivados `VALOR = 0` com repasse proporcional.
-- Limpeza: `removeObsoleteRecords` remove registros cujo orçamento base não está no arquivo.
-- Chave lógica: usar `orcamento` (evitar `ATENDIMENTO_ID` legado).
+- Limpeza: `removeObsoleteRecords` remove registros cujo ATENDIMENTO_ID base não está no arquivo.
+- Chave lógica: usar `ATENDIMENTO_ID` como identificador único (com sufixos para derivados).
 
 Smoke test
 - Fluxo de upload com arquivo pequeno. Conferir:
