@@ -201,19 +201,20 @@ const ManageUsersPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex items-center justify-between gap-3 mb-6">
+    <div className="space-y-6">
+      {/* Cabeçalho Principal */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary">Usuários</h1>
-        <div className="flex items-center gap-3 ml-auto">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por nome ou email"
-            className="w-44 sm:w-56 md:w-64 px-3 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+            className="w-64 px-3 py-2 text-sm border rounded-md bg-bg-tertiary border-border-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
           />
           {profile?.role !== 'user' && (
-            <button onClick={() => handleOpenModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
+            <button onClick={() => handleOpenModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-primary/90">
               <Icon name="add" className="w-5 h-5 mr-2" />
               Adicionar Usuário
             </button>
@@ -221,14 +222,19 @@ const ManageUsersPage: React.FC = () => {
         </div>
       </div>
       
-      {isLoading ? (
-         <div className="flex items-center justify-center h-64">
-             <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
-         </div>
-      ) : error ? (
-        <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
-      ) : (
-        <div className="overflow-x-auto">
+      {/* Área de Tabela */}
+      <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center">
+            <div className="w-10 h-10 border-4 border-gray-200 border-t-accent-primary rounded-full animate-spin mx-auto"></div>
+          </div>
+        ) : error ? (
+          <div className="p-8 text-center">
+            <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
+          </div>
+        ) : (
+          <>
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="min-w-full table-fixed divide-y divide-border-primary">
             <thead className="bg-bg-tertiary">
               <tr>
@@ -294,27 +300,30 @@ const ManageUsersPage: React.FC = () => {
               ))}
             </tbody>
           </table>
-          {/* Paginação */}
-          <div className="flex items-center justify-between mt-4">
-            <p className="text-xs text-text-secondary">
-              Mostrando {filteredUsers.length === 0 ? 0 : start + 1}–{Math.min(end, filteredUsers.length)} de {filteredUsers.length}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                className="px-3 py-1 text-sm border rounded-md disabled:opacity-50"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage <= 1}
-              >Anterior</button>
-              <span className="text-sm text-text-secondary">Página {currentPage} de {totalPages}</span>
-              <button
-                className="px-3 py-1 text-sm border rounded-md disabled:opacity-50"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage >= totalPages}
-              >Próxima</button>
-            </div>
+        </div>
+        
+        {/* Paginação */}
+        <div className="flex items-center justify-between p-4 border-t border-border-secondary bg-bg-tertiary">
+          <p className="text-xs text-text-secondary">
+            Mostrando {filteredUsers.length === 0 ? 0 : start + 1}–{Math.min(end, filteredUsers.length)} de {filteredUsers.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-bg-secondary transition"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+            >Anterior</button>
+            <span className="text-sm text-text-secondary">Página {currentPage} de {totalPages}</span>
+            <button
+              className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-bg-secondary transition"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+            >Próxima</button>
           </div>
         </div>
+          </>
       )}
+      </div>
 
       <UserFormModal 
         isOpen={isModalOpen}

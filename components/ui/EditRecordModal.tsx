@@ -99,122 +99,133 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
   if (!isOpen || !record) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-bg-secondary rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e)=>e.stopPropagation()}>
-        <div className="flex items-center justify-between p-6 border-b border-border-primary">
-          <h2 className="text-xl font-semibold text-text-primary">
-            Editar Atendimento
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-text-secondary hover:text-text-primary focus:outline-none"
-          >
-            <Icon name="close" className="w-6 h-6" />
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden">
+        {/* Header compacto com status */}
+        <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-lg font-bold text-text-primary">
+              Editar Atendimento
+            </h2>
+            
+            <div className="flex items-center gap-3">
+              {/* Status ao lado do botão fechar */}
+              <label className="flex flex-col gap-1.5 min-w-[160px]">
+                <span className="text-xs font-medium text-text-secondary">Status</span>
+                <select
+                  value={formData.status || ''}
+                  onChange={(e) => handleInputChange('status', e.target.value)}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                >
+                  <option value="">Selecione</option>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Em Andamento">Em Andamento</option>
+                  <option value="Concluído">Concluído</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </label>
+              
+              <button 
+                onClick={onClose} 
+                className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
+                aria-label="Fechar"
+              >
+                <Icon name="close" className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Data
+        {/* Body com scroll */}
+        <div className="max-h-[65vh] overflow-y-auto px-5 py-4">
+          {Object.keys(errors).length > 0 && (
+            <div className="mb-4 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 flex items-start gap-2">
+              <Icon name="alert" className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-danger">
+                {Object.values(errors).map((err, i) => (
+                  <div key={i}>{err}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Data e Orçamento na mesma linha */}
+            <div className="flex gap-3">
+              <label className="flex-1 flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                  Data <span className="text-danger">*</span>
+                </span>
+                <input
+                  type="date"
+                  value={formatDateForInput(formData.DATA || '')}
+                  onChange={(e) => handleInputChange('DATA', e.target.value)}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                />
               </label>
-              <input
-                type="date"
-                value={formatDateForInput(formData.DATA || '')}
-                onChange={(e) => handleInputChange('DATA', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-md bg-bg-tertiary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary ${
-                  errors.DATA ? 'border-red-500' : 'border-border-primary'
-                }`}
-              />
-              {errors.DATA && <p className="text-red-500 text-sm mt-1">{errors.DATA}</p>}
+              <label className="flex-1 flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-secondary">Orçamento</span>
+                <input
+                  type="text"
+                  value={formData.orcamento || ''}
+                  onChange={(e) => handleInputChange('orcamento', e.target.value)}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all font-mono"
+                  placeholder="Número do orçamento"
+                />
+              </label>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Orçamento
-              </label>
+            {/* Cliente */}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                Cliente <span className="text-danger">*</span>
+              </span>
               <input
                 type="text"
-                value={formData.orcamento || ''}
-                onChange={(e) => handleInputChange('orcamento', e.target.value)}
-                className="w-full px-3 py-2 border border-border-primary rounded-md bg-bg-tertiary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono"
-                placeholder="Número do orçamento"
+                value={formData.CLIENTE || ''}
+                onChange={(e) => handleInputChange('CLIENTE', e.target.value)}
+                className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                placeholder="Nome do cliente"
               />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Cliente
             </label>
-            <input
-              type="text"
-              value={formData.CLIENTE || ''}
-              onChange={(e) => handleInputChange('CLIENTE', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md bg-bg-tertiary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary ${
-                errors.CLIENTE ? 'border-red-500' : 'border-border-primary'
-              }`}
-              placeholder="Nome do cliente"
-            />
-            {errors.CLIENTE && <p className="text-red-500 text-sm mt-1">{errors.CLIENTE}</p>}
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Valor (R$)
-              </label>
+            {/* Valor */}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                Valor (R$) <span className="text-danger">*</span>
+              </span>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 value={formData.VALOR || ''}
                 onChange={(e) => handleInputChange('VALOR', parseFloat(e.target.value) || 0)}
-                className={`w-full px-3 py-2 border rounded-md bg-bg-tertiary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary ${
-                  errors.VALOR ? 'border-red-500' : 'border-border-primary'
-                }`}
+                className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
                 placeholder="0.00"
               />
-              {errors.VALOR && <p className="text-red-500 text-sm mt-1">{errors.VALOR}</p>}
-            </div>
+            </label>
 
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Status
-              </label>
-              <select
-                value={formData.status || ''}
-                onChange={(e) => handleInputChange('status', e.target.value)}
-                className="w-full px-3 py-2 border border-border-primary rounded-md bg-bg-tertiary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+            {/* Footer compacto - apenas ícone de salvar */}
+            <div className="flex items-center justify-between pt-3 border-t border-border-secondary mt-4">
+              <div className="flex items-center gap-1 text-xs text-text-secondary">
+                <Icon name="info" className="w-3 h-3" />
+                <span>* Obrigatório</span>
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
+                title={isLoading ? "Salvando..." : "Salvar"}
               >
-                <option value="">Selecione um status</option>
-                <option value="Pendente">Pendente</option>
-                <option value="Em Andamento">Em Andamento</option>
-                <option value="Concluído">Concluído</option>
-                <option value="Cancelado">Cancelado</option>
-              </select>
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <Icon name="Check" className="w-4 h-4" />
+                )}
+              </button>
             </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-text-secondary bg-bg-tertiary border border-border-primary rounded-md hover:bg-bg-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-accent-primary rounded-md hover:bg-accent-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-              {isLoading ? 'Salvando...' : 'Salvar Alterações'}
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

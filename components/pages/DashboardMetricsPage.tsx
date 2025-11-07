@@ -34,21 +34,24 @@ const MetricCard: React.FC<{
   isSelected?: boolean;
   onClick?: () => void;
 }> = ({ title, value, icon, iconBgColor, isSelected = false, onClick }) => (
-  <div 
-    className={`p-3 rounded-lg border transition-all cursor-pointer ${
+  <button
+    type="button"
+    onClick={onClick}
+    className={`p-3 rounded-lg border transition-all ${
       isSelected 
-        ? `${iconBgColor} text-white border-transparent shadow-lg` 
+        ? 'bg-accent-primary text-white border-transparent shadow-lg' 
         : 'bg-bg-secondary border-border-primary hover:shadow-md'
     }`}
-    onClick={onClick}
+    aria-pressed={isSelected}
   >
-    <div className="flex items-center justify-center gap-3">
-      <Icon name={icon} className="w-6 h-6" />
-      <span className={`text-2xl font-bold ${isSelected ? 'text-white' : 'text-text-primary'}`}>
+    <div className="flex items-center gap-2">
+      <Icon name={icon} className="w-5 h-5" />
+      <span className="text-sm font-medium">{title}</span>
+      <span className={`ml-auto text-lg font-bold ${isSelected ? 'text-white' : 'text-text-primary'}`}>
         {value}
       </span>
     </div>
-  </div>
+  </button>
 );
 
 // Componente de dropdown personalizado para filtro de período
@@ -251,10 +254,10 @@ const CustomEvolutionTooltip = ({ active, payload, label }: any) => {
       return (
         <div className="bg-bg-secondary border border-border-primary rounded-lg shadow-lg p-3 text-sm">
           <p className="font-bold text-text-primary mb-2">Dia: {label}</p>
-          <p style={{ color: '#8884d8' }}>
+          <p className="text-brand-cyan">
             {`Atend. (Antigos): ${payload[0].value}`}
           </p>
-          <p style={{ color: '#82ca9d' }}>
+          <p className="text-brand-green">
             {`Atend. (Novos): ${payload[1].value}`}
           </p>
            <p className="font-semibold text-text-primary mt-1 border-t border-border-secondary pt-1">
@@ -1098,7 +1101,7 @@ const DashboardMetricsPage: React.FC = () => {
 
     if (!selectedUnit) {
         return (
-            <div className="p-6 bg-bg-secondary rounded-lg shadow-md h-full flex items-center justify-center">
+            <div className="p-6 h-full flex items-center justify-center">
                 <div className="text-center">
                     <h2 className="text-xl font-semibold text-text-primary">Painel de Métricas</h2>
                     <p className="mt-2 text-text-secondary">Por favor, selecione uma unidade para ver as métricas.</p>
@@ -1108,26 +1111,16 @@ const DashboardMetricsPage: React.FC = () => {
     }
     
     return (
-        <div className="h-full bg-bg-secondary rounded-lg shadow-md overflow-y-auto">
-            <div className="p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-                 <h1 className="text-2xl font-bold text-text-primary">
-                    Dashboard - {
-                        selectedMetric === 'totalRevenue' ? 'Faturamento' :
-                        selectedMetric === 'totalServices' ? 'Atendimentos' :
-                        selectedMetric === 'uniqueClients' ? 'Clientes' :
-                        selectedMetric === 'totalRepasse' ? 'Repasse' :
-                        'Visão Geral'
-                    }
-                 </h1>
-                <div className="flex items-center gap-2 mt-4 sm:mt-0">
-                    <PeriodDropdown
-                        value={selectedPeriod}
-                        onChange={setSelectedPeriod}
-                        disabled={isLoading}
-                        availableYears={availableYears}
-                    />
-                </div>
+        <div className="space-y-6">
+            {/* Cabeçalho Principal */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+                <PeriodDropdown
+                    value={selectedPeriod}
+                    onChange={setSelectedPeriod}
+                    disabled={isLoading}
+                    availableYears={availableYears}
+                />
             </div>
             
             {isLoading ? (
@@ -1138,7 +1131,8 @@ const DashboardMetricsPage: React.FC = () => {
                 <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
             ) : (
                 <>
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+                    {/* Cards de Métricas Principais */}
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
                         <MetricCard 
                             title="Faturamento"
                             value={formatCurrency(metrics?.totalRevenue || 0)}
@@ -2023,8 +2017,8 @@ const DashboardMetricsPage: React.FC = () => {
                                                             <span className="text-sm text-text-secondary">{value}</span>
                                                         )}
                                                     />
-                                                    <Bar dataKey="Atend. (Clientes Antigos)" name="Atend. (Antigos)" stackId="a" fill="#8884d8" radius={[4, 4, 0, 0]} />
-                                                    <Bar dataKey="Atend. (Clientes Novos)" name="Atend. (Novos)" stackId="a" fill="#82ca9d" radius={[4, 4, 0, 0]} />
+                                                    <Bar dataKey="Atend. (Clientes Antigos)" name="Atend. (Antigos)" stackId="a" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                                                    <Bar dataKey="Atend. (Clientes Novos)" name="Atend. (Novos)" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
                                                 </BarChart>
                                             </ResponsiveContainer>
                                         </div>
@@ -2063,8 +2057,8 @@ const DashboardMetricsPage: React.FC = () => {
                                             percentage: item.percentage
                                         }));
 
-                                        // Cores padrão do sistema
-                                        const COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                                        // Cores oficiais do sistema
+                                        const COLORS = ['#a855f7', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
                                         if (chartData.length === 0) {
                                             return (
@@ -2126,7 +2120,7 @@ const DashboardMetricsPage: React.FC = () => {
                                                                     );
                                                                 }}
                                                                 outerRadius={140}
-                                                                fill="#8884d8"
+                                                                fill="#a855f7"
                                                                 dataKey="value"
                                                             >
                                                                 {chartData.map((entry, index) => (
@@ -2227,7 +2221,7 @@ const DashboardMetricsPage: React.FC = () => {
                                                             />
                                                             <Bar 
                                                                 dataKey="Comercial" 
-                                                                fill="#6366f1" 
+                                                                fill="#06b6d4" 
                                                                 radius={[4, 4, 0, 0]}
                                                                 label={renderCustomBarLabel}
                                                             />
@@ -2439,7 +2433,6 @@ const DashboardMetricsPage: React.FC = () => {
 
                 </>
             )}
-            </div>
         </div>
     );
 };

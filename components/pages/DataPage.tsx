@@ -109,6 +109,8 @@ const DataPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
+  const multiUnits = (selectedUnit?.unit_code === 'ALL' ? (userUnits || []).map(u => u.unit_code) : []);
+
   useEffect(() => {
     const handler = setTimeout(() => {
         setDebouncedSearchTerm(searchTerm);
@@ -182,7 +184,7 @@ const DataPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedUnit, currentPage, pageSize, debouncedSearchTerm, searchColumn, selectedPeriod]);
+  }, [selectedUnit, userUnits, currentPage, pageSize, debouncedSearchTerm, searchColumn, selectedPeriod]);
 
   useEffect(() => {
     loadData();
@@ -327,53 +329,27 @@ const DataPage: React.FC = () => {
   const handlePrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
   const handleNextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
 
-  // Componente de paginação estilo ClientsPage
-  const Pagination: React.FC = () => {
-    if (totalPages <= 1) return null;
-    const go = (p: number) => { if (p >= 1 && p <= totalPages) setCurrentPage(p); };
-    const windowSize = 5;
-    let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
-    let end = start + windowSize - 1;
-    if (end > totalPages) { end = totalPages; start = Math.max(1, end - windowSize + 1); }
-    const pages = [] as number[];
-    for (let i = start; i <= end; i++) pages.push(i);
-    
-    return (
-      <div className="flex items-center justify-between mt-4 text-xs text-text-secondary">
-        <div>Mostrando {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, totalRecords)} de {totalRecords}</div>
-        <div className="flex items-center gap-1">
-          <button onClick={() => go(1)} disabled={currentPage === 1} className={`px-2 py-1 rounded-md border ${currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-tertiary'}`}>«</button>
-          <button onClick={() => go(currentPage - 1)} disabled={currentPage === 1} className={`px-2 py-1 rounded-md border ${currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-tertiary'}`}>‹</button>
-          {pages.map(p => (
-            <button key={p} onClick={() => go(p)} className={`px-2 py-1 rounded-md border min-w-[32px] ${p === currentPage ? 'bg-accent-primary text-white border-accent-secondary' : 'hover:bg-bg-tertiary'}`}>{p}</button>
-          ))}
-          <button onClick={() => go(currentPage + 1)} disabled={currentPage === totalPages} className={`px-2 py-1 rounded-md border ${currentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-tertiary'}`}>›</button>
-          <button onClick={() => go(totalPages)} disabled={currentPage === totalPages} className={`px-2 py-1 rounded-md border ${currentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-tertiary'}`}>»</button>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="p-4 sm:p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-xl sm:text-2xl font-bold text-text-primary">
           Dados{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}
         </h1>
         
         {selectedUnit && (
-          <div className="flex flex-col sm:flex-row items-stretch gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Campo de busca com seletor de coluna */}
             <div className="flex items-center gap-2">
               <select
                 value={searchColumn}
                 onChange={(e) => setSearchColumn(e.target.value as 'cliente' | 'atendimento')}
-                className="px-3 py-2 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="px-3 py-2 text-sm border border-border-secondary rounded-md bg-bg-tertiary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 <option value="cliente">Cliente</option>
                 <option value="atendimento">Atendimento ID</option>
               </select>
-              <div className="relative flex-1 sm:flex-initial">
+              <div className="relative">
                 <span className="absolute inset-y-0 left-3 flex items-center text-text-secondary pointer-events-none">
                   <Icon name="search" className="w-4 h-4" />
                 </span>
@@ -382,7 +358,7 @@ const DataPage: React.FC = () => {
                   placeholder="Buscar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full sm:w-48 pl-9 pr-9 py-2 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-64 pl-9 pr-9 py-2 text-sm border border-border-secondary rounded-md bg-bg-tertiary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
                 {searchTerm && (
                   <button
@@ -417,12 +393,15 @@ const DataPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Mensagem de todas as unidades */}
       {selectedUnit?.unit_code === 'ALL' && (
-        <div className="mb-3 text-xs text-text-secondary">Exibindo dados agregados de todas as suas unidades.</div>
+        <div className="text-xs text-text-secondary">Exibindo dados agregados de todas as suas unidades.</div>
       )}
       
+      {/* Barra de seleção */}
       {selectedRecordIds.size > 0 && (
-        <div className="mb-4 p-3 bg-accent-primary/10 border border-accent-primary/30 rounded-md flex items-center justify-between">
+        <div className="p-3 bg-accent-primary/10 border border-accent-primary/30 rounded-md flex items-center justify-between">
           <span className="text-sm text-text-primary">
             {selectedRecordIds.size} {selectedRecordIds.size === 1 ? 'atendimento selecionado' : 'atendimentos selecionados'}
           </span>
@@ -437,19 +416,23 @@ const DataPage: React.FC = () => {
         </div>
       )}
       
-      {!selectedUnit ? (
-        <div className="p-4 text-center text-text-secondary bg-bg-tertiary rounded-md">
-            Selecione uma unidade na barra lateral para visualizar ou importar dados.
-        </div>
-      ) : isLoading ? (
-         <div className="flex items-center justify-center h-64">
-             <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
-         </div>
-      ) : error ? (
-        <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
-      ) : (
-        <>
-            <div className="overflow-x-auto">
+      {/* Área de Tabela */}
+      <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
+        {!selectedUnit ? (
+          <div className="p-8 text-center">
+            <p className="text-text-secondary">Selecione uma unidade na barra lateral para visualizar ou importar dados.</p>
+          </div>
+        ) : isLoading ? (
+          <div className="p-8 text-center">
+            <div className="w-10 h-10 border-4 border-gray-200 border-t-accent-primary rounded-full animate-spin mx-auto"></div>
+          </div>
+        ) : error ? (
+          <div className="p-8 text-center">
+            <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full divide-y table-fixed divide-border-primary">
                 <colgroup>
                   <col style={{ width: '5%' }} />
@@ -546,9 +529,34 @@ const DataPage: React.FC = () => {
               </table>
             </div>
 
-            <Pagination />
-        </>
-      )}
+            {/* Paginação */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between p-4 border-t border-border-secondary bg-bg-tertiary">
+                <div className="text-xs text-text-secondary">
+                  Mostrando {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, totalRecords)} de {totalRecords}
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className={`px-2 py-1 text-sm rounded-md border ${currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-secondary transition'}`}>«</button>
+                  <button onClick={handlePrevPage} disabled={currentPage === 1} className={`px-2 py-1 text-sm rounded-md border ${currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-secondary transition'}`}>‹</button>
+                  {(() => {
+                    const windowSize = 5;
+                    let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
+                    let end = start + windowSize - 1;
+                    if (end > totalPages) { end = totalPages; start = Math.max(1, end - windowSize + 1); }
+                    const pages = [] as number[];
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    return pages.map(p => (
+                      <button key={p} onClick={() => setCurrentPage(p)} className={`px-2 py-1 text-sm rounded-md border min-w-[32px] ${p === currentPage ? 'bg-accent-primary text-white border-accent-secondary' : 'hover:bg-bg-secondary transition'}`}>{p}</button>
+                    ));
+                  })()}
+                  <button onClick={handleNextPage} disabled={currentPage === totalPages} className={`px-2 py-1 text-sm rounded-md border ${currentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-secondary transition'}`}>›</button>
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className={`px-2 py-1 text-sm rounded-md border ${currentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-bg-secondary transition'}`}>»</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {isUploadModalOpen && (
         <UploadModal 

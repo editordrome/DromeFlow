@@ -166,6 +166,18 @@ const ComercialPage: React.FC = () => {
     await createComercialCard({ ...payload, position: countInStatus + 1 });
   };
 
+  const handleUpdateCard = async (id: string, payload: Partial<ComercialCard>) => {
+    // Update in database
+    await updateComercialCard(id, payload);
+    
+    // Update local state to avoid full reload
+    setCards(prevCards => 
+      prevCards.map(card => 
+        card.id === id ? { ...card, ...payload } : card
+      )
+    );
+  };
+
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
     const sourceStatus = result.source.droppableId;
@@ -267,10 +279,11 @@ const ComercialPage: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold text-text-primary">Comercial - {selectedUnit.unit_name}</h1>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+    <div className="space-y-6">
+      {/* Cabeçalho Principal */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-text-primary">Comercial</h1>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <label htmlFor="comercial-search" className="sr-only">
               Buscar registros
@@ -334,9 +347,11 @@ const ComercialPage: React.FC = () => {
         </div>
       </div>
 
-      <DragDropContext onDragEnd={handleDragEnd} onDragUpdate={handleDragUpdate}>
-        <div className="flex-1 min-h-0 min-w-0 overflow-x-auto pb-2 pr-1">
-          <div className="inline-flex h-full gap-4">
+      {/* Área das Colunas Kanban */}
+      <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
+        <DragDropContext onDragEnd={handleDragEnd} onDragUpdate={handleDragUpdate}>
+          <div className="flex-1 min-h-0 min-w-0 overflow-x-auto pb-2 pr-1">
+            <div className="inline-flex h-full gap-4">
             {columns.map(column => {
               const columnCards = cardsByStatus[column.code] || [];
               const hasImage = Boolean(column.image_url);
@@ -444,6 +459,7 @@ const ComercialPage: React.FC = () => {
           </div>
         </div>
       </DragDropContext>
+      </div>
 
       {modalOpen && (
         <ComercialCardModal
@@ -452,10 +468,10 @@ const ComercialPage: React.FC = () => {
           onSaved={loadData}
           unidadeNome={selectedUnit.unit_name}
           defaultStatus={modalStatus}
-          unitId={editingCard?.unit_id || selectedUnitId || undefined}
+          unitId={editingCard?.unit_id || selectedUnitId || (userUnits && userUnits.length > 0 ? userUnits[0].id : undefined)}
           initialCard={editingCard}
           onCreate={handleCreateCard}
-          onUpdate={updateComercialCard}
+          onUpdate={handleUpdateCard}
           onDelete={deleteComercialCard}
         />
       )}

@@ -2,6 +2,181 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2025-11-07] - Padronização de Modais: UX/UI Otimizado
+
+### 🎨 UI/UX Enhancement
+
+#### Modais Comercial e Atendimentos Redesenhados
+- **Objetivo**: Criar interface compacta e moderna seguindo padrão consistente
+- **Escopo**: `ComercialCardModal.tsx` e `EditRecordModal.tsx`
+
+### 🔧 Alterações Implementadas
+
+#### 1. Header Compacto e Funcional
+- Gradiente sutil: `from-accent-primary/5 to-brand-cyan/5`
+- Título e metadados (unidade) na mesma linha
+- Campo Status movido para o header (ao lado do botão fechar)
+- Padding reduzido: `px-5 py-3.5`
+- Botão fechar alinhado com select: `mt-5`
+
+#### 2. Body Otimizado
+- Container com scroll: `max-h-[65vh] overflow-y-auto`
+- Espaçamento consistente: `space-y-3` para campos
+- Labels compactas: `text-xs font-medium`
+- Inputs padronizados: `rounded-lg border-border-secondary bg-bg-tertiary`
+- Mensagens de erro agrupadas no topo com ícone de alerta
+
+#### 3. Footer Simplificado
+- Removido botão "Cancelar"
+- Apenas ícones para ações (Delete e Save/Check)
+- Indicador "* Obrigatório" à esquerda
+- Background: `bg-bg-tertiary`
+
+#### 4. Auto-save de Status (ComercialCardModal)
+- Status salva automaticamente ao alterar (registros existentes)
+- Atualização local sem reload da página
+- Rollback automático em caso de erro
+- Não dispara `onSaved()` para evitar tela branca
+
+#### 5. Layout de Campos
+**ComercialCardModal**:
+- Nome (flex-1) | Tipo (w-28) | Origem (w-24)
+- Endereço (75%) | Contato (25%)
+- Observações (full-width, 3 rows)
+
+**EditRecordModal**:
+- Data | Orçamento (50%/50%)
+- Cliente (full-width)
+- Valor (full-width)
+- Status no header
+
+### 📋 Arquivos Modificados
+- `components/ui/ComercialCardModal.tsx` - Redesign completo
+- `components/ui/EditRecordModal.tsx` - Aplicado padrão Comercial
+- `components/pages/ComercialPage.tsx` - Função `handleUpdateCard` para atualização otimista
+- `.github/copilot-instructions.md` - Seção "Padrão de Modais" adicionada
+
+### 🎯 Benefícios
+✅ Interface mais limpa e profissional
+✅ Economia de espaço vertical (65% viewport máximo)
+✅ Experiência de usuário otimizada
+✅ Padrão consistente entre modais
+✅ Menos cliques (auto-save de status)
+✅ Melhor responsividade
+
+### 🔍 Detalhes Técnicos
+- Focus states: `focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20`
+- Transições suaves: `transition-all`
+- Spinners durante loading
+- Backdrop: `bg-black/60`
+- Shadow otimizado: `shadow-2xl` e `shadow-lg shadow-accent-primary/20`
+
+---
+
+## [2025-11-06] - Correção: Upload Preserva STATUS Condicionalmente
+
+### 🐛 Bug Crítico Corrigido
+
+#### Upload Sobrepondo STATUS de Atendimentos
+- **Sintoma**: Upload de XLSX alterava STATUS "CONFIRMADO" para "PENDENTE" em todos os atendimentos existentes
+- **Contexto**: Ao fazer upload de arquivo XLSX, registros existentes perdiam seu STATUS
+- **Causa**: `process_xlsx_upload` RPC incluía `"STATUS" = EXCLUDED."STATUS"` no `ON CONFLICT DO UPDATE`
+
+### 🔧 Solução Aplicada
+
+#### Lógica Condicional para STATUS
+```sql
+"STATUS" = CASE 
+    WHEN processed_data."PROFISSIONAL" IS DISTINCT FROM EXCLUDED."PROFISSIONAL" 
+    THEN EXCLUDED."STATUS"  -- Profissional mudou: atualiza STATUS
+    ELSE processed_data."STATUS"  -- Profissional igual: preserva STATUS
+END
+```
+
+#### Comportamento Implementado
+- **INSERT (novo registro)**: STATUS vem do arquivo XLSX
+- **UPDATE (registro existente)**:
+  - PROFISSIONAL não mudou → STATUS preservado
+  - PROFISSIONAL mudou → STATUS atualizado (permite reatribuição)
+
+#### Arquivos Criados/Atualizados
+- `docs/sql/2025-11-06_fix_upload_preserve_status.sql` - Migração aplicada
+- `.github/copilot-instructions.md` - Documentação atualizada (linha 95)
+
+### 📋 Impacto
+✅ **Migração já aplicada no banco de dados**
+- Novos uploads preservam STATUS de atendimentos existentes
+- Permite reatribuir atendimentos alterando PROFISSIONAL e STATUS juntos
+- Idempotência garantida: mesmo arquivo pode ser enviado múltiplas vezes
+
+### 🔍 Contexto Técnico
+- Chave única: `(unidade_code, ATENDIMENTO_ID)`
+- Campos sempre atualizados: DATA, HORARIO, VALOR, SERVIÇO, TIPO, etc.
+- Campos preservados: `id`, `created_at`
+- Campo condicional: `STATUS` (depende se PROFISSIONAL mudou)
+
+---
+
+## [2025-11-06] - Módulo Prestadoras: Padronização de Tabelas
+
+### ✨ Melhorias de UI
+
+#### Tabelas Seguindo Padrão do Módulo Clientes
+- **Tabela de Profissionais**:
+  - Border ao redor com `rounded-lg`
+  - Coluna `#` com numeração sequencial
+  - Headers uppercase com `tracking-wider`
+  - Status com badge estilizado (verde/cinza)
+  - Abas integradas no container da tabela
+  - Paginação dentro do container com `border-t`
+
+- **Tabela de Ranking (Atuantes)**:
+  - Layout consistente com tabela de Profissionais
+  - Alinhamento: nome (left), métricas (center)
+  - Hover e transições suaves
+  - Border e padding padronizados
+
+#### Estrutura Reorganizada
+```
+<div border rounded-lg>
+  <div border-b bg-tertiary> Abas/Filtros </div>
+  <div overflow> Tabela </div>
+  <div border-t bg-secondary> Paginação </div>
+</div>
+```
+
+### 📋 Arquivos Modificados
+- `components/pages/PrestadorasPage.tsx` - Linhas 504-684
+
+---
+
+## [2025-11-06] - Módulo Prestadoras: Correção Métrica Atenção
+
+### 🐛 Bug Corrigido
+
+#### Discrepância nos Números de "Atenção"
+- **Sintoma**: Card mostrava número diferente da tab "Atenção"
+- **Causa**: Card usava "sem atendimento no mês", tab usava "mais de 15 dias"
+- **Solução**: Unificado para "mais de 15 dias sem atendimento"
+
+#### Lógica Implementada (3 lugares)
+```typescript
+const hoje = new Date();
+const ultimaData = lastAppointments[nomeKey];
+if (!ultimaData) return true; // Nunca atendeu
+const diffDias = Math.floor((hoje.getTime() - dataUltimo.getTime()) / 86400000);
+return diffDias > 15; // Mais de 15 dias
+```
+
+- Card "Atenção" (sub-métrica)
+- Contador na tab "Atenção" (`profMetrics.atencao`)
+- Filtro da tabela na aba "Atenção"
+
+### 📋 Arquivos Modificados
+- `components/pages/PrestadorasPage.tsx` - Linhas 148-165, 320-340, 345-370
+
+---
+
 ## [2025-11-06] - Correção: RLS Policy para INSERT em Profissionais
 
 ### 🐛 Bug Crítico Corrigido

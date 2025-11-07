@@ -259,26 +259,26 @@ const ClientsPage: React.FC = () => {
   }
 
   return (
-  <div className="p-4 sm:p-6 bg-bg-secondary rounded-lg shadow-md space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-xl sm:text-2xl font-bold text-text-primary">Clientes{selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}</h1>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:flex-initial">
+    <div className="space-y-6">
+      {/* Cabeçalho Principal */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-text-primary">Clientes</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
             <Icon name="Search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-secondary" />
             <input
               type="text"
-              className="pl-9 pr-3 py-2 rounded-md bg-bg-tertiary border border-border-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary w-full sm:w-64"
+              className="pl-9 pr-3 py-2 rounded-md bg-bg-tertiary border border-border-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary w-64"
               placeholder="Buscar cliente..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <div className="w-full sm:w-auto">
-            <PeriodDropdown value={period} onChange={setPeriod} availableYears={availableYears} />
-          </div>
+          <PeriodDropdown value={period} onChange={setPeriod} availableYears={availableYears} />
         </div>
       </div>
 
+      {/* Métricas - Cards principais */}
       {metrics && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {metricCards.map(cfg => (
@@ -300,14 +300,22 @@ const ClientsPage: React.FC = () => {
         </div>
       )}
 
-      {isLoading && <div>Carregando...</div>}
-      {error && <div className="text-danger">{error}</div>}
+      {/* Área de Tabela */}
+      <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
+        {isLoading && (
+          <div className="p-8 text-center">
+            <div className="w-10 h-10 border-4 border-gray-200 border-t-accent-primary rounded-full animate-spin mx-auto" />
+          </div>
+        )}
+        
+        {error && (
+          <div className="p-8 text-center text-danger">{error}</div>
+        )}
 
-      {!isLoading && !error && (
-        <>
-        <div className="rounded-lg shadow-md overflow-hidden">
-          {/* Cabeçalho das abas e filtros no padrão do Agendamentos */}
-          <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
+        {!isLoading && !error && (
+          <>
+            {/* Cabeçalho das abas e filtros no padrão do Agendamentos */}
+            <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
             <div className="flex w-full gap-2">
               {([
                 { key: 'all', label: 'Total' },
@@ -333,8 +341,9 @@ const ClientsPage: React.FC = () => {
               })}
             </div>
           </div>
+
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="min-w-full text-sm">
+            <table className="min-w-full text-sm">
             {activeFilter !== 'atencao' && (
               <colgroup>
                 <col className="w-12" />
@@ -529,17 +538,21 @@ const ClientsPage: React.FC = () => {
               })()}
             </tbody>
           </table>
-          </div>
         </div>
+        
         {/* Paginação */}
-        <Pagination
-          page={page}
-          onChange={setPage}
-          totalItems={resolvedListWithSegment.length}
-          pageSize={pageSize}
-        />
+        <div className="p-4 border-t border-border-secondary bg-bg-tertiary">
+          <Pagination
+            page={page}
+            onChange={setPage}
+            totalItems={resolvedListWithSegment.length}
+            pageSize={pageSize}
+          />
+        </div>
         </>
-      )}
+        )}
+      </div>
+      
       <ClientDetailModal
         isOpen={isClientModalOpen}
         onClose={() => setIsClientModalOpen(false)}

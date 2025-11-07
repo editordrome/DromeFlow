@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Icon } from './Icon';
 import type { Profissional } from '../../services/profissionais/profissionais.service';
 import { useAppContext } from '../../contexts/AppContext';
@@ -81,8 +81,8 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
   }, [isCreating, profissional, editNome, editWhatsapp, editRg, editCpf, editDataNasc, editTipo, editPreferencia, editHabilidade, editEstadoCivil, editFumante, editFilhos, editQtoFilhos, editEndereco, editNomeRecado, editTelRecado, editObservacao]);
 
   // Usar useRef para rastrear se já inicializamos os campos (não causa re-render)
-  const initializedRef = React.useRef(false);
-  const lastProfissionalIdRef = React.useRef<string | null>(null);
+  const initializedRef = useRef(false);
+  const lastProfissionalIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Detecta se é uma nova abertura do modal ou mudança de profissional

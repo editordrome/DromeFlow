@@ -465,8 +465,9 @@ const AppointmentsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 bg-bg-secondary rounded-lg shadow-md space-y-6">
-      <div className="flex items-center flex-wrap gap-3 justify-between">
+    <div className="space-y-6">
+      {/* Cabeçalho Principal */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary flex items-center flex-wrap gap-x-2">
           <span>Agendamentos</span>
           {activeDateInfo && (
@@ -475,7 +476,7 @@ const AppointmentsPage: React.FC = () => {
             </span>
           )}
         </h1>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Campo de busca */}
           <div className="relative">
             <label htmlFor="appointments-search" className="sr-only">
@@ -560,11 +561,11 @@ const AppointmentsPage: React.FC = () => {
       </div>
       
       {/* Métricas - Cards principais TOTAL, COMERCIAL, RESIDENCIAL */}
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {([
-          { key: 'all', label: 'Total', value: metrics.total, icon: 'calendar', bgColor: 'bg-accent-primary' },
-          { key: 'comercial', label: 'Comercial', value: metrics.comercial, icon: 'briefcase', bgColor: 'bg-brand-cyan' },
-          { key: 'residencial', label: 'Residencial', value: metrics.residencial, icon: 'Home', bgColor: 'bg-brand-green' }
+          { key: 'all', label: 'Total', value: metrics.total, icon: 'calendar' },
+          { key: 'comercial', label: 'Comercial', value: metrics.comercial, icon: 'briefcase' },
+          { key: 'residencial', label: 'Residencial', value: metrics.residencial, icon: 'Home' }
         ] as const).map(card => {
           const isActive = activeMetricFilter === card.key;
           return (
@@ -574,7 +575,7 @@ const AppointmentsPage: React.FC = () => {
               onClick={() => setActiveMetricFilter(prev => prev === card.key ? 'all' : card.key as any)}
               className={`p-3 rounded-lg border transition-all ${
                 isActive 
-                  ? `${card.bgColor} text-white border-transparent shadow-lg` 
+                  ? 'bg-accent-primary text-white border-transparent shadow-lg' 
                   : 'bg-bg-secondary border-border-primary hover:shadow-md'
               }`}
               aria-pressed={isActive}
@@ -591,10 +592,11 @@ const AppointmentsPage: React.FC = () => {
           );
         })}
       </div>
-        
+      
+      {/* Área de Tabela */}
+      <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
         {/* Barra de abas de dias */}
-        <div className="mt-4 rounded-lg shadow-md overflow-visible">
-          <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
+        <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
             <div className="flex w-full gap-2">
               {tabs.map(t => (
                 <button
@@ -677,7 +679,7 @@ const AppointmentsPage: React.FC = () => {
             </div>
           </div>
         
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm table-fixed" style={{ minWidth: '1000px' }}>
             <colgroup>
               <col className="w-[10%]" />
@@ -782,8 +784,8 @@ const AppointmentsPage: React.FC = () => {
               )}
             </tbody>
           </table>
-          </div>
         </div>
+      </div>
 
       <DataDetailModal
         isOpen={!!selectedRecord}

@@ -513,7 +513,6 @@ Obrigada e tenha um ótimo atendimento😊`
                             className="mt-1 w-full rounded-md border border-border-secondary bg-bg-tertiary p-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/60"
                             value={statusSel}
                             onChange={(e) => setStatusSel(e.target.value)}
-                            disabled={!isEditing}
                         >
                             <option value="">Selecione</option>
                             <option value="PENDENTE">PENDENTE</option>

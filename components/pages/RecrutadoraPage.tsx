@@ -295,11 +295,11 @@ const RecrutadoraPage: React.FC = () => {
   }
 
   return (
-  <div className="p-4 bg-bg-secondary rounded-lg shadow-md h-full min-h-0 w-full max-w-full box-border flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap flex-shrink-0">
-        <h1 className="text-2xl font-bold text-text-primary">Recrutadora - {selectedUnit.unit_name}</h1>
-        {/* Campo de busca */}
-        <div className="flex items-center gap-2 ml-auto flex-wrap">
+    <div className="space-y-6">
+      {/* Cabeçalho Principal */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-text-primary">Recrutadora</h1>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <label htmlFor="recrutadora-search" className="sr-only">Buscar cards</label>
             <input
@@ -308,53 +308,54 @@ const RecrutadoraPage: React.FC = () => {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="Buscar por nome ou WhatsApp..."
-              className="w-full max-w-64 px-3 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary pr-8"
+              className="w-full max-w-64 px-3 py-2 text-sm border rounded-md bg-bg-tertiary border-border-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary pr-8"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute top-1/2 -translate-y-1/2 right-2 text-text-secondary hover:text-text-primary"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
                 aria-label="Limpar busca"
               >
                 <Icon name="close" className="w-4 h-4" />
               </button>
             )}
           </div>
-          {/* Métricas compactas */}
+
           <div className="flex items-center gap-2">
-          {([
-            { key: 'today', label: 'Hoje', icon: 'CalendarDays', color: 'text-brand-green', value: metrics?.today || 0 },
-            { key: 'week', label: 'Semana', icon: 'CalendarRange', color: 'text-brand-cyan', value: metrics?.week || 0 },
-            { key: 'month', label: 'Mês', icon: 'Calendar', color: 'text-accent-primary', value: metrics?.month || 0 },
-          ] as const).map(m => {
-            const isActive = activePeriod === (m.key as any);
-            return (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => setActivePeriod(prev => (prev === m.key ? 'all' : (m.key as any)))}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md border text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                  isActive
-                    ? 'bg-accent-primary text-text-on-accent border-accent-primary'
-                    : 'bg-bg-secondary text-text-primary border-border-secondary hover:bg-bg-tertiary'
-                }`}
-                aria-pressed={isActive}
-                aria-label={`Filtrar por ${m.label}`}
-                title={isActive ? `Remover filtro ${m.label}` : `Filtrar por ${m.label}`}
-              >
-                <Icon name={m.icon as any} className={`w-4 h-4 ${isActive ? 'text-text-on-accent' : m.color}`} />
-                <span className={`${isActive ? 'text-text-on-accent' : 'text-text-secondary'}`}>{m.label}</span>
-                <span className={`font-semibold ${isActive ? 'text-text-on-accent' : 'text-text-primary'}`}>{m.value}</span>
-              </button>
-            );
-          })}
+            {([
+              { key: 'today', label: 'Hoje', icon: 'CalendarDays', color: 'text-brand-green', value: metrics?.today || 0 },
+              { key: 'week', label: 'Semana', icon: 'CalendarRange', color: 'text-brand-cyan', value: metrics?.week || 0 },
+              { key: 'month', label: 'Mês', icon: 'Calendar', color: 'text-accent-primary', value: metrics?.month || 0 },
+            ] as const).map(metric => {
+              const isActive = activePeriod === metric.key;
+              return (
+                <button
+                  key={metric.key}
+                  type="button"
+                  onClick={() => setActivePeriod(prev => (prev === metric.key ? 'all' : metric.key))}
+                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                    isActive
+                      ? 'border-accent-primary bg-accent-primary text-text-on-accent'
+                      : 'border-border-secondary bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/70'
+                  }`}
+                  aria-pressed={isActive}
+                >
+                  <Icon name={metric.icon as any} className={`h-4 w-4 ${isActive ? 'text-text-on-accent' : metric.color}`} />
+                  <span className={isActive ? 'text-text-on-accent' : 'text-text-secondary'}>{metric.label}</span>
+                  <span className={isActive ? 'font-semibold text-text-on-accent' : 'font-semibold text-text-primary'}>{metric.value}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
-  <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
-        <div className="flex-1 min-h-0 min-w-0 h-full w-full max-w-full overflow-x-auto overscroll-x-contain pb-2 pr-1">
-          <div className="inline-flex gap-4 h-full">
+
+      {/* Área das Colunas Kanban */}
+      <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
+        <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
+          <div className="flex-1 min-h-0 min-w-0 overflow-x-auto pb-2 pr-1">
+            <div className="inline-flex gap-4 h-full">
             {renderColumns.map((col: any) => {
               const droppableId = col._unitForQual ? `qualificadas|${col._unitForQual.id}` : col.code;
               const columnCards = col._unitForQual
@@ -453,6 +454,8 @@ const RecrutadoraPage: React.FC = () => {
           </div>
         </div>
       </DragDropContext>
+      </div>
+
       <RecrutadoraCardModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

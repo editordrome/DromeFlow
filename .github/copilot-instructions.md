@@ -90,8 +90,9 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
  - **Configuração de Upload (Atendimentos Existentes)**:
    - Chave única: `(unidade_code, ATENDIMENTO_ID)` — registros com mesmo ID na mesma unidade são atualizados (upsert).
    - RPC: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)` usa `ON CONFLICT (unidade_code, ATENDIMENTO_ID) DO UPDATE`.
-   - Campos atualizados: DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade, STATUS.
-   - Campos preservados: `id`, `created_at` (idempotência garantida).
+   - Campos atualizados: DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade.
+   - Campos preservados: `id`, `created_at`.
+   - **STATUS condicional**: Preservado se PROFISSIONAL não mudou; atualizado se PROFISSIONAL mudou (permite reatribuição de atendimentos).
    - Limpeza de obsoletos: `removeObsoleteRecords()` remove registros cujo `ATENDIMENTO_ID` base não está mais presente no arquivo (escopo: período do arquivo + unidade).
    - STATUS automático: `applyWaitStatusForAfternoonShifts()` marca STATUS="esperar" para atendimentos onde MOMENTO contém "tarde" quando a mesma profissional tem múltiplos atendimentos no mesmo dia.
 - **Expansão de Profissionais**: Registro original mantém `VALOR` e `ATENDIMENTO_ID` sem sufixo; derivados recebem `VALOR = 0`, `ATENDIMENTO_ID` com sufixo (`_1`, `_2`...) e mesma proporção de `REPASSE`.
@@ -111,6 +112,56 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
    - Campos auto-populados: `nome` (CLIENTE), `contato` (whatscliente), `unit_id` (lookup via unidade_code), `data` (DATA).
    - Status padrão: `pendente`; reagendamento: `false`.
    - População retroativa: Script SQL [`populate_pos_vendas_from_processed_data()`](docs/sql/2025-10-31_populate_pos_vendas.sql).
+
+## Padrão de Modais (UI/UX Otimizado)
+
+Todos os modais da aplicação seguem um padrão compacto e consistente para melhor experiência do usuário:
+
+### Estrutura Padrão
+
+1. **Header Compacto**:
+   - Gradiente sutil: `bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5`
+   - Título em negrito (`text-lg font-bold`)
+   - Metadados (unidade, etc.) ao lado do título com ícone
+   - Status/campo-chave no header (direita, ao lado do botão fechar)
+   - Botão fechar com `mt-5` para alinhamento com select de status
+   - Padding: `px-5 py-3.5`
+
+2. **Body com Scroll**:
+   - Container: `max-h-[65vh] overflow-y-auto px-5 py-4`
+   - Mensagens de erro no topo com ícone de alerta
+   - Campos em `space-y-3`
+   - Labels: `text-xs font-medium text-text-secondary`
+   - Inputs: `rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm`
+   - Campos obrigatórios marcados com asterisco vermelho
+
+3. **Footer Compacto**:
+   - Fundo: `bg-bg-tertiary`
+   - Padding: `px-5 py-3`
+   - À esquerda: Indicador "* Obrigatório" com ícone de info
+   - À direita: Botões de ação (apenas ícones)
+   - Botão deletar (se aplicável): Ícone de delete vermelho com borda
+   - Botão salvar: Ícone Check com spinner durante loading
+
+4. **Auto-save de Status** (quando aplicável):
+   - Mudanças no status salvam automaticamente para registros existentes
+   - Atualização local do estado sem reload da página
+   - Rollback em caso de erro
+   - Não chama `onSaved()` para evitar tela branca
+
+### Exemplos de Implementação
+
+- **ComercialCardModal**: Modal de oportunidades comerciais (referência principal)
+- **EditRecordModal**: Modal de edição de atendimentos
+- Ambos seguem o mesmo padrão de layout e interação
+
+### Diretrizes de Estilo
+
+- Espaçamento: `gap-3` para campos relacionados
+- Border radius: `rounded-lg` para inputs e cards
+- Transições: `transition-all` em elementos interativos
+- Focus: `focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20`
+- Cores de status: Usar variáveis CSS do tema (accent-primary, brand-cyan, etc.)
 
 ## Guia Rápido: Criar um Novo Módulo (padrão)
 
