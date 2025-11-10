@@ -118,10 +118,11 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
                   className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
                 >
                   <option value="">Selecione</option>
+                  <option value="Confirmado">Confirmado</option>
                   <option value="Pendente">Pendente</option>
-                  <option value="Em Andamento">Em Andamento</option>
-                  <option value="Concluído">Concluído</option>
-                  <option value="Cancelado">Cancelado</option>
+                  <option value="Recusado">Recusado</option>
+                  <option value="Aguardando">Aguardando</option>
+                  <option value="Esperar">Esperar</option>
                 </select>
               </label>
               

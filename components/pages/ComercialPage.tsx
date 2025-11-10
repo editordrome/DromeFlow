@@ -279,9 +279,9 @@ const ComercialPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full space-y-6">
       {/* Cabeçalho Principal */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary">Comercial</h1>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -348,11 +348,10 @@ const ComercialPage: React.FC = () => {
       </div>
 
       {/* Área das Colunas Kanban */}
-      <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
         <DragDropContext onDragEnd={handleDragEnd} onDragUpdate={handleDragUpdate}>
-          <div className="flex-1 min-h-0 min-w-0 overflow-x-auto pb-2 pr-1">
-            <div className="inline-flex h-full gap-4">
-            {columns.map(column => {
+          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden pb-2 pr-1">
+            <div className="flex h-full gap-4">{columns.map(column => {
               const columnCards = cardsByStatus[column.code] || [];
               const hasImage = Boolean(column.image_url);
               const borderTone = STATUS_BORDER_CLASSES[column.code] || 'border-border-secondary';

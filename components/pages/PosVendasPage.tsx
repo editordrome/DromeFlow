@@ -455,7 +455,7 @@ const PosVendasPage: React.FC = () => {
           const text = await resp.text().catch(() => '');
           throw new Error(`Falha HTTP ${resp.status}${text ? ' - ' + text.slice(0, 140) : ''}`);
         }
-        setWebhookFeedback({ type: 'success', message: 'Webhook enviado com sucesso!' });
+        setWebhookFeedback({ type: 'success', message: 'Pós venda enviado com sucesso!' });
       } catch (primaryErr: any) {
         const msg = primaryErr?.message || '';
         if (msg.includes('Failed to fetch') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('TypeError')) {
@@ -596,7 +596,7 @@ const PosVendasPage: React.FC = () => {
     </div>
   );
 
-  // Tabela específica para finalizados (data, ID, cliente, nota, reagendou, data de finalização)
+  // Tabela específica para finalizados (data, ID, cliente, profissional, nota, reagendou, data de finalização)
   const renderFinalizadosTable = (records: PosVenda[], emptyMessage: string) => (
     <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
       <table className="w-full">
@@ -612,6 +612,9 @@ const PosVendasPage: React.FC = () => {
               Cliente
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Profissional
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
               Nota
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
@@ -625,7 +628,7 @@ const PosVendasPage: React.FC = () => {
         <tbody className="divide-y divide-border-primary">
           {records.length === 0 ? (
             <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-text-secondary">
+              <td colSpan={7} className="px-4 py-8 text-center text-text-secondary">
                 {emptyMessage}
               </td>
             </tr>
@@ -644,7 +647,10 @@ const PosVendasPage: React.FC = () => {
                   {record.ATENDIMENTO_ID || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
-                  <p className="font-medium">{record.nome || '-'}</p>
+                  <p className="font-medium">{(record as any).CLIENTE || record.nome || '-'}</p>
+                </td>
+                <td className="px-4 py-3 text-sm text-text-primary">
+                  {(record as any).PROFISSIONAL || '-'}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {renderStars(record.nota)}
@@ -688,6 +694,9 @@ const PosVendasPage: React.FC = () => {
               Cliente
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+              Profissional
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
               Contato
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
@@ -704,7 +713,7 @@ const PosVendasPage: React.FC = () => {
         <tbody className="divide-y divide-border-primary">
           {records.length === 0 ? (
             <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-text-secondary">
+              <td colSpan={7} className="px-4 py-8 text-center text-text-secondary">
                 {emptyMessage}
               </td>
             </tr>
@@ -716,11 +725,14 @@ const PosVendasPage: React.FC = () => {
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
                   <div>
-                    <p className="font-medium">{record.nome || '-'}</p>
+                    <p className="font-medium">{(record as any).CLIENTE || record.nome || '-'}</p>
                     {record.ATENDIMENTO_ID && (
                       <p className="text-xs text-text-secondary">ID: {record.ATENDIMENTO_ID}</p>
                     )}
                   </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-text-primary">
+                  {(record as any).PROFISSIONAL || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
                   {record.contato || '-'}
@@ -1134,10 +1146,10 @@ const PosVendasPage: React.FC = () => {
                             {record.data_finalizacao ? formatDate(record.data_finalizacao) : formatDate(record.data)}
                           </td>
                           <td className="px-3 py-2 text-sm text-text-primary">
-                            {record.cliente}
+                            {(record as any).CLIENTE || record.nome || '-'}
                           </td>
                           <td className="px-3 py-2 text-sm text-text-primary">
-                            {record.profissional || '-'}
+                            {(record as any).PROFISSIONAL || '-'}
                           </td>
                           <td className="px-3 py-2 text-center">
                             {record.nota ? (

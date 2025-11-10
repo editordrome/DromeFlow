@@ -60,3 +60,32 @@ export async function getUnitClientByName(unitId: string, name: string): Promise
   if (error) return null;
   return (data as UnitClient) || null;
 }
+
+/**
+ * Atualiza o nome do cliente em todos os atendimentos vinculados
+ * @param unitCode - Código da unidade
+ * @param oldName - Nome antigo do cliente
+ * @param newName - Novo nome do cliente
+ * @returns Número de registros atualizados
+ */
+export async function updateClientNameInAppointments(
+  unitCode: string,
+  oldName: string,
+  newName: string
+): Promise<number> {
+  if (!unitCode || !oldName || !newName || oldName === newName) return 0;
+  
+  const { data, error } = await supabase
+    .from('processed_data')
+    .update({ CLIENTE: newName })
+    .eq('unidade_code', unitCode)
+    .eq('CLIENTE', oldName)
+    .select('id');
+  
+  if (error) {
+    console.error('Error updating client name in appointments:', error);
+    throw error;
+  }
+  
+  return (data?.length || 0);
+}

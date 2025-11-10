@@ -37,9 +37,13 @@ Requisitos de backend:
 - **pos_vendas → processed_data**: Trigger `sync_pos_vendas_status` atualiza coluna `"pos vendas"` quando `status` muda.
 
 ### Realtime
-O módulo Pós-Vendas implementa atualizações em tempo real via Supabase Realtime. Mudanças feitas por qualquer usuário são refletidas instantaneamente para todos os visualizadores da página.
+Os seguintes módulos implementam atualizações em tempo real via Supabase Realtime. Mudanças feitas por qualquer usuário são refletidas instantaneamente para todos os visualizadores:
 
-**Status**: ✅ Implementado e funcionando. Para detalhes sobre Realtime em outros módulos, consulte [`docs/REALTIME_STATUS.md`](docs/REALTIME_STATUS.md).
+- ✅ **Pós-Vendas**: Completo - sincronização bidirecional com `processed_data`
+- ✅ **Agendamentos**: Completo - atualização automática da tabela de agendamentos
+- ✅ **Dashboard/Métricas**: Completo - recalculo automático de métricas
+
+**Status**: ✅ Implementado e funcionando. Para detalhes técnicos, consulte [`docs/REALTIME_STATUS.md`](docs/REALTIME_STATUS.md).
 
 ### Campos Mapeados
 | pos_vendas | ← | processed_data |
@@ -81,6 +85,7 @@ O módulo Comercial exibe oportunidades em colunas de status com arrastar‑e‑
    - Stripe lateral colorido: usa `border-left` com a cor da coluna; fallback para `var(--color-accent-primary)`.
 - ALL (todas as unidades): após o drop, ocorre um refresh silencioso apenas dos cards/métricas (sem spinner), mantendo a UI estável.
 - Sincronização com Clientes: trigger `comercial_sync_unit_clients` espelha cards "ganhos" em `unit_clients` (upsert por unidade+nome).
+- **Realtime**: 🔄 Planejado (não implementado ainda)
 
 Troubleshooting
 - Erro 400 em reordenação: ocorreu ao usar `upsert` com `on_conflict=id`. Resolvido trocando por `update` simples por `id` (sequencial) e enviando somente os cards efetivamente alterados (status/position mudaram).
@@ -330,7 +335,51 @@ Serviços: `services/analytics/prestadoras.service.ts`
 - Visual: cards com estado de seleção (ativo) com o mesmo efeito do Dashboard.
 
 ---
-## 9. Controle de Acesso
+## 9. Status de Atendimentos
+
+Os módulos **Atendimentos** e **Dados** utilizam um sistema padronizado de 5 status para controle do ciclo de vida dos atendimentos:
+
+### Status Oficiais
+
+| Status | Significado | Cor | Uso |
+|--------|-------------|-----|-----|
+| **CONFIRMADO** | Atendimento confirmado com cliente | Verde | Status final positivo |
+| **PENDENTE** | Aguardando confirmação inicial | Amarelo | Status inicial padrão |
+| **RECUSADO** | Cliente recusou o atendimento | Vermelho | Status final negativo |
+| **AGUARDANDO** | Em processo de confirmação | Azul | Status intermediário |
+| **ESPERAR** | Marcado para acompanhamento posterior | Roxo | Status de follow-up |
+
+### Comportamento nos Modais
+
+#### DataDetailModal (Atendimentos e Dados)
+- **Localização**: Status e Profissional ficam no header do modal, na aba "Detalhes"
+- **Auto-save**: Mudanças nos campos Status e Profissional são salvas automaticamente
+- **Indicador**: Mostra feedback visual ("salvando…", "✓ salvo", "✗ erro")
+- **3 Abas**: Detalhes (edição), Pós-venda (sincronização) e Histórico (atendimentos anteriores do cliente)
+
+#### EditRecordModal (Edição rápida)
+- **Localização**: Status no header, ao lado do botão fechar
+- **Dropdown padrão**: Os mesmos 5 status
+- **Salvamento**: Junto com demais campos ao clicar em "Salvar"
+
+### Métricas e Filtros
+
+Os cards de métricas no módulo Atendimentos agrupam status relacionados:
+- **Pendente**: Mostra apenas `PENDENTE`
+- **Aguardando**: Mostra apenas `AGUARDANDO`
+- **Confirmado**: Agrupa `CONFIRMADO` e `FINALIZADO` (compatibilidade)
+- **Recusado**: Agrupa `RECUSADO` e `CANCELADO` (compatibilidade)
+- **Esperar**: Mostra apenas `ESPERAR`
+
+### Integração com Upload
+
+Durante o upload de planilhas XLSX:
+- Status pode ser atualizado se o campo `PROFISSIONAL` mudar
+- Status é preservado se o profissional não mudar (permite reatribuição controlada)
+- Campo `STATUS` na tabela `processed_data` armazena o valor em MAIÚSCULAS
+
+---
+## 10. Controle de Acesso
 
 Tabelas de junção:
 - `user_units(user_id, unit_id)`
@@ -344,7 +393,89 @@ Super Admin:
 - Necessita estar em `allowed_profiles` de um módulo para visualizá-lo (não há mais privilégio implícito de "ver tudo").
 
 ---
-## 10. Boas Práticas Internas
+## 10. Controle de Acesso
+
+Tabelas de junção:
+- `user_units(user_id, unit_id)`
+- `user_modules(user_id, module_id)`
+
+Admins:
+- Veem apenas usuários de suas unidades (`fetchUsersForAdminUnits`).
+- Ao criar usuário, unidade pode ser atribuída automaticamente (auto_unit_id).
+- Ao editar, módulos fora do escopo aparecem como somente leitura (mantidos mas não editáveis).
+Super Admin:
+- Necessita estar em `allowed_profiles` de um módulo para visualizá-lo (não há mais privilégio implícito de "ver tudo").
+
+---
+## 11. Administração de Colunas Dinâmicas (Unit Keys)
+
+### Visão Geral
+Sistema de gerenciamento avançado para colunas da tabela `unit_keys`, permitindo adicionar, renomear, excluir e ativar/desativar campos de configuração por unidade.
+
+### Página de Administração
+**Localização**: Menu lateral → "Unit Keys" (visível apenas para `super_admin`)
+
+**Arquivo**: `components/pages/UnitKeysPage.tsx`
+
+**Serviços**: `services/units/unitKeysAdmin.service.ts`
+
+### Funcionalidades
+
+#### 1. Visualização de Colunas
+- Tabela com estatísticas de uso: nome da coluna, tipo de dado, total de registros não-nulos, status (ativo/inativo)
+- Ordenação por nome da coluna
+- Indicadores visuais: colunas inativas aparecem com opacidade reduzida
+
+#### 2. Adicionar Nova Coluna
+- Botão "Adicionar Coluna" no cabeçalho
+- Modal com validação:
+  - Nome obrigatório (apenas letras minúsculas, números e underscores)
+  - Descrição opcional
+  - Status inicial (ativo/inativo)
+- Cria coluna do tipo `TEXT` por padrão
+
+#### 3. Renomear Coluna
+- Ícone de edição em cada linha
+- Modal com preview do nome atual
+- Validação: impede nomes duplicados ou inválidos
+- Mantém dados existentes após renomeação
+
+#### 4. Excluir Coluna
+- Ícone de lixeira em cada linha
+- Modal de confirmação com contagem de registros afetados
+- **Ação irreversível**: remove a coluna e todos os dados associados
+- Colunas do sistema (padrão) não podem ser excluídas
+
+#### 5. Ativar/Desativar Coluna
+- Toggle switch em cada linha
+- Atualização instantânea do status
+- Colunas inativas não aparecem na interface de edição de unidades
+
+### RPCs do Backend
+
+| RPC | Descrição |
+|-----|-----------|
+| `unit_keys_list_columns()` | Lista todas as colunas com metadados |
+| `unit_keys_columns_stats()` | Retorna estatísticas de uso (count não-nulos) |
+| `unit_keys_add_column(name, description)` | Cria nova coluna TEXT |
+| `unit_keys_rename_column(old_name, new_name)` | Renomeia coluna preservando dados |
+| `unit_keys_drop_column(column_name)` | Remove coluna e dados (irreversível) |
+| `unit_keys_set_column_status(column_name, is_active)` | Ativa/desativa coluna |
+
+### Segurança
+- Acesso restrito a `super_admin` via UI
+- RLS: políticas permissivas no banco (recomenda-se vincular ao JWT em produção)
+- Validação de nomes de colunas (SQL injection prevention)
+- Confirmação obrigatória para ações destrutivas
+
+### Casos de Uso
+1. **Adicionar integração nova**: Criar campo `api_token_parceiro` para armazenar credenciais
+2. **Deprecar campo antigo**: Desativar `whats_profi_old` sem perder dados
+3. **Reorganização**: Renomear `botID` para `chatbot_id` para padronização
+4. **Limpeza**: Excluir campos não mais utilizados após migração
+
+---
+## 12. Boas Práticas Internas
 
 - Centralizar chamadas ao Supabase nos serviços segmentados em `services/*/*.service.ts`.
 - Não repetir lógica de expansão/divisão em componentes.
@@ -356,7 +487,7 @@ Super Admin:
    - Payload mínimo: `{ unidade_code, data }`, com `keyword` opcional e `atendimento_id` em envios individuais; fallback GET usa chaves compactas (`u`, `d`, `kw`, `aid`).
 
 ---
-## 11. Próximos Passos Recomendados
+## 13. Próximos Passos Recomendados
 
 | Prioridade | Item | Descrição |
 |------------|------|-----------|
@@ -375,7 +506,7 @@ Notas finais:
 - Em ALL, o botão de envio de webhook de Agendamentos fica desabilitado por segurança/semântica.
 
 ---
-## 12. Scripts
+## 14. Scripts
 
 | Uso | Comando |
 |-----|---------|
@@ -384,19 +515,19 @@ Notas finais:
 | Preview | `npm run preview` |
 
 ---
-## 13. Licença
+## 15. Licença
 
 Projeto em estágio de MVP — defina licença antes de distribuição pública.
 
 ---
-## 14. Suporte / Contribuição
+## 16. Suporte / Contribuição
 
 1. Abra issue descrevendo contexto.
 2. Forneça logs/prints relevantes.
 3. Sugira melhoria se aplicável.
 
 ---
-## 15. Glossário Rápido
+## 17. Glossário Rápido
 
 - Orçamento Base: Registro original (sem sufixo `_N`).
 - Registro Derivado: Divisão de profissional (`IS_DIVISAO = 'SIM'`) com `VALOR=0`.
@@ -404,22 +535,23 @@ Projeto em estágio de MVP — defina licença antes de distribuição pública.
 - Módulo Público: `allowed_profiles` vazio ou null.
 - Position: Campo de ordenação denso reatribuído sempre que a ordem muda.
 - Webhook Agenda: Envio inclui endereço (`endereco`) e versão compacta; fallback GET para cenários de bloqueio POST.
+- Conexao: Campo de configuração opcional na tabela `unit_keys`, usado para passar informações específicas da unidade em webhooks e integrações.
 
 ---
-## 16. FAQ Curto
+## 18. FAQ Curto
 
 | Pergunta | Resposta |
 |----------|----------|
 | Por que não usar ainda `supabase.auth`? | Adoção incremental; MVP priorizou velocidade. |
 | Como evitar duplicações no upload? | Limpeza por período + upsert RPC + chave lógica `ATENDIMENTO_ID`. |
 | Por que recalcular repasse localmente? | Garantir consistência após expansão de profissionais. |
-| Quais módulos têm Realtime? | Pós-Vendas (completo). Consulte `docs/REALTIME_STATUS.md` para detalhes. |
+| Quais módulos têm Realtime? | Pós-Vendas, Agendamentos e Dashboard (completos). Consulte `docs/REALTIME_STATUS.md` para detalhes. |
 
 ---
 _Documento atualizado automaticamente para refletir estado atual do sistema._
 
 ---
-## 17. Resumo: Alinhamento de Recorrentes
+## 19. Resumo: Alinhamento de Recorrentes
 
 Contexto: Houve divergência entre a contagem de recorrentes/atenção no módulo de Clientes e no Dashboard.
 
@@ -435,9 +567,9 @@ Resultados:
 - Maior previsibilidade e performance ao limitar as consultas aos meses relevantes.
 
 ---
-## 18. Recrutadora – Métricas Rápidas e Ingestão CSV
+## 20. Recrutadora – Métricas Rápidas e Ingestão CSV
 ---
-## 19. Subdomínios e URLs de Módulo
+## 21. Subdomínios e URLs de Módulo
 
 Para servir cada unidade em um subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeboard.com.br/<module>`), siga o guia detalhado em `docs/SUBDOMINIOS_E_URLS.md`.
 

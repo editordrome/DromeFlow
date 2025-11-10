@@ -44,7 +44,7 @@ const AppointmentsPage: React.FC = () => {
   });
   // Filtro ativo derivado das métricas. 'all' significa sem filtro.
   const [activeMetricFilter, setActiveMetricFilter] = useState<
-    'all' | 'comercial' | 'residencial' | 'pendente' | 'aguardando' | 'confirmado' | 'recusado'
+    'all' | 'comercial' | 'residencial' | 'pendente' | 'aguardando' | 'confirmado' | 'recusado' | 'esperar'
   >('all');
   const [isSending, setIsSending] = useState(false);
   const [sendFeedback, setSendFeedback] = useState<null | { type: 'success' | 'error'; message: string }>(null);
@@ -154,7 +154,7 @@ const AppointmentsPage: React.FC = () => {
     try {
       const result = await sendWebhookPayload([], 0, 'atendimento');
       if (result?.ok) {
-        const msg = result.mode === 'POST' ? 'Webhook enviado.' : 'Webhook via fallback GET.';
+        const msg = result.mode === 'POST' ? 'Atendimentos enviados.' : 'Webhook via fallback GET.';
         setSendFeedback({ type: 'success', message: msg });
       }
     } catch (err: any) {
@@ -383,6 +383,8 @@ const AppointmentsPage: React.FC = () => {
             return st === 'CONFIRMADO' || st === 'FINALIZADO';
           case 'recusado':
             return st === 'RECUSADO' || st === 'CANCELADO';
+          case 'esperar':
+            return st === 'ESPERAR';
           default:
             return true;
         }
@@ -442,6 +444,7 @@ const AppointmentsPage: React.FC = () => {
     let aguardando = 0;
     let confirmado = 0;
     let recusado = 0;
+    let esperar = 0;
     originalRecords.forEach(a => {
       const tipo = (a.TIPO || '').toLowerCase();
       if (tipo.includes('comercial')) comercial++;
@@ -452,8 +455,9 @@ const AppointmentsPage: React.FC = () => {
       else if (st === 'AGUARDANDO') aguardando++;
       else if (st === 'CONFIRMADO' || st === 'FINALIZADO') confirmado++; // agrupa FINALIZADO em confirmado para visão operacional
       else if (st === 'RECUSADO' || st === 'CANCELADO') recusado++; // inclui CANCELADO em recusado
+      else if (st === 'ESPERAR') esperar++;
     });
-    return { total, comercial, residencial, pendente, aguardando, confirmado, recusado };
+    return { total, comercial, residencial, pendente, aguardando, confirmado, recusado, esperar };
   }, [appointments]);
 
   if (!selectedUnit) {
@@ -507,6 +511,7 @@ const AppointmentsPage: React.FC = () => {
             {([
               { key: 'pendente', label: 'Pendente', icon: 'Clock', color: 'text-amber-500', value: metrics.pendente },
               { key: 'aguardando', label: 'Aguardando', icon: 'Hourglass', color: 'text-brand-cyan', value: metrics.aguardando },
+              { key: 'esperar', label: 'Esperar', icon: 'Pause', color: 'text-purple-500', value: metrics.esperar },
               { key: 'confirmado', label: 'Confirmado', icon: 'CheckCircle', color: 'text-brand-green', value: metrics.confirmado },
               { key: 'recusado', label: 'Recusado', icon: 'XCircle', color: 'text-danger', value: metrics.recusado }
             ] as const).map(m => {
@@ -624,7 +629,12 @@ const AppointmentsPage: React.FC = () => {
                   <Icon name="calendar" className="w-5 h-5" />
                 </button>
                 {showCalendar && (
-                  <div className="absolute right-0 mt-2 z-50 w-72 p-3 rounded-md bg-bg-secondary shadow-lg border border-border-secondary animate-fade-in">
+                  <div className="fixed mt-2 z-50 w-72 p-3 rounded-md bg-bg-secondary shadow-lg border border-border-secondary animate-fade-in"
+                    style={{
+                      top: calendarRef.current ? calendarRef.current.getBoundingClientRect().bottom + 8 : 0,
+                      right: calendarRef.current ? window.innerWidth - calendarRef.current.getBoundingClientRect().right : 0,
+                    }}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <button
                         type="button"

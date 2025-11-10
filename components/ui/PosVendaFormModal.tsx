@@ -109,119 +109,127 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-bg-secondary rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
-        {/* Header */}
-        <div className="sticky top-0 bg-bg-secondary flex items-center justify-between p-4 sm:p-6 border-b border-border-primary z-10">
-          <h2 className="text-lg sm:text-xl font-semibold text-text-primary">
-            {record ? 'Editar' : 'Novo'} Registro de Pós-Venda
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <Icon name="X" className="w-5 h-5" />
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden">
+        {/* Header compacto com status */}
+        <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-lg font-bold text-text-primary">
+              {record ? 'Editar Pós-Venda' : 'Novo Pós-Venda'}
+            </h2>
+            
+            <div className="flex items-center gap-3">
+              {/* Status ao lado do botão fechar */}
+              <label className="flex flex-col gap-1.5 min-w-[140px]">
+                <span className="text-xs font-medium text-text-secondary">Status</span>
+                <select
+                  value={formData.status || 'pendente'}
+                  onChange={(e) => handleChange('status', e.target.value as any)}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                >
+                  <option value="pendente">Pendente</option>
+                  <option value="contatado">Contatado</option>
+                  <option value="finalizado">Finalizado</option>
+                </select>
+              </label>
+              
+              <button 
+                onClick={onClose} 
+                type="button"
+                className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
+                aria-label="Fechar"
+              >
+                <Icon name="X" className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* ATENDIMENTO_ID - FIXO */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                ATENDIMENTO ID
-              </label>
-              <input
-                type="text"
-                value={formData.ATENDIMENTO_ID || '-'}
-                readOnly
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-border-primary rounded-lg text-text-secondary cursor-not-allowed"
-              />
+        <form onSubmit={handleSubmit}>
+          {/* Body com scroll */}
+          <div className="max-h-[65vh] overflow-y-auto px-5 py-4 space-y-4">
+            {/* Campos Fixos do Atendimento */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* ATENDIMENTO_ID - FIXO */}
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">ID Atendimento</span>
+                  <input
+                    type="text"
+                    value={formData.ATENDIMENTO_ID || '-'}
+                    readOnly
+                    className="rounded-lg border border-border-secondary/50 bg-bg-tertiary/50 px-3 py-2 text-sm text-text-secondary cursor-not-allowed"
+                  />
+                </label>
+
+                {/* Chat ID - FIXO */}
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">Chat ID (WhatsApp)</span>
+                  <input
+                    type="text"
+                    value={formData.chat_id || '-'}
+                    readOnly
+                    className="rounded-lg border border-border-secondary/50 bg-bg-tertiary/50 px-3 py-2 text-sm text-text-secondary cursor-not-allowed"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Nome - FIXO */}
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">Nome do Cliente</span>
+                  <input
+                    type="text"
+                    value={formData.nome || '-'}
+                    readOnly
+                    className="rounded-lg border border-border-secondary/50 bg-bg-tertiary/50 px-3 py-2 text-sm text-text-secondary cursor-not-allowed"
+                  />
+                </label>
+
+                {/* Contato - FIXO */}
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">Contato (Telefone)</span>
+                  <input
+                    type="text"
+                    value={formData.contato || '-'}
+                    readOnly
+                    className="rounded-lg border border-border-secondary/50 bg-bg-tertiary/50 px-3 py-2 text-sm text-text-secondary cursor-not-allowed"
+                  />
+                </label>
+              </div>
             </div>
 
-            {/* Nome - FIXO */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Nome do Cliente
-              </label>
-              <input
-                type="text"
-                value={formData.nome || '-'}
-                readOnly
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-border-primary rounded-lg text-text-secondary cursor-not-allowed"
-              />
-            </div>
+            {/* Divisor */}
+            <div className="border-t border-border-secondary"></div>
 
-            {/* Contato - FIXO */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Contato (Telefone)
+            {/* Campos Editáveis */}
+            <div className="space-y-3">
+              {/* Data */}
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                  Data do Contato <span className="text-danger">*</span>
+                </span>
+                <input
+                  type="date"
+                  value={formData.data || ''}
+                  onChange={(e) => handleChange('data', e.target.value)}
+                  required
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                />
               </label>
-              <input
-                type="text"
-                value={formData.contato || '-'}
-                readOnly
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-border-primary rounded-lg text-text-secondary cursor-not-allowed"
-              />
-            </div>
 
-            {/* Chat ID - FIXO */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Chat ID (WhatsApp)
-              </label>
-              <input
-                type="text"
-                value={formData.chat_id || '-'}
-                readOnly
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-border-primary rounded-lg text-text-secondary cursor-not-allowed"
-              />
-            </div>
-
-            {/* Data */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Data do Contato *
-              </label>
-              <input
-                type="date"
-                value={formData.data || ''}
-                onChange={(e) => handleChange('data', e.target.value)}
-                required
-                className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Status *
-              </label>
-              <select
-                value={formData.status || 'pendente'}
-                onChange={(e) => handleChange('status', e.target.value as any)}
-                required
-                className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="pendente">Pendente</option>
-                <option value="contatado">Contatado</option>
-                <option value="finalizado">Finalizado</option>
-              </select>
-            </div>
-
-            {/* Nota */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Avaliação (1-5)
-              </label>
-              <div className="flex items-center gap-1 p-2">
+              {/* Nota */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-secondary">
+                  Avaliação (1-5)
+                </span>
+                <div className="flex items-center gap-1 p-2">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
                     type="button"
                     onClick={() => {
-                      // Se clicar na estrela já selecionada, remove a avaliação
                       if (formData.nota === star) {
                         handleChange('nota', null);
                       } else {
@@ -229,7 +237,6 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
                       }
                     }}
                     onMouseEnter={(e) => {
-                      // Efeito hover: iluminar até a estrela atual
                       const stars = e.currentTarget.parentElement?.querySelectorAll('button');
                       stars?.forEach((btn, idx) => {
                         const icon = btn.querySelector('svg');
@@ -240,7 +247,6 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
                       });
                     }}
                     onMouseLeave={(e) => {
-                      // Restaurar estado original baseado na nota
                       const stars = e.currentTarget.parentElement?.querySelectorAll('button');
                       stars?.forEach((btn, idx) => {
                         const icon = btn.querySelector('svg');
@@ -294,55 +300,55 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
                   {formData.nota === 5 && 'Muito satisfeito'}
                 </p>
               )}
-            </div>
+              </div>
 
-            {/* Reagendou */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Reagendou
+              {/* Reagendou */}
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-secondary">Reagendou</span>
+                <select
+                  value={formData.reagendou ? 'sim' : 'nao'}
+                  onChange={(e) => handleChange('reagendou', e.target.value === 'sim')}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                >
+                  <option value="nao">Não</option>
+                  <option value="sim">Sim</option>
+                </select>
               </label>
-              <select
-                value={formData.reagendou ? 'sim' : 'nao'}
-                onChange={(e) => handleChange('reagendou', e.target.value === 'sim')}
-                className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="nao">Não</option>
-                <option value="sim">Sim</option>
-              </select>
+
+              {/* Feedback */}
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-secondary">Feedback / Observações</span>
+                <textarea
+                  value={formData.feedback || ''}
+                  onChange={(e) => handleChange('feedback', e.target.value)}
+                  rows={4}
+                  placeholder="Comentários do cliente, sugestões, reclamações..."
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all resize-none"
+                />
+              </label>
             </div>
           </div>
 
-          {/* Feedback */}
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Feedback / Observações
-            </label>
-            <textarea
-              value={formData.feedback || ''}
-              onChange={(e) => handleChange('feedback', e.target.value)}
-              rows={4}
-              placeholder="Comentários do cliente, sugestões, reclamações..."
-              className="w-full px-3 py-2 bg-bg-primary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            />
-          </div>
-
-          {/* Botões */}
-          <div className="sticky bottom-0 bg-bg-secondary flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-border-primary -mx-4 sm:-mx-6 px-4 sm:px-6 pb-4 sm:pb-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full sm:w-auto px-4 py-2 text-text-secondary hover:text-text-primary transition-colors border border-border-primary rounded-lg sm:border-0"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading && <Icon name="Loader2" className="w-4 h-4 animate-spin" />}
-              {loading ? 'Salvando...' : 'Salvar'}
-            </button>
+          {/* Footer compacto - apenas ícones */}
+          <div className="flex items-center justify-between border-t border-border-secondary bg-bg-tertiary px-5 py-3">
+            <div className="flex items-center gap-1 text-xs text-text-secondary">
+              <Icon name="Info" className="w-3 h-3" />
+              <span>* Obrigatório</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
+                title={loading ? "Salvando..." : "Salvar"}
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <Icon name="Check" className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
