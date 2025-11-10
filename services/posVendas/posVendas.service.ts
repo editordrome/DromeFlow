@@ -82,13 +82,14 @@ export const fetchPendenteWithProfissional = async (filters?: {
 
 /**
  * Busca registros de pós-vendas com filtros opcionais
+ * Faz queries separadas para pos_vendas e processed_data, depois combina os dados
  */
 export const fetchPosVendas = async (filters?: {
   unit_id?: string;
   status?: string;
   startDate?: string;
   endDate?: string;
-}): Promise<PosVenda[]> => {
+}): Promise<Array<PosVenda & { PROFISSIONAL?: string | null; CLIENTE?: string | null }>> => {
   let query = supabase
     .from('pos_vendas')
     .select('*')
@@ -117,7 +118,59 @@ export const fetchPosVendas = async (filters?: {
     throw error;
   }
 
-  return data || [];
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Buscar dados complementares de processed_data (PROFISSIONAL e CLIENTE)
+  const atendimentoIds = data
+    .map(record => record.ATENDIMENTO_ID)
+    .filter(id => id !== null && id !== undefined);
+
+  if (atendimentoIds.length === 0) {
+    return data.map(record => ({
+      ...record,
+      PROFISSIONAL: null,
+      CLIENTE: record.nome || null,
+    }));
+  }
+
+  // Buscar profissionais e clientes dos atendimentos
+  const { data: processedData, error: processedError } = await supabase
+    .from('processed_data')
+    .select('ATENDIMENTO_ID, PROFISSIONAL, CLIENTE')
+    .in('ATENDIMENTO_ID', atendimentoIds);
+
+  if (processedError) {
+    console.error('Erro ao buscar dados complementares:', processedError);
+    // Retorna os dados sem PROFISSIONAL/CLIENTE em caso de erro
+    return data.map(record => ({
+      ...record,
+      PROFISSIONAL: null,
+      CLIENTE: record.nome || null,
+    }));
+  }
+
+  // Criar mapa de atendimento -> dados complementares
+  const complementMap = new Map<string, { PROFISSIONAL: string | null; CLIENTE: string | null }>();
+  (processedData || []).forEach((item: any) => {
+    if (item.ATENDIMENTO_ID) {
+      complementMap.set(item.ATENDIMENTO_ID, {
+        PROFISSIONAL: item.PROFISSIONAL,
+        CLIENTE: item.CLIENTE,
+      });
+    }
+  });
+
+  // Combinar dados
+  return data.map(record => {
+    const complement = record.ATENDIMENTO_ID ? complementMap.get(record.ATENDIMENTO_ID) : null;
+    return {
+      ...record,
+      PROFISSIONAL: complement?.PROFISSIONAL || null,
+      CLIENTE: complement?.CLIENTE || record.nome || null,
+    };
+  });
 };
 
 /**

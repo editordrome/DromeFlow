@@ -43,11 +43,13 @@ const ComercialCardModal: React.FC<Props> = ({
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setError(null);
     setSaving(false);
+    setIsEditing(!initialCard); // Modo edição ativo apenas para novos registros
     if (initialCard) {
       setNome(initialCard.nome || '');
       setTipo(initialCard.tipo || '');
@@ -84,6 +86,47 @@ const ComercialCardModal: React.FC<Props> = ({
     }
   };
 
+  // Auto-save observações for existing cards
+  const handleObservacaoChange = async (newObservacao: string) => {
+    setObservacao(newObservacao);
+    
+    if (initialCard && onUpdate) {
+      try {
+        // Save silently without triggering full reload
+        await onUpdate(initialCard.id, { observacao: newObservacao.trim() || null });
+        // Don't call onSaved() to avoid screen refresh
+      } catch (e: any) {
+        setError(e.message || 'Falha ao atualizar observações.');
+      }
+    }
+  };
+
+  // Auto-save tipo for existing cards
+  const handleTipoChange = async (newTipo: string) => {
+    setTipo(newTipo);
+    
+    if (initialCard && onUpdate) {
+      try {
+        await onUpdate(initialCard.id, { tipo: newTipo.trim() || null });
+      } catch (e: any) {
+        setError(e.message || 'Falha ao atualizar tipo.');
+      }
+    }
+  };
+
+  // Auto-save origem for existing cards
+  const handleOrigemChange = async (newOrigem: string) => {
+    setOrigem(newOrigem);
+    
+    if (initialCard && onUpdate) {
+      try {
+        await onUpdate(initialCard.id, { origem: newOrigem.trim() || null });
+      } catch (e: any) {
+        setError(e.message || 'Falha ao atualizar origem.');
+      }
+    }
+  };
+
   const handleSave = async () => {
     if (!nome.trim()) {
       setError('Informe o nome do contato.');
@@ -105,6 +148,7 @@ const ComercialCardModal: React.FC<Props> = ({
 
       if (initialCard && onUpdate) {
         await onUpdate(initialCard.id, payload);
+        setIsEditing(false); // Sai do modo edição após salvar
       } else if (!initialCard && onCreate) {
         if (!unitId) {
           throw new Error('Selecione uma unidade para criar oportunidades.');
@@ -114,7 +158,9 @@ const ComercialCardModal: React.FC<Props> = ({
       }
 
       onSaved();
-      onClose();
+      if (!initialCard) {
+        onClose(); // Fecha apenas para novos registros
+      }
     } catch (e: any) {
       setError(e.message || 'Falha ao salvar o registro.');
     } finally {
@@ -198,70 +244,103 @@ const ComercialCardModal: React.FC<Props> = ({
           <div className="space-y-3">
             {/* Nome, Tipo e Origem na mesma linha */}
             <div className="flex gap-3">
-              <label className="flex-1 flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
-                  Nome <span className="text-danger">*</span>
-                </span>
-                <input
-                  value={nome}
-                  onChange={e => setNome(e.target.value)}
-                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                  placeholder="Ex.: Loja XPTO"
-                  autoFocus
-                />
-              </label>
-              <label className="w-28 flex flex-col gap-1.5">
+              {/* Nome - Modo Visualização/Edição */}
+              {isEditing ? (
+                <label className="flex-1 flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                    Nome <span className="text-danger">*</span>
+                  </span>
+                  <input
+                    value={nome}
+                    onChange={e => setNome(e.target.value)}
+                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                    placeholder="Ex.: Loja XPTO"
+                    autoFocus={!initialCard}
+                  />
+                </label>
+              ) : (
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-text-secondary mb-1.5">Nome</p>
+                  <p className="text-sm text-text-primary">{nome || '-'}</p>
+                </div>
+              )}
+
+              {/* Tipo - Sempre editável com auto-save */}
+              <label className="w-32 flex flex-col gap-1.5">
                 <span className="text-xs font-medium text-text-secondary">Tipo</span>
-                <input
+                <select
                   value={tipo}
-                  onChange={e => setTipo(e.target.value)}
-                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                  placeholder="Tipo..."
-                />
+                  onChange={e => handleTipoChange(e.target.value)}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="Residencial">Residencial</option>
+                  <option value="Comercial">Comercial</option>
+                  <option value="Pós-Obra">Pós-Obra</option>
+                </select>
               </label>
-              <label className="w-24 flex flex-col gap-1.5">
+
+              {/* Origem - Sempre editável com auto-save */}
+              <label className="w-28 flex flex-col gap-1.5">
                 <span className="text-xs font-medium text-text-secondary">Origem</span>
-                <input
+                <select
                   value={origem}
-                  onChange={e => setOrigem(e.target.value)}
-                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                  placeholder="Origem..."
-                />
+                  onChange={e => handleOrigemChange(e.target.value)}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="Whatsapp">Whatsapp</option>
+                  <option value="Ligação">Ligação</option>
+                  <option value="E-mail">E-mail</option>
+                </select>
               </label>
             </div>
 
-            {/* Endereço e Contato */}
-            <div className="grid grid-cols-12 gap-3">
-              <label className="col-span-12 md:col-span-9 flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-secondary">
-                  Endereço
-                </span>
-                <input
-                  value={endereco}
-                  onChange={e => setEndereco(e.target.value)}
-                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                  placeholder="Rua, número, bairro..."
-                />
-              </label>
-              <label className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-secondary">
-                  Contato
-                </span>
-                <input
-                  value={contato}
-                  onChange={e => setContato(e.target.value)}
-                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                  placeholder="Telefone..."
-                />
-              </label>
-            </div>
+            {/* Endereço e Contato - Modo Visualização/Edição */}
+            {isEditing ? (
+              <div className="grid grid-cols-12 gap-3">
+                <label className="col-span-12 md:col-span-9 flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">
+                    Endereço
+                  </span>
+                  <input
+                    value={endereco}
+                    onChange={e => setEndereco(e.target.value)}
+                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                    placeholder="Rua, número, bairro..."
+                  />
+                </label>
+                <label className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">
+                    Contato
+                  </span>
+                  <input
+                    value={contato}
+                    onChange={e => setContato(e.target.value)}
+                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                    placeholder="Telefone..."
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-12 md:col-span-9">
+                  <p className="text-xs font-medium text-text-secondary mb-1.5">Endereço</p>
+                  <p className="text-sm text-text-primary">{endereco || '-'}</p>
+                </div>
+                <div className="col-span-12 md:col-span-3">
+                  <p className="text-xs font-medium text-text-secondary mb-1.5">Contato</p>
+                  <p className="text-sm text-text-primary">{contato || '-'}</p>
+                </div>
+              </div>
+            )}
 
-            {/* Observações */}
+            {/* Observações - Sempre editável com auto-save */}
             <label className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-text-secondary">Observações</span>
               <textarea
                 value={observacao}
-                onChange={e => setObservacao(e.target.value)}
+                onChange={e => handleObservacaoChange(e.target.value)}
                 rows={3}
                 className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all resize-none"
                 placeholder="Notas adicionais..."
@@ -270,7 +349,7 @@ const ComercialCardModal: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Footer compacto - apenas ícones */}
+        {/* Footer compacto */}
         <div className="flex items-center justify-between border-t border-border-secondary bg-bg-tertiary px-5 py-3">
           <div className="flex items-center gap-1 text-xs text-text-secondary">
             <Icon name="info" className="w-3 h-3" />
@@ -290,15 +369,21 @@ const ComercialCardModal: React.FC<Props> = ({
             )}
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() => {
+                if (!isEditing) {
+                  setIsEditing(true);
+                } else {
+                  handleSave();
+                }
+              }}
               className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
               disabled={saving}
-              title={saving ? "Salvando..." : "Salvar"}
+              title={saving ? "Salvando..." : isEditing ? "Salvar" : "Editar"}
             >
               {saving ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
-                <Icon name="Check" className="w-4 h-4" />
+                <Icon name={isEditing ? "Check" : "edit"} className="w-4 h-4" />
               )}
             </button>
           </div>

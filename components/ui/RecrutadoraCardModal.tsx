@@ -509,91 +509,136 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onClick={onClose}>
-  <div className="w-full max-w-[45rem] p-5 mx-3 bg-bg-secondary rounded-lg shadow-lg max-h-[90vh] flex flex-col" onClick={(e)=>e.stopPropagation()}>
-        <div className="flex items-center justify-between pb-3 border-b border-border-primary">
-          <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleColorDotClick}
-              disabled={saving}
-              className="inline-block h-3 w-3 rounded-full border border-border-secondary cursor-pointer"
-              style={{ backgroundColor: (color || initialCard?.color_card || '#4ade80') as string }}
-              aria-label="Alterar cor do card"
-              title="Alterar cor do card"
-            />
-            {isEditing ? (nome || initialCard?.nome || 'Editar Card') : 'Novo Card'}
-            {/* input color oculto para editar a cor ao clicar no dot */}
-            <input
-              ref={colorInputRef}
-              type="color"
-              value={color || '#4ade80'}
-              onChange={(e)=>setColor(e.target.value)}
-              className="sr-only"
-              aria-hidden="true"
-              tabIndex={-1}
-            />
-          </h2>
-          <div className="flex items-center gap-2">
-            {/* Seletor de Status */}
-            <div>
-              <label className="sr-only">Status</label>
-              <select
-                value={statusLabel || ''}
-                onChange={(e)=> handleStatusChange(e.target.value)}
-                className="px-2 py-1 rounded-md border border-border-secondary bg-bg-tertiary text-sm text-text-primary focus:outline-none"
-                title="Status"
-              >
-                <option value="">-</option>
-                <option value="qualificadas">QUALIFICADAS</option>
-                <option value="contato">CONTATO</option>
-                <option value="envio_doc">ENVIO DOS DOCUMENTOS</option>
-                <option value="truora">TRUORA</option>
-                <option value="treinamento">TREINAMENTO</option>
-                <option value="ativo">ATIVO</option>
-                <option value="finalizado">FINALIZADO</option>
-                <option value="nao_aprovadas">NÃO APROVADAS</option>
-                <option value="desistentes">DESISTENTES</option>
-              </select>
-              <div className="text-[11px] text-text-secondary mt-0.5 h-4">{autoSavingStatus ? 'Salvando…' : (autoSaveStatusMsg || '')}</div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+      <div className="w-full max-w-3xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+        {/* Header compacto com gradiente */}
+        <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleColorDotClick}
+                disabled={saving}
+                className="inline-block h-4 w-4 rounded-full border-2 border-white shadow-md cursor-pointer hover:scale-110 transition-transform"
+                style={{ backgroundColor: (color || initialCard?.color_card || '#4ade80') as string }}
+                aria-label="Alterar cor do card"
+                title="Alterar cor do card"
+              />
+              <h2 className="text-lg font-bold text-text-primary">
+                {isEditing ? (nome || 'Recrutadora') : 'Nova Recrutadora'}
+              </h2>
+              <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                <Icon name="building" className="w-3.5 h-3.5" />
+                <span>{unidade}</span>
+              </div>
+              {/* Input color oculto */}
+              <input
+                ref={colorInputRef}
+                type="color"
+                value={color || '#4ade80'}
+                onChange={(e)=>setColor(e.target.value)}
+                className="sr-only"
+                aria-hidden="true"
+                tabIndex={-1}
+              />
             </div>
-            {initialCard && !editMode && (
-              <button onClick={() => setEditMode(true)} className="px-3 py-1.5 text-sm font-medium rounded-md border border-border-secondary text-text-primary hover:bg-bg-tertiary">Editar</button>
-            )}
-            {initialCard && editMode && (
-              <button onClick={() => setEditMode(false)} className="px-3 py-1.5 text-sm font-medium rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary" disabled={saving}>Cancelar edição</button>
-            )}
-            <button onClick={onClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary" disabled={saving}>
-              <Icon name="close" />
+            
+            <div className="flex items-center gap-3">
+              {/* Status ao lado do botão fechar */}
+              <label className="flex flex-col gap-1.5 min-w-[180px]">
+                <span className="text-xs font-medium text-text-secondary">Status</span>
+                <select
+                  value={statusLabel || ''}
+                  onChange={(e)=> handleStatusChange(e.target.value)}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                >
+                  <option value="">-</option>
+                  <option value="qualificadas">Qualificadas</option>
+                  <option value="contato">Contato</option>
+                  <option value="envio_doc">Envio dos Documentos</option>
+                  <option value="truora">Truora</option>
+                  <option value="treinamento">Treinamento</option>
+                  <option value="ativo">Ativo</option>
+                  <option value="finalizado">Finalizado</option>
+                  <option value="nao_aprovadas">Não Aprovadas</option>
+                  <option value="desistentes">Desistentes</option>
+                </select>
+              </label>
+              
+              <button 
+                onClick={onClose} 
+                className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5" 
+                aria-label="Fechar"
+                disabled={saving}
+              >
+                <Icon name="X" className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b border-border-secondary bg-bg-tertiary/30">
+          <div className="flex items-center px-5">
+            <button
+              onClick={()=>setActiveTab('pessoal')}
+              className={`px-3 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === 'pessoal'
+                  ? 'text-accent-primary border-b-2 border-accent-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Dados Pessoais
+            </button>
+            <button
+              onClick={()=>setActiveTab('profissional')}
+              className={`px-3 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === 'profissional'
+                  ? 'text-accent-primary border-b-2 border-accent-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Profissional
+            </button>
+            <button
+              onClick={()=>setActiveTab('observacao')}
+              className={`px-3 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === 'observacao'
+                  ? 'text-accent-primary border-b-2 border-accent-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Observação
+            </button>
+            <button
+              onClick={()=>setActiveTab('documentos')}
+              className={`px-3 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === 'documentos'
+                  ? 'text-accent-primary border-b-2 border-accent-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Documentos
             </button>
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-          {/* Header removido por solicitação: linha 'Coluna: ...' e aviso de modo visualização */}
 
-          {/* Tabs */}
-          <div className="flex gap-2 border-b border-border-secondary mb-3 overflow-x-auto">
-            <button className={`px-3 py-1.5 text-xs md:text-sm rounded-t-md ${activeTab==='pessoal' ? 'bg-bg-tertiary text-text-primary border border-border-secondary border-b-0' : 'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('pessoal')}>
-              <span className="inline-flex items-center gap-1"><Icon name="User" className="w-4 h-4"/> Informações Pessoais</span>
-            </button>
-            <button className={`px-3 py-1.5 text-xs md:text-sm rounded-t-md ${activeTab==='profissional' ? 'bg-bg-tertiary text-text-primary border border-border-secondary border-b-0' : 'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('profissional')}>
-              <span className="inline-flex items-center gap-1"><Icon name="Briefcase" className="w-4 h-4"/> Profissional</span>
-            </button>
-            <button className={`px-3 py-1.5 text-xs md:text-sm rounded-t-md ${activeTab==='observacao' ? 'bg-bg-tertiary text-text-primary border border-border-secondary border-b-0' : 'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('observacao')}>
-              <span className="inline-flex items-center gap-1"><Icon name="NotebookText" className="w-4 h-4"/> Observação</span>
-            </button>
-            <button className={`px-3 py-1.5 text-xs md:text-sm rounded-t-md ${activeTab==='documentos' ? 'bg-bg-tertiary text-text-primary border border-border-secondary border-b-0' : 'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('documentos')}>
-              <span className="inline-flex items-center gap-1"><Icon name="Folder" className="w-4 h-4"/> Documentos</span>
-            </button>
-          </div>
+        {/* Body com scroll */}
+        <div className="max-h-[55vh] overflow-y-auto px-5 py-3">
+          {err && (
+            <div className="mb-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 flex items-start gap-2">
+              <Icon name="alert" className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
+              <span className="text-xs text-danger">{err}</span>
+            </div>
+          )}
 
           {/* Conteúdo das abas */}
           {activeTab === 'pessoal' && (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {!editMode ? (
                 <>
                   {/* Linha 1: Nome | Data Nascimento | WhatsApp */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
                       <div className="text-xs text-text-secondary">Nome</div>
                       <div className="text-sm text-text-primary">{nome || '-'}</div>
@@ -608,7 +653,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     </div>
                   </div>
                   {/* Linha 2: RG | CPF | Estado Civil | Fumante */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
                     <div>
                       <div className="text-xs text-text-secondary">RG</div>
                       <div className="text-sm text-text-primary">{rg || '-'}</div>
@@ -632,7 +677,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     <div className="text-sm text-text-primary">{endereco || '-'}</div>
                   </div>
                   {/* Linha 4: Tem filhos? | Qtde. filhos | Rotina filhos */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
                       <div className="text-xs text-text-secondary">Tem filhos?</div>
                       <div className="text-sm text-text-primary">{filhos === null ? '-' : (filhos ? 'Sim' : 'Não')}</div>
@@ -651,7 +696,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
               ) : (
                 <>
                   {/* Linha 1: Nome | Data Nascimento | WhatsApp */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Nome</label>
                       <input type="text" value={nome} onChange={(e)=>setNome(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Nome da candidata(o)"/>
@@ -666,7 +711,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     </div>
                   </div>
                   {/* Linha 2: RG | CPF | Estado Civil | Fumante */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">RG</label>
                       <input type="text" value={rg} onChange={(e)=>setRg(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
@@ -694,7 +739,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     <input type="text" value={endereco} onChange={(e)=>setEndereco(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Rua, número, bairro, cidade"/>
                   </div>
                   {/* Linha 4: Tem filhos? | Qtde. filhos | Rotina filhos */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Tem filhos?</label>
                       <select value={filhos===null?'' : filhos? 'sim':'nao'} onChange={(e)=>setFilhos(e.target.value===''? null : e.target.value==='sim')} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none">
@@ -719,91 +764,113 @@ const RecrutadoraCardModal: React.FC<Props> = ({
           )}
 
           {activeTab === 'profissional' && (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {!editMode ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-text-secondary">Dias Livres</div>
-                    <div className="text-sm text-text-primary">{diasLivres || '-'}</div>
+                <div className="space-y-2.5">
+                  {/* Linha 1: Situação, Dias Livres, Dias Semana */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    <div>
+                      <div className="text-xs text-text-secondary">Situação Atual</div>
+                      <div className="text-sm text-text-primary">{sitAtual || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-secondary">Dias Livres</div>
+                      <div className="text-sm text-text-primary">{diasLivres || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-secondary">Dias Semana</div>
+                      <div className="text-sm text-text-primary">{diasSemana || '-'}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-text-secondary">Dias Semana</div>
-                    <div className="text-sm text-text-primary">{diasSemana || '-'}</div>
+                  
+                  {/* Linha 2: Exp. Residencial, Ref. Residencial, Exp. Comercial, Ref. Comercial */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
+                    <div>
+                      <div className="text-xs text-text-secondary">Exp. Residencial</div>
+                      <div className="text-sm text-text-primary">{expResidencial || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-secondary">Ref. Residencial</div>
+                      <div className="text-sm text-text-primary">{refResidencial || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-secondary">Exp. Comercial</div>
+                      <div className="text-sm text-text-primary">{expComercial || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-secondary">Ref. Comercial</div>
+                      <div className="text-sm text-text-primary">{refComercial || '-'}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-text-secondary">Exp. Residencial</div>
-                    <div className="text-sm text-text-primary">{expResidencial || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-secondary">Ref. Residencial</div>
-                    <div className="text-sm text-text-primary">{refResidencial || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-secondary">Exp. Comercial</div>
-                    <div className="text-sm text-text-primary">{expComercial || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-secondary">Ref. Comercial</div>
-                    <div className="text-sm text-text-primary">{refComercial || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-secondary">Situação Atual</div>
-                    <div className="text-sm text-text-primary">{sitAtual || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-secondary">Motivo do Cadastro</div>
-                    <div className="text-sm text-text-primary">{motivoCadastro || '-'}</div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <div className="text-xs text-text-secondary">Transporte</div>
-                    <div className="text-sm text-text-primary">{transporte || '-'}</div>
+                  
+                  {/* Linha 3: Motivo Cadastro, Transporte */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    <div>
+                      <div className="text-xs text-text-secondary">Motivo do Cadastro</div>
+                      <div className="text-sm text-text-primary">{motivoCadastro || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-secondary">Transporte</div>
+                      <div className="text-sm text-text-primary">{transporte || '-'}</div>
+                    </div>
                   </div>
                 </div>
               ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm mb-1 text-text-secondary">Dias Livres</label>
-                  <input type="text" value={diasLivres} onChange={(e)=>setDiasLivres(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Seg, Qua, Sex"/>
+                <div className="space-y-2.5">
+                  {/* Linha 1: Situação, Dias Livres, Dias Semana */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Situação Atual</label>
+                      <input type="text" value={sitAtual} onChange={(e)=>setSitAtual(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Dias Livres</label>
+                      <input type="text" value={diasLivres} onChange={(e)=>setDiasLivres(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Seg, Qua, Sex"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Dias Semana</label>
+                      <input type="text" value={diasSemana} onChange={(e)=>setDiasSemana(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Segunda a Sábado"/>
+                    </div>
+                  </div>
+                  
+                  {/* Linha 2: Exp. Residencial, Ref. Residencial, Exp. Comercial, Ref. Comercial */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Exp. Residencial</label>
+                      <input type="text" value={expResidencial} onChange={(e)=>setExpResidencial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Ref. Residencial</label>
+                      <input type="text" value={refResidencial} onChange={(e)=>setRefResidencial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Exp. Comercial</label>
+                      <input type="text" value={expComercial} onChange={(e)=>setExpComercial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Ref. Comercial</label>
+                      <input type="text" value={refComercial} onChange={(e)=>setRefComercial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                    </div>
+                  </div>
+                  
+                  {/* Linha 3: Motivo Cadastro, Transporte */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Motivo do Cadastro</label>
+                      <input type="text" value={motivoCadastro} onChange={(e)=>setMotivoCadastro(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-text-secondary">Transporte</label>
+                      <input type="text" value={transporte} onChange={(e)=>setTransporte(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Próprio, Aplicativo, Ônibus"/>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm mb-1 text-text-secondary">Dias Semana</label>
-                  <input type="text" value={diasSemana} onChange={(e)=>setDiasSemana(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Segunda a Sábado"/>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1 text-text-secondary">Exp. Residencial</label>
-                  <input type="text" value={expResidencial} onChange={(e)=>setExpResidencial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1 text-text-secondary">Ref. Residencial</label>
-                  <input type="text" value={refResidencial} onChange={(e)=>setRefResidencial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1 text-text-secondary">Exp. Comercial</label>
-                  <input type="text" value={expComercial} onChange={(e)=>setExpComercial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1 text-text-secondary">Ref. Comercial</label>
-                  <input type="text" value={refComercial} onChange={(e)=>setRefComercial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1 text-text-secondary">Situação Atual</label>
-                  <input type="text" value={sitAtual} onChange={(e)=>setSitAtual(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1 text-text-secondary">Motivo do Cadastro</label>
-                  <input type="text" value={motivoCadastro} onChange={(e)=>setMotivoCadastro(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm mb-1 text-text-secondary">Transporte</label>
-                  <input type="text" value={transporte} onChange={(e)=>setTransporte(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Próprio, Aplicativo, Ônibus"/>
-                </div>
-              </div>
               )}
             </div>
           )}
 
           {activeTab === 'observacao' && (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div>
                 <label className="block text-sm mb-1 text-text-secondary">Observação</label>
                 <textarea
@@ -822,10 +889,10 @@ const RecrutadoraCardModal: React.FC<Props> = ({
           )}
 
           {activeTab === "documentos" && (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="text-sm text-text-secondary">Em breve: upload e visualização de documentos associados ao cadastro.</div>
               {!editMode ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   <div>
                     <div className="text-xs text-text-secondary">RG</div>
                     <div className="text-sm text-text-primary">{rg || '-'}</div>
@@ -836,7 +903,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-sm mb-1 text-text-secondary">RG</label>
                     <input type="text" value={rg} onChange={(e)=>setRg(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
@@ -852,46 +919,53 @@ const RecrutadoraCardModal: React.FC<Props> = ({
           {err && <div className="text-sm text-danger bg-danger/10 p-2 rounded mt-3">{err}</div>}
         </div>
 
-  <div className="flex justify-between items-center pt-6 mt-6 border-t border-border-primary">
-          {isEditing && editMode ? (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={saving}
-              className="px-3 py-2 text-sm font-medium text-danger border border-danger/50 rounded hover:bg-danger/10 disabled:opacity-50"
-            >
-              Excluir
-            </button>
-          ) : <span />}
-          <div className="space-x-3">
+        {/* Footer compacto */}
+        <div className="flex items-center justify-between border-t border-border-secondary bg-bg-tertiary px-5 py-3">
+          <div className="flex items-center gap-1 text-xs text-text-secondary">
+            <Icon name="info" className="w-3 h-3" />
+            <span>{activeTab === 'pessoal' && editMode ? '* Obrigatório' : ''}</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {isEditing && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving}
+                className="rounded-lg p-2 text-danger hover:bg-danger/10 border border-danger/30 focus:outline-none focus:ring-2 focus:ring-danger/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Excluir"
+              >
+                <Icon name="delete" className="w-5 h-5" />
+              </button>
+            )}
             <button
               type="button"
               onClick={generatePdf}
               disabled={saving}
-              className="p-2 text-sm font-medium border rounded-md text-text-primary border-border-secondary hover:bg-bg-tertiary disabled:opacity-50 inline-flex items-center"
+              className="rounded-lg p-2 text-text-primary hover:bg-bg-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-border-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               title="Visualizar PDF"
-              aria-label="Visualizar PDF"
             >
-              <Icon name="Printer" />
+              <Icon name="Printer" className="w-5 h-5" />
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                if (!isEditing || !editMode) {
+                  setEditMode(true);
+                } else {
+                  handleSave();
+                }
+              }}
               disabled={saving}
-              className="px-4 py-2 text-sm font-medium border rounded-md text-text-secondary border-border-secondary hover:bg-bg-tertiary disabled:opacity-50"
+              className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
+              title={saving ? "Salvando..." : (!isEditing || !editMode) ? "Editar" : "Salvar"}
             >
-              Cancelar
+              {saving ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <Icon name={(!isEditing || !editMode) ? "edit" : "Check"} className="w-4 h-4" />
+              )}
             </button>
-            {editMode && (
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md bg-accent-primary hover:bg-accent-secondary disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {saving ? 'Salvando...' : 'Salvar'}
-              </button>
-            )}
           </div>
         </div>
       </div>

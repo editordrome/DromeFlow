@@ -295,9 +295,9 @@ const RecrutadoraPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full space-y-6">
       {/* Cabeçalho Principal */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-shrink-0">
         <h1 className="text-2xl font-bold text-text-primary">Recrutadora</h1>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -352,9 +352,9 @@ const RecrutadoraPage: React.FC = () => {
       </div>
 
       {/* Área das Colunas Kanban */}
-      <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
         <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
-          <div className="flex-1 min-h-0 min-w-0 overflow-x-auto pb-2 pr-1">
+          <div className="flex-1 min-h-0 overflow-x-auto pb-2 pr-1">
             <div className="inline-flex gap-4 h-full">
             {renderColumns.map((col: any) => {
               const droppableId = col._unitForQual ? `qualificadas|${col._unitForQual.id}` : col.code;

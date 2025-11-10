@@ -50,11 +50,11 @@ export const fetchProfessionalHistory = async (
   profissionalNome: string,
   limit: number = 200,
   period?: string // YYYY-MM
-): Promise<Array<{ id?: number; DATA: string | null; DIA: string; CLIENTE: string; 'pos vendas': string | null }>> => {
+): Promise<Array<{ id?: number; ATENDIMENTO_ID?: string; DATA: string | null; DIA: string; CLIENTE: string; PERÍODO?: string; 'pos vendas': string | null }>> => {
   if (!unitCode || !profissionalNome) return [];
   let query = supabase
     .from('processed_data')
-    .select('id, DATA, DIA, CLIENTE, "pos vendas"')
+    .select('id, ATENDIMENTO_ID, DATA, DIA, CLIENTE, PERÍODO, "pos vendas"')
     .eq('unidade_code', unitCode)
     .ilike('PROFISSIONAL', `%${profissionalNome}%`);
 

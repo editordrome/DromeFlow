@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { fetchDashboardMetrics, fetchDashboardMetricsMulti, fetchMonthlyChartData } from '../../services/analytics/dashboard.service';
 import type { MonthlyChartData } from '../../services/analytics/dashboard.service';
 import { fetchServiceAnalysisData, fetchServicePeriodAnalysisData, fetchClientAnalysisData, fetchServiceMonthlySubmetrics, fetchServiceMonthlySubmetricsMulti, fetchClientMonthlySubmetrics, fetchClientMonthlySubmetricsMulti, type ServiceMonthlySubmetrics, type ClientMonthlySubmetrics } from '../../services/analytics/serviceAnalysis.service';
-import { fetchRepasseAnalysisData } from '../../services/analytics/repasse.service';
+import { fetchRepasseAnalysisData, fetchRepasseMonthlySubmetrics, fetchRepasseMonthlySubmetricsMulti, type RepasseMonthlySubmetrics } from '../../services/analytics/repasse.service';
 import { DashboardMetrics, ServiceAnalysisRecord, ClientAnalysisData, RepasseAnalysisRecord } from '../../types';
 import { Icon } from '../ui/Icon';
 import MonthlyComparisonChart from '../ui/MonthlyComparisonChart';
@@ -299,13 +299,7 @@ type RepasseAnalysis = {
     professionalRanking: { professional: string; total: number }[];
 };
 
-type RepasseMonthlySubmetrics = {
-    month: string;
-    averagePerService: number;
-    averagePerWeek: number;
-    averagePerProfessional: number;
-};
-
+// Tipo RepasseMonthlySubmetrics agora vem do serviço (repasse.service.ts)
 
 const DashboardMetricsPage: React.FC = () => {
     const { selectedUnit } = useAppContext();
@@ -332,6 +326,7 @@ const DashboardMetricsPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isChartLoading, setIsChartLoading] = useState(false);
     const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+    const [isPeriodsLoading, setIsPeriodsLoading] = useState(false);
 
     const [error, setError] = useState<string | null>(null);
     const [selectedPeriod, setSelectedPeriod] = useState<string>(() => {
@@ -411,8 +406,11 @@ const DashboardMetricsPage: React.FC = () => {
     const loadMonthlyData = useCallback(async () => {
         if (!selectedUnit) { setMonthlyData([]); return; }
         setIsChartLoading(true);
+        console.log('[Dashboard Optimization] 📊 Iniciando carregamento de dados mensais...');
+        const startTime = performance.now();
         try {
-            const currentYear = new Date().getFullYear();
+            const currentYear = parseInt(selectedPeriod.split('-')[0], 10);
+            
             if (selectedUnit.unit_code === 'ALL') {
                 const aggregated: { [month: string]: MonthlyChartData } = {};
                 for (const code of multiUnits) {
@@ -433,113 +431,15 @@ const DashboardMetricsPage: React.FC = () => {
                 })).sort((a,b)=>a.month.localeCompare(b.month));
                 setMonthlyData(finalArray);
                 
-                // Calcular submétricas mensais de repasse para ALL
-                const repasseMonthly: RepasseMonthlySubmetrics[] = await Promise.all(
-                    finalArray.map(async (m) => {
-                        const totalRepasse = m.totalRepasse || 0;
-                        const totalServices = m.totalServices || 0;
-                        
-                        // Média por atendimento
-                        const averagePerService = totalServices > 0 ? totalRepasse / totalServices : 0;
-                        
-                        // Média por semana - usando ciclos de 7 dias (sexta a quinta)
-                        const monthNum = parseInt(m.month); // m.month é "01", "02", etc.
-                        const daysInMonth = new Date(currentYear, monthNum, 0).getDate();
-                        const weeksInMonth = daysInMonth / 7; // Ciclos completos de 7 dias
-                        const averagePerWeek = weeksInMonth > 0 ? totalRepasse / weeksInMonth : 0;
-                        
-                        // Média por profissional - buscar número real de profissionais únicos no mês
-                        let averagePerProfessional = 0;
-                        try {
-                            const startDate = `${currentYear}-${m.month}-01`;
-                            const nextMonthNum = monthNum === 12 ? 1 : monthNum + 1;
-                            const nextYear = monthNum === 12 ? currentYear + 1 : currentYear;
-                            const endDate = `${nextYear}-${String(nextMonthNum).padStart(2, '0')}-01`;
-                            
-                            const { data: profData } = await supabase
-                                .from('processed_data')
-                                .select('PROFISSIONAL')
-                                .in('unidade_code', multiUnits)
-                                .gte('DATA', startDate)
-                                .lt('DATA', endDate)
-                                .not('PROFISSIONAL', 'is', null);
-                            
-                            const uniqueProfessionals = new Set(
-                                (profData || [])
-                                    .map((r: any) => r.PROFISSIONAL)
-                                    .filter((p: string) => p && p.trim())
-                            ).size;
-                            
-                            averagePerProfessional = uniqueProfessionals > 0 ? totalRepasse / uniqueProfessionals : 0;
-                            console.log(`[Repasse Monthly ${m.month}] Repasse: ${totalRepasse.toFixed(2)}, Dias: ${daysInMonth}, Semanas: ${weeksInMonth.toFixed(2)}, Média/Sem: ${averagePerWeek.toFixed(2)}, Profs: ${uniqueProfessionals}, Média/Prof: ${averagePerProfessional.toFixed(2)}`);
-                        } catch (error) {
-                            console.error(`[Repasse Monthly ${m.month}] Erro ao buscar profissionais:`, error);
-                        }
-                        
-                        return {
-                            month: m.month,
-                            averagePerService,
-                            averagePerWeek,
-                            averagePerProfessional
-                        };
-                    })
-                );
+                // Buscar submétricas de repasse usando serviço (mesmo padrão de Services/Clients)
+                const repasseMonthly = await fetchRepasseMonthlySubmetricsMulti(multiUnits, currentYear);
                 setRepasseMonthlyData(repasseMonthly);
             } else {
                 const result = await fetchMonthlyChartData(selectedUnit.unit_code, currentYear);
                 setMonthlyData(result);
                 
-                // Calcular submétricas mensais de repasse para unidade específica
-                const repasseMonthly: RepasseMonthlySubmetrics[] = await Promise.all(
-                    result.map(async (m) => {
-                        const totalRepasse = m.totalRepasse || 0;
-                        const totalServices = m.totalServices || 0;
-                        
-                        // Média por atendimento
-                        const averagePerService = totalServices > 0 ? totalRepasse / totalServices : 0;
-                        
-                        // Média por semana - usando ciclos de 7 dias (sexta a quinta)
-                        const monthNum = parseInt(m.month); // m.month é "01", "02", etc.
-                        const daysInMonth = new Date(currentYear, monthNum, 0).getDate();
-                        const weeksInMonth = daysInMonth / 7; // Ciclos completos de 7 dias
-                        const averagePerWeek = weeksInMonth > 0 ? totalRepasse / weeksInMonth : 0;
-                        
-                        // Média por profissional - buscar número real de profissionais únicos no mês
-                        let averagePerProfessional = 0;
-                        try {
-                            const startDate = `${currentYear}-${m.month}-01`;
-                            const nextMonthNum = monthNum === 12 ? 1 : monthNum + 1;
-                            const nextYear = monthNum === 12 ? currentYear + 1 : currentYear;
-                            const endDate = `${nextYear}-${String(nextMonthNum).padStart(2, '0')}-01`;
-                            
-                            const { data: profData } = await supabase
-                                .from('processed_data')
-                                .select('PROFISSIONAL')
-                                .eq('unidade_code', selectedUnit.unit_code)
-                                .gte('DATA', startDate)
-                                .lt('DATA', endDate)
-                                .not('PROFISSIONAL', 'is', null);
-                            
-                            const uniqueProfessionals = new Set(
-                                (profData || [])
-                                    .map((r: any) => r.PROFISSIONAL)
-                                    .filter((p: string) => p && p.trim())
-                            ).size;
-                            
-                            averagePerProfessional = uniqueProfessionals > 0 ? totalRepasse / uniqueProfessionals : 0;
-                            console.log(`[Repasse Monthly ${m.month}] Repasse: ${totalRepasse.toFixed(2)}, Dias: ${daysInMonth}, Semanas: ${weeksInMonth.toFixed(2)}, Média/Sem: ${averagePerWeek.toFixed(2)}, Profs: ${uniqueProfessionals}, Média/Prof: ${averagePerProfessional.toFixed(2)}`);
-                        } catch (error) {
-                            console.error(`[Repasse Monthly ${m.month}] Erro ao buscar profissionais:`, error);
-                        }
-                        
-                        return {
-                            month: m.month,
-                            averagePerService,
-                            averagePerWeek,
-                            averagePerProfessional
-                        };
-                    })
-                );
+                // Buscar submétricas de repasse usando serviço
+                const repasseMonthly = await fetchRepasseMonthlySubmetrics(selectedUnit.unit_code, currentYear);
                 setRepasseMonthlyData(repasseMonthly);
             }
                         // também carregar submétricas de atendimentos para o ano
@@ -555,46 +455,10 @@ const DashboardMetricsPage: React.FC = () => {
                                         setClientsMonthlyData(csub);
                         }
 
-                        // Buscar períodos por mês
-                        const periodsByMonth: { [month: string]: { [period: string]: number } } = {};
-                        
-                        if (selectedUnit.unit_code === 'ALL') {
-                            // Para múltiplas unidades, agregar os dados
-                            for (let month = 1; month <= 12; month++) {
-                                const periodKey = `${currentYear}-${String(month).padStart(2, '0')}`;
-                                const periodCounts: { [period: string]: number } = {};
-                                
-                                for (const unitCode of multiUnits) {
-                                    const periodData = await fetchServicePeriodAnalysisData(unitCode, periodKey);
-                                    periodData.forEach(item => {
-                                        const periodo = item.PERÍODO?.trim() || 'Não especificado';
-                                        periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
-                                    });
-                                }
-                                
-                                periodsByMonth[periodKey] = periodCounts;
-                            }
-                        } else {
-                            // Para uma única unidade
-                            for (let month = 1; month <= 12; month++) {
-                                const periodKey = `${currentYear}-${String(month).padStart(2, '0')}`;
-                                const periodData = await fetchServicePeriodAnalysisData(
-                                    selectedUnit.unit_code,
-                                    periodKey
-                                );
-                                
-                                const periodCounts: { [period: string]: number } = {};
-                                periodData.forEach(item => {
-                                    const periodo = item.PERÍODO?.trim() || 'Não especificado';
-                                    periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
-                                });
-                                
-                                periodsByMonth[periodKey] = periodCounts;
-                            }
-                        }
-                        
-                        console.log('📊 Monthly Periods Data:', periodsByMonth);
-                        setMonthlyPeriods(periodsByMonth);
+                        // ✅ OTIMIZAÇÃO FASE 1: Lazy loading de períodos (não carrega automaticamente)
+                        // Períodos serão carregados apenas quando usuário visualizar análise de serviços
+                        console.log('[Dashboard Optimization] Lazy loading habilitado - períodos carregados sob demanda');
+                        setMonthlyPeriods({});
         } catch (err: any) {
             console.error('[DASHBOARD] Erro ao carregar dados mensais:', err);
                         setMonthlyData([]);
@@ -604,8 +468,69 @@ const DashboardMetricsPage: React.FC = () => {
                         setMonthlyPeriods({});
         } finally {
             setIsChartLoading(false);
+            const endTime = performance.now();
+            const duration = ((endTime - startTime) / 1000).toFixed(2);
+            console.log(`[Dashboard Optimization] ✅ Dados mensais carregados em ${duration}s`);
         }
-    }, [selectedUnit, multiUnits]);
+    }, [selectedUnit, multiUnits, selectedPeriod]);
+    
+    // ✅ OTIMIZAÇÃO FASE 1: Lazy loading de períodos mensais (carrega sob demanda)
+    const loadMonthlyPeriods = useCallback(async () => {
+        if (!selectedUnit || Object.keys(monthlyPeriods).length > 0) {
+            // Já carregado, não recarrega
+            return;
+        }
+        
+        console.log('[Dashboard Optimization] Carregando períodos mensais sob demanda...');
+        setIsPeriodsLoading(true);
+        
+        try {
+            const currentYear = new Date().getFullYear();
+            const periodsByMonth: { [month: string]: { [period: string]: number } } = {};
+            
+            if (selectedUnit.unit_code === 'ALL') {
+                // Para múltiplas unidades, agregar os dados
+                for (let month = 1; month <= 12; month++) {
+                    const periodKey = `${currentYear}-${String(month).padStart(2, '0')}`;
+                    const periodCounts: { [period: string]: number } = {};
+                    
+                    for (const unitCode of multiUnits) {
+                        const periodData = await fetchServicePeriodAnalysisData(unitCode, periodKey);
+                        periodData.forEach(item => {
+                            const periodo = item.PERÍODO?.trim() || 'Não especificado';
+                            periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
+                        });
+                    }
+                    
+                    periodsByMonth[periodKey] = periodCounts;
+                }
+            } else {
+                // Para uma única unidade
+                for (let month = 1; month <= 12; month++) {
+                    const periodKey = `${currentYear}-${String(month).padStart(2, '0')}`;
+                    const periodData = await fetchServicePeriodAnalysisData(
+                        selectedUnit.unit_code,
+                        periodKey
+                    );
+                    
+                    const periodCounts: { [period: string]: number } = {};
+                    periodData.forEach(item => {
+                        const periodo = item.PERÍODO?.trim() || 'Não especificado';
+                        periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
+                    });
+                    
+                    periodsByMonth[periodKey] = periodCounts;
+                }
+            }
+            
+            console.log('📊 Monthly Periods Data (Lazy Loaded):', periodsByMonth);
+            setMonthlyPeriods(periodsByMonth);
+        } catch (err: any) {
+            console.error('[Dashboard Optimization] Erro ao carregar períodos mensais:', err);
+        } finally {
+            setIsPeriodsLoading(false);
+        }
+    }, [selectedUnit, multiUnits, monthlyPeriods]);
     
     const loadServiceAnalysisData = useCallback(async () => {
         if (!selectedUnit || !metrics) return;
@@ -884,6 +809,11 @@ const DashboardMetricsPage: React.FC = () => {
     useEffect(() => {
         if (selectedMetric === 'totalServices' && metrics) {
             loadServiceAnalysisData();
+            // ✅ OTIMIZAÇÃO FASE 1: Carrega períodos apenas quando visualizar serviços
+            if (Object.keys(monthlyPeriods).length === 0) {
+                console.log('[Dashboard Optimization] Disparando lazy load de períodos mensais...');
+                loadMonthlyPeriods();
+            }
         }
         if (selectedMetric === 'uniqueClients' && metrics && previousMonthMetrics) {
             loadClientAnalysis();
@@ -891,7 +821,7 @@ const DashboardMetricsPage: React.FC = () => {
         if (selectedMetric === 'totalRepasse' && metrics) {
             loadRepasseAnalysis();
         }
-    }, [selectedMetric, metrics, previousMonthMetrics, loadServiceAnalysisData, loadClientAnalysis, loadRepasseAnalysis]);
+    }, [selectedMetric, metrics, previousMonthMetrics, loadServiceAnalysisData, loadClientAnalysis, loadRepasseAnalysis, monthlyPeriods, loadMonthlyPeriods]);
 
     // Realtime Subscription para processed_data (Dashboard)
     useRealtimeSubscription({

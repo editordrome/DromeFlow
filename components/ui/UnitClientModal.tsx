@@ -93,28 +93,96 @@ const UnitClientModal: React.FC<UnitClientModalProps> = ({ isOpen, onClose, item
 
   const Row: React.FC<{ label: string; value: React.ReactNode }>= ({ label, value }) => (
     <div>
-      <p className="text-xs font-semibold uppercase text-text-secondary tracking-wider">{label}</p>
+      <p className="text-xs font-medium text-text-secondary mb-1.5">{label}</p>
       <p className="text-sm text-text-primary break-words">{value || <span className="text-text-tertiary">-</span>}</p>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true" onClick={onClose}>
-      <div className="w-full max-w-3xl mx-4 bg-bg-secondary rounded-lg shadow-lg" onClick={(e)=>e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border-secondary">
-          <h2 className="text-lg font-bold text-text-primary truncate" title={item.nome}>{item.nome}</h2>
-          <button onClick={onClose} className="p-1 rounded text-text-secondary hover:bg-bg-tertiary"><Icon name="close" /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="w-full max-w-3xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+        {/* Header compacto com gradiente */}
+        <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-text-primary truncate" title={item.nome}>
+                {item.nome}
+              </h2>
+              <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                <Icon name="User" className="w-3.5 h-3.5" />
+                <span>Cliente da Unidade</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {activeTab === 'dados' && !isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  disabled={busy !== 'idle'}
+                  className="rounded-lg p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                  aria-label="Editar"
+                  title="Editar dados"
+                >
+                  <Icon name="Edit" className="w-4 h-4" />
+                </button>
+              )}
+              {activeTab === 'dados' && isEditing && (
+                <>
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    disabled={busy !== 'idle'}
+                    className="rounded-lg p-1.5 text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
+                    aria-label="Cancelar"
+                    title="Cancelar edição"
+                  >
+                    <Icon name="X" className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={busy !== 'idle'}
+                    className="rounded-lg p-1.5 text-success-color hover:bg-success-color/10 transition-colors disabled:opacity-50"
+                    aria-label="Salvar"
+                    title="Salvar alterações"
+                  >
+                    {busy === 'saving' ? (
+                      <div className="w-4 h-4 border-2 border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin"></div>
+                    ) : (
+                      <Icon name="Check" className="w-4 h-4" />
+                    )}
+                  </button>
+                </>
+              )}
+              <button 
+                onClick={onClose} 
+                className="rounded-lg p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors" 
+                aria-label="Fechar"
+              >
+                <Icon name="X" className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="px-4 pt-3">
-          <div className="flex items-center gap-2 border-b border-border-secondary">
-            <button className={`px-3 py-2 text-sm ${activeTab==='dados' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary'}`} onClick={() => setActiveTab('dados')}>Dados</button>
-            <button className={`px-3 py-2 text-sm ${activeTab==='atendimentos' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary'}`} onClick={() => setActiveTab('atendimentos')}>Atendimentos</button>
+        {/* Tabs */}
+        <div className="border-b border-border-secondary bg-bg-tertiary/30">
+          <div className="flex items-center px-5">
+            <button 
+              className={`px-4 py-3 text-sm font-medium transition-colors ${activeTab==='dados' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary hover:text-text-primary'}`} 
+              onClick={() => setActiveTab('dados')}
+            >
+              Dados
+            </button>
+            <button 
+              className={`px-4 py-3 text-sm font-medium transition-colors ${activeTab==='atendimentos' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary hover:text-text-primary'}`} 
+              onClick={() => setActiveTab('atendimentos')}
+            >
+              Atendimentos
+            </button>
             {activeTab === 'atendimentos' && (
-              <div className="ml-auto flex items-center gap-2 py-2">
+              <div className="ml-auto flex items-center gap-2">
                 <button
                   type="button"
-                  className="px-2 py-1 rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary"
+                  className="rounded-md p-1.5 text-text-secondary hover:bg-bg-tertiary transition-colors"
                   title="Mês anterior"
                   onClick={() => {
                     if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return;
@@ -125,8 +193,10 @@ const UnitClientModal: React.FC<UnitClientModalProps> = ({ isOpen, onClose, item
                     const nm = d.getUTCMonth() + 1;
                     setSelectedPeriod(`${ny}-${String(nm).padStart(2, '0')}`);
                   }}
-                >‹</button>
-                <span className="text-xs text-text-secondary min-w-[140px] text-center">
+                >
+                  <Icon name="ChevronLeft" className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-text-secondary min-w-[140px] text-center font-medium">
                   {(() => {
                     const p = selectedPeriod;
                     if (!p || !/^\d{4}-\d{2}$/.test(p)) return '-';
@@ -137,7 +207,7 @@ const UnitClientModal: React.FC<UnitClientModalProps> = ({ isOpen, onClose, item
                 </span>
                 <button
                   type="button"
-                  className="px-2 py-1 rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary"
+                  className="rounded-md p-1.5 text-text-secondary hover:bg-bg-tertiary transition-colors"
                   title="Próximo mês"
                   onClick={() => {
                     if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return;
@@ -150,13 +220,16 @@ const UnitClientModal: React.FC<UnitClientModalProps> = ({ isOpen, onClose, item
                     if (currentPeriod && next > currentPeriod) return;
                     setSelectedPeriod(next);
                   }}
-                >›</button>
+                >
+                  <Icon name="ChevronRight" className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>
         </div>
 
-        <div className="p-4 space-y-4">
+        {/* Body com scroll */}
+        <div className="max-h-[65vh] overflow-y-auto px-5 py-4">
           {activeTab === 'dados' ? (
             !isEditing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -166,54 +239,90 @@ const UnitClientModal: React.FC<UnitClientModalProps> = ({ isOpen, onClose, item
                 <Row label="Contato" value={item.contato} />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary">Nome</label>
-                  <input name="nome" value={form.nome || ''} onChange={handleChange} className="mt-1 w-full px-3 py-2 rounded-md border bg-bg-secondary border-border-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary">Tipo</label>
-                  <input name="tipo" value={form.tipo || ''} onChange={handleChange} className="mt-1 w-full px-3 py-2 rounded-md border bg-bg-secondary border-border-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary">Endereço</label>
-                  <input name="endereco" value={form.endereco || ''} onChange={handleChange} className="mt-1 w-full px-3 py-2 rounded-md border bg-bg-secondary border-border-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary">Contato</label>
-                  <input name="contato" value={form.contato || ''} onChange={handleChange} className="mt-1 w-full px-3 py-2 rounded-md border bg-bg-secondary border-border-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary" />
-                </div>
+              <div className="space-y-3">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">Nome</span>
+                  <input 
+                    name="nome" 
+                    value={form.nome || ''} 
+                    onChange={handleChange} 
+                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all" 
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">Tipo</span>
+                  <input 
+                    name="tipo" 
+                    value={form.tipo || ''} 
+                    onChange={handleChange} 
+                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all" 
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">Endereço</span>
+                  <input 
+                    name="endereco" 
+                    value={form.endereco || ''} 
+                    onChange={handleChange} 
+                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all" 
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary">Contato</span>
+                  <input 
+                    name="contato" 
+                    value={form.contato || ''} 
+                    onChange={handleChange} 
+                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all" 
+                  />
+                </label>
               </div>
             )
           ) : (
-            <div className="overflow-auto border border-white/10 rounded-md">
+            <div className="overflow-auto border border-border-secondary rounded-lg">
               {historyLoading ? (
-                <div className="p-4 text-sm text-text-secondary">Carregando…</div>
+                <div className="flex items-center justify-center py-8 text-text-secondary text-sm">
+                  <Icon name="Loader2" className="w-4 h-4 animate-spin mr-2" />
+                  Carregando…
+                </div>
               ) : (
                 <table className="min-w-full text-sm">
                   <thead className="bg-bg-tertiary text-text-secondary">
                     <tr>
-                      <th className="px-3 py-2 text-left">Data</th>
-                      <th className="px-3 py-2 text-left">Dia</th>
-                      <th className="px-3 py-2 text-left">Profissional</th>
-                      <th className="px-3 py-2 text-left">Pós-venda</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Data</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Dia</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Profissional</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Pós-venda</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(!history || history.length===0) ? (
-                      <tr><td colSpan={4} className="px-3 py-4 text-center text-text-secondary">Sem atendimentos registrados.</td></tr>
+                      <tr><td colSpan={4} className="px-3 py-8 text-center text-text-secondary text-sm">Sem atendimentos registrados.</td></tr>
                     ) : (
                       history.map((h, idx) => (
-                        <tr key={h.id || idx} className="border-t border-white/5 hover:bg-white/5 cursor-pointer" onDoubleClick={async ()=>{
-                          if (!h.id) return;
-                          const rec = await fetchDataRecordById(h.id as number);
-                          setDetailRecord(rec);
-                          setDetailOpen(true);
-                        }}>
-                          <td className="px-3 py-2">{h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
-                          <td className="px-3 py-2">{h.DIA || '-'}</td>
-                          <td className="px-3 py-2">{h.PROFISSIONAL || '-'}</td>
-                          <td className="px-3 py-2">{(h as any)['pos vendas'] || '-'}</td>
+                        <tr 
+                          key={h.id || idx} 
+                          className="border-t border-border-secondary/50 hover:bg-accent-primary/5 cursor-pointer transition-colors" 
+                          onDoubleClick={async ()=>{
+                            if (!h.id) return;
+                            const rec = await fetchDataRecordById(h.id as number);
+                            setDetailRecord(rec);
+                            setDetailOpen(true);
+                          }}
+                          title="Duplo clique para ver detalhes"
+                        >
+                          <td className="px-3 py-2 text-text-primary">{h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
+                          <td className="px-3 py-2 text-text-secondary">{h.DIA || '-'}</td>
+                          <td className="px-3 py-2 text-text-primary">{h.PROFISSIONAL || '-'}</td>
+                          <td className="px-3 py-2">
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${
+                              (h as any)['pos vendas'] === 'contatado' ? 'bg-success-color/20 text-success-color' :
+                              (h as any)['pos vendas'] === 'pendente' ? 'bg-yellow-500/20 text-yellow-500' :
+                              'text-text-tertiary'
+                            }`}>
+                              {(h as any)['pos vendas'] || '-'}
+                            </span>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -224,33 +333,25 @@ const UnitClientModal: React.FC<UnitClientModalProps> = ({ isOpen, onClose, item
           )}
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-t border-border-secondary">
-          <button
-            type="button"
-            onClick={() => setIsEditing(e => !e)}
-            className="px-3 py-2 text-sm rounded-md border border-border-secondary text-text-secondary hover:bg-bg-tertiary"
-            disabled={busy !== 'idle'}
-          >
-            {isEditing ? 'Cancelar' : 'Editar'}
-          </button>
+        {/* Footer compacto */}
+        <div className="flex items-center justify-between border-t border-border-secondary bg-bg-tertiary px-5 py-3">
+          <div className="flex items-center gap-1 text-xs text-text-secondary">
+            <Icon name="Info" className="w-3 h-3" />
+            <span>Duplo clique para detalhes</span>
+          </div>
           <div className="flex items-center gap-2">
-            {isEditing && (
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={busy !== 'idle'}
-                className="px-3 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary disabled:opacity-60"
-              >
-                {busy === 'saving' ? 'Salvando…' : 'Salvar'}
-              </button>
-            )}
             <button
               type="button"
               onClick={handleDelete}
               disabled={busy !== 'idle'}
-              className="px-3 py-2 text-sm rounded-md bg-danger/80 text-white hover:bg-danger disabled:opacity-60"
+              className="rounded-lg border-2 border-danger/50 p-2 text-danger hover:bg-danger/10 focus:outline-none focus:ring-2 focus:ring-danger/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Excluir cliente"
             >
-              {busy === 'deleting' ? 'Excluindo…' : 'Excluir'}
+              {busy === 'deleting' ? (
+                <div className="w-4 h-4 border-2 border-danger/30 border-t-danger rounded-full animate-spin"></div>
+              ) : (
+                <Icon name="Trash2" className="w-4 h-4" />
+              )}
             </button>
           </div>
         </div>
