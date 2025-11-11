@@ -292,147 +292,159 @@ const UnitFormModal: React.FC<{
         {unit && profile?.role === 'super_admin' && activeTab === 'keys' && (
           <div className="mt-4 space-y-4">
             {keysLoading ? (
-              <div className="flex items-center space-x-2 text-text-secondary text-sm"><span className="w-4 h-4 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" /> <span>Carregando...</span></div>
+              <div className="flex items-center justify-center py-8 space-x-2 text-text-secondary text-sm">
+                <span className="w-5 h-5 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" />
+                <span>Carregando keys...</span>
+              </div>
             ) : keysError ? (
-              <div className="text-sm text-danger bg-danger/10 p-2 rounded-md">{keysError}</div>
+              <div className="text-sm text-danger bg-danger/10 border border-danger/30 p-3 rounded-lg flex items-start gap-2">
+                <Icon name="alert" className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{keysError}</span>
+              </div>
             ) : (
-              <div className="bg-bg-tertiary/20 border border-border-secondary rounded-md p-4 space-y-4">
+              <div className="space-y-4">
                 {keys.length === 0 && (
-                  <div className="text-xs italic text-text-secondary">Nenhuma key cadastrada para esta unidade.</div>
+                  <div className="text-center py-12 bg-bg-tertiary/20 border-2 border-dashed border-border-secondary rounded-lg">
+                    <Icon name="key" className="w-12 h-12 mx-auto mb-3 text-text-tertiary opacity-50" />
+                    <p className="text-sm text-text-secondary">Nenhuma key cadastrada para esta unidade.</p>
+                    <p className="text-xs text-text-tertiary mt-1">Clique em "Adicionar Key" para começar</p>
+                  </div>
                 )}
+                
                 {keys.length > 1 && (
-                  <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md p-2">
-                    Aviso: Foram encontradas <strong>{keys.length}</strong> linhas de keys para esta unidade. O novo modelo consolida tudo em uma única linha. Considere remover registros extras após migrar valores.
+                  <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
+                    <Icon name="alert" className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <strong>Aviso:</strong> Foram encontradas <strong>{keys.length}</strong> linhas de keys para esta unidade. 
+                      O modelo atual consolida tudo em uma única linha. Considere remover registros extras após migrar valores.
+                    </div>
                   </div>
                 )}
 
                 {keys.length > 0 && (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full table-auto divide-y divide-border-secondary">
-                      <thead className="bg-bg-tertiary/60">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium uppercase text-text-secondary whitespace-nowrap">Status</th>
-                          {keyColumns.map(col => {
-                            const label = col.column_name
-                              .split('_')
-                              .map(s => s.charAt(0).toUpperCase() + s.slice(1))
-                              .join(' ');
-                            return (
-                              <th key={col.column_name} className="px-3 py-2 text-left text-xs font-medium uppercase text-text-secondary whitespace-nowrap">
-                                {label}
-                              </th>
-                            );
-                          })}
-                          <th className="px-3 py-2 text-right text-xs font-medium uppercase text-text-secondary w-[10%]">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border-secondary bg-bg-secondary/60">
-                        {keys.map((item) => {
-                          const id = String(item.id);
-                          
-                          const handleFieldChange = (fieldName: string, value: string) => {
-                            setKeyEdits(prev => ({ ...prev, [`${id}_${fieldName}`]: value }));
-                          };
-                          
-                          const persistField = async (fieldName: string) => {
-                            const editKey = `${id}_${fieldName}`;
-                            const value = keyEdits[editKey];
-                            if (value === undefined) return;
-                            
-                            try {
-                              setSavingKeyIds(prev => ({ ...prev, [editKey]: true }));
-                              await updateUnitKey(String(item.id), { [fieldName]: value } as any);
-                              const list = await fetchUnitKeys(unit!.id);
-                              setKeys(list);
-                              // Limpa o edit após salvar
-                              setKeyEdits(prev => {
-                                const n = { ...prev };
-                                delete n[editKey];
-                                return n;
-                              });
-                            } finally {
-                              setSavingKeyIds(prev => { const n = { ...prev }; delete n[editKey]; return n; });
-                            }
-                          };
-                          
-                          const handleDelete = async () => {
-                            if (!confirm('Remover esta key?')) return;
-                            await deleteUnitKey(String(item.id));
-                            const list = await fetchUnitKeys(unit!.id);
-                            setKeys(list);
-                          };
-                          
-                          return (
-                            <tr key={id} className="hover:bg-bg-tertiary/30">
-                              <td className="px-3 py-2">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                  item.is_active 
-                                    ? 'bg-success/10 text-success border border-success/30' 
-                                    : 'bg-danger/10 text-danger border border-danger/30'
-                                }`}>
-                                  {item.is_active ? 'Ativo' : 'Inativo'}
-                                </span>
-                              </td>
-                              {keyColumns.map(col => {
-                                const fieldName = col.column_name;
-                                const editKey = `${id}_${fieldName}`;
-                                const currentValue = (item as any)[fieldName];
-                                const displayValue = keyEdits[editKey] !== undefined ? keyEdits[editKey] : (currentValue || '');
-                                
-                                const knownHints: Record<string, string> = {
-                                  codigo: 'Código da unidade',
-                                  istancia: 'Nome da instância',
-                                  recrutadora: 'Key da recrutadora',
-                                  botID: 'ID do bot',
-                                  triggerName: 'Nome do trigger',
-                                  organizationID: 'ID da organização',
-                                  contato_profissionais: 'Contato'
-                                };
-                                
-                                return (
-                                  <td key={fieldName} className="px-3 py-2">
-                                    <div className="flex items-center gap-1">
-                                      <input
-                                        type="text"
-                                        value={displayValue}
-                                        onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            persistField(fieldName);
-                                          }
-                                        }}
-                                        onBlur={() => persistField(fieldName)}
-                                        placeholder={knownHints[fieldName] || `${fieldName}...`}
-                                        className="w-full min-w-[150px] px-2 py-1.5 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
-                                      />
-                                      {savingKeyIds[editKey] && (
-                                        <span className="text-xs text-text-secondary whitespace-nowrap">💾</span>
-                                      )}
-                                    </div>
-                                  </td>
-                                );
-                              })}
-                              <td className="px-3 py-2 text-right">
-                                <button
-                                  onClick={handleDelete}
-                                  className="p-2 rounded-md text-danger hover:bg-danger/10"
-                                  title="Excluir"
-                                >
-                                  <Icon name="delete" className="w-5 h-5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                    {keys.map((item) => {
+                      const id = String(item.id);
+                      
+                      const handleFieldChange = (fieldName: string, value: string) => {
+                        setKeyEdits(prev => ({ ...prev, [`${id}_${fieldName}`]: value }));
+                      };
+                      
+                      const persistField = async (fieldName: string) => {
+                        const editKey = `${id}_${fieldName}`;
+                        const value = keyEdits[editKey];
+                        if (value === undefined) return;
+                        
+                        try {
+                          setSavingKeyIds(prev => ({ ...prev, [editKey]: true }));
+                          await updateUnitKey(String(item.id), { [fieldName]: value } as any);
+                          const list = await fetchUnitKeys(unit!.id);
+                          setKeys(list);
+                          setKeyEdits(prev => {
+                            const n = { ...prev };
+                            delete n[editKey];
+                            return n;
+                          });
+                        } finally {
+                          setSavingKeyIds(prev => { const n = { ...prev }; delete n[editKey]; return n; });
+                        }
+                      };
+                      
+                      const handleDelete = async () => {
+                        if (!confirm('Remover esta key?')) return;
+                        await deleteUnitKey(String(item.id));
+                        const list = await fetchUnitKeys(unit!.id);
+                        setKeys(list);
+                      };
+                      
+                      return (
+                        <div 
+                          key={id} 
+                          className="bg-bg-secondary border border-border-secondary rounded-lg p-4 hover:border-accent-primary/50 transition-all space-y-3"
+                        >
+                          {/* Header do Card */}
+                          <div className="flex items-start justify-between gap-3 pb-3 border-b border-border-secondary/50">
+                            <div className="flex items-center gap-2">
+                              <Icon name="key" className="w-4 h-4 text-accent-primary" />
+                              <span className="text-xs font-medium text-text-secondary uppercase tracking-wide">
+                                Configuração {keys.length > 1 ? `#${keys.indexOf(item) + 1}` : ''}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                                item.is_active 
+                                  ? 'bg-success/10 text-success border border-success/30' 
+                                  : 'bg-danger/10 text-danger border border-danger/30'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${item.is_active ? 'bg-success' : 'bg-danger'}`} />
+                                {item.is_active ? 'Ativo' : 'Inativo'}
+                              </span>
+                              <button
+                                onClick={handleDelete}
+                                className="p-1.5 rounded-md text-danger hover:bg-danger/10 transition-colors"
+                                title="Excluir esta key"
+                              >
+                                <Icon name="delete" className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Grid de Campos */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {keyColumns.map(col => {
+                              const fieldName = col.column_name;
+                              const editKey = `${id}_${fieldName}`;
+                              const currentValue = (item as any)[fieldName];
+                              const displayValue = keyEdits[editKey] !== undefined ? keyEdits[editKey] : (currentValue || '');
+                              
+                              const label = col.column_name
+                                .split('_')
+                                .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+                                .join(' ');
+                              
+                              const knownHints: Record<string, string> = {
+                                codigo: 'Código da unidade',
+                                istancia: 'Nome da instância',
+                                recrutadora: 'Key da recrutadora',
+                                botID: 'ID do bot',
+                                triggerName: 'Nome do trigger',
+                                organizationID: 'ID da organização',
+                                contato_profissionais: 'Contato'
+                              };
+                              
+                              return (
+                                <div key={fieldName} className="space-y-1.5">
+                                  <label className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                                    {label}
+                                    {savingKeyIds[editKey] && (
+                                      <span className="text-[10px] text-accent-primary animate-pulse">salvando...</span>
+                                    )}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={displayValue}
+                                    onChange={(e) => handleFieldChange(fieldName, e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        persistField(fieldName);
+                                      }
+                                    }}
+                                    onBlur={() => persistField(fieldName)}
+                                    placeholder={knownHints[fieldName] || `Digite ${label.toLowerCase()}...`}
+                                    className="w-full px-3 py-2 text-sm font-mono border rounded-lg bg-bg-tertiary border-border-secondary text-text-primary placeholder:text-text-tertiary focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary transition-all"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             )}
-
-            {/* Modal antigo removido: auto-save direto no formulário */}
           </div>
         )}
 
@@ -772,6 +784,18 @@ const ManageUnitsPage: React.FC = () => {
   const [unitUserCounts, setUnitUserCounts] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+
+  const handleCopyToClipboard = async (value: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(value);
+      setTimeout(() => setCopiedValue(null), 2000);
+    } catch (err) {
+      console.error('Falha ao copiar:', err);
+    }
+  };
 
   const loadUnits = useCallback(async () => {
     setIsLoading(true);
@@ -943,6 +967,7 @@ const ManageUnitsPage: React.FC = () => {
               <tr>
                 <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome da Unidade</th>
                 <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Código</th>
+                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Unit ID</th>
                 <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Usuários</th>
                 <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
               </tr>
@@ -950,7 +975,7 @@ const ManageUnitsPage: React.FC = () => {
             <tbody className="bg-bg-secondary divide-y divide-border-primary">
               {filteredUnits.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-6 text-center text-sm text-text-secondary">Nenhuma unidade encontrada.</td>
+                  <td colSpan={5} className="px-6 py-6 text-center text-sm text-text-secondary">Nenhuma unidade encontrada.</td>
                 </tr>
               )}
               {paginatedUnits.map((unit) => (
@@ -960,7 +985,30 @@ const ManageUnitsPage: React.FC = () => {
                   className="transition-colors cursor-pointer hover:bg-bg-tertiary"
                 >
                   <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-text-primary">{unit.unit_name}</td>
-                  <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary font-mono">{unit.unit_code}</td>
+                  <td 
+                    className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary font-mono cursor-pointer hover:bg-accent-primary/10 transition-colors relative group"
+                    onClick={(e) => handleCopyToClipboard(unit.unit_code, e)}
+                    title="Clique para copiar"
+                  >
+                    {unit.unit_code}
+                    {copiedValue === unit.unit_code && (
+                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                        Copiado!
+                      </span>
+                    )}
+                  </td>
+                  <td 
+                    className="px-6 py-2 whitespace-nowrap text-xs text-text-tertiary font-mono cursor-pointer hover:bg-accent-primary/10 transition-colors relative group"
+                    onClick={(e) => handleCopyToClipboard(unit.id, e)}
+                    title="Clique para copiar"
+                  >
+                    {unit.id}
+                    {copiedValue === unit.id && (
+                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                        Copiado!
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{unitUserCounts[unit.id] ?? 0}</td>
                   <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
                     <div className="flex items-center justify-end space-x-1">
