@@ -12,18 +12,40 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
-  const { user, profile, logout, userModules, userUnits } = useAuth();
+  const { user, profile, logout, userModules, userUnits, getModulesForUnit } = useAuth();
   const { selectedUnit, setSelectedUnit, setView, activeView, activeModule } = useAppContext();
   const [isCollapsed, setIsCollapsed] = useState(true); // inicia recolhido por padrão
   // Unidades agora vêm centralizadas do AuthContext (userUnits).
   // Isso garante que a opção 'Todos' (ALL) agregue dinamicamente todos os unit_code disponíveis
   // sem necessidade de estado duplicado ou múltiplos fetches locais.
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  
+  // Módulos filtrados pela unidade selecionada
+  const [filteredModules, setFilteredModules] = useState<Module[]>([]);
+  const [loadingModules, setLoadingModules] = useState(false);
 
-  // Lista final de módulos já vem consolidada do AuthContext: união de
-  // (a) módulos explicitamente atribuídos ao usuário e (b) módulos permitidos por allowed_profiles.
-  // Aqui apenas filtramos por is_active.
-  const filteredModules = userModules.filter(module => module.is_active);
+  // Carrega módulos quando a unidade selecionada muda
+  useEffect(() => {
+    const loadModulesForUnit = async () => {
+      if (!selectedUnit) {
+        setFilteredModules(userModules.filter(m => m.is_active));
+        return;
+      }
+      
+      setLoadingModules(true);
+      try {
+        const modules = await getModulesForUnit(selectedUnit.id);
+        setFilteredModules(modules.filter(m => m.is_active));
+      } catch (err) {
+        console.error('[Sidebar] Erro ao carregar módulos da unidade:', err);
+        setFilteredModules(userModules.filter(m => m.is_active));
+      } finally {
+        setLoadingModules(false);
+      }
+    };
+    
+    loadModulesForUnit();
+  }, [selectedUnit, userModules, getModulesForUnit]);
 
   useEffect(() => {
     if (!user || !profile) return;

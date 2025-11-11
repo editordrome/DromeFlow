@@ -186,11 +186,163 @@ Ao adicionar um novo “módulo” de negócio (aparece na Sidebar), siga este p
     - Consuma o `supabaseClient` e mantenha a lógica de negócio no serviço (não no componente).
 
 4) Navegação/Renderização
-- O `AuthContext` já compõe a lista final de módulos permitidos; a `Sidebar` mostra apenas `is_active`.
+- O `AuthContext` compõe a lista de módulos base via `userModules`; a função `getModulesForUnit(unitId)` filtra por unidade.
+- A `Sidebar` mostra apenas módulos `is_active` filtrados pela unidade selecionada.
 - O `ContentArea` renderiza a página com base em `activeView` (normalmente, igual ao `code` do módulo) ou carrega HTML externo quando a origem começar com `internal://`.
 
-5) Permissões
-- Para restringir acesso por perfil, defina `allowed_profiles` no módulo e, se necessário, atribua o módulo ao usuário em `user_modules` (para admins/users). Super Admin não herda módulos públicos automaticamente.
+5) Permissões (Hierarquia de Acesso a Módulos - Sistema Unit-Based Access Control)
+
+## Estrutura de Banco de Dados
+- **Tabela `unit_modules`**: Composite PK (unit_id, module_id), define módulos disponíveis por unidade
+  - Campos: unit_id, module_id, created_at, updated_at
+  - 3 índices: idx_unit_modules_unit, idx_unit_modules_module, idx_unit_modules_lookup
+  - RLS policies: Permissivas para MVP (authenticated users podem ler)
+  - Trigger: auto-atualiza updated_at
+  - RPCs disponíveis:
+    * `get_unit_modules(p_unit_id uuid)` - lista módulos de uma unidade
+    * `assign_modules_to_unit(p_unit_id uuid, p_module_ids uuid[])` - atribui múltiplos módulos
+    * `check_unit_module_access(p_unit_id uuid, p_module_id uuid)` - verifica acesso
+  - View: `unit_modules_summary` - agrega estatísticas (unit_id, module_count, module_names)
+
+- **Tabela `user_modules`**: Composite PK (user_id, module_id), atribuições individuais de usuário
+  - Campos: user_id, module_id, created_at
+  - Não possui relação com unit_id (atribuição global por usuário)
+
+## Hierarquia de Permissões (AuthContext.getModulesForUnit)
+1. **Super Admin**: 
+   - Vê APENAS módulos com 'super_admin' em `allowed_profiles`
+   - Ignora `unit_modules` e `user_modules`
+   - Não herda módulos de outros perfis automaticamente
+
+2. **Admin**: 
+   - Acessa TODOS os módulos da unidade via `unit_modules`
+   - Não precisa de atribuição em `user_modules`
+   - Query: `SELECT module_id FROM unit_modules WHERE unit_id = ?`
+
+3. **User**: 
+   - Acessa apenas **interseção** de `user_modules` ∩ `unit_modules`
+   - Precisa estar em ambas as tabelas para ter acesso
+   - Query: módulos onde user_id E unit_id coincidem
+
+## Gerenciamento via UI
+
+### ManageUnitsPage - Aba "Módulos"
+- Local: Modal de edição de unidade → Aba "Módulos"
+- Interface: Grid de checkboxes (2 colunas, responsivo)
+- Funcionalidade:
+  * Lista todos os módulos ativos (`is_active = true`)
+  * Checkboxes pré-selecionados baseados em `unit_modules`
+  * Botão "Salvar Módulos" com feedback visual (Salvando... → Salvo! → Salvar Módulos)
+  * Estados: modulesLoading, modulesError, savingModules, modulesSaved
+- Serviço: `unitModules.service.ts → updateUnitModules(unitId, moduleIds[])`
+- Persistência: Delete all + Insert batch (transacional)
+
+### UserFormModal - Aba "Módulos" (Multi-unit)
+- Local: Modal de criação/edição de usuário → Aba "Módulos"
+- Interface: 
+  * Dropdown para selecionar unidade (quando usuário tem múltiplas)
+  * Grid de checkboxes filtrado por unidade selecionada
+  * Módulos disponíveis = `unit_modules` da unidade escolhida
+- Funcionalidade:
+  * Super Admin: Checkboxes desabilitados (acesso automático)
+  * Admin: Vê módulos da unidade (não salva em user_modules pois herda tudo)
+  * User: Marca módulos que terá acesso (salva em user_modules)
+- Estado: `modulesByUnit` (Map<unitId, Set<moduleId>>) para gerenciar múltiplas unidades
+- Serviço: `users.service.ts → updateUserAssignments(userId, unitIds, moduleIds)`
+- Lógica de salvamento:
+  * Delete all `user_modules` WHERE user_id
+  * Insert novos módulos em batch
+  * Módulos salvos globalmente (sem unit_id), mas filtrados por unidade na UI
+
+## Navegação e Sidebar
+- **AuthContext**: Função `getModulesForUnit(unitId)` retorna módulos filtrados por perfil
+- **AppContext**: 
+  * Inicialização: Carrega primeiro módulo ativo da unidade ao fazer login
+  * Detecção de `view_id`: Se módulo tem view_id, navega direto (sem webhook)
+  * Mudança de unidade: Recarrega automaticamente o primeiro módulo ativo da nova unidade
+- **Sidebar**: 
+  * Filtra módulos por `is_active = true`
+  * Lista dinâmica baseada em `getModulesForUnit(selectedUnitId)`
+  * Atualiza automaticamente ao mudar unidade selecionada
+
+## Fluxo Completo de Atribuição
+
+### 1. Atribuir módulos à unidade (Admin/Super Admin):
+```
+ManageUnitsPage → Editar Unidade → Aba "Módulos" → Marcar checkboxes → Salvar
+↓
+updateUnitModules(unitId, moduleIds) 
+↓
+DELETE FROM unit_modules WHERE unit_id = ?
+INSERT INTO unit_modules (unit_id, module_id) VALUES (?, ?)...
+```
+
+### 2. Atribuir módulos ao usuário (Admin):
+```
+ManageUsersPage → Editar Usuário → Aba "Módulos" → Selecionar Unidade → Marcar checkboxes → Salvar
+↓
+updateUserAssignments(userId, unitIds, moduleIds)
+↓
+DELETE FROM user_modules WHERE user_id = ?
+INSERT INTO user_modules (user_id, module_id) VALUES (?, ?)...
+```
+
+### 3. Login e Visualização (Qualquer usuário):
+```
+AuthContext.login() → carrega profile
+↓
+AppContext.initialize() → chama getModulesForUnit(selectedUnit)
+↓
+AuthContext.getModulesForUnit():
+  - super_admin: módulos com 'super_admin' em allowed_profiles
+  - admin: SELECT * FROM unit_modules WHERE unit_id = ?
+  - user: SELECT * FROM user_modules WHERE user_id IN (SELECT module_id FROM unit_modules WHERE unit_id = ?)
+↓
+Sidebar renderiza módulos filtrados
+↓
+Navega para primeiro módulo ativo (view_id ou webhook)
+```
+
+## Serviços TypeScript
+
+### services/units/unitModules.service.ts (9 funções)
+1. `fetchUnitModules(unitId)` - lista módulos de uma unidade
+2. `assignModulesToUnit(unitId, moduleIds)` - atribui múltiplos (RPC)
+3. `assignModuleToUnit(unitId, moduleId)` - atribui único
+4. `removeModuleFromUnit(unitId, moduleId)` - remove único
+5. `checkUnitModuleAccess(unitId, moduleId)` - verifica acesso (RPC)
+6. `fetchUnitModulesSummary()` - estatísticas agregadas (VIEW)
+7. `fetchUnitModuleAssignments()` - todas as atribuições
+8. `updateUnitModules(unitId, moduleIds)` - delete all + insert batch
+9. `fetchUnitModuleIds(unitId)` - retorna apenas IDs
+
+### services/auth/users.service.ts
+- `updateUserAssignments(userId, unitIds, moduleIds)`:
+  * Delete-then-insert pattern para user_units e user_modules
+  * Logging abrangente para debug (console.log em cada etapa)
+  * Tratamento de conflitos com composite PKs
+
+## Boas Práticas e Debugging
+
+### Console Logs (Debug Mode)
+- `[UserFormModal] Módulos carregados do usuário: [...]` - IDs carregados do banco
+- `[UserFormModal] modulesByUnit inicializado: Map(...)` - distribuição por unidade
+- `[handleModuleToggle] Toggling module: ...` - interação com checkboxes
+- `[Render checkbox Dashboard] isChecked: true/false` - estado de renderização
+- `[updateUserAssignments] user_modules inseridos com sucesso` - confirmação de salvamento
+
+### Validações Importantes
+1. Sempre usar `new Set()` ao atualizar estados com Sets (imutabilidade React)
+2. Filtrar `null`/`undefined` em `.map()` antes de renderizar listas
+3. Recarregar dados ANTES de fechar modais (evita tela branca)
+4. Adicionar `selectedUnit` como dependência em callbacks que filtram por unidade
+5. Usar `hasInitialized` flag para evitar dupla inicialização em AppContext
+
+### Troubleshooting
+- **Módulos não aparecem na Sidebar**: Verificar `unit_modules` no banco e `getModulesForUnit` no AuthContext
+- **Checkboxes não marcam**: Verificar imutabilidade de Sets (`new Set(oldSet)`)
+- **Tela branca ao salvar**: Garantir `await loadUsers()` antes de `handleCloseModal()`
+- **Navegação errada ao mudar unidade**: Verificar lógica de `view_id` detection no AppContext
 
 6) Ordem de Exibição
 - Arraste na UI de “Gerenciar Módulos”; o serviço `updateModulesOrder` persistirá `position` como 1..n.

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { User, Profile, Module, Unit } from '../types';
+import { fetchUnitModuleIds } from '../services/units/unitModules.service';
 
 interface AuthContextType {
   user: User | null;
@@ -10,6 +11,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
+  getModulesForUnit: (unitId: string | null) => Promise<Module[]>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -126,6 +128,105 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  /**
+   * Filtra módulos disponíveis para uma unidade específica
+   * Hierarquia de permissões (maior prioridade primeiro):
+   * 1. super_admin: Vê apenas módulos com 'super_admin' em allowed_profiles (ignora unit_modules)
+   * 2. admin: Acessa TODOS os módulos atribuídos à unidade (unit_modules)
+   * 3. user: Acessa apenas módulos atribuídos individualmente (user_modules) ∩ módulos da unidade (unit_modules)
+   * 
+   * @param unitId - ID da unidade (null = modo "ALL", retorna userModules sem filtro)
+   * @returns Array de módulos permitidos para a unidade
+   */
+  const getModulesForUnit = async (unitId: string | null): Promise<Module[]> => {
+    // Modo "ALL" (Todas as Unidades) ou sem unidade selecionada
+    if (!unitId || unitId === 'ALL') {
+      return userModules;
+    }
+
+    // Se não há perfil carregado, retorna vazio
+    if (!profile) {
+      return [];
+    }
+
+    try {
+      // 1. Busca módulos atribuídos à unidade
+      const unitModuleIds = await fetchUnitModuleIds(unitId);
+
+      // Se a unidade não tem módulos atribuídos, retorna vazio
+      if (unitModuleIds.length === 0) {
+        return [];
+      }
+
+      // 2. Para ADMIN: retorna TODOS os módulos da unidade (não precisa de user_modules)
+      if (profile.role === 'admin') {
+        const { data: adminModules, error } = await supabase
+          .from('modules')
+          .select('*')
+          .in('id', unitModuleIds)
+          .eq('is_active', true);
+
+        if (error) {
+          console.error('[AuthContext] Erro ao buscar módulos da unidade (admin):', error);
+          return userModules; // Fallback
+        }
+
+        const list = (adminModules || []) as Module[];
+        // Ordena por position e nome
+        return list.sort((a, b) => {
+          const posA = a.position ?? 0;
+          const posB = b.position ?? 0;
+          if (posA !== posB) return posA - posB;
+          return a.name.localeCompare(b.name);
+        });
+      }
+
+      // 3. Para USER: interseção entre user_modules e unit_modules
+      // Busca módulos atribuídos ao usuário
+      const { data: userModulesData, error: userModulesError } = await supabase
+        .from('user_modules')
+        .select('module_id')
+        .eq('user_id', profile.id);
+
+      if (userModulesError) {
+        console.error('[AuthContext] Erro ao buscar user_modules:', userModulesError);
+        return [];
+      }
+
+      const userModuleIds = (userModulesData || []).map(um => um.module_id);
+
+      // Interseção: módulos que estão tanto em user_modules quanto em unit_modules
+      const allowedModuleIds = unitModuleIds.filter(id => userModuleIds.includes(id));
+
+      if (allowedModuleIds.length === 0) {
+        return []; // Usuário não tem permissão para nenhum módulo desta unidade
+      }
+
+      const { data: userUnitModules, error: modulesError } = await supabase
+        .from('modules')
+        .select('*')
+        .in('id', allowedModuleIds)
+        .eq('is_active', true);
+
+      if (modulesError) {
+        console.error('[AuthContext] Erro ao buscar módulos do usuário na unidade:', modulesError);
+        return [];
+      }
+
+      const list = (userUnitModules || []) as Module[];
+      return list.sort((a, b) => {
+        const posA = a.position ?? 0;
+        const posB = b.position ?? 0;
+        if (posA !== posB) return posA - posB;
+        return a.name.localeCompare(b.name);
+      });
+
+    } catch (err) {
+      console.error('[AuthContext] Erro ao filtrar módulos por unidade:', err);
+      return userModules; // Fallback
+    }
+  };
+
   const login = async (email: string, password: string) => {
     const { data, error } = await supabase
       .from('profiles')
@@ -169,6 +270,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     login,
     logout,
     loading,
+    getModulesForUnit,
   };
 
   return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;

@@ -52,7 +52,7 @@ const ManageUsersPage: React.FC = () => {
       } else if (profile.role === 'admin') {
         const fetched = await fetchUsersForAdminUnits(user.id);
         // Se houver unidade selecionada, filtra somente usuários ligados àquela unidade
-        if (selectedUnit) {
+        if (selectedUnit && selectedUnit.id !== 'ALL') {
           // Para saber quais usuários pertencem à unidade selecionada precisamos buscar assignments de cada um (custo O(n)).
           // Otimização futura: criar RPC que já retorne filtrado.
           const filtered: FullUser[] = [];
@@ -75,7 +75,7 @@ const ManageUsersPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [profile, user, selectedUnit]);
 
   useEffect(() => {
     loadUsers();
@@ -166,8 +166,12 @@ const ManageUsersPage: React.FC = () => {
           await createUser(data);
         }
       }
-      handleCloseModal();
+      
+      // Recarrega a lista de usuários ANTES de fechar o modal
       await loadUsers();
+      
+      // Fecha o modal apenas após recarregar
+      handleCloseModal();
     } catch (err: any) {
       alert(`Erro: ${err.message}`);
     }

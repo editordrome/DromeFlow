@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { fetchAllUnits, createUnit, updateUnit, deleteUnit } from '../../services/units/units.service';
 import { fetchUsersForUnit, updateUser, createUser } from '../../services/auth/users.service';
-import { Unit, UnitKey } from '../../types';
+import { Unit, UnitKey, Module } from '../../types';
 import { Icon } from '../ui/Icon';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchUnitKeys, createUnitKey, updateUnitKey, deleteUnitKey, upsertUnitKeyValue } from '../../services/units/unitKeys.service';
 import { listUnitKeysColumns, ColumnInfo } from '../../services/units/unitKeysAdmin.service';
 import { User as UserType, Profile as ProfileType } from '../../types';
 import { UserFormModal } from '../ui/UserFormModal';
+import { fetchUnitModuleIds, assignModulesToUnit } from '../../services/units/unitModules.service';
+import { fetchAllModules } from '../../services/modules/modules.service';
 
 type UnitDataPayload = Partial<Unit>;
 
@@ -28,7 +30,7 @@ const UnitFormModal: React.FC<{
   const [usersError, setUsersError] = useState<string | null>(null);
   const [unitUsers, setUnitUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dados' | 'usuarios' | 'keys'>('dados');
+  const [activeTab, setActiveTab] = useState<'dados' | 'usuarios' | 'modulos' | 'keys'>('dados');
   const [keys, setKeys] = useState<UnitKey[]>([]);
   // Estado para abrir modal Editar Usuário reaproveitando o componente compartilhado
   const [editingUser, setEditingUser] = useState<(UserType & ProfileType) | null>(null);
@@ -79,6 +81,14 @@ const UnitFormModal: React.FC<{
   // Modal antigo removido; agora salvamento é automático na própria aba
   const [keyEdits, setKeyEdits] = useState<Record<string, string>>({});
   const [savingKeyIds, setSavingKeyIds] = useState<Record<string, boolean>>({});
+
+  // Estados para a aba Módulos
+  const [allModules, setAllModules] = useState<Module[]>([]);
+  const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>([]);
+  const [modulesLoading, setModulesLoading] = useState(false);
+  const [modulesError, setModulesError] = useState<string | null>(null);
+  const [savingModules, setSavingModules] = useState(false);
+  const [modulesSaved, setModulesSaved] = useState(false);
 
   useEffect(() => {
     // Reset form
@@ -135,6 +145,25 @@ const UnitFormModal: React.FC<{
           setKeyColumnsLoading(false);
         }
       })();
+      // Carrega módulos disponíveis e módulos já atribuídos à unidade
+      (async () => {
+        try {
+          setModulesError(null);
+          setModulesLoading(true);
+          // Busca todos os módulos disponíveis
+          const modules = await fetchAllModules();
+          setAllModules(modules.filter(m => m.is_active)); // Apenas ativos
+          // Busca IDs dos módulos já atribuídos a esta unidade
+          const assignedIds = await fetchUnitModuleIds(unit.id);
+          setSelectedModuleIds(assignedIds);
+        } catch (e: any) {
+          setModulesError(e?.message || 'Falha ao carregar módulos.');
+          setAllModules([]);
+          setSelectedModuleIds([]);
+        } finally {
+          setModulesLoading(false);
+        }
+      })();
     }
   }, [unit, isOpen]);
 
@@ -179,6 +208,7 @@ const UnitFormModal: React.FC<{
             <div className="flex gap-2">
               <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='dados'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('dados')}>Dados</button>
               <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='usuarios'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('usuarios')}>Usuários</button>
+              <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='modulos'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('modulos')}>Módulos</button>
               {profile?.role === 'super_admin' && (
                 <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='keys'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('keys')}>Keys</button>
               )}
@@ -285,6 +315,126 @@ const UnitFormModal: React.FC<{
                   </li>
                 ))}
               </ul>
+            )}
+          </div>
+        )}
+
+        {unit && activeTab === 'modulos' && (
+          <div className="mt-4">
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-text-primary mb-1">Módulos Disponíveis para esta Unidade</h3>
+              <p className="text-xs text-text-secondary">Selecione os módulos que os usuários desta unidade poderão acessar.</p>
+            </div>
+            
+            {modulesLoading && (
+              <div className="flex items-center justify-center py-8 space-x-2 text-text-secondary text-sm">
+                <span className="w-4 h-4 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" />
+                <span>Carregando módulos...</span>
+              </div>
+            )}
+            
+            {modulesError && (
+              <div className="text-sm text-danger bg-danger/10 p-3 rounded-md flex items-start gap-2">
+                <Icon name="alert-triangle" className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{modulesError}</span>
+              </div>
+            )}
+            
+            {!modulesLoading && !modulesError && allModules.length === 0 && (
+              <div className="text-center py-8 text-text-secondary text-sm">
+                <Icon name="inbox" className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Nenhum módulo disponível no sistema.</p>
+              </div>
+            )}
+            
+            {!modulesLoading && !modulesError && allModules.length > 0 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto p-1">
+                  {allModules.map(module => {
+                    const isSelected = selectedModuleIds.includes(module.id);
+                    return (
+                      <label
+                        key={module.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-accent-primary bg-accent-primary/5'
+                            : 'border-border-secondary bg-bg-tertiary/30 hover:border-border-primary hover:bg-bg-tertiary'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedModuleIds(prev => [...prev, module.id]);
+                            } else {
+                              setSelectedModuleIds(prev => prev.filter(id => id !== module.id));
+                            }
+                          }}
+                          className="mt-1 w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Icon name={module.icon_name || 'box'} className="w-4 h-4 text-accent-primary flex-shrink-0" />
+                            <span className="font-medium text-sm text-text-primary truncate">{module.name}</span>
+                          </div>
+                          {module.description && (
+                            <p className="text-xs text-text-secondary line-clamp-2">{module.description}</p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                
+                <div className="flex items-center justify-between pt-4 border-t border-border-secondary">
+                  <div className="text-xs text-text-secondary">
+                    <Icon name="info" className="inline w-3.5 h-3.5 mr-1" />
+                    {selectedModuleIds.length} de {allModules.length} módulos selecionados
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!unit) return;
+                      try {
+                        setSavingModules(true);
+                        setModulesError(null);
+                        setModulesSaved(false);
+                        await assignModulesToUnit(unit.id, selectedModuleIds);
+                        // Feedback visual via estado
+                        setModulesSaved(true);
+                        setTimeout(() => {
+                          setModulesSaved(false);
+                        }, 2000);
+                      } catch (e: any) {
+                        const errorMsg = e?.message || e?.error?.message || e?.details || 'Falha ao salvar módulos.';
+                        setModulesError(errorMsg);
+                      } finally {
+                        setSavingModules(false);
+                      }
+                    }}
+                    disabled={savingModules}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {modulesSaved ? (
+                      <>
+                        <Icon name="check" className="w-4 h-4" />
+                        Salvo!
+                      </>
+                    ) : savingModules ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-t-white border-white/30 rounded-full animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="save" className="w-4 h-4" />
+                        Salvar Módulos
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
