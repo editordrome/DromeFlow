@@ -13,11 +13,12 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { userModules, userUnits, loading } = useAuth();
+  const { userModules, userUnits, loading, getModulesForUnit } = useAuth();
   const [selectedUnit, setSelectedUnitState] = useState<Unit | null | { id: 'ALL'; unit_name: string; unit_code: 'ALL' }>(null);
-  // Inicializa diretamente no dashboard conforme solicitação.
-  const [activeView, setActiveView] = useState<PageView>('dashboard');
+  // Inicializa como 'welcome' temporariamente até carregar módulos
+  const [activeView, setActiveView] = useState<PageView>('welcome');
   const [activeModule, setActiveModule] = useState<Module | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Persiste seleção de unidade
   const setSelectedUnit = (unit: Unit | null | { id: 'ALL'; unit_name: string; unit_code: 'ALL' }) => {
@@ -68,39 +69,112 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
         }
       }
     } catch {}
+  }, [loading, userUnits, selectedUnit]);
 
-    // Restaurar View/Módulo
-    try {
-      let restored = false;
-      const storedView = (localStorage.getItem('df_active_view') as PageView | null) || null;
-      const storedModuleId = localStorage.getItem('df_active_module_id');
+  // Carrega o primeiro módulo disponível para a unidade selecionada
+  useEffect(() => {
+    const loadFirstModuleForUnit = async () => {
+      if (loading || !selectedUnit || hasInitialized) return;
       
-      if (storedView === 'module' && storedModuleId) {
-        const foundModule = userModules.find(m => m.id === storedModuleId && (m as any).is_active) || null;
-        if (foundModule) {
-          setActiveView('module');
-          setActiveModule(foundModule);
-          restored = true;
-        }
-      }
-      
-      if (storedView && storedView !== 'module' && !restored) {
-        setView(storedView);
-        restored = true;
-      }
-
-      // Caso não haja restauração válida, define o primeiro módulo ativo disponível ou dashboard
-      if (!restored) {
-        const firstActiveModule = userModules.find(m => (m as any).is_active);
-        if (firstActiveModule) {
-          setView('module', firstActiveModule);
+      try {
+        // Busca módulos para a unidade selecionada
+        const modulesForUnit = await getModulesForUnit(selectedUnit.id);
+        const activeModulesForUnit = modulesForUnit.filter(m => m.is_active);
+        
+        if (activeModulesForUnit.length > 0) {
+          // Tenta restaurar view do localStorage
+          const storedView = (localStorage.getItem('df_active_view') as PageView | null) || null;
+          const storedModuleId = localStorage.getItem('df_active_module_id');
+          
+          // Se há módulo no localStorage e ele existe na unidade atual, restaura
+          if (storedView === 'module' && storedModuleId) {
+            const foundModule = activeModulesForUnit.find(m => m.id === storedModuleId);
+            if (foundModule) {
+              setActiveView('module');
+              setActiveModule(foundModule);
+              setHasInitialized(true);
+              return;
+            }
+          }
+          
+          // Se há view no localStorage e não é módulo, restaura (ex: dashboard, data)
+          if (storedView && storedView !== 'module') {
+            setView(storedView);
+            setHasInitialized(true);
+            return;
+          }
+          
+          // Caso contrário, carrega o PRIMEIRO módulo ativo da unidade
+          const firstModule = activeModulesForUnit[0];
+          console.log('[AppContext] Carregando primeiro módulo para unidade:', selectedUnit, firstModule.name);
+          
+          // Se o módulo tem view_id, usa diretamente
+          const viewIdNorm = (firstModule.view_id || '').toLowerCase().replace(/-/g, '_');
+          const url = (firstModule.webhook_url || '').toLowerCase();
+          const internalView = url.startsWith('internal://') ? url.slice('internal://'.length).replace(/-/g, '_') : '';
+          const target = viewIdNorm || internalView;
+          
+          if (target) {
+            setView(target as PageView, null);
+          } else {
+            setActiveView('module');
+            setActiveModule(firstModule);
+          }
+          setHasInitialized(true);
         } else {
-          // Se não há módulos ativos, vai para dashboard
-          setView('dashboard');
+          // Se não há módulos ativos na unidade, vai para welcome
+          console.log('[AppContext] Nenhum módulo ativo para unidade:', selectedUnit);
+          setView('welcome');
+          setHasInitialized(true);
         }
+      } catch (err) {
+        console.error('[AppContext] Erro ao carregar módulos da unidade:', err);
+        setView('welcome');
+        setHasInitialized(true);
       }
-    } catch {}
-  }, [loading, userUnits, userModules, selectedUnit]);
+    };
+    
+    loadFirstModuleForUnit();
+  }, [loading, selectedUnit, hasInitialized, getModulesForUnit]);
+
+  // Quando mudar de unidade (após inicialização), recarrega o primeiro módulo
+  useEffect(() => {
+    if (!hasInitialized || loading) return;
+    
+    const reloadFirstModuleForUnit = async () => {
+      if (!selectedUnit) return;
+      
+      try {
+        const modulesForUnit = await getModulesForUnit(selectedUnit.id);
+        const activeModulesForUnit = modulesForUnit.filter(m => m.is_active);
+        
+        if (activeModulesForUnit.length > 0) {
+          const firstModule = activeModulesForUnit[0];
+          console.log('[AppContext] Mudança de unidade - carregando primeiro módulo:', firstModule.name);
+          
+          // Se o módulo tem view_id, usa diretamente
+          const viewIdNorm = (firstModule.view_id || '').toLowerCase().replace(/-/g, '_');
+          const url = (firstModule.webhook_url || '').toLowerCase();
+          const internalView = url.startsWith('internal://') ? url.slice('internal://'.length).replace(/-/g, '_') : '';
+          const target = viewIdNorm || internalView;
+          
+          if (target) {
+            setView(target as PageView, null);
+          } else {
+            setActiveView('module');
+            setActiveModule(firstModule);
+          }
+        } else {
+          console.log('[AppContext] Unidade sem módulos ativos');
+          setView('welcome');
+        }
+      } catch (err) {
+        console.error('[AppContext] Erro ao recarregar módulos da unidade:', err);
+      }
+    };
+    
+    reloadFirstModuleForUnit();
+  }, [selectedUnit?.id]); // Observa apenas mudanças no ID da unidade
 
   return (
     <AppContext.Provider value={{ selectedUnit, setSelectedUnit, activeView, activeModule, setView }}>

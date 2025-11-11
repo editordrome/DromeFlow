@@ -61,20 +61,51 @@ export const fetchUserAssignments = async (userId: string): Promise<{ unit_ids: 
 };
 
 const updateUserAssignments = async (userId: string, unitIds: string[], moduleIds: string[]) => {
-	await Promise.all([
+	console.log('[updateUserAssignments] userId:', userId);
+	console.log('[updateUserAssignments] unitIds:', unitIds);
+	console.log('[updateUserAssignments] moduleIds:', moduleIds);
+	
+	// Deletar atribuições antigas
+	const [unitsDeleteResult, modulesDeleteResult] = await Promise.all([
 		supabase.from('user_units').delete().eq('user_id', userId),
 		supabase.from('user_modules').delete().eq('user_id', userId),
 	]);
+	
+	if (unitsDeleteResult.error) {
+		console.error('[updateUserAssignments] Erro ao deletar user_units:', unitsDeleteResult.error);
+		throw unitsDeleteResult.error;
+	}
+	if (modulesDeleteResult.error) {
+		console.error('[updateUserAssignments] Erro ao deletar user_modules:', modulesDeleteResult.error);
+		throw modulesDeleteResult.error;
+	}
+	
+	console.log('[updateUserAssignments] Atribuições antigas deletadas com sucesso');
 
+	// Inserir novas atribuições de unidades
 	if (unitIds.length > 0) {
 		const unitAssignments = unitIds.map((unit_id) => ({ user_id: userId, unit_id }));
+		console.log('[updateUserAssignments] Inserindo user_units:', unitAssignments);
 		const { error } = await supabase.from('user_units').insert(unitAssignments);
-		if (error) throw error;
+		if (error) {
+			console.error('[updateUserAssignments] Erro ao inserir user_units:', error);
+			throw error;
+		}
+		console.log('[updateUserAssignments] user_units inseridos com sucesso');
 	}
+	
+	// Inserir novas atribuições de módulos
 	if (moduleIds.length > 0) {
 		const moduleAssignments = moduleIds.map((module_id) => ({ user_id: userId, module_id }));
+		console.log('[updateUserAssignments] Inserindo user_modules:', moduleAssignments);
 		const { error } = await supabase.from('user_modules').insert(moduleAssignments);
-		if (error) throw error;
+		if (error) {
+			console.error('[updateUserAssignments] Erro ao inserir user_modules:', error);
+			throw error;
+		}
+		console.log('[updateUserAssignments] user_modules inseridos com sucesso');
+	} else {
+		console.log('[updateUserAssignments] Nenhum módulo para inserir (array vazio)');
 	}
 };
 

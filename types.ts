@@ -41,8 +41,11 @@ export interface UnitKey {
 
 export interface Module {
   id: string;
+  code?: string; // Código único do módulo
   name: string;
-  icon: string;
+  icon?: string; // Legacy field (pode ser removido após migração completa)
+  icon_name?: string; // Nome do ícone Lucide
+  description?: string | null; // Descrição do módulo
   webhook_url: string | null; // Permitir nulo
   view_id: string | null; // Adicionar view_id
   is_active: boolean;
@@ -51,6 +54,22 @@ export interface Module {
   parent_id?: string | null; // Hierarquia: módulo pai (nulo = topo)
   // Campo somente de UI (não persistido): filhos já resolvidos
   children?: Module[];
+}
+
+export interface UnitModule {
+  id: string;
+  unit_id: string;
+  module_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UnitModuleSummary {
+  unit_id: string;
+  unit_name: string;
+  unit_code: string;
+  total_modules: number;
+  module_names: string[];
 }
 
 export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients' | 'clients_base' | 'recrutadora' | 'prestadoras' | 'profissionais' | 'comercial';
