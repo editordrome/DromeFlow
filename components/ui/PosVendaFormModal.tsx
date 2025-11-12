@@ -27,7 +27,9 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
     status: record?.status || 'pendente',
     nota: record?.nota || null,
     reagendou: record?.reagendou || false,
-    feedback: record?.feedback || null
+    feedback: record?.feedback || null,
+    data_agendamento: record?.data_agendamento || null,
+    horario_agendamento: record?.horario_agendamento || null
   });
 
   const [loading, setLoading] = useState(false);
@@ -128,6 +130,7 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
                   className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
                 >
                   <option value="pendente">Pendente</option>
+                  <option value="agendado">Agendado</option>
                   <option value="contatado">Contatado</option>
                   <option value="finalizado">Finalizado</option>
                 </select>
@@ -218,6 +221,65 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
                   className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
                 />
               </label>
+
+              {/* Divisor com título */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 border-t border-border-secondary"></div>
+                <span className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
+                  <Icon name="Clock" className="w-3.5 h-3.5" />
+                  Agendamento (Opcional)
+                </span>
+                <div className="flex-1 border-t border-border-secondary"></div>
+              </div>
+
+              {/* Campos de Agendamento */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-bg-tertiary/30 rounded-lg p-3 border border-border-secondary/50">
+                {/* Data Agendamento */}
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                    <Icon name="Calendar" className="w-3 h-3" />
+                    Data Programada
+                  </span>
+                  <input
+                    type="date"
+                    value={formData.data_agendamento || ''}
+                    onChange={(e) => handleChange('data_agendamento', e.target.value || null)}
+                    className="rounded-lg border border-border-secondary bg-bg-secondary px-3 py-2 text-sm text-text-primary focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/20 transition-all"
+                    placeholder="Deixe vazio para envio manual"
+                  />
+                </label>
+
+                {/* Horário Agendamento */}
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                    <Icon name="Clock" className="w-3 h-3" />
+                    Horário Programado
+                  </span>
+                  <input
+                    type="time"
+                    value={formData.horario_agendamento || ''}
+                    onChange={(e) => handleChange('horario_agendamento', e.target.value || null)}
+                    className="rounded-lg border border-border-secondary bg-bg-secondary px-3 py-2 text-sm text-text-primary focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/20 transition-all"
+                    placeholder="Ex: 14:30"
+                  />
+                </label>
+              </div>
+
+              {/* Info sobre agendamento */}
+              {(formData.data_agendamento || formData.horario_agendamento) && (
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-brand-cyan/5 border border-brand-cyan/20">
+                  <Icon name="Info" className="w-4 h-4 text-brand-cyan flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-text-secondary">
+                    {formData.data_agendamento && formData.horario_agendamento ? (
+                      <>O pós-venda será enviado automaticamente em <strong className="text-brand-cyan">{new Date(formData.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR')}</strong> às <strong className="text-brand-cyan">{formData.horario_agendamento}</strong>.</>
+                    ) : formData.data_agendamento ? (
+                      <>Data programada: <strong className="text-brand-cyan">{new Date(formData.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR')}</strong> (defina o horário para ativar o envio automático).</>
+                    ) : (
+                      <>Horário definido: <strong className="text-brand-cyan">{formData.horario_agendamento}</strong> (defina a data para ativar o envio automático).</>
+                    )}
+                  </p>
+                </div>
+              )}
 
               {/* Nota */}
               <div className="flex flex-col gap-1.5">

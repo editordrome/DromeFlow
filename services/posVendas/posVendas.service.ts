@@ -61,23 +61,46 @@ export const fetchPendenteWithProfissional = async (filters?: {
     throw error;
   }
 
-  // Mapeia para o formato PosVenda
-  return (data || []).map((row: any) => ({
-    id: row.ATENDIMENTO_ID || `temp-${Date.now()}-${Math.random()}`,
-    ATENDIMENTO_ID: row.ATENDIMENTO_ID,
-    chat_id: null,
-    nome: row.CLIENTE,
-    contato: row.whatscliente || null, // CORRIGIDO: usa whatscliente ao invés de CONTATO
-    unit_id: row.unit_id || filters?.unit_id || null, // CORRIGIDO: usa unit_id da row
-    data: row.DATA,
-    status: (row['pos vendas'] as 'pendente' | 'contatado' | 'finalizado' | null) || 'pendente',
-    nota: null,
-    reagendou: false,
-    feedback: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    PROFISSIONAL: row.PROFISSIONAL
-  }));
+  // Busca agendamentos de pos_vendas para mesclar
+  const atendimentoIds = (data || []).map((row: any) => row.ATENDIMENTO_ID).filter(Boolean);
+  let posVendasMap = new Map<string, any>();
+  
+  if (atendimentoIds.length > 0) {
+    const { data: posVendasData } = await supabase
+      .from('pos_vendas')
+      .select('ATENDIMENTO_ID, data_agendamento, horario_agendamento')
+      .in('ATENDIMENTO_ID', atendimentoIds);
+    
+    if (posVendasData) {
+      posVendasData.forEach((pv: any) => {
+        posVendasMap.set(pv.ATENDIMENTO_ID, pv);
+      });
+    }
+  }
+
+  // Mapeia para o formato PosVenda e mescla com dados de agendamento
+  return (data || []).map((row: any) => {
+    const posVendaData = posVendasMap.get(row.ATENDIMENTO_ID);
+    
+    return {
+      id: row.ATENDIMENTO_ID || `temp-${Date.now()}-${Math.random()}`,
+      ATENDIMENTO_ID: row.ATENDIMENTO_ID,
+      chat_id: null,
+      nome: row.CLIENTE,
+      contato: row.whatscliente || null,
+      unit_id: row.unit_id || filters?.unit_id || null,
+      data: row.DATA,
+      status: (row['pos vendas'] as 'pendente' | 'contatado' | 'finalizado' | null) || 'pendente',
+      nota: null,
+      reagendou: false,
+      feedback: null,
+      data_agendamento: posVendaData?.data_agendamento || null,
+      horario_agendamento: posVendaData?.horario_agendamento || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      PROFISSIONAL: row.PROFISSIONAL
+    };
+  });
 };
 
 /**

@@ -281,10 +281,12 @@ export interface PosVenda {
   contato: string | null;
   unit_id: string | null;
   data: string | null; // ISO timestamp
-  status: 'pendente' | 'contatado' | 'finalizado' | null;
+  status: 'pendente' | 'agendado' | 'contatado' | 'finalizado' | null;
   nota: number | null; // 1-5
   reagendou: boolean;
   feedback: string | null;
+  data_agendamento: string | null; // Data programada para envio (YYYY-MM-DD)
+  horario_agendamento: string | null; // Horário programado para envio (HH:MM:SS)
   created_at: string;
   updated_at: string;
 }
@@ -296,10 +298,12 @@ export interface PosVendaFormData {
   contato?: string | null;
   unit_id?: string | null;
   data?: string | null;
-  status?: 'pendente' | 'contatado' | 'finalizado' | null;
+  status?: 'pendente' | 'agendado' | 'contatado' | 'finalizado' | null;
   nota?: number | null;
   reagendou?: boolean;
   feedback?: string | null;
+  data_agendamento?: string | null; // Data programada para envio
+  horario_agendamento?: string | null; // Horário programado para envio
 }
 
 export interface AtendimentoSearchResult {

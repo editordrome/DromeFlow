@@ -29,7 +29,7 @@ const formatDisplayHour = (raw: string) => {
 
 const AppointmentsPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
-  const { userModules, userUnits } = useAuth();
+  const { userModules, userUnits, profile } = useAuth();
   const [activeDate, setActiveDate] = useState<string>('');
   const [tabs, setTabs] = useState<DayTab[]>([]);
   const [appointments, setAppointments] = useState<DataRecord[]>([]);
@@ -105,6 +105,8 @@ const AppointmentsPage: React.FC = () => {
         unidade_code: unidadeCode,
         data: activeDate,
         conexao,
+        usuario_email: profile?.email || null,
+        usuario_nome: profile?.full_name || null,
         ...(keyword ? { keyword } : {}),
         ...(atendimentoId ? { atendimento_id: String(atendimentoId) } : {})
       } as any;
@@ -135,6 +137,8 @@ const AppointmentsPage: React.FC = () => {
         url.searchParams.set('u', unidadeCode);
         url.searchParams.set('d', activeDate);
         url.searchParams.set('cx', conexao || '');
+        if (profile?.email) url.searchParams.set('ue', profile.email);
+        if (profile?.full_name) url.searchParams.set('un', profile.full_name);
         if (keyword) url.searchParams.set('kw', keyword);
         if (atendimentoId) url.searchParams.set('aid', String(atendimentoId));
         const r = await fetch(url.toString(), { method: 'GET' });
@@ -142,7 +146,7 @@ const AppointmentsPage: React.FC = () => {
         return { ok: true as const, mode: 'GET-ONE' };
       }
     },
-    [appointmentsWebhook, activeDate, selectedUnit]
+    [appointmentsWebhook, activeDate, selectedUnit, profile]
   );
 
   const handleSendWebhook = async () => {

@@ -260,7 +260,6 @@ const DataPage: React.FC = () => {
     }
     try {
       await updateDataRecord(String(updatedRecord.id), updatedRecord);
-      await loadData();
       handleCloseEditModal();
     } catch (error) {
       console.error('Erro ao salvar alterações:', error);

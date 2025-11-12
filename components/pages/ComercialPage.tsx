@@ -35,7 +35,7 @@ const STATUS_BADGE_BG: Record<string, string> = {
 };
 
 const ComercialPage: React.FC = () => {
-  const { userUnits } = useAuth();
+  const { userUnits, profile } = useAuth();
   const { selectedUnit } = useAppContext();
   const [columns, setColumns] = useState<ComercialColumn[]>([]);
   const [cards, setCards] = useState<ComercialCard[]>([]);
@@ -52,6 +52,30 @@ const ComercialPage: React.FC = () => {
 
   const isAllUnits = (selectedUnit as any)?.id === 'ALL';
   const selectedUnitId = !selectedUnit || isAllUnits ? null : (selectedUnit.id as string);
+  
+  // Para super_admin, usa unidade MB-Drome (ID fixo); caso contrário, usa selectedUnitId
+  const MB_DROME_UNIT_ID = 'af4dd770-31c2-4780-90b4-83cca8416ab6';
+  const effectiveUnitId = profile?.role === 'super_admin' 
+    ? MB_DROME_UNIT_ID
+    : selectedUnitId;
+  
+  // Botão habilitado se:
+  // - Para super_admin: SEMPRE habilitado (usa MB_DROME_UNIT_ID fixo)
+  // - Para outros: não pode ser "Todas as Unidades" E precisa ter effectiveUnitId
+  const canAddCard = profile?.role === 'super_admin' 
+    ? true 
+    : (!isAllUnits && Boolean(effectiveUnitId));
+  
+  // Debug
+  console.log('[ComercialPage] Debug botão:', {
+    role: profile?.role,
+    selectedUnit: selectedUnit,
+    isAllUnits,
+    selectedUnitId,
+    MB_DROME_UNIT_ID,
+    effectiveUnitId,
+    canAddCard
+  });
 
   const refreshAllUnitsData = useCallback(async () => {
     if (!userUnits || userUnits.length === 0) return;
@@ -75,14 +99,26 @@ const ComercialPage: React.FC = () => {
   }, [searchTerm]);
 
   const loadData = useCallback(async () => {
-    if (!selectedUnit) return;
+    // Para super_admin, sempre usa MB_DROME_UNIT_ID
+    // Para outros usuários, precisa ter selectedUnit
+    if (!selectedUnit && profile?.role !== 'super_admin') return;
+    
     setLoading(true);
     setError(null);
     try {
-      const [cols] = await Promise.all([fetchComercialColumns(selectedUnitId)]);
+      const [cols] = await Promise.all([fetchComercialColumns(effectiveUnitId)]);
       setColumns(cols.filter(c => c.is_active));
 
-      if (isAllUnits) {
+      // Para super_admin, SEMPRE carrega apenas da unidade MB-Drome (ignora isAllUnits)
+      if (profile?.role === 'super_admin') {
+        const [cardList, m] = await Promise.all([
+          fetchComercialCards(MB_DROME_UNIT_ID),
+          fetchComercialMetrics(MB_DROME_UNIT_ID),
+        ]);
+        setCards(cardList);
+        setMetrics(m);
+      } else if (isAllUnits) {
+        // Para outros usuários: modo "Todas as Unidades"
         if (!userUnits || userUnits.length === 0) {
           setCards([]);
           setMetrics({ today: 0, week: 0, month: 0 });
@@ -95,10 +131,11 @@ const ComercialPage: React.FC = () => {
           setCards(cardList);
           setMetrics(m);
         }
-      } else if (selectedUnitId) {
+      } else if (effectiveUnitId) {
+        // Para outros usuários: unidade específica
         const [cardList, m] = await Promise.all([
-          fetchComercialCards(selectedUnitId),
-          fetchComercialMetrics(selectedUnitId),
+          fetchComercialCards(effectiveUnitId),
+          fetchComercialMetrics(effectiveUnitId),
         ]);
         setCards(cardList);
         setMetrics(m);
@@ -108,7 +145,7 @@ const ComercialPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedUnit, selectedUnitId, isAllUnits, userUnits]);
+  }, [selectedUnit, effectiveUnitId, isAllUnits, userUnits, profile]);
 
   useEffect(() => {
     loadData();
@@ -150,7 +187,12 @@ const ComercialPage: React.FC = () => {
   }, [visibleCards]);
 
   const handleOpenModal = (status: string, card?: ComercialCard) => {
-    if (!card && !selectedUnitId) return;
+    // Para super_admin, sempre permite abrir (usa MB_DROME_UNIT_ID)
+    // Para outros, precisa ter selectedUnitId ou estar editando um card existente
+    if (!card && !effectiveUnitId) {
+      console.warn('[ComercialPage] Não é possível abrir modal: sem unidade selecionada');
+      return;
+    }
     setModalStatus(card?.status || status);
     setEditingCard(card || null);
     setModalOpen(true);
@@ -338,9 +380,9 @@ const ComercialPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleOpenModal('leads')}
-            className="flex items-center justify-center rounded-md bg-accent-primary p-2 text-sm font-semibold text-text-on-accent shadow hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            disabled={isAllUnits}
-            title={isAllUnits ? 'Selecione uma unidade específica para adicionar oportunidades.' : 'Nova oportunidade'}
+            className="flex items-center justify-center rounded-md bg-accent-primary p-2 text-sm font-semibold text-text-on-accent shadow hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!canAddCard}
+            title={!canAddCard ? 'Aguardando carregamento da unidade ou selecione uma unidade específica.' : 'Nova oportunidade'}
           >
             <Icon name="Plus" className="h-4 w-4" />
           </button>
@@ -465,9 +507,9 @@ const ComercialPage: React.FC = () => {
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
           onSaved={loadData}
-          unidadeNome={selectedUnit.unit_name}
+          unidadeNome={profile?.role === 'super_admin' ? 'MB-Drome' : selectedUnit.unit_name}
           defaultStatus={modalStatus}
-          unitId={editingCard?.unit_id || selectedUnitId || (userUnits && userUnits.length > 0 ? userUnits[0].id : undefined)}
+          unitId={editingCard?.unit_id || effectiveUnitId || (userUnits && userUnits.length > 0 ? userUnits[0].id : undefined)}
           initialCard={editingCard}
           onCreate={handleCreateCard}
           onUpdate={handleUpdateCard}
