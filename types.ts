@@ -20,6 +20,10 @@ export interface Unit {
   id: string;
   unit_name: string;
   unit_code: string;
+  slug: string; // Slug único para subdomínio (kebab-case, ex: mb-joinville)
+  address?: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface UnitKey {
@@ -312,4 +316,25 @@ export interface AtendimentoSearchResult {
   DATA: string;
   SERVICO: string;
   ENDERECO: string;
+}
+
+// Data Drome - N8N Monitoring Types
+export interface N8NMonitoringLog {
+  id: number;
+  created_at: string;
+  unit: string | null;
+  status: string | null;
+  horario: string | null;
+  user: string | null;
+  atend_id: string | null;
+  action: string | null;
+  workflow: string | null;
+}
+
+export interface N8NErrorLog {
+  id: number;
+  created_at: string;
+  workflow: string | null;
+  url_workflow: string | null;
+  erro_message: string | null;
 }

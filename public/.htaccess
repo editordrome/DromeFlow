@@ -151,6 +151,10 @@
   RewriteEngine On
   RewriteBase /
   
+  # Redirecionar HTTP para HTTPS (descomente se não usar Always Use HTTPS no Cloudflare)
+  # RewriteCond %{HTTPS} !=on
+  # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  
   # Se o arquivo ou diretório existe, servir diretamente
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d

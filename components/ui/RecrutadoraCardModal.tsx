@@ -531,6 +531,12 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                 <Icon name="building" className="w-3.5 h-3.5" />
                 <span>{unidade}</span>
               </div>
+              {isEditing && initialCard && (
+                <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                  <Icon name="hash" className="w-3.5 h-3.5" />
+                  <span>ID: {initialCard.id}</span>
+                </div>
+              )}
               {/* Input color oculto */}
               <input
                 ref={colorInputRef}

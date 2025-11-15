@@ -8,6 +8,7 @@ import type { RecrutadoraCard, RecrutadoraColumn } from '../../types';
 import RecrutadoraCardModal from '../ui/RecrutadoraCardModal';
 import { Icon } from '../ui/Icon';
 import { startOfTodayISO, startOfWeekISO, startOfMonthISO } from '../../services/utils/dates';
+import { supabase } from '../../services/supabaseClient';
 
 const RecrutadoraPage: React.FC = () => {
   const { profile, userUnits } = useAuth();
@@ -26,6 +27,10 @@ const RecrutadoraPage: React.FC = () => {
   // Busca (nome ou whatsapp)
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  // URL da recrutadora para copiar
+  const [recrutadoraUrl, setRecrutadoraUrl] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm.trim().toLowerCase()), 350);
     return () => clearTimeout(t);
@@ -69,6 +74,21 @@ const RecrutadoraPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
+        // Buscar URL da recrutadora do unit_keys (apenas para unidade única, não ALL)
+        if ((selectedUnit as any).id !== 'ALL') {
+          const { data: unitKeyData } = await supabase
+            .from('unit_keys')
+            .select('recrutadora')
+            .eq('unit_id', selectedUnit.id)
+            .eq('is_active', true)
+            .limit(1)
+            .single();
+          
+          setRecrutadoraUrl(unitKeyData?.recrutadora || null);
+        } else {
+          setRecrutadoraUrl(null);
+        }
+
         // Colunas são globais; cards variam por unidade
         const cols = await fetchColumns(selectedUnit.id as any);
         setColumns(cols);
@@ -272,6 +292,22 @@ const RecrutadoraPage: React.FC = () => {
     }
   };
 
+  const handleCopyUrl = async () => {
+    if (!recrutadoraUrl) {
+      setError('URL da recrutadora não encontrada');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(recrutadoraUrl);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 1000);
+    } catch (err) {
+      console.error('Erro ao copiar URL:', err);
+      setError('Falha ao copiar URL');
+    }
+  };
+
   if (!selectedUnit) {
     return (
       <div className="p-6 bg-bg-secondary rounded-lg shadow-md h-full flex items-center justify-center">
@@ -298,7 +334,26 @@ const RecrutadoraPage: React.FC = () => {
     <div className="flex flex-col h-full space-y-6">
       {/* Cabeçalho Principal */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-shrink-0">
-        <h1 className="text-2xl font-bold text-text-primary">Recrutadora</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-text-primary">Recrutadora</h1>
+          {recrutadoraUrl && !isAllUnits && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={handleCopyUrl}
+                className="flex items-center justify-center w-8 h-8 text-text-secondary hover:text-text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-accent-primary rounded"
+                title="Copiar URL da recrutadora"
+              >
+                <Icon name={copySuccess ? 'check' : 'copy'} className={`w-5 h-5 ${copySuccess ? 'text-blue-600' : ''}`} />
+              </button>
+              {copySuccess && (
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 bg-blue-900 text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-50">
+                  URL copiada!
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <label htmlFor="recrutadora-search" className="sr-only">Buscar cards</label>
