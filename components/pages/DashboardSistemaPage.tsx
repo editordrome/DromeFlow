@@ -10,7 +10,6 @@ import {
   fetchLatestErrorsByWorkflow,
   fetchActions
 } from '../../services/integration/dataDrome.service';
-import StorageManagementPage from './StorageManagementPage';
 import type { N8NMonitoringLog, N8NErrorLog } from '../../types';
 
 type TabType = 'n8n' | 'metrics' | 'dados';
@@ -930,17 +929,23 @@ const DashboardSistemaPage: React.FC = () => {
                   • Logs de auditoria
                 </p>
               </div>
-            </div>
-          )}
+          </div>
+        )}
 
-          {/* Tab: Dados */}
-          {activeTab === 'dados' && (
-            <StorageManagementPage />
-          )}
-        </>
-      )}
-    </div>
-  );
-};
-
-export default DashboardSistemaPage;
+        {/* Tab: Dados - REMOVIDO (Cloudflare integração removida) */}
+        {activeTab === 'dados' && (
+          <div className="bg-bg-secondary rounded-lg border border-border-secondary p-8 text-center">
+            <Icon name="Database" className="w-16 h-16 mx-auto mb-4 text-text-tertiary" />
+            <h3 className="text-lg font-semibold text-text-primary mb-2">
+              Aba de Dados Removida
+            </h3>
+            <p className="text-text-secondary">
+              A integração com Cloudflare R2/D1 foi removida do sistema.
+            </p>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+);
+};export default DashboardSistemaPage;

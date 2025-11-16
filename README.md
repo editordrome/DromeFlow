@@ -4,7 +4,16 @@
 
 ## DromeFlow
 
-Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend e Tailwind para estilização. Inclui:
+Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend (PostgreSQL + Realtime + Auth) e Tailwind para estilização. Inclui:
+
+**Stack Tecnológica:**
+- **Frontend**: React 18 + TypeScript + Vite
+- **Backend**: Supabase (PostgreSQL, Realtime, Row Level Security)
+- **UI/UX**: Tailwind CSS + Lucide Icons
+- **Gestão de Estado**: React Context API
+- **Deploy**: Hostinger + Cloudflare (CDN/DNS apenas)
+
+**Nota**: Sistema 100% Supabase - toda persistência de dados, storage e autenticação ocorrem no Supabase. Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).
 
 ## Configuração por Unidade (Keys)
 
@@ -279,14 +288,23 @@ Troubleshooting
 ---
 ## 2. Configuração de Ambiente
 
-Crie `.env.local` na raiz:
+Crie `.env.local` na raiz com as seguintes variáveis:
 
-```
+```bash
+# DromeFlow - Projeto Principal (Supabase)
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON
+
+# Data Drome - Projeto N8N (Monitoramento e Logs - Opcional)
+VITE_DATA_DROME_URL=https://SEU-PROJETO-DATALOGS.supabase.co
+VITE_DATA_DROME_ANON_KEY=SUA_CHAVE_SERVICE_ROLE
 ```
 
-O cliente é inicializado em `services/supabaseClient.ts` usando `import.meta.env`.
+**Observações:**
+- O cliente Supabase principal é inicializado em `services/supabaseClient.ts` usando `import.meta.env.VITE_SUPABASE_*`
+- O projeto Data Drome é opcional e usado apenas para logs de monitoramento N8N
+- **Cloudflare removido**: Anteriormente o projeto usava Cloudflare R2/D1 para storage. Essa integração foi completamente removida. Cloudflare agora é usado apenas como CDN/DNS/Proxy.
+- Todas as credenciais Cloudflare (R2/D1) foram removidas do `.env.local` e do banco de dados
 
 ---
 ## 3. Instalação e Execução
@@ -306,6 +324,8 @@ npm run preview
 ---
 ## 4. Arquitetura (Resumo)
 
+### 4.1 Visão Geral
+
 | Camada | Arquivo(s) | Função |
 |--------|------------|--------|
 | Entrada | `index.html` / `index.tsx` | Montagem raiz Vite/React |
@@ -314,6 +334,59 @@ npm run preview
 | UI Layout | `components/layout/Sidebar.tsx`, `ContentArea.tsx` | Navegação e slot principal |
 | Páginas | `components/pages/*.tsx` | Telas funcionais (Dashboard, Dados, Gestão, etc.) |
 | Tipos | `types.ts` | Contratos TypeScript |
+
+### 4.2 Estrutura de Serviços (Segmentada)
+
+A camada de serviços está organizada por domínio de negócio:
+
+```
+services/
+├── supabaseClient.ts          # Cliente Supabase único
+├── auth/                       # Autenticação e usuários
+│   └── users.service.ts
+├── units/                      # Gestão de unidades
+│   ├── units.service.ts
+│   ├── unitKeys.service.ts
+│   ├── unitModules.service.ts
+│   └── unitKeysAdmin.service.ts
+├── modules/                    # Módulos dinâmicos
+│   └── modules.service.ts
+├── analytics/                  # Métricas e análises
+│   ├── dashboard.service.ts
+│   ├── clients.service.ts
+│   ├── storage.service.ts      # Apenas Supabase (Cloudflare removido)
+│   ├── serviceAnalysis.service.ts
+│   ├── repasse.service.ts
+│   └── prestadoras.service.ts
+├── data/                       # Dados de atendimentos
+│   ├── dataTable.service.ts
+│   └── agendamentos.service.ts
+├── ingestion/                  # Upload e processamento
+│   └── upload.service.ts
+├── profissionais/
+│   └── profissionais.service.ts
+├── recrutadora/
+│   └── recrutadora.service.ts
+├── comercial/
+│   └── comercial.service.ts
+├── posVendas/
+│   ├── posVendas.service.ts
+│   └── diagnostics.service.ts
+├── access/                     # Credenciais de integração
+│   └── accessCredentials.service.ts
+├── content/                    # Conteúdo de webhooks
+│   └── content.service.ts
+├── integration/                # Integrações externas
+│   └── dataDrome.service.ts    # N8N logs (opcional)
+└── utils/                      # Utilitários
+    └── dates.ts
+```
+
+**Observações:**
+- Todos os serviços consomem `supabaseClient` diretamente
+- Lógica de negócio centralizada nos serviços (não nos componentes)
+- Barrel `services/index.ts` será removido na Fase 6 (limpeza)
+- **Storage removido**: Cloudflare R2/D1 completamente removido, apenas Supabase
 
 Notas:
 - O `ContentArea` só injeta HTML quando a origem começa com `internal://` (segurança de conteúdo).
@@ -1018,7 +1091,50 @@ Resultados:
 - Maior previsibilidade e performance ao limitar as consultas aos meses relevantes.
 
 ---
-## 21. Recrutadora – Métricas Rápidas e Ingestão CSV
+## 21. Histórico de Mudanças Arquiteturais
+
+### 21.1 Remoção do Cloudflare R2/D1 (2025-11-16)
+
+**Contexto**: O projeto anteriormente implementava integração com Cloudflare para storage de arquivos (R2) e metadados (D1 SQLite serverless).
+
+**Ações Executadas**:
+
+1. **Banco de Dados**:
+   - Deletadas 6 credenciais Cloudflare da tabela `access_credentials`
+   - Tabela `file_metadata` removida (CASCADE)
+
+2. **Código-fonte** (24 arquivos removidos):
+   - `services/storage/r2.service.ts`
+   - `services/storage/d1Images.service.ts`
+   - `services/storage/edgeImageUpload.service.ts`
+   - `services/storage/simpleImageUpload.service.ts`
+   - `components/pages/StorageManagementPage.tsx`
+   - `components/pages/SimpleImageUploadTest.tsx`
+   - `supabase/functions/upload-image-r2/`
+   - Scripts de setup e deploy
+   - Documentação específica (7 arquivos .md)
+   - Scripts SQL de credenciais
+
+3. **Arquivos Editados**:
+   - `.env.local` - Removidas variáveis `VITE_CLOUDFLARE_*`
+   - `DashboardSistemaPage.tsx` - Aba "Dados" substituída por placeholder
+   - `services/analytics/storage.service.ts` - Simplificado (apenas Supabase)
+
+**Resultado**:
+- ✅ Sistema 100% Supabase
+- ✅ Cloudflare usado apenas como CDN/DNS/Proxy
+- ✅ Sem dependências de storage externo
+- ✅ Métricas simplificadas
+
+### 21.2 Implementação de Realtime (2025-11)
+
+Módulos com sincronização automática via Supabase Realtime:
+- Pós-Vendas (completo)
+- Agendamentos (completo)
+- Dashboard/Métricas (completo)
+
+---
+## 22. Recrutadora – Métricas Rápidas e Ingestão CSV
 ---
 ## 22. Subdomínios e URLs de Módulo
 
