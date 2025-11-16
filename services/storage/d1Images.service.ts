@@ -64,12 +64,28 @@ interface D1Credentials {
 let d1Credentials: D1Credentials | null = null;
 
 /**
- * Carrega credenciais do D1 do Supabase
+ * Carrega credenciais do D1 das variáveis de ambiente ou Supabase
  */
 async function loadD1Credentials(): Promise<D1Credentials> {
   if (d1Credentials) return d1Credentials;
 
   try {
+    // Tentar carregar das variáveis de ambiente primeiro
+    const envAccountId = import.meta.env.VITE_CLOUDFLARE_ACCOUNT_ID;
+    const envApiToken = import.meta.env.VITE_CLOUDFLARE_API_TOKEN;
+    const envDatabaseId = import.meta.env.VITE_CLOUDFLARE_D1_DATABASE_ID;
+
+    if (envAccountId && envApiToken && envDatabaseId) {
+      d1Credentials = {
+        accountId: envAccountId,
+        apiToken: envApiToken,
+        databaseId: envDatabaseId,
+      };
+      console.log('[D1 Images] Credenciais carregadas das variáveis de ambiente');
+      return d1Credentials;
+    }
+
+    // Fallback: Buscar do banco
     const { data: credentials, error } = await supabase
       .from('access_credentials')
       .select('name, value')
@@ -89,6 +105,7 @@ async function loadD1Credentials(): Promise<D1Credentials> {
     }
 
     d1Credentials = { accountId, apiToken, databaseId };
+    console.log('[D1 Images] Credenciais carregadas do banco');
     return d1Credentials;
   } catch (error) {
     console.error('[D1 Images] Erro ao carregar credenciais:', error);

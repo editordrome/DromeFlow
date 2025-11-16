@@ -87,25 +87,55 @@ let r2Client: S3Client | null = null;
 let r2Config: R2Config | null = null;
 
 /**
- * Inicializa o cliente R2 com credenciais do banco
+ * Inicializa o cliente R2 com credenciais das variáveis de ambiente ou banco
  */
 async function initR2Client(): Promise<void> {
   if (r2Client) return;
 
   try {
-    // Buscar credenciais do access_credentials
+    // Tentar carregar das variáveis de ambiente primeiro
+    const envAccountId = import.meta.env.VITE_CLOUDFLARE_ACCOUNT_ID;
+    const envAccessKey = import.meta.env.VITE_CLOUDFLARE_R2_ACCESS_KEY_ID;
+    const envSecretKey = import.meta.env.VITE_CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+    const envEndpoint = import.meta.env.VITE_CLOUDFLARE_R2_ENDPOINT;
+    const envBucketName = import.meta.env.VITE_CLOUDFLARE_R2_BUCKET_NAME;
+
+    if (envAccountId && envAccessKey && envSecretKey && envEndpoint && envBucketName) {
+      // Usar variáveis de ambiente
+      r2Config = {
+        accountId: envAccountId,
+        apiToken: envAccessKey, // Nota: usando access key como apiToken para compatibilidade
+        bucketName: envBucketName,
+        endpoint: envEndpoint,
+      };
+
+      // Criar cliente S3 com credenciais S3
+      r2Client = new S3Client({
+        region: 'auto',
+        endpoint: r2Config.endpoint,
+        credentials: {
+          accessKeyId: envAccessKey,
+          secretAccessKey: envSecretKey,
+        },
+      });
+
+      console.log('[R2] Cliente inicializado com variáveis de ambiente');
+      return;
+    }
+
+    // Fallback: Buscar credenciais do access_credentials
     const { data: credentials, error } = await supabase
       .from('access_credentials')
       .select('name, value')
       .in('name', [
-        'Cloudflare R2 - Account ID',
-        'Cloudflare R2 - API Token',
-        'Cloudflare R2 - Bucket Name',
-        'Cloudflare R2 - Endpoint',
+        'cloudflare_account_id',
+        'cloudflare_r2_access_key_id',
+        'cloudflare_r2_secret_access_key',
+        'cloudflare_r2_endpoint',
       ]);
 
     if (error) throw error;
-    if (!credentials || credentials.length !== 4) {
+    if (!credentials || credentials.length < 4) {
       throw new Error('Credenciais R2 incompletas no banco');
     }
 
@@ -115,11 +145,19 @@ async function initR2Client(): Promise<void> {
       return acc;
     }, {} as Record<string, string>);
 
+    const accessKeyId = credMap['cloudflare_r2_access_key_id'];
+    const secretAccessKey = credMap['cloudflare_r2_secret_access_key'];
+    const endpoint = credMap['cloudflare_r2_endpoint'];
+
+    if (!accessKeyId || !secretAccessKey || !endpoint) {
+      throw new Error('Credenciais R2 incompletas');
+    }
+
     r2Config = {
-      accountId: credMap['Cloudflare R2 - Account ID'],
-      apiToken: credMap['Cloudflare R2 - API Token'],
-      bucketName: credMap['Cloudflare R2 - Bucket Name'],
-      endpoint: credMap['Cloudflare R2 - Endpoint'],
+      accountId: credMap['cloudflare_account_id'] || '',
+      apiToken: accessKeyId,
+      bucketName: 'dromeflow-files', // Nome fixo do bucket
+      endpoint: endpoint,
     };
 
     // Criar cliente S3
@@ -127,12 +165,12 @@ async function initR2Client(): Promise<void> {
       region: 'auto',
       endpoint: r2Config.endpoint,
       credentials: {
-        accessKeyId: r2Config.accountId,
-        secretAccessKey: r2Config.apiToken,
+        accessKeyId: accessKeyId,
+        secretAccessKey: secretAccessKey,
       },
     });
 
-    console.log('[R2] Cliente inicializado com sucesso');
+    console.log('[R2] Cliente inicializado com credenciais do banco');
   } catch (error) {
     console.error('[R2] Erro ao inicializar cliente:', error);
     throw new Error('Falha ao conectar com Cloudflare R2');
@@ -161,15 +199,15 @@ export async function uploadFileToR2(options: UploadFileOptions): Promise<FileMe
   const { file, key, unitId, fileType, metadata = {}, isPublic = false, expiresInDays } = options;
 
   try {
-    // Converter File/Blob para Buffer
+    // Converter File/Blob para Uint8Array (compatível com browser)
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const uint8Array = new Uint8Array(arrayBuffer);
 
     // Upload para R2
     const uploadCommand = new PutObjectCommand({
       Bucket: config.bucketName,
       Key: key,
-      Body: buffer,
+      Body: uint8Array,
       ContentType: file.type || 'application/octet-stream',
       Metadata: {
         unit_id: unitId,
