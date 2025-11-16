@@ -10,9 +10,10 @@ import {
   fetchLatestErrorsByWorkflow,
   fetchActions
 } from '../../services/integration/dataDrome.service';
+import StorageManagementPage from './StorageManagementPage';
 import type { N8NMonitoringLog, N8NErrorLog } from '../../types';
 
-type TabType = 'n8n' | 'metrics';
+type TabType = 'n8n' | 'metrics' | 'dados';
 type PeriodFilter = 'today' | 'yesterday' | 'last7days' | 'lastWeek' | 'lastMonth' | 'last30days';
 
 const DashboardSistemaPage: React.FC = () => {
@@ -296,6 +297,20 @@ const DashboardSistemaPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Icon name="bar-chart-3" className="w-4 h-4" />
               Métricas Sistema
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('dados')}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+              activeTab === 'dados'
+                ? 'border-accent-primary text-accent-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Icon name="database" className="w-4 h-4" />
+              Dados
             </div>
           </button>
         </nav>
@@ -916,6 +931,11 @@ const DashboardSistemaPage: React.FC = () => {
                 </p>
               </div>
             </div>
+          )}
+
+          {/* Tab: Dados */}
+          {activeTab === 'dados' && (
+            <StorageManagementPage />
           )}
         </>
       )}
