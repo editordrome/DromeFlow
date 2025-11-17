@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import type { ComercialCard } from '../../types';
+import { activityLogger } from '../../services/utils/activityLogger.service';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from './Icon';
 
 interface Props {
@@ -34,6 +37,8 @@ const ComercialCardModal: React.FC<Props> = ({
   onCreate,
   onUpdate,
 }) => {
+  const { profile } = useAuth();
+  const { selectedUnit } = useAppContext();
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState('');
   const [endereco, setEndereco] = useState('');
@@ -155,6 +160,17 @@ const ComercialCardModal: React.FC<Props> = ({
         }
         payload.unit_id = unitId;
         await onCreate(payload);
+      }
+      
+      // Registrar atividade comercial
+      if (profile && selectedUnit) {
+        const actionCode = initialCard ? 'update_comercial' : 'create_comercial';
+        const logMethod = initialCard ? activityLogger.logComercialUpdate : activityLogger.logComercialCreate;
+        logMethod(
+          profile.email || profile.name,
+          selectedUnit,
+          'success'
+        );
       }
 
       onSaved();

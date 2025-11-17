@@ -3,6 +3,8 @@ import * as XLSX from 'xlsx';
 import { Unit, UploadMetrics } from '../../types';
 import { Icon } from './Icon';
 import { uploadXlsxData } from '../../services/ingestion/upload.service';
+import { activityLogger } from '../../services/utils/activityLogger.service';
+import { useAuth } from '../../contexts/AuthContext';
 import type { RawDataRecordForUpload } from '../../services/ingestion/upload.service';
 
 interface UploadModalProps {
@@ -15,6 +17,7 @@ interface UploadModalProps {
 type Status = 'idle' | 'processing' | 'success' | 'error';
 
 const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess, unit }) => {
+    const { profile } = useAuth();
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState<Status>('idle');
     const [message, setMessage] = useState('');
@@ -278,6 +281,17 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
 
                 setMessage(messageParts.join(' '));
                 setStatus('success');
+                
+                // Registrar upload bem-sucedido
+                if (profile) {
+                    activityLogger.logUpload(
+                        profile.email || profile.name,
+                        unit.unit_code,
+                        recordsToUpload.length,
+                        'success'
+                    );
+                }
+                
                 setTimeout(() => {
                     onUploadSuccess();
                     handleClose();
@@ -285,8 +299,20 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
 
             } catch (err: any) {
                 console.error("Erro no processamento:", err);
-                setMessage(err.message || 'Ocorreu um erro desconhecido.');
+                const errorMessage = err.message || 'Ocorreu um erro desconhecido.';
+                setMessage(errorMessage);
                 setStatus('error');
+                
+                // Registrar erro de upload
+                if (profile && unit) {
+                    activityLogger.logUpload(
+                        profile.email || profile.name,
+                        unit.unit_code,
+                        0,
+                        'error',
+                        errorMessage
+                    );
+                }
             }
         };
         reader.onerror = () => {

@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { activityLogger } from '../services/utils/activityLogger.service';
 import { User, Profile, Module, Unit } from '../types';
 import { fetchUnitModuleIds } from '../services/units/unitModules.service';
 
@@ -246,9 +247,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       fetchUserModules(data),
       fetchUnitsForUser(data)
     ]);
+    
+    // Registrar login no activity_logs
+    const unitCode = data.units?.[0]?.code || null;
+    activityLogger.logLogin(data.email || data.name, unitCode, data.role);
   };
 
   const logout = () => {
+    // Registrar logout antes de limpar o estado
+    if (profile) {
+      const unitCode = profile.units?.[0]?.code || null;
+      activityLogger.logLogout(profile.email || profile.name, unitCode);
+    }
+    
     setUser(null);
     setProfile(null);
     setUserModules([]);

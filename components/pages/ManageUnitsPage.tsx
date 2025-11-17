@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { fetchAllUnits, createUnit, updateUnit, deleteUnit } from '../../services/units/units.service';
 import { fetchUsersForUnit, updateUser, createUser } from '../../services/auth/users.service';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 import { Unit, UnitKey, Module } from '../../types';
 import { Icon } from '../ui/Icon';
 import { useAuth } from '../../contexts/AuthContext';
@@ -1056,11 +1057,30 @@ const ManageUnitsPage: React.FC = () => {
   const handleSaveUnit = async (data: UnitDataPayload) => {
     if (editingUnit) {
       await updateUnit(editingUnit.id, data);
+      
+      // Registrar atualização de unidade
+      if (profile) {
+        activityLogger.logUnitUpdate(
+          profile.email || profile.name,
+          editingUnit.unit_code,
+          'success'
+        );
+      }
+      
       handleCloseModal();
       await loadUnits();
       return;
     }
     await createUnit(data);
+    
+    // Registrar criação de unidade
+    if (profile && data.unit_code) {
+      activityLogger.logUnitCreate(
+        profile.email || profile.name,
+        'success'
+      );
+    }
+    
     handleCloseModal();
     await loadUnits();
   };

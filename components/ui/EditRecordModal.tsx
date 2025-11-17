@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { DataRecord } from '../../types';
+import { activityLogger } from '../../services/utils/activityLogger.service';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from './Icon';
 
 interface EditRecordModalProps {
@@ -15,6 +18,8 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
   record,
   onSave,
 }) => {
+  const { profile } = useAuth();
+  const { selectedUnit } = useAppContext();
   const [formData, setFormData] = useState<Partial<DataRecord>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -68,10 +73,24 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
       };
 
       await onSave(updatedRecord);
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
+    } catch (err) {
+      console.error('Erro ao salvar:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao salvar registro');
+      
+      // Registrar erro ao salvar
+      if (profile && selectedUnit && formData.ATENDIMENTO_ID) {
+        const actionCode = record ? 'update_atend' : 'create_atend';
+        activityLogger.logActivity({
+          unitCode: selectedUnit,
+          actionCode,
+          userIdentifier: profile.email || profile.name,
+          status: 'error',
+          atendId: formData.ATENDIMENTO_ID,
+          metadata: { error_message: err instanceof Error ? err.message : 'Erro desconhecido' }
+        });
+      }
     } finally {
-      setIsLoading(false);
+      setSaving(false);
     }
   };
 

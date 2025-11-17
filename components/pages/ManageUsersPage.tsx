@@ -10,6 +10,7 @@ import {
 } from '../../services/auth/users.service';
 import { fetchAllUnits } from '../../services/units/units.service';
 import { fetchAllModules } from '../../services/modules/modules.service';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { User, Profile, UserRole, Unit, Module } from '../../types';
@@ -167,6 +168,18 @@ const ManageUsersPage: React.FC = () => {
         }
       }
       
+      // Registrar atividade de gerenciamento de usuário
+      if (profile) {
+        const adminUnitCode = profile.units?.[0]?.code || 'system';
+        const actionCode = editingUser ? 'update_user' : 'create_user';
+        const logMethod = editingUser ? activityLogger.logUserUpdate : activityLogger.logUserCreate;
+        logMethod(
+          profile.email || profile.name,
+          adminUnitCode,
+          'success'
+        );
+      }
+      
       // Recarrega a lista de usuários ANTES de fechar o modal
       await loadUsers();
       
@@ -195,6 +208,17 @@ const ManageUsersPage: React.FC = () => {
         } else {
           throw new Error('Sem permissão para excluir.');
         }
+        
+        // Registrar exclusão de usuário
+        if (profile) {
+          const adminUnitCode = profile.units?.[0]?.code || 'system';
+          activityLogger.logUserDelete(
+            profile.email || profile.name,
+            adminUnitCode,
+            'success'
+          );
+        }
+        
         await loadUsers();
       } catch (err: any) {
         alert(`Erro: ${err.message}`);

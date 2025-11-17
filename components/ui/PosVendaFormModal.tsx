@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icon';
+import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 import type { PosVenda, PosVendaFormData, AtendimentoSearchResult } from '../../types';
 import {
   createPosVenda,
@@ -15,6 +17,7 @@ interface PosVendaFormModalProps {
 }
 
 const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }) => {
+  const { profile } = useAuth();
   const { selectedUnit } = useAppContext();
 
   const [formData, setFormData] = useState<PosVendaFormData>({
@@ -97,6 +100,18 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
       } else {
         await createPosVenda(formData);
       }
+      
+      // Registrar atividade de pós-vendas
+      if (profile && selectedUnit) {
+        const actionCode = record ? 'update_posvendas' : 'create_posvendas';
+        const logMethod = record ? activityLogger.logPosVendasUpdate : activityLogger.logPosVendasCreate;
+        logMethod(
+          profile.email || profile.name,
+          selectedUnit,
+          'success'
+        );
+      }
+      
       onClose();
     } catch (error) {
       console.error('Erro ao salvar:', error);

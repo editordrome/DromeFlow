@@ -12,8 +12,21 @@ import {
 } from '../../services/integration/dataDrome.service';
 import type { N8NMonitoringLog, N8NErrorLog } from '../../types';
 
-type TabType = 'n8n' | 'metrics' | 'dados';
+type TabType = 'n8n' | 'dados';
 type PeriodFilter = 'today' | 'yesterday' | 'last7days' | 'lastWeek' | 'lastMonth' | 'last30days';
+
+interface ActivityLog {
+  id: number;
+  created_at: string;
+  unit_code: string | null;
+  workflow: string | null;
+  action_code: string | null;
+  atend_id: string | null;
+  user_identifier: string | null;
+  status: string | null;
+  horario: string | null;
+  metadata: any;
+}
 
 const DashboardSistemaPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
@@ -49,9 +62,95 @@ const DashboardSistemaPage: React.FC = () => {
   
   // Estado para mostrar logs de erro
   const [showErrorLogs, setShowErrorLogs] = useState(false);
+  
+  // Estado para controlar qual card está ativo (apenas um por vez)
+  const [activeCard, setActiveCard] = useState<'atividades' | 'indexScans' | 'operacoes' | null>('atividades');
+  
+  // Estado para activity logs em tempo real
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [activeConnections, setActiveConnections] = useState(0);
 
   // Verifica se é super_admin
   const isSuperAdmin = profile?.role === 'super_admin';
+
+  // Busca activity logs recentes
+  const loadActivityLogs = useCallback(async () => {
+    try {
+      // Busca últimas 20 atividades da última hora
+      const oneHourAgo = new Date();
+      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .gte('created_at', oneHourAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      setActivityLogs(data || []);
+
+      // Conta conexões únicas ativas (últimos 5 minutos)
+      const fiveMinAgo = new Date();
+      fiveMinAgo.setMinutes(fiveMinAgo.getMinutes() - 5);
+      
+      const uniqueUsers = new Set(
+        (data || [])
+          .filter(log => new Date(log.created_at) >= fiveMinAgo)
+          .map(log => log.user_identifier)
+          .filter(Boolean)
+      );
+      setActiveConnections(uniqueUsers.size);
+    } catch (err) {
+      console.error('[Dashboard Sistema] Erro ao carregar activity logs:', err);
+    }
+  }, []);
+
+  // Realtime subscription para activity logs (sempre ativo para super_admin)
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+
+    loadActivityLogs();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('activity_logs_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs'
+        },
+        (payload) => {
+          console.log('[Realtime] Nova atividade:', payload.new);
+          
+          // Garantir que o payload tenha um ID antes de adicionar
+          const newLog = payload.new as ActivityLog;
+          if (newLog && newLog.id) {
+            setActivityLogs(prev => {
+              // Evitar duplicatas
+              if (prev.some(log => log.id === newLog.id)) {
+                return prev;
+              }
+              return [newLog, ...prev.slice(0, 19)];
+            });
+          }
+          
+          // Atualiza contagem de conexões ativas
+          loadActivityLogs();
+        }
+      )
+      .subscribe();
+
+    // Refresh a cada 30 segundos para atualizar contadores
+    const interval = setInterval(loadActivityLogs, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [isSuperAdmin, loadActivityLogs]);
 
   // Busca unidades do banco dromeflow para mapeamento
   useEffect(() => {
@@ -214,6 +313,21 @@ const DashboardSistemaPage: React.FC = () => {
     });
   };
 
+  // Formata tempo relativo (ex: "há 2 min")
+  const formatTimeAgo = (isoString: string) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+
+    if (diffSecs < 10) return 'agora';
+    if (diffSecs < 60) return `há ${diffSecs}s`;
+    if (diffMins < 60) return `há ${diffMins} min`;
+    return `há ${diffHours}h`;
+  };
+
   // Renderiza badge de status
   const StatusBadge: React.FC<{ status: string | null }> = ({ status }) => {
     const statusLower = status?.toLowerCase();
@@ -279,24 +393,7 @@ const DashboardSistemaPage: React.FC = () => {
                 : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <Icon name="workflow" className="w-4 h-4" />
-              N8N Workflows
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('metrics')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-              activeTab === 'metrics'
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Icon name="bar-chart-3" className="w-4 h-4" />
-              Métricas Sistema
-            </div>
+            N8N
           </button>
 
           <button
@@ -307,10 +404,7 @@ const DashboardSistemaPage: React.FC = () => {
                 : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <Icon name="database" className="w-4 h-4" />
-              Dados
-            </div>
+            Dados
           </button>
         </nav>
       </div>
@@ -912,40 +1006,582 @@ const DashboardSistemaPage: React.FC = () => {
             </div>
           )}
 
-          {/* Tab: Métricas Sistema */}
-          {activeTab === 'metrics' && (
+          {/* Tab: Dados do Sistema */}
+          {activeTab === 'dados' && (
             <div className="space-y-6">
-              <div className="bg-bg-secondary rounded-lg border border-border-primary p-8 text-center">
-                <Icon name="chart-bar" className="w-12 h-12 mx-auto mb-4 text-text-secondary" />
-                <h3 className="text-lg font-semibold text-text-primary mb-2">
-                  Métricas em Desenvolvimento
-                </h3>
-                <p className="text-text-secondary">
-                  Esta seção será populada com métricas de sistema como:<br />
-                  • Usuários ativos<br />
-                  • Performance de queries<br />
-                  • Uploads recentes<br />
-                  • Uso de storage<br />
-                  • Logs de auditoria
-                </p>
+              {/* Card Armazenamento - Mesma altura dos cards N8N com barra de progresso */}
+              <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    <Icon name="HardDrive" className="w-5 h-5 text-blue-600" />
+                    <span className="text-sm font-medium text-text-secondary">Armazenamento</span>
+                  </div>
+                  <div className="flex-1 flex items-center gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-blue-600">1.6%</span>
+                      </div>
+                      <div className="w-full bg-border-secondary rounded-full h-2">
+                        <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: '1.6%' }}></div>
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-bold text-text-primary">83 MB</span>
+                      <span className="text-xs text-text-secondary">/ 5 GB</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-          </div>
-        )}
 
-        {/* Tab: Dados - REMOVIDO (Cloudflare integração removida) */}
-        {activeTab === 'dados' && (
-          <div className="bg-bg-secondary rounded-lg border border-border-secondary p-8 text-center">
-            <Icon name="Database" className="w-16 h-16 mx-auto mb-4 text-text-tertiary" />
-            <h3 className="text-lg font-semibold text-text-primary mb-2">
-              Aba de Dados Removida
-            </h3>
-            <p className="text-text-secondary">
-              A integração com Cloudflare R2/D1 foi removida do sistema.
-            </p>
-          </div>
-        )}
-      </>
-    )}
-  </div>
-);
-};export default DashboardSistemaPage;
+              {/* Filtros de Cards - Estilo igual aos filtros de período N8N */}
+              <div className="flex w-full gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveCard(activeCard === 'atividades' ? null : 'atividades')}
+                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
+                    activeCard === 'atividades'
+                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Icon name="Activity" className="w-4 h-4" />
+                    Atividades
+                  </div>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setActiveCard(activeCard === 'indexScans' ? null : 'indexScans')}
+                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
+                    activeCard === 'indexScans'
+                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Icon name="Zap" className="w-4 h-4" />
+                    Index Scans
+                  </div>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setActiveCard(activeCard === 'operacoes' ? null : 'operacoes')}
+                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
+                    activeCard === 'operacoes'
+                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Icon name="Edit" className="w-4 h-4" />
+                    Operações
+                  </div>
+                </button>
+              </div>
+              
+              {/* Activity Logs - Aparecem quando card Atividades é clicado */}
+              {activeCard === 'atividades' && (
+                <div className="space-y-4 p-4 bg-bg-tertiary border border-border-secondary rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                        <Icon name="Activity" className="w-4 h-4 text-green-600" />
+                        Atividades em Tempo Real
+                        {activeConnections > 0 && (
+                          <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full flex items-center gap-1">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            {activeConnections} {activeConnections === 1 ? 'usuário ativo' : 'usuários ativos'}
+                          </span>
+                        )}
+                      </h3>
+                      {/* Estatísticas no header */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary">Total:</span>
+                          <span className="text-sm font-bold text-blue-600">{activityLogs.length}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary">Sucesso:</span>
+                          <span className="text-sm font-bold text-green-600">
+                            {activityLogs.filter(l => l.status?.toLowerCase() === 'success').length}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary">Erros:</span>
+                          <span className="text-sm font-bold text-red-600">
+                            {activityLogs.filter(l => l.status?.toLowerCase() === 'error').length}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={loadActivityLogs}
+                      className="p-1.5 hover:bg-bg-secondary rounded transition-colors"
+                      title="Atualizar"
+                    >
+                      <Icon name="RefreshCw" className="w-4 h-4 text-text-secondary" />
+                    </button>
+                  </div>
+                  
+                  <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
+                    {activityLogs.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <Icon name="Info" className="w-8 h-8 mx-auto mb-2 text-blue-500" />
+                        <p className="text-sm text-text-secondary mb-1">Nenhuma atividade registrada na última hora</p>
+                        <p className="text-xs text-text-tertiary">
+                          As ações dos usuários aparecerão aqui em tempo real quando workflows N8N executarem
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[400px] overflow-y-auto">
+                        <table className="w-full">
+                          <thead className="bg-bg-tertiary sticky top-0 border-b border-border-secondary">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Data</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Horário</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Usuário</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Ação</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Módulo</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Unidade</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border-secondary">
+                            {activityLogs.map((log) => {
+                              const logDate = new Date(log.created_at);
+                              const dateStr = logDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                              const timeStr = logDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                              const isRecent = new Date(log.created_at) > new Date(Date.now() - 60000); // Últimos 60s
+                              
+                              // Extrai módulo do metadata se existir
+                              const moduleName = log.metadata?.module_name || log.metadata?.module || '-';
+                              
+                              return (
+                                <tr 
+                                  key={log.id} 
+                                  className={`hover:bg-bg-tertiary transition-colors ${
+                                    isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
+                                  }`}
+                                >
+                                  <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                    {isRecent && (
+                                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                                    )}
+                                    {dateStr}
+                                  </td>
+                                  <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                    {timeStr}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm font-medium text-text-primary">
+                                    {log.user_identifier || 'N/A'}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-text-secondary">
+                                    {getActionName(log.action_code)}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-text-secondary">
+                                    {moduleName}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-text-secondary">
+                                    {getUnitName(log.unit_code)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                      log.status?.toLowerCase() === 'success' 
+                                        ? 'bg-green-100 text-green-800' 
+                                        : log.status?.toLowerCase() === 'error'
+                                        ? 'bg-red-100 text-red-800'
+                                        : 'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {log.status || 'N/A'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Index Scans - Aparecem quando card Index Scans é clicado */}
+              {activeCard === 'indexScans' && (
+                <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
+                  <div className="px-4 py-3 bg-bg-tertiary border-b border-border-secondary">
+                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <Icon name="BarChart3" className="w-4 h-4" />
+                      Tabelas por Tamanho e Performance
+                    </h3>
+                  </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-bg-primary border-b border-border-secondary">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Tabela</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Registros</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Tamanho Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Dados</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Índices</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">% do Banco</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-secondary">
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">processed_data</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">63,335</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">52 MB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">28 MB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">24 MB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-blue-500 h-2 rounded-full" style={{ width: '62.7%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">62.7%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">pos_vendas</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">43,749</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">12 MB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">6.5 MB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">6.3 MB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-green-500 h-2 rounded-full" style={{ width: '14.5%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">14.5%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">recrutadora</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">2,297</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">2 MB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">1.5 MB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">600 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-purple-500 h-2 rounded-full" style={{ width: '2.4%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">2.4%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">unit_clients</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">3,772</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">1.5 MB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">928 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">576 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-orange-500 h-2 rounded-full" style={{ width: '1.8%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">1.8%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">profissionais</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">502</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">432 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">104 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">328 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-cyan-500 h-2 rounded-full" style={{ width: '0.5%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">0.5%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">comercial</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">120</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~200 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~100 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~100 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-pink-500 h-2 rounded-full" style={{ width: '0.2%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">0.2%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">atend_status</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">510</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~150 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~80 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~70 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-indigo-500 h-2 rounded-full" style={{ width: '0.2%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">0.2%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">unit_modules</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">66</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~50 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-teal-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">user_modules</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">125</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~40 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-violet-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">user_units</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">45</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~30 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-fuchsia-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">profiles</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">23</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~12 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~13 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-rose-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">units</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">19</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-amber-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">modules</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">15</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~8 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~7 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-lime-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">actions</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">10</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">activity_logs</td>
+                        <td className="px-4 py-3 text-sm font-mono">
+                          <span className="text-green-600 font-semibold">{activityLogs.length}</span>
+                          <span className="text-text-secondary"> (tempo real)</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~2 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~3 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-sky-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-bg-tertiary transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-text-primary">error_logs</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">0</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~2 KB</td>
+                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~3 KB</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                              <div className="bg-red-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                            </div>
+                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              )}
+
+              {/* Operações - Aparecem quando card Operações é clicado */}
+              {activeCard === 'operacoes' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Index vs Sequential Scans */}
+                <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                  <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                    <Icon name="Search" className="w-4 h-4 text-blue-600" />
+                    Tipos de Busca
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary">Index Scans</span>
+                      <span className="text-sm font-bold text-green-600">1.4M</span>
+                    </div>
+                    <div className="w-full bg-border-secondary rounded-full h-2">
+                      <div className="bg-green-500 h-2 rounded-full" style={{ width: '96.5%' }}></div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary">Sequential Scans</span>
+                      <span className="text-sm font-bold text-orange-600">51.4K</span>
+                    </div>
+                    <div className="w-full bg-border-secondary rounded-full h-2">
+                      <div className="bg-orange-500 h-2 rounded-full" style={{ width: '3.5%' }}></div>
+                    </div>
+                    <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                      <Icon name="TrendingUp" className="w-3 h-3 inline mr-1 text-green-600" />
+                      96.5% das buscas usando índices (excelente!)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Operações de Escrita */}
+                <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                  <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                    <Icon name="Edit" className="w-4 h-4 text-purple-600" />
+                    Operações de Escrita
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span className="text-xs text-text-secondary">Inserts</span>
+                      </div>
+                      <span className="text-sm font-bold text-text-primary">306.6K</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-xs text-text-secondary">Updates</span>
+                      </div>
+                      <span className="text-sm font-bold text-text-primary">301.4K</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span className="text-xs text-text-secondary">Deletes</span>
+                      </div>
+                      <span className="text-sm font-bold text-text-primary">40.0K</span>
+                    </div>
+                    <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                      Total de 648K operações realizadas
+                    </p>
+                  </div>
+                </div>
+
+                {/* Top Índices Mais Usados */}
+                <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                  <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                    <Icon name="Zap" className="w-4 h-4 text-yellow-600" />
+                    Índices Mais Utilizados
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary truncate">processed_data_pkey</span>
+                      <span className="text-xs font-bold text-text-primary">935K</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary truncate">idx_unidade_code_data</span>
+                      <span className="text-xs font-bold text-text-primary">199K</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary truncate">units_pkey</span>
+                      <span className="text-xs font-bold text-text-primary">79K</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary truncate">unidade_atendimento</span>
+                      <span className="text-xs font-bold text-text-primary">69K</span>
+                    </div>
+                    <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                      <Icon name="Info" className="w-3 h-3 inline mr-1" />
+                      Performance otimizada com índices
+                    </p>
+                  </div>
+                </div>
+              </div>
+              )}
+
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default DashboardSistemaPage;
