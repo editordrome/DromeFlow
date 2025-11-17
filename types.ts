@@ -27,20 +27,24 @@ export interface Unit {
 }
 
 export interface UnitKey {
-  id: string;
+  id: string | number;
   created_at: string;
   updated_at?: string;
   unit_id: string;
-  // Campos de configuração por unidade (Option A)
-  umbler: string | null;
-  whats_profi: string | null;
-  whats_client: string | null;
-  botID: string | null;
-  organizationID: string | null;
-  trigger: string | null;
-  description: string | null;
-  conexao: string | null; // Campo de conexão da unidade
   is_active: boolean;
+  // Campos de configuração por unidade
+  codigo: string | null;
+  istancia: string | null;
+  recrutadora: string | null;
+  botID: string | null;
+  triggerName: string | null;
+  organizationID: string | null;
+  contato_profissionais: string | null;
+  umbler: string | null;
+  contato_atend: string | null;
+  pos_vendas: string | null;
+  conexao: string | null;
+  id_recruta: string | null;
 }
 
 export interface Module {

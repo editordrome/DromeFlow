@@ -11,6 +11,7 @@ import { User as UserType, Profile as ProfileType } from '../../types';
 import { UserFormModal } from '../ui/UserFormModal';
 import { fetchUnitModuleIds, assignModulesToUnit } from '../../services/units/unitModules.service';
 import { fetchAllModules } from '../../services/modules/modules.service';
+import { supabase } from '../../services/supabaseClient';
 
 type UnitDataPayload = Partial<Unit>;
 
@@ -196,24 +197,26 @@ const UnitFormModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onMouseDown={onClose}>
-      <div className="w-full max-w-3xl p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg" onMouseDown={(e)=>e.stopPropagation()}>
-        <div className="flex items-center justify-between pb-3 border-b border-border-primary">
-          <h2 className="text-xl font-bold text-text-primary">{unit ? (unit.unit_name || 'Editar Unidade') : 'Adicionar Nova Unidade'}</h2>
-          <button onClick={onClose} className="p-1 rounded-full text-text-secondary hover:bg-bg-tertiary">
-            <Icon name="close" />
-          </button>
-        </div>
-        {/* Abas (somente em edição e para super_admin exibe Keys) */}
-        {unit && (
-          <div className="mt-4 border-b border-border-secondary flex items-center justify-between">
-            <div className="flex gap-2">
-              <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='dados'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('dados')}>Dados</button>
-              <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='usuarios'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('usuarios')}>Usuários</button>
-              <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='modulos'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('modulos')}>Módulos</button>
-              {profile?.role === 'super_admin' && (
-                <button type="button" className={`px-3 py-2 text-sm rounded-t-md ${activeTab==='keys'?'bg-bg-tertiary text-text-primary':'text-text-secondary hover:text-text-primary'}`} onClick={()=>setActiveTab('keys')}>Keys</button>
-              )}
-            </div>
+      <div className="w-full max-w-3xl mx-4 bg-bg-secondary rounded-lg shadow-lg overflow-hidden" onMouseDown={(e)=>e.stopPropagation()}>
+        {/* Header com fundo cinza e abas na mesma linha */}
+        <div className="bg-bg-tertiary px-5 py-3.5 flex items-center justify-between border-b border-border-secondary">
+          <div className="flex items-center gap-6">
+            <h2 className="text-lg font-bold text-text-primary">{unit ? (unit.unit_name || 'Editar Unidade') : 'Adicionar Nova Unidade'}</h2>
+            
+            {/* Abas (somente em edição) */}
+            {unit && (
+              <div className="flex gap-2">
+                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab==='dados'?'bg-accent-primary text-white':'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={()=>setActiveTab('dados')}>Dados</button>
+                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab==='usuarios'?'bg-accent-primary text-white':'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={()=>setActiveTab('usuarios')}>Usuários</button>
+                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab==='modulos'?'bg-accent-primary text-white':'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={()=>setActiveTab('modulos')}>Módulos</button>
+                {profile?.role === 'super_admin' && (
+                  <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab==='keys'?'bg-accent-primary text-white':'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={()=>setActiveTab('keys')}>Keys</button>
+                )}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-3">
             {profile?.role === 'super_admin' && activeTab === 'keys' && (
               <button
                 type="button"
@@ -247,53 +250,66 @@ const UnitFormModal: React.FC<{
                   }
                 }}
               >
-                <Icon name="add" className="w-5 h-5 mr-1 inline" />
+                <Icon name="add" className="w-4 h-4 mr-1 inline" />
                 {isCreatingKey ? 'Criando…' : 'Adicionar Key'}
               </button>
             )}
+            <button onClick={onClose} className="p-1.5 rounded-md text-text-secondary hover:bg-bg-tertiary/50 mt-5">
+              <Icon name="close" className="w-5 h-5" />
+            </button>
           </div>
-        )}
+        </div>
 
+        {/* Conteúdo das abas */}
         {activeTab === 'dados' && (
-          <form onSubmit={handleSubmit} className="mt-4 space-y-6">
-            {error && <p className="text-sm text-center text-danger bg-danger/10 p-2 rounded-md">{error}</p>}
-            <div>
-              <label htmlFor="unit_name" className="block text-sm font-medium text-text-secondary">Nome da Unidade</label>
-              <input type="text" name="unit_name" id="unit_name" value={formData.unit_name} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
-            </div>
-            <div>
-              <label htmlFor="unit_code" className="block text-sm font-medium text-text-secondary">Código da Unidade</label>
-              <input type="text" name="unit_code" id="unit_code" value={formData.unit_code} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
-            </div>
-            <div className="flex items-center justify-between pt-4">
+          <>
+            <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+              {error && <p className="text-sm text-center text-danger bg-danger/10 p-2 rounded-md">{error}</p>}
+              <div>
+                <label htmlFor="unit_name" className="block text-xs font-medium text-text-secondary mb-1">Nome da Unidade</label>
+                <input type="text" name="unit_name" id="unit_name" value={formData.unit_name} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+              </div>
+              <div>
+                <label htmlFor="unit_code" className="block text-xs font-medium text-text-secondary mb-1">Código da Unidade</label>
+                <input type="text" name="unit_code" id="unit_code" value={formData.unit_code} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+              </div>
+            </form>
+            
+            {/* Footer da aba dados */}
+            <div className="px-5 py-3 bg-bg-tertiary border-t border-border-secondary flex items-center justify-between">
               <div>
                 {unit && (
                   <button
                     type="button"
                     onClick={() => onDelete(unit.id)}
-                    className="flex items-center px-4 py-2 text-sm font-medium text-white transition-colors bg-danger rounded-md hover:bg-red-700"
+                    className="p-2 rounded-md border border-danger/30 text-danger hover:bg-danger/10 transition-colors"
+                    title="Excluir unidade"
                   >
-                    <Icon name="delete" className="w-5 h-5 mr-2" />
-                    Excluir
+                    <Icon name="delete" className="w-4 h-4" />
                   </button>
                 )}
               </div>
-              <div className="flex space-x-3">
-                <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium border rounded-md text-text-secondary border-border-secondary hover:bg-bg-tertiary">Cancelar</button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md bg-accent-primary hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed">
-                  {isSubmitting ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="p-2 rounded-md text-white bg-accent-primary hover:bg-accent-secondary disabled:opacity-60 transition-colors"
+                title="Salvar"
+              >
+                {isSubmitting ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Icon name="check" className="w-4 h-4" />
+                )}
+              </button>
             </div>
-          </form>
+          </>
         )}
 
         {unit && activeTab === 'usuarios' && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-text-primary flex items-center">Usuários Vinculados</h3>
-              <button onClick={() => handleOpenUserModal()} className="flex items-center px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
-                <Icon name="add" className="w-5 h-5 mr-2" />
+          <div className="px-5 py-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <button onClick={() => handleOpenUserModal()} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-md bg-accent-primary hover:bg-accent-secondary">
+                <Icon name="add" className="w-4 h-4" />
                 Adicionar Usuário
               </button>
             </div>
@@ -321,11 +337,8 @@ const UnitFormModal: React.FC<{
         )}
 
         {unit && activeTab === 'modulos' && (
-          <div className="mt-4">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-text-primary mb-1">Módulos Disponíveis para esta Unidade</h3>
-              <p className="text-xs text-text-secondary">Selecione os módulos que os usuários desta unidade poderão acessar.</p>
-            </div>
+          <div className="px-5 py-4 space-y-4">
+            <p className="text-xs text-text-secondary">Selecione os módulos que os usuários desta unidade poderão acessar.</p>
             
             {modulesLoading && (
               <div className="flex items-center justify-center py-8 space-x-2 text-text-secondary text-sm">
@@ -454,7 +467,7 @@ const UnitFormModal: React.FC<{
         )}
 
         {unit && profile?.role === 'super_admin' && activeTab === 'keys' && (
-          <div className="mt-4 space-y-4">
+          <div className="px-5 py-4 space-y-4">
             {keysLoading ? (
               <div className="flex items-center justify-center py-8 space-x-2 text-text-secondary text-sm">
                 <span className="w-5 h-5 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" />
@@ -907,6 +920,180 @@ const KeyItemForm: React.FC<{
   );
 };
 
+// Modal para Edição de Keys (Dinâmico)
+const KeyFormModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: Partial<UnitKey>) => Promise<void>;
+  onDelete?: () => void;
+  keyData: UnitKey | null;
+}> = ({ isOpen, onClose, onSave, onDelete, keyData }) => {
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [columns, setColumns] = useState<Array<{ name: string; label: string; icon: string }>>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingColumns, setIsLoadingColumns] = useState(true);
+
+  // Buscar colunas da tabela ao abrir o modal
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const loadColumns = async () => {
+      setIsLoadingColumns(true);
+      try {
+        const { fetchUnitKeysColumns, getColumnLabel, getColumnIcon } = await import('../../services/units/unitKeysColumns.service');
+        
+        // Buscar colunas diretamente da tabela
+        const columnsData = await fetchUnitKeysColumns();
+        
+        const mappedCols = columnsData.map(col => ({
+          name: col.column_name,
+          label: getColumnLabel(col.column_name),
+          icon: getColumnIcon(col.column_name),
+        }));
+        
+        setColumns(mappedCols);
+        console.log('[KeyFormModal] Colunas carregadas dinamicamente:', mappedCols.map(c => c.name));
+      } catch (error) {
+        console.error('Erro ao carregar colunas:', error);
+      } finally {
+        setIsLoadingColumns(false);
+      }
+    };
+    
+    loadColumns();
+  }, [isOpen]);
+
+  // Preencher formData com base na keyData ou valores vazios
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const initialData: Record<string, any> = {};
+    columns.forEach(col => {
+      if (col.name === 'is_active') {
+        initialData[col.name] = keyData?.is_active ?? true;
+      } else {
+        initialData[col.name] = keyData?.[col.name as keyof UnitKey] || '';
+      }
+    });
+    
+    setFormData(initialData);
+  }, [keyData, columns, isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      // Remove campos vazios
+      const cleanData: any = {};
+      Object.entries(formData).forEach(([key, value]) => {
+        if (key === 'is_active') {
+          cleanData[key] = value;
+        } else if (value && String(value).trim() !== '') {
+          cleanData[key] = value;
+        }
+      });
+      await onSave(cleanData);
+      onClose();
+    } catch (err) {
+      console.error('Erro ao salvar:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-2xl mx-4 bg-bg-secondary rounded-lg shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-5 py-3.5 bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary flex items-center justify-between">
+          <h2 className="text-lg font-bold text-text-primary">
+            {keyData ? 'Editar Keys' : 'Adicionar Keys'}
+          </h2>
+          <button onClick={onClose} className="p-1 rounded hover:bg-bg-tertiary text-text-secondary">
+            <Icon name="X" className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        {isLoadingColumns ? (
+          <div className="flex items-center justify-center p-12">
+            <div className="w-8 h-8 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="grid grid-cols-2 gap-3">
+              {columns.filter(col => col.name !== 'is_active').map((col) => (
+                <div key={col.name}>
+                  <label className="text-xs font-medium text-text-secondary flex items-center gap-1 mb-1">
+                    <Icon name={col.icon as any} className="w-3 h-3" />
+                    {col.label}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData[col.name] || ''}
+                    onChange={(e) => setFormData({ ...formData, [col.name]: e.target.value })}
+                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20"
+                    placeholder={col.label}
+                  />
+                </div>
+              ))}
+
+            {/* Status */}
+            <div className="col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_active"
+                checked={formData.is_active ?? true}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                className="w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20"
+              />
+              <label htmlFor="is_active" className="text-sm font-medium text-text-primary cursor-pointer">
+                Configuração Ativa
+              </label>
+            </div>
+          </div>
+        </form>
+        )}
+
+        {/* Footer */}
+        <div className="px-5 py-3 bg-bg-tertiary border-t border-border-secondary flex items-center justify-between">
+          <div className="text-xs text-text-tertiary flex items-center gap-1">
+            <Icon name="Info" className="w-3 h-3" />
+            <span>Deixe vazio os campos não utilizados</span>
+          </div>
+          <div className="flex gap-2">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="p-2 rounded border border-danger/30 text-danger hover:bg-danger/10 transition-colors"
+                title="Excluir"
+              >
+                <Icon name="Trash2" className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="submit"
+              onClick={handleSubmit}
+              disabled={isSaving}
+              className="p-2 rounded bg-accent-primary text-white hover:bg-accent-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Salvar"
+            >
+              {isSaving ? (
+                <Icon name="Loader2" className="w-4 h-4 animate-spin" />
+              ) : (
+                <Icon name="Check" className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DeleteConfirmationModal: React.FC<{
   unit: Unit | null;
   onClose: () => void;
@@ -936,7 +1123,7 @@ const DeleteConfirmationModal: React.FC<{
 };
 
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 12;
 
 const ManageUnitsPage: React.FC = () => {
   const [units, setUnits] = useState<Unit[]>([]);
@@ -946,9 +1133,23 @@ const ManageUnitsPage: React.FC = () => {
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
   const [unitUserCounts, setUnitUserCounts] = useState<Record<string, number>>({});
+  const [unitModuleCounts, setUnitModuleCounts] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
+  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'keys' | 'modules' | 'actions'>('info');
+  const [unitKeys, setUnitKeys] = useState<UnitKey[]>([]);
+  const [unitUsers, setUnitUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([]);
+  const [userLoginStatus, setUserLoginStatus] = useState<Record<string, { isOnline: boolean; lastActivity: string | null }>>({});
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<(UserType & ProfileType) | null>(null);
+  const [allModules, setAllModules] = useState<Module[]>([]);
+  const [unitModuleIds, setUnitModuleIds] = useState<string[]>([]);
+  const [savingModules, setSavingModules] = useState(false);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
+  const [editingKey, setEditingKey] = useState<UnitKey | null>(null);
+  const [expandedKeyId, setExpandedKeyId] = useState<string | null>(null);
 
   const handleCopyToClipboard = async (value: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -961,12 +1162,202 @@ const ManageUnitsPage: React.FC = () => {
     }
   };
 
+  // Buscar status de login dos usuários (últimos 5 minutos = online)
+  const fetchUserLoginStatus = async (userIds: string[]) => {
+    if (userIds.length === 0) return;
+    try {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('user_identifier, horario')
+        .in('user_identifier', userIds)
+        .order('horario', { ascending: false });
+
+      if (error) throw error;
+
+      const statusMap: Record<string, { isOnline: boolean; lastActivity: string | null }> = {};
+      userIds.forEach(userId => {
+        const userActivities = data?.filter(log => log.user_identifier === userId) || [];
+        const lastActivity = userActivities[0]?.horario || null;
+        const isOnline = lastActivity ? lastActivity > fiveMinutesAgo : false;
+        statusMap[userId] = { isOnline, lastActivity };
+      });
+
+      setUserLoginStatus(statusMap);
+    } catch (err) {
+      console.error('Erro ao buscar status de login:', err);
+    }
+  };
+
+  // Carregar keys, usuários e módulos quando seleciona unidade
+  useEffect(() => {
+    const loadUnitData = async () => {
+      if (!selectedUnit) {
+        setUnitKeys([]);
+        setUnitUsers([]);
+        setUserLoginStatus({});
+        setUnitModuleIds([]);
+        return;
+      }
+      try {
+        const [keys, users, moduleIds] = await Promise.all([
+          fetchUnitKeys(selectedUnit.id),
+          fetchUsersForUnit(selectedUnit.id),
+          fetchUnitModuleIds(selectedUnit.id)
+        ]);
+        setUnitKeys(keys);
+        setUnitUsers(users);
+        setUnitModuleIds(moduleIds);
+        
+        // Buscar status de login dos usuários
+        if (users.length > 0) {
+          await fetchUserLoginStatus(users.map(u => u.id));
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dados da unidade:', err);
+        setUnitKeys([]);
+        setUnitUsers([]);
+        setUserLoginStatus({});
+        setUnitModuleIds([]);
+      }
+    };
+    loadUnitData();
+  }, [selectedUnit]);
+
+  const handleOpenUserModal = (user?: typeof unitUsers[0]) => {
+    setEditingUser((user as any) || null);
+    setIsUserModalOpen(true);
+  };
+
+  const handleCloseUserModal = () => {
+    setIsUserModalOpen(false);
+    setEditingUser(null);
+  };
+
+  const handleSaveUser = async (payload: Partial<UserType & ProfileType>) => {
+    try {
+      if (editingUser) {
+        await updateUser(editingUser.id, payload as any);
+      } else {
+        await createUser({ ...(payload as any), auto_unit_id: selectedUnit?.id });
+      }
+      
+      // Recarregar lista de usuários
+      if (selectedUnit) {
+        const users = await fetchUsersForUnit(selectedUnit.id);
+        setUnitUsers(users);
+        if (users.length > 0) {
+          await fetchUserLoginStatus(users.map(u => u.id));
+        }
+      }
+      
+      handleCloseUserModal();
+    } catch (e: any) {
+      alert(e?.message || 'Falha ao salvar usuário');
+      throw e;
+    }
+  };
+
+  const handleToggleModule = async (moduleId: string) => {
+    if (!selectedUnit) return;
+    
+    const newModuleIds = unitModuleIds.includes(moduleId)
+      ? unitModuleIds.filter(id => id !== moduleId)
+      : [...unitModuleIds, moduleId];
+    
+    setUnitModuleIds(newModuleIds);
+    
+    try {
+      setSavingModules(true);
+      await assignModulesToUnit(selectedUnit.id, newModuleIds);
+      
+      // Atualizar contagem de módulos
+      const moduleCounts = { ...unitModuleCounts };
+      moduleCounts[selectedUnit.id] = newModuleIds.length;
+      setUnitModuleCounts(moduleCounts);
+    } catch (err) {
+      console.error('Erro ao salvar módulos:', err);
+      // Reverter em caso de erro
+      setUnitModuleIds(unitModuleIds);
+      alert('Erro ao atualizar módulos');
+    } finally {
+      setSavingModules(false);
+    }
+  };
+
+  const handleOpenKeyModal = (key?: UnitKey | null) => {
+    // Se não foi passada uma key específica, pegar a primeira key da unidade
+    if (key === undefined && unitKeys.length > 0) {
+      setEditingKey(unitKeys[0]);
+    } else {
+      setEditingKey(key || null);
+    }
+    setIsKeyModalOpen(true);
+  };
+
+  const handleCloseKeyModal = () => {
+    setIsKeyModalOpen(false);
+    setEditingKey(null);
+  };
+
+  const handleSaveKey = async (keyData: Partial<UnitKey>) => {
+    if (!selectedUnit) return;
+
+    try {
+      if (editingKey) {
+        await updateUnitKey(editingKey.id, keyData);
+      } else {
+        await createUnitKey(selectedUnit.id, keyData);
+      }
+
+      // Recarregar keys
+      const keys = await fetchUnitKeys(selectedUnit.id);
+      setUnitKeys(keys);
+      handleCloseKeyModal();
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao salvar key');
+    }
+  };
+
+  const handleDeleteKey = async (keyId: string) => {
+    if (!confirm('Deseja realmente excluir esta key?')) return;
+
+    try {
+      await deleteUnitKey(keyId);
+      
+      // Recarregar keys
+      if (selectedUnit) {
+        const keys = await fetchUnitKeys(selectedUnit.id);
+        setUnitKeys(keys);
+      }
+      handleCloseKeyModal();
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao excluir key');
+    }
+  };
+
   const loadUnits = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const fetchedUnits = await fetchAllUnits();
       setUnits(fetchedUnits);
+      
+      // Carrega contagem de usuários e módulos para cada unidade
+      const userCounts: Record<string, number> = {};
+      const moduleCounts: Record<string, number> = {};
+      await Promise.all(
+        fetchedUnits.map(async (unit) => {
+          const [users, moduleIds] = await Promise.all([
+            fetchUsersForUnit(unit.id),
+            fetchUnitModuleIds(unit.id)
+          ]);
+          userCounts[unit.id] = users.length;
+          moduleCounts[unit.id] = moduleIds.length;
+        })
+      );
+      setUnitUserCounts(userCounts);
+      setUnitModuleCounts(moduleCounts);
     } catch (err: any) {
       setError('Falha ao carregar as unidades.');
     } finally {
@@ -976,6 +1367,12 @@ const ManageUnitsPage: React.FC = () => {
 
   useEffect(() => {
     loadUnits();
+    // Carregar lista de todos os módulos disponíveis
+    fetchAllModules().then(modules => {
+      setAllModules(modules.filter(m => m.is_active));
+    }).catch(err => {
+      console.error('Erro ao carregar módulos:', err);
+    });
   }, [loadUnits]);
 
   const filteredUnits = useMemo(() => {
@@ -1104,10 +1501,11 @@ const ManageUnitsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-6">
+    <div className="flex flex-col h-full space-y-6">
+      {/* Cabeçalho com Título e Ações */}
+      <div className="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary">Unidades</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative max-w-xs w-[260px]">
             <input
               type="text"
@@ -1136,111 +1534,568 @@ const ManageUnitsPage: React.FC = () => {
           </button>
         </div>
       </div>
-      
-      {isLoading ? (
-         <div className="flex items-center justify-center h-64">
-             <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
-         </div>
-      ) : error ? (
-        <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-border-primary">
-            <thead className="bg-bg-tertiary">
-              <tr>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome da Unidade</th>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Código</th>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Unit ID</th>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Usuários</th>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="bg-bg-secondary divide-y divide-border-primary">
-              {filteredUnits.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-6 text-center text-sm text-text-secondary">Nenhuma unidade encontrada.</td>
-                </tr>
-              )}
-              {paginatedUnits.map((unit) => (
-                <tr 
-                  key={unit.id}
-                  onDoubleClick={() => handleOpenModal(unit)}
-                  className="transition-colors cursor-pointer hover:bg-bg-tertiary"
-                >
-                  <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-text-primary">{unit.unit_name}</td>
-                  <td 
-                    className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary font-mono cursor-pointer hover:bg-accent-primary/10 transition-colors relative group"
-                    onClick={(e) => handleCopyToClipboard(unit.unit_code, e)}
-                    title="Clique para copiar"
+
+      {/* Cards de Métricas */}
+      <div className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary">
+          <div className="flex items-center gap-2">
+            <Icon name="Business" className="w-5 h-5 text-accent-primary" />
+            <span className="text-sm font-medium text-text-secondary">Total de Unidades</span>
+            <span className="ml-auto text-lg font-bold text-text-primary">{units.length}</span>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary">
+          <div className="flex items-center gap-2">
+            <Icon name="CheckCircle" className="w-5 h-5 text-brand-green" />
+            <span className="text-sm font-medium text-text-secondary">Unidades Ativas</span>
+            <span className="ml-auto text-lg font-bold text-text-primary">{filteredUnits.length}</span>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary">
+          <div className="flex items-center gap-2">
+            <Icon name="Users" className="w-5 h-5 text-brand-cyan" />
+            <span className="text-sm font-medium text-text-secondary">Total de Usuários</span>
+            <span className="ml-auto text-lg font-bold text-text-primary">
+              {Object.values(unitUserCounts).reduce((sum, count) => sum + count, 0)}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary">
+          <div className="flex items-center gap-2">
+            <Icon name="Layers" className="w-5 h-5 text-brand-purple" />
+            <span className="text-sm font-medium text-text-secondary">Total de Módulos</span>
+            <span className="ml-auto text-lg font-bold text-text-primary">
+              {Object.values(unitModuleCounts).reduce((sum, count) => sum + count, 0)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Área de Conteúdo - Layout Master-Detail */}
+      <div className="flex-1 flex gap-4 overflow-hidden">
+        {/* Coluna 1: Lista de Unidades */}
+        <div className="w-1/4 bg-bg-secondary rounded-lg shadow-md overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-border-secondary bg-accent-primary">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-white whitespace-nowrap">Unidades</h2>
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar..."
+                  className="w-full pl-9 pr-8 py-2 text-sm border rounded-md bg-white border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                />
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary">
+                  <Icon name="Search" className="w-4 h-4" />
+                </span>
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-bg-secondary text-text-secondary"
+                    aria-label="Limpar busca"
                   >
-                    {unit.unit_code}
-                    {copiedValue === unit.unit_code && (
-                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap">
-                        Copiado!
-                      </span>
-                    )}
-                  </td>
-                  <td 
-                    className="px-6 py-2 whitespace-nowrap text-xs text-text-tertiary font-mono cursor-pointer hover:bg-accent-primary/10 transition-colors relative group"
-                    onClick={(e) => handleCopyToClipboard(unit.id, e)}
-                    title="Clique para copiar"
-                  >
-                    {unit.id}
-                    {copiedValue === unit.id && (
-                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap">
-                        Copiado!
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{unitUserCounts[unit.id] ?? 0}</td>
-                  <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
-                    <div className="flex items-center justify-end space-x-1">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleOpenModal(unit); }} 
-                        className="p-2 rounded-md text-accent-primary hover:bg-accent-primary/10 transition-colors"
-                        title="Editar Unidade"
-                      >
-                        <Icon name="edit" className="w-5 h-5" />
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleOpenDeleteConfirm(unit); }} 
-                        className="p-2 rounded-md text-danger hover:bg-danger/10 transition-colors"
-                        title="Excluir Unidade"
-                      >
-                        <Icon name="delete" className="w-5 h-5" />
-                      </button>
+                    <Icon name="X" className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {isLoading ? (
+            <div className="flex items-center justify-center flex-1">
+              <div className="w-12 h-12 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
+            </div>
+          ) : error ? (
+            <div className="p-4 m-4 text-danger bg-danger/10 border border-danger/30 rounded-md">{error}</div>
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              <div className="divide-y divide-border-primary">
+                {filteredUnits.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-text-secondary">
+                    Nenhuma unidade encontrada.
+                  </div>
+                ) : (
+                  filteredUnits.map((unit) => (
+                    <div
+                      key={unit.id}
+                      onClick={() => setSelectedUnit(unit)}
+                      className={`px-4 py-3 cursor-pointer transition-all ${
+                        selectedUnit?.id === unit.id
+                          ? 'bg-gradient-to-r from-brand-purple/20 to-brand-purple/10 border-l-4 border-l-brand-purple font-bold shadow-lg text-brand-purple transform scale-[1.02]'
+                          : 'hover:bg-bg-tertiary border-l-4 border-l-transparent hover:border-l-brand-purple/30'
+                      }`}
+                    >
+                      <p className="text-sm">{unit.unit_name}</p>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredUnits.length > 0 && (
-            <div className="flex flex-col items-center justify-between gap-3 mt-4 text-sm text-text-secondary sm:flex-row">
-              <span>Mostrando {pageStart}–{pageEnd} de {filteredUnits.length}</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm font-medium border rounded-md text-text-secondary border-border-secondary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary"
-                >
-                  Anterior
-                </button>
-                <span>Página {currentPage} de {totalPages}</span>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages || filteredUnits.length === 0}
-                  className="px-3 py-1.5 text-sm font-medium border rounded-md text-text-secondary border-border-secondary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary"
-                >
-                  Próxima
-                </button>
+                  ))
+                )}
               </div>
             </div>
           )}
         </div>
-      )}
+
+        {/* Coluna 2: Painel de Detalhes */}
+        <div className="w-3/4 bg-bg-secondary rounded-lg shadow-md overflow-hidden">
+          {!selectedUnit ? (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+              <Icon name="MousePointerClick" className="w-16 h-16 mb-4 text-text-tertiary" />
+              <h3 className="text-lg font-bold text-text-primary mb-2">Selecione uma Unidade</h3>
+              <p className="text-sm text-text-secondary">
+                Clique em uma unidade na lista ao lado para ver os detalhes
+              </p>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col">
+              {/* Header do Painel */}
+              <div className="px-5 py-3.5 border-b border-border-secondary bg-bg-tertiary">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icon name="Building2" className="w-5 h-5 text-brand-pink" />
+                    <h2 className="text-lg font-bold text-text-primary">
+                      {selectedUnit.unit_name}
+                    </h2>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleOpenKeyModal()}
+                      className="p-2 text-accent-primary hover:bg-accent-primary/10 rounded-md transition-colors"
+                      title="Gerenciar Keys"
+                    >
+                      <Icon name="Key" className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleOpenUserModal()}
+                      className="p-2 text-brand-cyan hover:bg-brand-cyan/10 rounded-md transition-colors"
+                      title="Adicionar Usuário"
+                    >
+                      <Icon name="UserPlus" className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleOpenModal(selectedUnit)}
+                      className="p-2 text-accent-primary hover:bg-accent-primary/10 rounded-md transition-colors"
+                      title="Editar Unidade"
+                    >
+                      <Icon name="Edit" className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeleteConfirm(selectedUnit)}
+                      className="p-2 text-danger hover:bg-danger/10 rounded-md transition-colors"
+                      title="Excluir Unidade"
+                    >
+                      <Icon name="Trash2" className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="border-b border-border-secondary bg-bg-secondary">
+                <nav className="flex px-4">
+                  <button
+                    onClick={() => setActiveDetailTab('info')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                      activeDetailTab === 'info'
+                        ? 'border-accent-primary text-accent-primary'
+                        : 'border-transparent text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Informações
+                  </button>
+                  <button
+                    onClick={() => setActiveDetailTab('keys')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                      activeDetailTab === 'keys'
+                        ? 'border-accent-primary text-accent-primary'
+                        : 'border-transparent text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Keys
+                  </button>
+                  <button
+                    onClick={() => setActiveDetailTab('modules')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                      activeDetailTab === 'modules'
+                        ? 'border-accent-primary text-accent-primary'
+                        : 'border-transparent text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Módulos
+                  </button>
+                  <button
+                    onClick={() => setActiveDetailTab('actions')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                      activeDetailTab === 'actions'
+                        ? 'border-accent-primary text-accent-primary'
+                        : 'border-transparent text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Ações
+                  </button>
+                </nav>
+              </div>
+
+              {/* Conteúdo das Tabs */}
+              <div className="flex-1 overflow-y-auto p-4">
+                
+                {/* Tab: Informações */}
+                {activeDetailTab === 'info' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Card: Dados da Unidade */}
+                    <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
+                      <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary">
+                        <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                          <Icon name="Info" className="w-3.5 h-3.5 text-accent-primary" />
+                          Dados da Unidade
+                        </h3>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-center justify-between py-1.5 border-b border-border-secondary">
+                          <span className="text-xs font-medium text-text-secondary">Nome:</span>
+                          <span className="text-xs text-text-primary font-semibold">{selectedUnit.unit_name}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1.5 border-b border-border-secondary">
+                          <span className="text-xs font-medium text-text-secondary">Código:</span>
+                          <div
+                            onClick={() => handleCopyToClipboard(selectedUnit.unit_code, {} as any)}
+                            className="relative flex items-center gap-1.5 px-2 py-0.5 transition-colors rounded cursor-pointer bg-bg-tertiary hover:bg-accent-primary/10 group/code"
+                            title="Clique para copiar"
+                          >
+                            <span className="text-xs font-mono text-accent-primary font-semibold">{selectedUnit.unit_code}</span>
+                            <Icon name="Copy" className="w-3 h-3 text-text-tertiary group-hover/code:text-accent-primary transition-colors" />
+                            {copiedValue === selectedUnit.unit_code && (
+                              <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+                                Copiado!
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between py-1.5">
+                          <span className="text-xs font-medium text-text-secondary">Unit ID:</span>
+                          <div
+                            onClick={() => handleCopyToClipboard(selectedUnit.id, {} as any)}
+                            className="relative flex items-center gap-1.5 px-2 py-1 transition-colors rounded cursor-pointer bg-bg-tertiary hover:bg-accent-primary/10 group/id"
+                            title="Clique para copiar"
+                          >
+                            <span className="text-xs font-mono text-text-tertiary max-w-[120px] truncate">
+                              {selectedUnit.id}
+                            </span>
+                            <Icon name="Copy" className="w-3 h-3 text-text-tertiary group-hover/id:text-accent-primary transition-colors flex-shrink-0" />
+                            {copiedValue === selectedUnit.id && (
+                              <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+                                Copiado!
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card: Usuários */}
+                    <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
+                      <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary">
+                        <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                          <Icon name="Users" className="w-3.5 h-3.5 text-brand-cyan" />
+                          Usuários ({unitUsers.length})
+                        </h3>
+                      </div>
+                      <div className="p-3">
+                        {unitUsers.length === 0 ? (
+                          <div className="text-center py-6 text-text-secondary text-xs">
+                            <Icon name="Users" className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
+                            <p>Nenhum usuário cadastrado nesta unidade</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                            {unitUsers.map((user) => {
+                              const loginStatus = userLoginStatus[user.id];
+                              const isOnline = loginStatus?.isOnline || false;
+                              
+                              return (
+                                <div
+                                  key={user.id}
+                                  onClick={() => handleOpenUserModal(user)}
+                                  className="flex items-center gap-3 p-2 border border-border-secondary rounded-lg hover:border-brand-cyan/30 hover:bg-brand-cyan/5 transition-colors cursor-pointer group"
+                                >
+                                  {/* Role Badge */}
+                                  <div className="flex-shrink-0">
+                                    <span className={
+                                      user.role === 'super_admin' ? 'px-2 py-0.5 text-xs font-medium rounded bg-brand-purple/10 text-brand-purple' :
+                                      user.role === 'admin' ? 'px-2 py-0.5 text-xs font-medium rounded bg-accent-primary/10 text-accent-primary' :
+                                      'px-2 py-0.5 text-xs font-medium rounded bg-brand-cyan/10 text-brand-cyan'
+                                    }>
+                                      {user.role === 'super_admin' ? 'Super' : user.role === 'admin' ? 'Admin' : 'User'}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Nome */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-text-primary truncate">
+                                      {user.full_name}
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Status de Login */}
+                                  <div className="flex-shrink-0 flex items-center gap-1.5" title={isOnline ? 'Online agora' : loginStatus?.lastActivity ? `Última atividade: ${new Date(loginStatus.lastActivity).toLocaleString('pt-BR')}` : 'Nunca logou'}>
+                                    <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-text-tertiary'}`} />
+                                    <span className="text-xs font-medium" style={{ color: isOnline ? 'var(--success)' : 'var(--text-tertiary)' }}>
+                                      {isOnline ? 'Online' : 'Offline'}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab: Keys */}
+                {activeDetailTab === 'keys' && (
+                  <div className="space-y-3">
+                    {unitKeys.length === 0 ? (
+                      <div className="bg-white border border-border-secondary rounded-lg p-6">
+                        <div className="text-center py-6 text-text-secondary text-xs">
+                          <Icon name="KeyRound" className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
+                          <p>Nenhuma chave cadastrada para esta unidade</p>
+                          <p className="text-xs mt-2">Configure as chaves de integração desta unidade</p>
+                        </div>
+                      </div>
+                    ) : (
+                      unitKeys.map((keySet) => {
+                        const keyFields = [
+                          { label: 'Código', value: keySet.codigo, icon: 'Hash' },
+                          { label: 'Instância', value: keySet.istancia, icon: 'Database' },
+                          { label: 'Recrutadora', value: keySet.recrutadora, icon: 'UserSearch' },
+                          { label: 'Bot ID', value: keySet.botID, icon: 'Bot' },
+                          { label: 'Trigger Name', value: keySet.triggerName, icon: 'Zap' },
+                          { label: 'Organization ID', value: keySet.organizationID, icon: 'Building2' },
+                          { label: 'Contato Profissionais', value: keySet.contato_profissionais, icon: 'MessageSquare' },
+                          { label: 'Umbler', value: keySet.umbler, icon: 'Server' },
+                          { label: 'Contato Atendimento', value: keySet.contato_atend, icon: 'MessageCircle' },
+                          { label: 'Pós Vendas', value: keySet.pos_vendas, icon: 'ShoppingBag' },
+                          { label: 'Conexão', value: keySet.conexao, icon: 'Link' },
+                          { label: 'ID Recruta', value: keySet.id_recruta, icon: 'UserPlus' },
+                        ].filter(f => f.value != null && String(f.value).trim() !== '');
+
+                        const hasAnyKey = keyFields.length > 0;
+
+                        if (!hasAnyKey) return null;
+
+                        return (
+                          <div 
+                            key={keySet.id} 
+                            className="bg-white border border-border-secondary rounded-lg overflow-hidden hover:border-accent-primary/30 transition-colors"
+                            onDoubleClick={() => handleOpenKeyModal(keySet)}
+                          >
+                            {/* Header */}
+                            <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary flex items-center justify-between">
+                              <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                                <Icon name="Key" className="w-3.5 h-3.5 text-accent-primary" />
+                                Chaves e Configurações da Unidade
+                                <span className="text-text-tertiary font-normal">#{String(keySet.id).substring(0, 8)}</span>
+                              </h3>
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                keySet.is_active 
+                                  ? 'bg-success/10 text-success' 
+                                  : 'bg-text-tertiary/10 text-text-tertiary'
+                              }`}>
+                                {keySet.is_active ? 'Ativa' : 'Inativa'}
+                              </span>
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-3 space-y-2">
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {keyFields.map((field) => {
+                                            if (!field.value) return null;
+                                            
+                                            return (
+                                              <div
+                                                key={field.label}
+                                                className="flex items-center gap-2 p-2 bg-bg-tertiary rounded border border-border-secondary hover:border-accent-primary/30 transition-colors"
+                                              >
+                                                <Icon name={field.icon as any} className="w-4 h-4 text-accent-primary flex-shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                  <p className="text-xs font-medium text-text-secondary mb-0.5">{field.label}</p>
+                                                  <p className="text-xs font-mono text-text-primary truncate">
+                                                    {field.label === 'Descrição' ? field.value : '***' + String(field.value).slice(-8)}
+                                                  </p>
+                                                </div>
+                                                <button
+                                                  onClick={() => handleCopyToClipboard(String(field.value), {} as any)}
+                                                  className="p-1.5 rounded hover:bg-accent-primary/10 transition-colors flex-shrink-0 relative"
+                                                  title="Copiar"
+                                                >
+                                                  <Icon name="Copy" className="w-3.5 h-3.5 text-accent-primary" />
+                                                  {copiedValue === field.value && (
+                                                    <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+                                                      Copiado!
+                                                    </span>
+                                                  )}
+                                                </button>
+                                              </div>
+                                            );
+                                          })}
+                                    </div>
+
+                                    {/* Timestamps */}
+                                    <div className="flex items-center gap-3 pt-2 mt-2 border-t border-border-secondary text-xs text-text-tertiary">
+                                      <div className="flex items-center gap-1">
+                                        <Icon name="Clock" className="w-3 h-3" />
+                                        <span>Criado: {new Date(keySet.created_at).toLocaleDateString('pt-BR')}</span>
+                                      </div>
+                                      {keySet.updated_at && (
+                                        <div className="flex items-center gap-1">
+                                          <Icon name="RefreshCw" className="w-3 h-3" />
+                                          <span>Atualizado: {new Date(keySet.updated_at).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Hint */}
+                            <p className="text-xs text-text-tertiary text-center pt-2 border-t border-border-secondary">
+                              Duplo clique para editar ou clique no ícone de edição
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  </div>
+                )}
+
+                {/* Tab: Módulos */}
+                {activeDetailTab === 'modules' && (
+                  <div className="space-y-3">
+                    <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
+                      <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary flex items-center justify-between">
+                        <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                          <Icon name="Layers" className="w-3.5 h-3.5 text-brand-purple" />
+                          Módulos da Unidade ({unitModuleIds.length}/{allModules.filter(m => !m.allowed_profiles?.includes('super_admin')).length})
+                        </h3>
+                        {savingModules && (
+                          <span className="text-xs text-brand-purple flex items-center gap-1">
+                            <Icon name="Loader2" className="w-3 h-3 animate-spin" />
+                            Salvando...
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        {allModules.filter(m => !m.allowed_profiles?.includes('super_admin')).length === 0 ? (
+                          <div className="text-center py-6 text-text-secondary text-xs">
+                            <Icon name="Layers" className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
+                            <p>Nenhum módulo disponível para esta unidade</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {allModules
+                              .filter(m => !m.allowed_profiles?.includes('super_admin'))
+                              .map((module) => {
+                                const isActive = unitModuleIds.includes(module.id);
+                                return (
+                                  <div
+                                    key={module.id}
+                                    className="p-3 border rounded-lg bg-white border-border-secondary hover:border-brand-purple/20 transition-colors"
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <Icon 
+                                          name={module.icon_name || 'Box'} 
+                                          className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-purple' : 'text-text-tertiary'}`}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <p className={`text-sm font-semibold truncate ${isActive ? 'text-brand-purple' : 'text-text-primary'}`}>
+                                            {module.name}
+                                          </p>
+                                          {module.description && (
+                                            <p className="text-xs text-text-tertiary line-clamp-1 mt-0.5">
+                                              {module.description}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={() => handleToggleModule(module.id)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-purple focus:ring-offset-2 ${
+                                          isActive ? 'bg-brand-purple' : 'bg-gray-200'
+                                        }`}
+                                        disabled={savingModules}
+                                      >
+                                        <span
+                                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                            isActive ? 'translate-x-6' : 'translate-x-1'
+                                          }`}
+                                        />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab: Ações */}
+                {activeDetailTab === 'actions' && (
+                  <div className="space-y-3">
+                    <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
+                      <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary">
+                        <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                          <Icon name="Zap" className="w-3.5 h-3.5 text-accent-primary" />
+                          Ações Disponíveis
+                        </h3>
+                      </div>
+                      <div className="p-3">
+                        <div className="grid grid-cols-1 gap-2">
+                          <button
+                            onClick={() => handleOpenModal(selectedUnit)}
+                            className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium border rounded-lg text-accent-primary border-accent-primary/30 bg-accent-primary/5 hover:bg-accent-primary/10 transition-colors"
+                          >
+                            <Icon name="Edit" className="w-4 h-4" />
+                            Editar Configurações da Unidade
+                          </button>
+                          <button
+                            onClick={() => handleOpenModal(selectedUnit)}
+                            className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium border rounded-lg text-brand-cyan border-brand-cyan/30 bg-brand-cyan/5 hover:bg-brand-cyan/10 transition-colors"
+                          >
+                            <Icon name="UserPlus" className="w-4 h-4" />
+                            Gerenciar Usuários da Unidade
+                          </button>
+                          <button
+                            onClick={() => handleOpenModal(selectedUnit)}
+                            className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium border rounded-lg text-brand-purple border-brand-purple/30 bg-brand-purple/5 hover:bg-brand-purple/10 transition-colors"
+                          >
+                            <Icon name="Package" className="w-4 h-4" />
+                            Configurar Módulos Disponíveis
+                          </button>
+                          <button
+                            onClick={() => handleOpenDeleteConfirm(selectedUnit)}
+                            className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium border rounded-lg text-danger border-danger/30 bg-danger/5 hover:bg-danger/10 transition-colors"
+                          >
+                            <Icon name="Trash2" className="w-4 h-4" />
+                            Excluir Unidade Permanentemente
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       <UnitFormModal 
         isOpen={isModalOpen}
@@ -1249,6 +2104,25 @@ const ManageUnitsPage: React.FC = () => {
         unit={editingUnit}
         onDelete={handleDeleteFromModal}
       />
+
+      <UserFormModal
+        isOpen={isUserModalOpen}
+        onClose={handleCloseUserModal}
+        onSave={handleSaveUser}
+        user={editingUser}
+        forceUnitId={selectedUnit?.id}
+      />
+
+      {/* Modal de Edição de Key */}
+      {isKeyModalOpen && (
+        <KeyFormModal
+          isOpen={isKeyModalOpen}
+          onClose={handleCloseKeyModal}
+          onSave={handleSaveKey}
+          onDelete={editingKey ? () => handleDeleteKey(editingKey.id) : undefined}
+          keyData={editingKey}
+        />
+      )}
 
       <DeleteConfirmationModal
         unit={unitToDelete}
