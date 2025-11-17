@@ -80,7 +80,26 @@ export interface UnitModuleSummary {
   module_names: string[];
 }
 
-export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients' | 'clients_base' | 'recrutadora' | 'prestadoras' | 'profissionais' | 'comercial';
+export type PageView = 
+  | 'welcome' 
+  | 'module' 
+  | 'manage_users' 
+  | 'manage_modules' 
+  | 'manage_units' 
+  | 'manage_access' 
+  | 'data' 
+  | 'dashboard' 
+  | 'appointments' 
+  | 'agenda' 
+  | 'clients' 
+  | 'clients_base' 
+  | 'recrutadora' 
+  | 'prestadoras' 
+  | 'profissionais' 
+  | 'comercial'
+  | 'pos_vendas'
+  | 'unit_keys'
+  | 'dashboard_admin';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
 

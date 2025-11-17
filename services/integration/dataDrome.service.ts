@@ -1,11 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../supabaseClient';
 import type { N8NMonitoringLog, N8NErrorLog } from '../../types';
 
-// Cliente Supabase dedicado para o projeto Data Drome (N8N logs)
-const dataDromeClient = createClient(
-  import.meta.env.VITE_DATA_DROME_URL,
-  import.meta.env.VITE_DATA_DROME_ANON_KEY
-);
+// Usando o cliente Supabase principal do DromeFlow (Data Drome foi consolidado)
+const dataDromeClient = supabase;
 
 /**
  * Busca ações disponíveis no data_drome

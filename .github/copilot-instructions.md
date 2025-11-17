@@ -111,7 +111,7 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
    - Chave: `ATENDIMENTO_ID` sem sufixos (apenas registros originais, `IS_DIVISAO = 'NAO'`); registros derivados com sufixo (`_1`, `_2`) são ignorados pelo trigger.
    - Campos auto-populados: `nome` (CLIENTE), `contato` (whatscliente), `unit_id` (lookup via unidade_code), `data` (DATA).
    - Status padrão: `pendente`; reagendamento: `false`.
-   - População retroativa: Script SQL [`populate_pos_vendas_from_processed_data()`](docs/sql/2025-10-31_populate_pos_vendas.sql).
+   - População retroativa: Script SQL [`populate_pos_vendas_from_processed_data()`](../docs/sql/2025-10-31_populate_pos_vendas.sql).
 
 ## Padrão de Modais (UI/UX Otimizado)
 
