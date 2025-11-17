@@ -351,3 +351,273 @@ Navega para primeiro módulo ativo (view_id ou webhook)
 - Tipos no `types.ts` sempre que expor novas estruturas de dados.
 - Evite duplicar regras nos componentes — centralize em `services/*/*.service.ts`.
 - Para gráficos reutilize `components/ui/MonthlyComparisonChart.tsx` quando fizer sentido.
+
+## Progressive Web App (PWA)
+
+O DromeFlow é uma PWA completa configurada via `vite-plugin-pwa`:
+
+### Características
+- ✅ **Instalável**: Pode ser instalado como app nativo (desktop/mobile)
+- ✅ **Offline-capable**: Service Worker com cache estratégico
+- ✅ **Auto-update**: Atualizações automáticas (registerType: 'autoUpdate')
+- ✅ **Manifest completo**: Ícones 192x192 e 512x512, tema #010d32
+
+### Estratégias de Cache (Workbox)
+```
+Google Fonts:     CacheFirst - 1 ano
+Imagens:          CacheFirst - 30 dias
+API Supabase:     NetworkFirst - 5min (timeout 10s)
+Assets estáticos: Pré-cache automático
+```
+
+### Arquivos PWA
+- `vite.config.ts` - Configuração VitePWA completa
+- `/public/pwa-192x192.png` e `/public/pwa-512x512.png` - Ícones
+- Service Worker gerado automaticamente no build
+
+### ⚠️ Desenvolvimento
+Em dev, Service Worker pode causar confusão com cache. Use DevTools → Application → Service Workers → Clear para limpar quando necessário.
+
+## Build e Otimizações de Produção
+
+### Code Splitting
+```javascript
+manualChunks: {
+  'vendor-react': ['react', 'react-dom'],      // ~150KB gzipped
+  'vendor-supabase': ['@supabase/supabase-js'] // ~80KB gzipped
+}
+```
+
+### Compressão Dual
+- **Brotli** (`.br`): ~20% melhor que gzip, suportado por navegadores modernos
+- **Gzip** (`.gz`): Fallback para servidores/browsers antigos
+- **Threshold**: 10KB (arquivos menores não são comprimidos)
+
+### Terser Minification
+```javascript
+terserOptions: {
+  compress: {
+    drop_console: true,    // ⚠️ Remove TODOS console.log em produção
+    drop_debugger: true
+  }
+}
+```
+
+### Configurações Build
+- ❌ Source maps desabilitados (sourcemap: false)
+- ❌ Report de tamanho comprimido desabilitado (build mais rápido)
+- ⚡ Chunk size limit: 1000KB
+
+### TypeScript - Path Alias
+```typescript
+// tsconfig.json: "@/*": ["./*"]
+// Uso:
+import { fetchUsers } from '@/services/auth/users.service';
+import { DataRecord } from '@/types';
+```
+
+**Benefício**: Imports mais limpos, sem `../../../`
+
+## Realtime - Troubleshooting Crítico
+
+### ⚠️ Problema: Infinite Loading Spinner
+
+**Sintoma**: Abrir modal → Editar → Salvar → Fechar → Spinner infinito
+
+**Causa**: Dupla atualização (manual loadData() + subscription automática)
+
+**Fix**:
+```typescript
+// ❌ ERRADO - Com Realtime ativo
+const handleCloseModal = () => {
+  setIsModalOpen(false);
+  loadData(); // Duplicação!
+};
+
+// ✅ CORRETO
+const handleCloseModal = () => {
+  setIsModalOpen(false);
+  // Realtime atualiza automaticamente via subscription
+};
+```
+
+### Regra Geral
+- **COM Realtime**: ❌ Nunca chamar `loadData()` após CRUD operations
+- **SEM Realtime**: ✅ Manter `loadData()` após save/delete
+- **Error handlers**: ✅ Sempre permitir reload manual em caso de erro
+
+### Debugging Realtime
+```typescript
+// Verificar se subscription está ativa:
+1. useRealtimeSubscription presente no componente?
+2. Filter correto? (`unit_id=eq.${unitId}`)
+3. Callback funciona? (adicionar console.log)
+4. Realtime habilitado no Supabase? (Table Settings)
+```
+
+## Dependências e Limpeza Futura
+
+### ⚠️ AWS SDK Não Usado
+```json
+"@aws-sdk/client-s3": "^3.932.0",
+"@aws-sdk/s3-request-presigner": "^3.932.0"
+```
+
+**Status**: Instalado mas não usado (anteriormente para storage alternativo)
+
+**Ação Fase 6**: Remover se não houver planos de uso AWS (~2MB a menos no bundle)
+
+### Barrel Services (Temporário)
+```
+services/index.ts - Barrel export (será removido)
+services/mockApi.ts - Compatibilidade (será removido)
+```
+
+**Nota**: Não remover até PR dedicado à Fase 6 atualizar todos os imports.
+
+## Variáveis de Ambiente - Referência Completa
+
+### .env.local (Estrutura Completa)
+```bash
+# === OBRIGATÓRIAS ===
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# === OPCIONAIS ===
+# Data Drome (N8N Logs)
+VITE_DATA_DROME_URL=https://logs.supabase.co
+VITE_DATA_DROME_ANON_KEY=eyJ...
+
+# Gemini AI (se usado)
+GEMINI_API_KEY=AIza...
+```
+
+### Regras de Nomenclatura
+- **Prefixo `VITE_`**: Exposto ao cliente (incluído no bundle JS)
+- **Sem prefixo**: Apenas build-time, não exposto ao cliente
+
+### ⚠️ Segurança
+- ✅ `.env.local` está no `.gitignore`
+- ❌ Nunca commitar chaves de API
+- ⚠️ Variáveis com `VITE_` são públicas (visíveis no bundle)
+- ✅ Usar Supabase RLS para proteção real de dados
+
+## Padrões de Nomenclatura - Convenções do Projeto
+
+### Arquivos
+```
+Pages:     DashboardMetricsPage.tsx
+Modals:    UserFormModal.tsx
+Services:  dashboard.service.ts
+Utils:     dates.ts
+Contexts:  AuthContext.tsx
+```
+
+### Funções e Variáveis
+```typescript
+// Funções: camelCase
+function fetchDashboardMetrics() { }
+const handleSaveUser = () => { };
+
+// Tipos: PascalCase
+interface DataRecord { }
+type UserRole = 'admin' | 'user';
+
+// Constantes: UPPER_SNAKE_CASE
+const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
+const DEFAULT_PAGE_SIZE = 25;
+
+// React Components: PascalCase
+const DashboardPage = () => { };
+```
+
+### Console Logs Padronizados
+```typescript
+// Formato: [ComponentName] Action: details
+console.log('[UserFormModal] Módulos carregados:', moduleIds);
+console.log('[AuthContext] Login successful:', profile);
+console.log('[handleModuleToggle] Toggling module:', moduleId);
+```
+
+**⚠️ Produção**: Todos console.log são removidos automaticamente via terser (drop_console: true)
+
+## Estatísticas do Projeto
+
+### Contagem de Arquivos
+```
+Páginas (components/pages):      19 arquivos
+Modais/UI (components/ui):       15 arquivos
+Serviços (services):             26 arquivos
+Scripts SQL (docs/sql):          39 arquivos
+Documentação (docs/*.md):        12 arquivos
+```
+
+### Estrutura de Serviços (26 arquivos)
+```
+services/
+├── supabaseClient.ts
+├── auth/ (1 serviço)
+├── units/ (4 serviços)
+├── modules/ (1 serviço)
+├── analytics/ (6 serviços)
+├── data/ (2 serviços)
+├── ingestion/ (1 serviço)
+├── profissionais/ (1 serviço)
+├── recrutadora/ (1 serviço)
+├── comercial/ (1 serviço)
+├── posVendas/ (2 serviços)
+├── access/ (1 serviço)
+├── content/ (1 serviço)
+├── integration/ (1 serviço)
+└── utils/ (1 serviço)
+```
+
+## Deploy - Checklist Essencial
+
+### Pré-Deploy
+```
+✅ npm run build (sem erros)
+✅ npm run preview (testar local)
+✅ Variáveis de ambiente configuradas
+✅ Supabase RLS policies revisadas
+✅ Secrets não commitados
+✅ CHANGELOG atualizado
+```
+
+### Build Output
+```
+dist/
+├── index.html
+├── assets/
+│   ├── index-[hash].js (+ .br + .gz)
+│   ├── vendor-react-[hash].js
+│   ├── vendor-supabase-[hash].js
+│   └── index-[hash].css
+└── workbox-[hash].js (Service Worker)
+```
+
+### Pós-Deploy
+```
+✅ Lighthouse audit (PWA, Performance > 90)
+✅ Testar em múltiplos browsers
+✅ Verificar Service Worker (DevTools)
+✅ Console sem erros
+✅ Realtime funcionando
+✅ Upload XLSX testado
+```
+
+## Documentação Adicional
+
+Para informações mais detalhadas, consulte:
+
+- **ANALISE_ESTRUTURA_COMPLETA.md** - Análise abrangente da arquitetura
+- **COMPLEMENTO_COPILOT_INSTRUCTIONS.md** - Detalhes técnicos avançados
+- **README.md** - Setup e configuração geral
+- **SYSTEM_OVERVIEW.md** - Visão geral do sistema
+- **docs/CHANGELOG.md** - Histórico de mudanças
+- **docs/REALTIME_STATUS.md** - Status e guias Realtime
+- **docs/UNIT_BASED_ACCESS_CONTROL.md** - Sistema de permissões
+
+---
+
+**Última atualização das instruções complementares:** 2025-11-16
