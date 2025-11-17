@@ -8,7 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist - Build de produção (commitado intencionalmente)
+# Descomente a linha abaixo para ignorar:
+# dist
 dist-ssr
 *.local
 

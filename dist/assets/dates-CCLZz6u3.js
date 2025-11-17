@@ -1,0 +1,1 @@
+function t(){const t=new Date;return new Date(t.getFullYear(),t.getMonth(),t.getDate(),0,0,0,0).toISOString()}function e(){const t=new Date,e=t.getDay(),n=0===e?-6:1-e;return new Date(t.getFullYear(),t.getMonth(),t.getDate()+n,0,0,0,0).toISOString()}function n(){const t=new Date;return new Date(t.getFullYear(),t.getMonth(),1,0,0,0,0).toISOString()}export{e as a,n as b,t as s};

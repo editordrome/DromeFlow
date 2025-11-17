@@ -1,0 +1,31 @@
+# Ícones PWA - Instruções
+
+A aplicação PWA precisa dos seguintes ícones na pasta `public/`:
+
+1. **pwa-192x192.png** - Ícone 192x192 pixels
+2. **pwa-512x512.png** - Ícone 512x512 pixels  
+3. **favicon.ico** - Favicon tradicional (opcional, mas recomendado)
+4. **apple-touch-icon.png** - Ícone iOS 180x180 pixels (opcional)
+
+## Como criar os ícones:
+
+### Opção 1: Ferramenta online
+Use https://realfavicongenerator.net/
+- Faça upload do logo DromeFlow
+- Gere todos os ícones automaticamente
+- Baixe e coloque na pasta `public/`
+
+### Opção 2: Manualmente
+Use um editor de imagem (Photoshop, Figma, Canva):
+1. Crie uma imagem quadrada com o logo DromeFlow
+2. Exporte em 192x192px (salve como pwa-192x192.png)
+3. Exporte em 512x512px (salve como pwa-512x512.png)
+4. Opcional: Crie favicon.ico e apple-touch-icon.png
+
+## Especificações:
+- **Formato**: PNG com fundo transparente ou sólido (#010d32)
+- **Cor do tema**: #010d32 (azul escuro DromeFlow)
+- **Design**: Logo centralizado, bordas com padding de ~10%
+
+## Após adicionar os ícones:
+Execute `npm run build` para incluí-los no build de produção.
