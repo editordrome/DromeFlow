@@ -318,7 +318,63 @@ export interface AtendimentoSearchResult {
   ENDERECO: string;
 }
 
-// Data Drome - N8N Monitoring Types
+// ============================================================================
+// Activity Logs & Monitoring (Consolidado do Data Drome → DromeFlow)
+// ============================================================================
+
+export interface Action {
+  id: string;
+  action_code: string;
+  action_name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActivityLog {
+  id: number;
+  created_at: string;
+  unit_code: string | null;
+  workflow: string | null;
+  action_code: string | null;
+  atend_id: string | null;
+  user_identifier: string | null;
+  status: 'success' | 'error' | 'pending' | 'cancelled';
+  horario: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface ErrorLog {
+  id: number;
+  created_at: string;
+  workflow: string | null;
+  url_workflow: string | null;
+  error_message: string | null;
+  error_type: string | null;
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  stack_trace: string | null;
+  user_id: string | null;
+  unit_code: string | null;
+  context: Record<string, unknown> | null;
+  resolved: boolean;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution_notes: string | null;
+}
+
+export interface ActivityStats {
+  action_code: string;
+  action_name: string;
+  total_executions: number;
+  success_count: number;
+  error_count: number;
+  success_rate: number;
+}
+
+// ============================================================================
+// Legacy Types (Data Drome - Deprecated após consolidação)
+// ============================================================================
+// @deprecated Use ActivityLog ao invés disso
 export interface N8NMonitoringLog {
   id: number;
   created_at: string;
@@ -331,6 +387,7 @@ export interface N8NMonitoringLog {
   workflow: string | null;
 }
 
+// @deprecated Use ErrorLog ao invés disso
 export interface N8NErrorLog {
   id: number;
   created_at: string;
