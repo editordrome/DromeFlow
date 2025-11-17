@@ -350,7 +350,20 @@ const UnitFormModal: React.FC<{
             {!modulesLoading && !modulesError && allModules.length > 0 && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto p-1">
-                  {allModules.map(module => {
+                  {allModules
+                    .filter(module => {
+                      // Filtra módulos exclusivos de super_admin
+                      // Só mostra se o módulo também está disponível para admin ou user
+                      const profiles = module.allowed_profiles || [];
+                      const hasSuperAdmin = profiles.includes('super_admin');
+                      const hasAdminOrUser = profiles.includes('admin') || profiles.includes('user');
+                      
+                      // Se tem super_admin E (admin OU user), mostra
+                      // Se não tem super_admin, mostra
+                      // Se tem APENAS super_admin, NÃO mostra
+                      return !hasSuperAdmin || hasAdminOrUser;
+                    })
+                    .map(module => {
                     const isSelected = selectedModuleIds.includes(module.id);
                     return (
                       <label

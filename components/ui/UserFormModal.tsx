@@ -152,7 +152,15 @@ export const UserFormModal: React.FC<{
         const unitModuleIds = await fetchUnitModuleIds(selectedUnitForModules);
         
         // Filtra módulos disponíveis para esta unidade
-        const availableModules = allModulesCache.filter(m => unitModuleIds.includes(m.id));
+        // Exclui módulos exclusivos de super_admin
+        const availableModules = allModulesCache
+          .filter(m => unitModuleIds.includes(m.id))
+          .filter(m => {
+            const profiles = m.allowed_profiles || [];
+            const hasSuperAdmin = profiles.includes('super_admin');
+            const hasAdminOrUser = profiles.includes('admin') || profiles.includes('user');
+            return !hasSuperAdmin || hasAdminOrUser;
+          });
         setAllModules(availableModules);
         setAdminModuleIds(new Set(unitModuleIds));
       } catch (err) {

@@ -148,6 +148,8 @@ export default defineConfig(({ mode }) => {
         // Otimizações para builds mais rápidos
         reportCompressedSize: false,
         sourcemap: false,
-      }
+      },
+      // Copiar .htaccess para dist/ durante o build
+      publicDir: 'public',
     };
 });

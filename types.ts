@@ -20,6 +20,10 @@ export interface Unit {
   id: string;
   unit_name: string;
   unit_code: string;
+  slug: string; // Slug único para subdomínio (kebab-case, ex: mb-joinville)
+  address?: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface UnitKey {
@@ -281,10 +285,12 @@ export interface PosVenda {
   contato: string | null;
   unit_id: string | null;
   data: string | null; // ISO timestamp
-  status: 'pendente' | 'contatado' | 'finalizado' | null;
+  status: 'pendente' | 'agendado' | 'contatado' | 'finalizado' | null;
   nota: number | null; // 1-5
   reagendou: boolean;
   feedback: string | null;
+  data_agendamento: string | null; // Data programada para envio (YYYY-MM-DD)
+  horario_agendamento: string | null; // Horário programado para envio (HH:MM:SS)
   created_at: string;
   updated_at: string;
 }
@@ -296,10 +302,12 @@ export interface PosVendaFormData {
   contato?: string | null;
   unit_id?: string | null;
   data?: string | null;
-  status?: 'pendente' | 'contatado' | 'finalizado' | null;
+  status?: 'pendente' | 'agendado' | 'contatado' | 'finalizado' | null;
   nota?: number | null;
   reagendou?: boolean;
   feedback?: string | null;
+  data_agendamento?: string | null; // Data programada para envio
+  horario_agendamento?: string | null; // Horário programado para envio
 }
 
 export interface AtendimentoSearchResult {
@@ -308,4 +316,25 @@ export interface AtendimentoSearchResult {
   DATA: string;
   SERVICO: string;
   ENDERECO: string;
+}
+
+// Data Drome - N8N Monitoring Types
+export interface N8NMonitoringLog {
+  id: number;
+  created_at: string;
+  unit: string | null;
+  status: string | null;
+  horario: string | null;
+  user: string | null;
+  atend_id: string | null;
+  action: string | null;
+  workflow: string | null;
+}
+
+export interface N8NErrorLog {
+  id: number;
+  created_at: string;
+  workflow: string | null;
+  url_workflow: string | null;
+  erro_message: string | null;
 }

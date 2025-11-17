@@ -4,7 +4,16 @@
 
 ## DromeFlow
 
-Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend e Tailwind para estilização. Inclui:
+Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend (PostgreSQL + Realtime + Auth) e Tailwind para estilização. Inclui:
+
+**Stack Tecnológica:**
+- **Frontend**: React 18 + TypeScript + Vite
+- **Backend**: Supabase (PostgreSQL, Realtime, Row Level Security)
+- **UI/UX**: Tailwind CSS + Lucide Icons
+- **Gestão de Estado**: React Context API
+- **Deploy**: Hostinger + Cloudflare (CDN/DNS apenas)
+
+**Nota**: Sistema 100% Supabase - toda persistência de dados, storage e autenticação ocorrem no Supabase. Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).
 
 ## Configuração por Unidade (Keys)
 
@@ -279,14 +288,23 @@ Troubleshooting
 ---
 ## 2. Configuração de Ambiente
 
-Crie `.env.local` na raiz:
+Crie `.env.local` na raiz com as seguintes variáveis:
 
-```
+```bash
+# DromeFlow - Projeto Principal (Supabase)
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON
+
+# Data Drome - Projeto N8N (Monitoramento e Logs - Opcional)
+VITE_DATA_DROME_URL=https://SEU-PROJETO-DATALOGS.supabase.co
+VITE_DATA_DROME_ANON_KEY=SUA_CHAVE_SERVICE_ROLE
 ```
 
-O cliente é inicializado em `services/supabaseClient.ts` usando `import.meta.env`.
+**Observações:**
+- O cliente Supabase principal é inicializado em `services/supabaseClient.ts` usando `import.meta.env.VITE_SUPABASE_*`
+- O projeto Data Drome é opcional e usado apenas para logs de monitoramento N8N
+- **Cloudflare removido**: Anteriormente o projeto usava Cloudflare R2/D1 para storage. Essa integração foi completamente removida. Cloudflare agora é usado apenas como CDN/DNS/Proxy.
+- Todas as credenciais Cloudflare (R2/D1) foram removidas do `.env.local` e do banco de dados
 
 ---
 ## 3. Instalação e Execução
@@ -306,6 +324,8 @@ npm run preview
 ---
 ## 4. Arquitetura (Resumo)
 
+### 4.1 Visão Geral
+
 | Camada | Arquivo(s) | Função |
 |--------|------------|--------|
 | Entrada | `index.html` / `index.tsx` | Montagem raiz Vite/React |
@@ -314,6 +334,59 @@ npm run preview
 | UI Layout | `components/layout/Sidebar.tsx`, `ContentArea.tsx` | Navegação e slot principal |
 | Páginas | `components/pages/*.tsx` | Telas funcionais (Dashboard, Dados, Gestão, etc.) |
 | Tipos | `types.ts` | Contratos TypeScript |
+
+### 4.2 Estrutura de Serviços (Segmentada)
+
+A camada de serviços está organizada por domínio de negócio:
+
+```
+services/
+├── supabaseClient.ts          # Cliente Supabase único
+├── auth/                       # Autenticação e usuários
+│   └── users.service.ts
+├── units/                      # Gestão de unidades
+│   ├── units.service.ts
+│   ├── unitKeys.service.ts
+│   ├── unitModules.service.ts
+│   └── unitKeysAdmin.service.ts
+├── modules/                    # Módulos dinâmicos
+│   └── modules.service.ts
+├── analytics/                  # Métricas e análises
+│   ├── dashboard.service.ts
+│   ├── clients.service.ts
+│   ├── storage.service.ts      # Apenas Supabase (Cloudflare removido)
+│   ├── serviceAnalysis.service.ts
+│   ├── repasse.service.ts
+│   └── prestadoras.service.ts
+├── data/                       # Dados de atendimentos
+│   ├── dataTable.service.ts
+│   └── agendamentos.service.ts
+├── ingestion/                  # Upload e processamento
+│   └── upload.service.ts
+├── profissionais/
+│   └── profissionais.service.ts
+├── recrutadora/
+│   └── recrutadora.service.ts
+├── comercial/
+│   └── comercial.service.ts
+├── posVendas/
+│   ├── posVendas.service.ts
+│   └── diagnostics.service.ts
+├── access/                     # Credenciais de integração
+│   └── accessCredentials.service.ts
+├── content/                    # Conteúdo de webhooks
+│   └── content.service.ts
+├── integration/                # Integrações externas
+│   └── dataDrome.service.ts    # N8N logs (opcional)
+└── utils/                      # Utilitários
+    └── dates.ts
+```
+
+**Observações:**
+- Todos os serviços consomem `supabaseClient` diretamente
+- Lógica de negócio centralizada nos serviços (não nos componentes)
+- Barrel `services/index.ts` será removido na Fase 6 (limpeza)
+- **Storage removido**: Cloudflare R2/D1 completamente removido, apenas Supabase
 
 Notas:
 - O `ContentArea` só injeta HTML quando a origem começa com `internal://` (segurança de conteúdo).
@@ -526,6 +599,7 @@ Os módulos **Atendimentos** e **Dados** utilizam um sistema padronizado de 5 st
 | **RECUSADO** | Cliente recusou o atendimento | Vermelho | Status final negativo |
 | **AGUARDANDO** | Em processo de confirmação | Azul | Status intermediário |
 | **ESPERAR** | Marcado para acompanhamento posterior | Roxo | Status de follow-up |
+| **AGENDADO** | Pós-venda agendado para contato futuro | Roxo | Status intermediário (exclusivo pós-vendas) |
 
 ### Comportamento nos Modais
 
@@ -537,8 +611,14 @@ Os módulos **Atendimentos** e **Dados** utilizam um sistema padronizado de 5 st
 
 #### EditRecordModal (Edição rápida)
 - **Localização**: Status no header, ao lado do botão fechar
-- **Dropdown padrão**: Os mesmos 5 status
+- **Dropdown padrão**: Os mesmos 5 status (exceto AGENDADO, que é exclusivo do módulo Pós-Vendas)
 - **Salvamento**: Junto com demais campos ao clicar em "Salvar"
+
+#### PosVendaFormModal (Pós-vendas)
+- **Localização**: Status no dropdown principal
+- **Opções**: Pendente, Agendado, Contatado, Finalizado (4 status específicos do pós-venda)
+- **Auto-save de status**: Mudanças são salvas automaticamente ao alterar o dropdown
+- **Salvamento completo**: Botão "Salvar" persiste todos os campos editados
 
 ### Métricas e Filtros
 
@@ -675,6 +755,8 @@ Sistema de gerenciamento avançado para colunas da tabela `unit_keys`, permitind
 | Média | Índices métricas | Índices (`unidade_code, DATA, IS_DIVISAO`) e (`unidade_code, ATENDIMENTO_ID`) |
 | Média | Persistir colapso Sidebar | Salvar preferência no `localStorage` |
 | Média | Assinatura Webhook | HMAC opcional para integridade do payload |
+| Média | Realtime Comercial | Implementar useRealtimeSubscription em ComercialPage |
+| Média | Realtime Recrutadora | Implementar useRealtimeSubscription em RecrutadoraPage |
 | Baixa | Tooltips customizados | Melhorar UX em estado colapsado |
 | Baixa | Churn como % | Ajustar eixo e rótulos do gráfico para porcentagem quando Churn estiver ativo |
 | Baixa | PeriodDropdown compartilhado | Extrair o seletor de período para um componente reutilizável e padronizar nas páginas |
@@ -729,7 +811,271 @@ Projeto em estágio de MVP — defina licença antes de distribuição pública.
 _Documento atualizado automaticamente para refletir estado atual do sistema._
 
 ---
-## 19. Resumo: Alinhamento de Recorrentes
+## 18. Sistema Realtime e Otimizações
+
+### 18.1 Módulos com Realtime Ativo
+
+| Módulo | Status | Subscription | Auto-update |
+|--------|--------|--------------|-------------|
+| **Pós-Vendas** | ✅ Completo | `pos_vendas` | Sim |
+| **Dados** | ✅ Completo | `processed_data` | Sim |
+| **Dashboard** | ✅ Completo | Múltiplas tabelas | Sim |
+| **Agendamentos** | ✅ Completo | `processed_data` | Sim |
+| **Comercial** | 🔄 Planejado | - | Não |
+| **Recrutadora** | 🔄 Planejado | - | Não |
+
+### 18.2 Pattern de Implementação
+
+**Hook padrão**: `useRealtimeSubscription` (em `hooks/useRealtimeSubscription.ts`)
+
+```typescript
+useRealtimeSubscription({
+  tableName: 'pos_vendas',
+  filter: `unit_id=eq.${unitId}`,
+  onUpdate: () => {
+    // Recarrega dados localmente
+    loadData();
+  }
+});
+```
+
+### 18.3 Bug Fix Crítico: Infinite Loading
+
+**Problema Identificado** (Novembro 2025):
+- Módulos chamavam `loadData()` manualmente após fechar modal de edição
+- Com Realtime ativo, subscription já atualizava os dados automaticamente
+- Resultado: Dupla atualização causava spinner infinito
+
+**Solução Aplicada**:
+
+**Antes** (❌ Errado):
+```typescript
+const handleCloseModal = () => {
+  setIsModalOpen(false);
+  setEditingRecord(null);
+  loadData(); // ← Causava problema com Realtime
+};
+```
+
+**Depois** (✅ Correto):
+```typescript
+const handleCloseModal = () => {
+  setIsModalOpen(false);
+  setEditingRecord(null);
+  // Sem loadData() - Realtime cuida da atualização
+};
+```
+
+**Arquivos Corrigidos**:
+- `components/pages/PosVendasPage.tsx` (linha 444)
+- `components/pages/DataPage.tsx` (linha 256)
+
+**Módulos Auditados** (Novembro 2025):
+- ✅ ManageUsersPage - Correto (sem Realtime, mantém loadData())
+- ✅ ManageAccessPage - Correto (sem Realtime, mantém loadData())
+- ✅ ManageUnitsPage - Correto (sem Realtime, mantém loadData())
+- ✅ ManageModulesPage - Correto (sem Realtime, mantém loadData())
+- ✅ ComercialPage - Correto (sem Realtime, mantém loadData() em error handler)
+- ✅ ProfissionaisPage - Correto (sem Realtime, mantém loadData())
+- ✅ PrestadorasPage - Correto (sem Realtime, mantém loadData())
+
+### 18.4 Boas Práticas
+
+**REGRA GERAL**:
+- ✅ **COM Realtime**: Nunca chamar `loadData()` após operações CRUD
+- ✅ **SEM Realtime**: Manter `loadData()` após save/delete
+- ✅ **Error Handlers**: Sempre permitir reload manual em caso de erro
+
+**Diagnóstico de Loading Infinito**:
+1. Verificar se módulo tem `useRealtimeSubscription` ativo
+2. Procurar por `loadData()` em `handleClose*` functions
+3. Remover chamadas duplicadas de reload
+4. Testar: abrir modal → editar → salvar → fechar
+5. Validar: dados atualizaram SEM spinner persistente
+
+---
+## 19. Módulo Pós-Vendas - Sistema de Agendamento
+
+### Visão Geral
+Sistema completo para gestão do pós-venda com acompanhamento de agendamentos, avaliações e follow-up de clientes.
+
+### 19.1 Arquitetura de Dados
+
+**Tabela**: `pos_vendas`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| id | UUID | Identificador único |
+| unit_id | UUID | Unidade responsável |
+| nome | TEXT | Nome do cliente |
+| contato | TEXT | Telefone/WhatsApp |
+| data | DATE | Data do atendimento original |
+| status | ENUM | pendente \| agendado \| contatado \| finalizado |
+| reagendamento | BOOLEAN | Indica se é reagendamento |
+| data_agendamento | DATE | Data do agendamento de contato |
+| horario_agendamento | TIME | Horário do agendamento de contato |
+| created_at | TIMESTAMP | Data de criação |
+
+**Índice**: `idx_pos_vendas_agendamento` sobre `(data_agendamento, horario_agendamento)`
+
+### 19.2 Sincronização Automática
+
+**Trigger Bidirecional**: `pos_vendas` ↔ `processed_data`
+
+#### Fluxo 1: Criação Automática (processed_data → pos_vendas)
+- **Gatilho**: INSERT em `processed_data` onde `IS_DIVISAO = 'NAO'` (apenas registros originais)
+- **Ação**: Cria registro em `pos_vendas` com status `pendente`
+- **Campos populados**:
+  - `nome` ← `CLIENTE`
+  - `contato` ← `whatscliente`
+  - `data` ← `DATA`
+  - `unit_id` ← lookup via `unidade_code`
+
+#### Fluxo 2: Atualização de Status (pos_vendas → processed_data)
+- **Gatilho**: UPDATE de `status` em `pos_vendas`
+- **Ação**: Atualiza coluna `"pos vendas"` em `processed_data`
+- **Chave de sincronização**: `ATENDIMENTO_ID` (sem sufixos)
+
+**Nota**: Registros derivados com sufixo (`_1`, `_2`, etc.) são ignorados pelos triggers para evitar duplicação.
+
+### 19.3 Sistema de Cards (5 Status)
+
+A página exibe métricas em 5 cards clicáveis:
+
+| Card | Status | Cor | Descrição |
+|------|--------|-----|-----------|
+| **Geral** | Todos | Cinza | Total de registros (todos os status) |
+| **Pendente** | pendente | Azul | Aguardando primeiro contato |
+| **Agendado** | agendado | Roxo | Contato agendado (data/hora definida) |
+| **Contatado** | contatado | Verde | Cliente já contatado |
+| **Finalizado** | finalizado | Verde escuro | Avaliação completa |
+
+**Layout**: Grid de 5 colunas (`grid-cols-5`) em tela cheia, empilhado em telas menores.
+
+### 19.4 Fluxo de Agendamento
+
+#### Passo 1: Agendar Contato
+1. Na tabela "Pendente", clicar no botão roxo "Agendar" (ícone CalendarClock)
+2. Modal abre com campos:
+   - **Data de Agendamento** (date picker)
+   - **Horário** (time picker)
+3. Ao salvar:
+   - Atualiza `data_agendamento` e `horario_agendamento`
+   - **Status muda automaticamente para `agendado`**
+   - Registro move-se para a aba "Agendado"
+
+#### Passo 2: Visualizar Agendamentos
+- Tabela "Agendados" exibe:
+  - Data/Hora do agendamento
+  - Nome do cliente
+  - Contato (telefone)
+  - **Coluna PROFISSIONAL** (via join com `processed_data`)
+  - Ações: Editar (lápis) | Remover (X)
+
+#### Passo 3: Remover Agendamento
+- Botão "X" em cada linha da tabela Agendados
+- Limpa `data_agendamento` e `horario_agendamento`
+- **Status volta para `pendente`**
+- Registro retorna à aba "Pendente"
+
+#### Passo 4: Progressão de Status
+- Manual: Admin/User atualiza status via modal de edição
+- Fluxo sugerido: pendente → agendado → contatado → finalizado
+
+### 19.5 Visualização: Status de Avaliações
+
+**Componente**: Chart de pizza com donut hole (4 segmentos)
+
+| Segmento | Status | Cor |
+|----------|--------|-----|
+| Pendente | pendente | Azul (#3B82F6) |
+| Agendado | agendado | Roxo (#A855F7) |
+| Contatado | contatado | Verde (#10B981) |
+| Finalizado | finalizado | Verde escuro (#059669) |
+
+**Layout**:
+- Pizza com furo central (donut)
+- Total geral no centro do furo
+- Legendas horizontais abaixo do gráfico (2 linhas, 2 colunas)
+- Cada legenda mostra: cor, label, contagem e percentual
+
+### 19.6 Padrão de UI: Botões Icon-Only
+
+Tabelas de ação (Pendente, Agendado, Contatado) usam botões compactos apenas com ícones:
+
+| Tabela | Botões | Ícones | Cores |
+|--------|--------|--------|-------|
+| **Pendente** | Enviar WhatsApp, Agendar | Send, CalendarClock | Verde, Roxo |
+| **Agendado** | Editar, Remover | Pencil, X | Cinza, Vermelho |
+| **Contatado** | Editar | Pencil | Cinza |
+
+**Estilo**: Bordas arredondadas, tamanho fixo `h-8 w-8`, hover com escurecimento.
+
+### 19.7 Serviços Backend
+
+**Arquivo**: `services/posVendas/posVendas.service.ts`
+
+| Função | Descrição |
+|--------|-----------|
+| `fetchPosVendas(unitId, status?)` | Lista registros com join de `PROFISSIONAL` |
+| `createPosVenda(data)` | Cria novo registro (raro, normalmente via trigger) |
+| `updatePosVenda(id, data)` | Atualiza campos incluindo agendamento |
+| `deletePosVenda(id)` | Remove registro (admin only) |
+
+**Join Estratégico**: Query inclui:
+```sql
+LEFT JOIN processed_data ON 
+  pos_vendas.unit_id = (SELECT id FROM units WHERE code = processed_data.unidade_code)
+  AND pos_vendas.nome = processed_data.CLIENTE
+  AND pos_vendas.data = processed_data.DATA
+```
+Retorna tipo: `Array<PosVenda & { PROFISSIONAL?: string | null }>`
+
+### 19.8 Realtime
+
+**Status**: ✅ Implementado
+
+**Hook**: `useRealtimeSubscription` em `PosVendasPage.tsx`
+
+- Canal: `pos_vendas` (filtered by `unit_id`)
+- Eventos: INSERT, UPDATE, DELETE
+- **Pattern otimizado**: 
+  - Modal close NÃO chama `loadData()` manualmente
+  - Atualização automática via subscription após save
+  - Previne infinite loading spinner
+
+### 19.9 População Retroativa
+
+Para popular `pos_vendas` com dados históricos de `processed_data`:
+
+```sql
+-- Script disponível em: docs/sql/2025-10-31_populate_pos_vendas.sql
+CALL populate_pos_vendas_from_processed_data();
+```
+
+**Critérios**:
+- Apenas registros originais (`IS_DIVISAO = 'NAO'`)
+- Agrupa por unidade + cliente + data
+- Status inicial: `pendente`
+- Ignora registros já existentes (upsert seguro)
+
+### 19.10 Casos de Uso
+
+#### Workflow Típico
+1. **Upload de planilha** → Trigger cria registros em `pos_vendas` automaticamente
+2. **Admin vê card "Pendente"** → Clica para ver lista de clientes sem contato
+3. **Agenda contato** → Seleciona data/hora, status muda para "agendado"
+4. **No dia agendado** → Contata cliente, marca como "contatado"
+5. **Após avaliação** → Finaliza registro, status "finalizado"
+6. **Dashboard atualiza** → Métricas de satisfação/follow-up refletem mudanças
+
+#### Multi-Profissional
+- Apenas atendimento ORIGINAL aparece em pós-vendas (não derivados)
+- Coluna PROFISSIONAL mostra quem realizou o atendimento (join com `processed_data`)
+- Em caso de múltiplos profissionais, exibe o primeiro da lista original
+
+---
+## 20. Resumo: Alinhamento de Recorrentes
 
 Contexto: Houve divergência entre a contagem de recorrentes/atenção no módulo de Clientes e no Dashboard.
 
@@ -745,9 +1091,52 @@ Resultados:
 - Maior previsibilidade e performance ao limitar as consultas aos meses relevantes.
 
 ---
-## 20. Recrutadora – Métricas Rápidas e Ingestão CSV
+## 21. Histórico de Mudanças Arquiteturais
+
+### 21.1 Remoção do Cloudflare R2/D1 (2025-11-16)
+
+**Contexto**: O projeto anteriormente implementava integração com Cloudflare para storage de arquivos (R2) e metadados (D1 SQLite serverless).
+
+**Ações Executadas**:
+
+1. **Banco de Dados**:
+   - Deletadas 6 credenciais Cloudflare da tabela `access_credentials`
+   - Tabela `file_metadata` removida (CASCADE)
+
+2. **Código-fonte** (24 arquivos removidos):
+   - `services/storage/r2.service.ts`
+   - `services/storage/d1Images.service.ts`
+   - `services/storage/edgeImageUpload.service.ts`
+   - `services/storage/simpleImageUpload.service.ts`
+   - `components/pages/StorageManagementPage.tsx`
+   - `components/pages/SimpleImageUploadTest.tsx`
+   - `supabase/functions/upload-image-r2/`
+   - Scripts de setup e deploy
+   - Documentação específica (7 arquivos .md)
+   - Scripts SQL de credenciais
+
+3. **Arquivos Editados**:
+   - `.env.local` - Removidas variáveis `VITE_CLOUDFLARE_*`
+   - `DashboardSistemaPage.tsx` - Aba "Dados" substituída por placeholder
+   - `services/analytics/storage.service.ts` - Simplificado (apenas Supabase)
+
+**Resultado**:
+- ✅ Sistema 100% Supabase
+- ✅ Cloudflare usado apenas como CDN/DNS/Proxy
+- ✅ Sem dependências de storage externo
+- ✅ Métricas simplificadas
+
+### 21.2 Implementação de Realtime (2025-11)
+
+Módulos com sincronização automática via Supabase Realtime:
+- Pós-Vendas (completo)
+- Agendamentos (completo)
+- Dashboard/Métricas (completo)
+
 ---
-## 21. Subdomínios e URLs de Módulo
+## 22. Recrutadora – Métricas Rápidas e Ingestão CSV
+---
+## 22. Subdomínios e URLs de Módulo
 
 Para servir cada unidade em um subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeboard.com.br/<module>`), siga o guia detalhado em `docs/SUBDOMINIOS_E_URLS.md`.
 

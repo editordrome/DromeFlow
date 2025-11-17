@@ -13,7 +13,7 @@ import PosVendaFormModal from '../ui/PosVendaFormModal';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
 
-type ActiveCard = 'geral' | 'finalizados' | 'pendente' | 'contatado';
+type ActiveCard = 'geral' | 'pendente' | 'agendado' | 'contatado' | 'finalizados';
 
 // Componente de seletor de período
 const PeriodSelector: React.FC<{
@@ -98,12 +98,13 @@ const PeriodSelector: React.FC<{
 };
 
 const PosVendasPage: React.FC = () => {
-  const { profile, userModules } = useAuth();
+  const { profile, getModulesForUnit } = useAuth();
   const { selectedUnit } = useAppContext();
 
   const [allRecords, setAllRecords] = useState<PosVenda[]>([]);
   const [contatadosRecords, setContatadosRecords] = useState<PosVenda[]>([]);
   const [finalizadosRecords, setFinalizadosRecords] = useState<PosVenda[]>([]);
+  const [agendadosRecords, setAgendadosRecords] = useState<PosVenda[]>([]);
   const [pendentesProfissional, setPendentesProfissional] = useState<Array<PosVenda & { PROFISSIONAL: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -114,18 +115,41 @@ const PosVendasPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [specificDate, setSpecificDate] = useState<string>(''); // Filtro de data específica
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [schedulingRecord, setSchedulingRecord] = useState<(PosVenda & { PROFISSIONAL: string | null }) | null>(null);
+  const [posVendasWebhook, setPosVendasWebhook] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 25;
 
-  // Localiza webhook do módulo pós-vendas
-  const posVendasWebhook = useMemo(() => {
-    const module = userModules.find(m => {
-      const nameMatch = m.name.toLowerCase().includes('pós') || m.name.toLowerCase().includes('vendas');
-      const viewMatch = m.view_id === 'pos_vendas';
-      return nameMatch || viewMatch;
-    });
-    
-    return module?.webhook_url || null;
-  }, [userModules]);
+  // Busca webhook do módulo pós-vendas quando a unidade mudar
+  useEffect(() => {
+    const loadWebhook = async () => {
+      if (!selectedUnit?.id) {
+        setPosVendasWebhook(null);
+        return;
+      }
+
+      try {
+        const modules = await getModulesForUnit(selectedUnit.id);
+        console.log('[PosVendasPage] Módulos da unidade:', modules);
+        
+        const module = modules.find(m => {
+          const nameMatch = m.name.toLowerCase().includes('pós') || m.name.toLowerCase().includes('vendas');
+          const viewMatch = m.view_id === 'pos_vendas';
+          console.log('[PosVendasPage] Verificando módulo:', m.name, 'nameMatch:', nameMatch, 'viewMatch:', viewMatch, 'webhook_url:', m.webhook_url);
+          return nameMatch || viewMatch;
+        });
+        
+        console.log('[PosVendasPage] Módulo encontrado:', module);
+        console.log('[PosVendasPage] Webhook URL:', module?.webhook_url);
+        setPosVendasWebhook(module?.webhook_url || null);
+      } catch (error) {
+        console.error('[PosVendasPage] Erro ao carregar webhook:', error);
+        setPosVendasWebhook(null);
+      }
+    };
+
+    loadWebhook();
+  }, [selectedUnit?.id, getModulesForUnit]);
 
   // Limpa feedback de webhook após alguns segundos
   useEffect(() => {
@@ -209,16 +233,18 @@ const PosVendasPage: React.FC = () => {
       filters.startDate = startDate;
       filters.endDate = endDate;
 
-      // Buscar contatados e finalizados do mês (baseado na data do atendimento)
+      // Buscar contatados, finalizados e agendados do mês (baseado na data do atendimento)
       const contatadosFilters = { ...filters, status: 'contatado' };
       const finalizadosFilters = { ...filters, status: 'finalizado' };
+      const agendadosFilters = { ...filters, status: 'agendado' };
 
-      const [data, metricsData, pendenteData, contatadosData, finalizadosData] = await Promise.all([
+      const [data, metricsData, pendenteData, contatadosData, finalizadosData, agendadosData] = await Promise.all([
         fetchPosVendas(filters),
         getMetrics(filters),
         fetchPendenteWithProfissional(filters), // Já vem filtrado do início do mês até ontem
         fetchPosVendas(contatadosFilters),
-        fetchPosVendas(finalizadosFilters)
+        fetchPosVendas(finalizadosFilters),
+        fetchPosVendas(agendadosFilters)
       ]);
 
       // Aplicar filtro de data específica se fornecido
@@ -236,6 +262,7 @@ const PosVendasPage: React.FC = () => {
       setAllRecords(data);
       setContatadosRecords(contatadosData);
       setFinalizadosRecords(finalizadosData);
+      setAgendadosRecords(agendadosData); // Agendados vem direto da tabela pos_vendas
       setMetrics(metricsData);
       setPendentesProfissional(pendentesFiltrados);
     } catch (error) {
@@ -356,6 +383,7 @@ const PosVendasPage: React.FC = () => {
   };
 
   const pendentes = getPendentesFiltrados();
+  const agendados = agendadosRecords;
   // Contatados e finalizados vêm de estados separados, filtrados pelo mês do atendimento
   const contatados = contatadosRecords;
   const finalizados = finalizadosRecords;
@@ -416,7 +444,6 @@ const PosVendasPage: React.FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingRecord(null);
-    loadData();
   };
 
   const handleSendWebhook = async (record: PosVenda & { PROFISSIONAL: string | null }) => {
@@ -437,11 +464,16 @@ const PosVendasPage: React.FC = () => {
       const { fetchConexao } = await import('../../services/units/unitKeys.service');
       const conexao = selectedUnit ? await fetchConexao(selectedUnit.id) : null;
 
+      // Timestamp da ação (ISO 8601)
+      const timestamp = new Date().toISOString();
+
       const payload = {
         action: 'pos_vendas',
         ATENDIMENTO_ID: record.ATENDIMENTO_ID,
         unit_id: record.unit_id,
-        conexao
+        conexao,
+        usuario_email: profile?.email || null,
+        timestamp
       };
 
       let usedFallback = false;
@@ -471,6 +503,8 @@ const PosVendasPage: React.FC = () => {
         url.searchParams.set('aid', record.ATENDIMENTO_ID);
         url.searchParams.set('uid', record.unit_id || '');
         url.searchParams.set('cx', conexao || '');
+        if (profile?.email) url.searchParams.set('ue', profile.email);
+        url.searchParams.set('ts', timestamp);
         const r = await fetch(url.toString(), { method: 'GET' });
         if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
         setWebhookFeedback({ type: 'success', message: 'Webhook enviado via fallback GET!' });
@@ -489,6 +523,96 @@ const PosVendasPage: React.FC = () => {
         next.delete(record.id);
         return next;
       });
+    }
+  };
+
+  const handleOpenScheduleModal = (record: PosVenda & { PROFISSIONAL: string | null }) => {
+    setSchedulingRecord(record);
+    setIsScheduleModalOpen(true);
+  };
+
+  const handleCloseScheduleModal = () => {
+    setIsScheduleModalOpen(false);
+    setSchedulingRecord(null);
+  };
+
+  const handleSaveSchedule = async (dataAgendamento: string, horarioAgendamento: string) => {
+    if (!schedulingRecord) return;
+
+    try {
+      const { updatePosVenda, createPosVenda, getPosVendasByAtendimento } = await import('../../services/posVendas/posVendas.service');
+      
+      // Verifica se o registro já existe na tabela pos_vendas
+      const existingRecords = await getPosVendasByAtendimento(schedulingRecord.ATENDIMENTO_ID || '');
+      
+      if (existingRecords && existingRecords.length > 0) {
+        // Atualiza registro existente com status "agendado"
+        await updatePosVenda(existingRecords[0].id, {
+          data_agendamento: dataAgendamento,
+          horario_agendamento: horarioAgendamento,
+          status: 'agendado'
+        });
+      } else {
+        // Cria novo registro com agendamento e status "agendado"
+        await createPosVenda({
+          ATENDIMENTO_ID: schedulingRecord.ATENDIMENTO_ID,
+          chat_id: schedulingRecord.chat_id,
+          nome: schedulingRecord.nome,
+          contato: schedulingRecord.contato,
+          unit_id: schedulingRecord.unit_id,
+          data: schedulingRecord.data || new Date().toISOString().split('T')[0],
+          status: 'agendado',
+          nota: null,
+          reagendou: false,
+          feedback: null,
+          data_agendamento: dataAgendamento,
+          horario_agendamento: horarioAgendamento
+        });
+      }
+
+      setWebhookFeedback({ 
+        type: 'success', 
+        message: `Agendamento salvo: ${new Date(dataAgendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às ${horarioAgendamento}` 
+      });
+      
+      handleCloseScheduleModal();
+      await loadData();
+    } catch (error) {
+      console.error('Erro ao salvar agendamento:', error);
+      setWebhookFeedback({ type: 'error', message: 'Erro ao salvar agendamento' });
+    }
+  };
+
+  const handleRemoveSchedule = async (record: PosVenda & { PROFISSIONAL: string | null }) => {
+    if (!confirm('Deseja remover o agendamento deste pós-venda?')) return;
+
+    try {
+      const { updatePosVenda, getPosVendasByAtendimento } = await import('../../services/posVendas/posVendas.service');
+      
+      // Verifica se o registro existe na tabela pos_vendas
+      const existingRecords = await getPosVendasByAtendimento(record.ATENDIMENTO_ID || '');
+      
+      if (existingRecords && existingRecords.length > 0) {
+        await updatePosVenda(existingRecords[0].id, {
+          data_agendamento: null,
+          horario_agendamento: null
+        });
+
+        setWebhookFeedback({ 
+          type: 'success', 
+          message: 'Agendamento removido com sucesso!' 
+        });
+        
+        await loadData();
+      } else {
+        setWebhookFeedback({ 
+          type: 'error', 
+          message: 'Registro não encontrado na base de pós-vendas' 
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao remover agendamento:', error);
+      setWebhookFeedback({ type: 'error', message: 'Erro ao remover agendamento' });
     }
   };
 
@@ -866,7 +990,7 @@ const PosVendasPage: React.FC = () => {
       </div>
 
       {/* Cards de Navegação */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card Geral */}
         <button
           onClick={() => setActiveCard('geral')}
@@ -896,6 +1020,24 @@ const PosVendasPage: React.FC = () => {
             <span className="text-sm font-medium">Pendente</span>
             <span className={`ml-auto text-lg font-bold ${activeCard === 'pendente' ? 'text-white' : 'text-amber-500'}`}>
               {pendentesProfissional.length}
+            </span>
+          </div>
+        </button>
+
+        {/* Card Agendado */}
+        <button
+          onClick={() => setActiveCard('agendado')}
+          className={`p-3 rounded-lg border transition-all ${
+            activeCard === 'agendado'
+              ? 'bg-purple-500 text-white border-purple-500 shadow-lg'
+              : 'bg-bg-secondary border-border-primary hover:border-purple-500'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Icon name="CalendarClock" className="w-5 h-5" />
+            <span className="text-sm font-medium">Agendado</span>
+            <span className={`ml-auto text-lg font-bold ${activeCard === 'agendado' ? 'text-white' : 'text-purple-500'}`}>
+              {agendados.length}
             </span>
           </div>
         </button>
@@ -942,92 +1084,165 @@ const PosVendasPage: React.FC = () => {
         {activeCard === 'geral' && metrics && (
           <div className="p-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Gráfico de Pizza - Taxa de Finalização */}
+              {/* Gráfico de Pizza - Status de Avaliações */}
               <div className="bg-bg-tertiary rounded-lg border border-border-primary p-6">
                 <h3 className="text-lg font-semibold text-text-primary mb-6">Status de Avaliações</h3>
                 <div className="flex flex-col items-center">
                   {/* Pizza Chart SVG */}
-                  <svg viewBox="0 0 200 200" className="w-48 h-48">
-                    {(() => {
-                      const total = metrics.totalContatados + metrics.totalFinalizados;
-                      if (total === 0) {
+                  <div className="flex-shrink-0">
+                    <svg viewBox="0 0 200 200" className="w-52 h-52">
+                      {(() => {
+                        const totalPendentes = pendentes.length;
+                        const totalAgendados = agendados.length;
+                        const totalContatados = metrics.totalContatados;
+                        const totalFinalizados = metrics.totalFinalizados;
+                        const total = totalPendentes + totalAgendados + totalContatados + totalFinalizados;
+                        
+                        if (total === 0) {
+                          return (
+                            <circle cx="100" cy="100" r="80" fill="#e5e7eb" />
+                          );
+                        }
+                        
+                        const pendentesPercent = (totalPendentes / total) * 100;
+                        const agendadosPercent = (totalAgendados / total) * 100;
+                        const contatadosPercent = (totalContatados / total) * 100;
+                        const finalizadosPercent = (totalFinalizados / total) * 100;
+                        
+                        // Calcular ângulos acumulados
+                        let currentAngle = 0;
+                        const pendentesAngle = currentAngle + (pendentesPercent / 100) * 360;
+                        currentAngle = pendentesAngle;
+                        const agendadosAngle = currentAngle + (agendadosPercent / 100) * 360;
+                        currentAngle = agendadosAngle;
+                        const contatadosAngle = currentAngle + (contatadosPercent / 100) * 360;
+                        currentAngle = contatadosAngle;
+                        const finalizadosAngle = 360; // Última fatia vai até 360
+                        
+                        // Função para calcular coordenadas do arco
+                        const getArcPath = (startAngle: number, endAngle: number) => {
+                          const start = (startAngle - 90) * (Math.PI / 180);
+                          const end = (endAngle - 90) * (Math.PI / 180);
+                          const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+                          
+                          const x1 = 100 + 80 * Math.cos(start);
+                          const y1 = 100 + 80 * Math.sin(start);
+                          const x2 = 100 + 80 * Math.cos(end);
+                          const y2 = 100 + 80 * Math.sin(end);
+                          
+                          return `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                        };
+                        
                         return (
-                          <circle cx="100" cy="100" r="80" fill="#e5e7eb" />
+                          <>
+                            {/* Fatia Pendentes (amarelo) */}
+                            {totalPendentes > 0 && (
+                              <path
+                                d={getArcPath(0, pendentesAngle)}
+                                fill="#f59e0b"
+                                className="transition-all hover:opacity-80"
+                              />
+                            )}
+                            {/* Fatia Agendados (roxo) */}
+                            {totalAgendados > 0 && (
+                              <path
+                                d={getArcPath(pendentesAngle, agendadosAngle)}
+                                fill="#a855f7"
+                                className="transition-all hover:opacity-80"
+                              />
+                            )}
+                            {/* Fatia Contatados (cyan) */}
+                            {totalContatados > 0 && (
+                              <path
+                                d={getArcPath(agendadosAngle, contatadosAngle)}
+                                fill="#06b6d4"
+                                className="transition-all hover:opacity-80"
+                              />
+                            )}
+                            {/* Fatia Finalizados (verde) */}
+                            {totalFinalizados > 0 && (
+                              <path
+                                d={getArcPath(contatadosAngle, finalizadosAngle)}
+                                fill="#10b981"
+                                className="transition-all hover:opacity-80"
+                              />
+                            )}
+                            
+                            {/* Gráfico de pizza menor no centro (hole) */}
+                            <circle cx="100" cy="100" r="50" fill="currentColor" className="fill-bg-tertiary" />
+                            
+                            {/* Texto central com total */}
+                            <text x="100" y="95" textAnchor="middle" className="fill-text-primary font-bold text-2xl">
+                              {total}
+                            </text>
+                            <text x="100" y="115" textAnchor="middle" className="fill-text-secondary text-xs">
+                              Total
+                            </text>
+                          </>
                         );
-                      }
-                      const finalizadosPercent = (metrics.totalFinalizados / total) * 100;
-                      
-                      // Calcular ângulo para finalizados
-                      const finalizadosAngle = (finalizadosPercent / 100) * 360;
-                      
-                      // Função para calcular coordenadas do arco
-                      const getArcPath = (startAngle: number, endAngle: number) => {
-                        const start = (startAngle - 90) * (Math.PI / 180);
-                        const end = (endAngle - 90) * (Math.PI / 180);
-                        const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-                        
-                        const x1 = 100 + 80 * Math.cos(start);
-                        const y1 = 100 + 80 * Math.sin(start);
-                        const x2 = 100 + 80 * Math.cos(end);
-                        const y2 = 100 + 80 * Math.sin(end);
-                        
-                        return `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                      };
-                      
-                      return (
-                        <>
-                          {/* Fatia Finalizados (verde) */}
-                          <path
-                            d={getArcPath(0, finalizadosAngle)}
-                            fill="#10b981"
-                            className="transition-all hover:opacity-80"
-                          />
-                          {/* Fatia Pendentes/Em andamento (cyan) */}
-                          <path
-                            d={getArcPath(finalizadosAngle, 360)}
-                            fill="#06b6d4"
-                            className="transition-all hover:opacity-80"
-                          />
-                          {/* Texto central com percentual */}
-                          <text x="100" y="95" textAnchor="middle" className="fill-text-primary font-bold text-2xl">
-                            {Math.round(finalizadosPercent)}%
-                          </text>
-                          <text x="100" y="115" textAnchor="middle" className="fill-text-secondary text-xs">
-                            Finalizados
-                          </text>
-                        </>
-                      );
-                    })()}
-                  </svg>
+                      })()}
+                    </svg>
+                  </div>
                   
-                  {/* Legenda */}
-                  <div className="mt-6 space-y-3 w-full">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded bg-brand-green"></div>
-                        <span className="text-sm text-text-secondary">Finalizados</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-lg font-bold text-text-primary">{metrics.totalFinalizados}</span>
-                        <span className="text-xs text-text-secondary ml-2">
-                          ({metrics.totalContatados + metrics.totalFinalizados > 0 
-                            ? Math.round((metrics.totalFinalizados / (metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                            : 0}%)
-                        </span>
+                  {/* Legenda - Linha horizontal compacta */}
+                  <div className="mt-4 flex flex-wrap justify-center gap-4 w-full">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary rounded-lg border border-border-secondary">
+                      <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-text-secondary">Pendentes</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-base font-bold text-text-primary">{pendentes.length}</span>
+                          <span className="text-[10px] text-text-secondary">
+                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
+                              ? Math.round((pendentes.length / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
+                              : 0}%)
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded bg-brand-cyan"></div>
-                        <span className="text-sm text-text-secondary">Em Andamento</span>
+                    
+                    <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary rounded-lg border border-border-secondary">
+                      <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-text-secondary">Agendados</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-base font-bold text-text-primary">{agendados.length}</span>
+                          <span className="text-[10px] text-text-secondary">
+                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
+                              ? Math.round((agendados.length / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
+                              : 0}%)
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-lg font-bold text-text-primary">{metrics.totalContatados}</span>
-                        <span className="text-xs text-text-secondary ml-2">
-                          ({metrics.totalContatados + metrics.totalFinalizados > 0 
-                            ? Math.round((metrics.totalContatados / (metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                            : 0}%)
-                        </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary rounded-lg border border-border-secondary">
+                      <div className="w-3 h-3 rounded-full bg-brand-cyan"></div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-text-secondary">Contatados</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-base font-bold text-text-primary">{metrics.totalContatados}</span>
+                          <span className="text-[10px] text-text-secondary">
+                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
+                              ? Math.round((metrics.totalContatados / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
+                              : 0}%)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary rounded-lg border border-border-secondary">
+                      <div className="w-3 h-3 rounded-full bg-brand-green"></div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-text-secondary">Finalizados</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-base font-bold text-text-primary">{metrics.totalFinalizados}</span>
+                          <span className="text-[10px] text-text-secondary">
+                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
+                              ? Math.round((metrics.totalFinalizados / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
+                              : 0}%)
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1255,30 +1470,65 @@ const PosVendasPage: React.FC = () => {
                       <td className="px-3 py-2 text-sm text-text-primary">
                         {record.PROFISSIONAL || '-'}
                       </td>
-                      <td className="px-3 py-2 text-center">
-                        <button
-                          onClick={() => handleSendWebhook(record)}
-                          disabled={sendingWebhook.has(record.id) || !posVendasWebhook}
-                          title={!posVendasWebhook ? 'Webhook não configurado para este módulo' : 'Enviar avaliação'}
-                          className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 mx-auto text-sm"
-                        >
-                          {sendingWebhook.has(record.id) ? (
-                            <>
-                              <Icon name="Loader2" className="w-4 h-4 animate-spin" />
-                              Enviando...
-                            </>
-                          ) : !posVendasWebhook ? (
-                            <>
-                              <Icon name="AlertCircle" className="w-4 h-4" />
-                              Sem webhook
-                            </>
-                          ) : (
-                            <>
-                              <Icon name="Send" className="w-4 h-4" />
-                              Enviar
-                            </>
-                          )}
-                        </button>
+                      <td className="px-3 py-2">
+                        {record.data_agendamento && record.horario_agendamento ? (
+                          // Exibe informações de agendamento - CENTRALIZADO
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Icon name="Clock" className="w-4 h-4 text-brand-cyan" />
+                              <div className="flex flex-col items-center">
+                                <span className="font-medium text-brand-cyan">Agendado</span>
+                                <span className="text-xs text-text-secondary whitespace-nowrap">
+                                  {new Date(record.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às {record.horario_agendamento.substring(0, 5)}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleOpenScheduleModal(record)}
+                                title="Editar agendamento"
+                                className="px-2 py-1 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-1 text-xs"
+                              >
+                                <Icon name="Edit" className="w-3 h-3" />
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleRemoveSchedule(record)}
+                                title="Remover agendamento"
+                                className="px-2 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1 text-xs"
+                              >
+                                <Icon name="X" className="w-3 h-3" />
+                                Remover
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          // Exibe botões de ação normais - apenas ícones
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleSendWebhook(record)}
+                              disabled={sendingWebhook.has(record.id) || !posVendasWebhook}
+                              title={!posVendasWebhook ? 'Webhook não configurado para este módulo' : 'Enviar avaliação'}
+                              className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+                            >
+                              {sendingWebhook.has(record.id) ? (
+                                <Icon name="Loader2" className="w-4 h-4 animate-spin" />
+                              ) : !posVendasWebhook ? (
+                                <Icon name="AlertCircle" className="w-4 h-4" />
+                              ) : (
+                                <Icon name="Send" className="w-4 h-4" />
+                              )}
+                            </button>
+                            
+                            <button
+                              onClick={() => handleOpenScheduleModal(record)}
+                              title="Agendar envio"
+                              className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center"
+                            >
+                              <Icon name="CalendarClock" className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -1325,28 +1575,70 @@ const PosVendasPage: React.FC = () => {
                       </div>
                     </div>
                     
-                    <button
-                      onClick={() => handleSendWebhook(record)}
-                      disabled={sendingWebhook.has(record.id) || !posVendasWebhook}
-                      className="w-full px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
-                    >
-                      {sendingWebhook.has(record.id) ? (
-                        <>
-                          <Icon name="Loader2" className="w-4 h-4 animate-spin" />
-                          Enviando...
-                        </>
-                      ) : !posVendasWebhook ? (
-                        <>
-                          <Icon name="AlertCircle" className="w-4 h-4" />
-                          Sem webhook
-                        </>
-                      ) : (
-                        <>
-                          <Icon name="Send" className="w-4 h-4" />
-                          Enviar Avaliação
-                        </>
-                      )}
-                    </button>
+                    {record.data_agendamento && record.horario_agendamento ? (
+                      // Exibe informações de agendamento no mobile
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 p-3 bg-brand-cyan/10 rounded-lg border border-brand-cyan/20">
+                          <Icon name="Clock" className="w-5 h-5 text-brand-cyan" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-brand-cyan">Agendado</p>
+                            <p className="text-xs text-text-secondary">
+                              {new Date(record.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às {record.horario_agendamento.substring(0, 5)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleOpenScheduleModal(record)}
+                            className="flex-1 px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                          >
+                            <Icon name="Edit" className="w-4 h-4" />
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleRemoveSchedule(record)}
+                            className="flex-1 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                          >
+                            <Icon name="X" className="w-4 h-4" />
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Exibe botões normais no mobile - mantém texto por espaço
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSendWebhook(record)}
+                          disabled={sendingWebhook.has(record.id) || !posVendasWebhook}
+                          className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                        >
+                          {sendingWebhook.has(record.id) ? (
+                            <>
+                              <Icon name="Loader2" className="w-4 h-4 animate-spin" />
+                              Enviando...
+                            </>
+                          ) : !posVendasWebhook ? (
+                            <>
+                              <Icon name="AlertCircle" className="w-4 h-4" />
+                              Sem webhook
+                            </>
+                          ) : (
+                            <>
+                              <Icon name="Send" className="w-4 h-4" />
+                              Enviar
+                            </>
+                          )}
+                        </button>
+                        
+                        <button
+                          onClick={() => handleOpenScheduleModal(record)}
+                          className="flex-1 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
+                          <Icon name="CalendarClock" className="w-4 h-4" />
+                          Agendar
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -1388,6 +1680,168 @@ const PosVendasPage: React.FC = () => {
             )}
           </div>
         )}
+        {activeCard === 'agendado' && (
+          <div>
+            {/* Tabela Desktop */}
+            <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table className="w-full">
+                <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Data
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Cliente
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Profissional
+                    </th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Agendamento
+                    </th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Ação
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-primary">
+                  {agendados.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-6 text-center text-text-secondary">
+                        Nenhum registro agendado
+                      </td>
+                    </tr>
+                  ) : (
+                    agendados.map((record) => (
+                      <tr 
+                        key={record.id} 
+                        className="hover:bg-bg-tertiary transition-colors cursor-pointer"
+                        onDoubleClick={() => handleEdit(record)}
+                        title="Duplo clique para editar"
+                      >
+                        <td className="px-3 py-2 whitespace-nowrap text-sm text-text-primary">
+                          {formatDate(record.data)}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-sm text-text-secondary">
+                          {record.ATENDIMENTO_ID || '-'}
+                        </td>
+                        <td className="px-3 py-2 text-sm text-text-primary">
+                          <div>
+                            <p className="font-medium">{record.nome || '-'}</p>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-sm text-text-primary">
+                          {record.PROFISSIONAL || '-'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col items-center gap-1">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Icon name="CalendarClock" className="w-4 h-4 text-purple-500" />
+                              <span className="font-medium text-purple-500">
+                                {record.data_agendamento ? new Date(record.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+                              </span>
+                            </div>
+                            <span className="text-xs text-text-secondary">
+                              {record.horario_agendamento ? record.horario_agendamento.substring(0, 5) : '-'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleOpenScheduleModal(record)}
+                              title="Editar agendamento"
+                              className="p-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                            >
+                              <Icon name="Edit" className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleRemoveSchedule(record)}
+                              title="Remover agendamento"
+                              className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                            >
+                              <Icon name="X" className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Cards Mobile */}
+            <div className="lg:hidden space-y-3">
+              {agendados.length === 0 ? (
+                <div className="bg-bg-secondary rounded-lg p-6 text-center">
+                  <p className="text-text-secondary">Nenhum registro agendado</p>
+                </div>
+              ) : (
+                agendados.map((record) => (
+                  <div
+                    key={record.id}
+                    className="bg-bg-secondary rounded-lg p-4 space-y-3 border border-border-primary"
+                    onDoubleClick={() => handleEdit(record)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm text-text-primary">{record.nome || '-'}</p>
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          ID: {record.ATENDIMENTO_ID || '-'}
+                        </p>
+                      </div>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 text-xs rounded-full">
+                        Agendado
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-text-secondary">Data:</span>
+                        <p className="text-text-primary font-medium">{formatDate(record.data)}</p>
+                      </div>
+                      <div>
+                        <span className="text-text-secondary">Profissional:</span>
+                        <p className="text-text-primary font-medium">{record.PROFISSIONAL || '-'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <Icon name="CalendarClock" className="w-5 h-5 text-purple-500" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Agendado para:</p>
+                        <p className="text-xs text-text-secondary">
+                          {record.data_agendamento ? new Date(record.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR') : '-'} às {record.horario_agendamento ? record.horario_agendamento.substring(0, 5) : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleOpenScheduleModal(record)}
+                        title="Editar agendamento"
+                        className="p-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                      >
+                        <Icon name="Edit" className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveSchedule(record)}
+                        title="Remover agendamento"
+                        className="p-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                      >
+                        <Icon name="X" className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
         {activeCard === 'contatado' && renderContatadosTable(contatados, 'Nenhum registro contatado')}
         {activeCard === 'finalizados' && renderFinalizadosTable(finalizados, 'Nenhum registro finalizado')}
       </div>
@@ -1399,6 +1853,152 @@ const PosVendasPage: React.FC = () => {
           onClose={handleCloseModal}
         />
       )}
+
+      {/* Modal de Agendamento */}
+      {isScheduleModalOpen && schedulingRecord && (
+        <ScheduleModal
+          record={schedulingRecord}
+          onClose={handleCloseScheduleModal}
+          onSave={handleSaveSchedule}
+        />
+      )}
+    </div>
+  );
+};
+
+// Componente Modal de Agendamento
+const ScheduleModal: React.FC<{
+  record: PosVenda & { PROFISSIONAL: string | null };
+  onClose: () => void;
+  onSave: (dataAgendamento: string, horarioAgendamento: string) => void;
+}> = ({ record, onClose, onSave }) => {
+  const [dataAgendamento, setDataAgendamento] = useState(record.data_agendamento || '');
+  const [horarioAgendamento, setHorarioAgendamento] = useState(record.horario_agendamento || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dataAgendamento || !horarioAgendamento) {
+      alert('Preencha data e horário para agendar');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(dataAgendamento, horarioAgendamento);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-md rounded-xl bg-bg-secondary shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="relative bg-gradient-to-r from-brand-cyan/10 to-accent-primary/10 border-b border-border-secondary px-5 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Icon name="Clock" className="w-5 h-5 text-brand-cyan" />
+              <h2 className="text-lg font-bold text-text-primary">Agendar Envio</h2>
+            </div>
+            <button 
+              onClick={onClose} 
+              type="button"
+              className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors"
+              aria-label="Fechar"
+            >
+              <Icon name="X" className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div className="px-5 py-4 space-y-4">
+            {/* Info do Cliente */}
+            <div className="bg-bg-tertiary/50 rounded-lg p-3 border border-border-secondary/50">
+              <p className="text-sm font-medium text-text-primary">{record.nome || '-'}</p>
+              <p className="text-xs text-text-secondary mt-1">ID: {record.ATENDIMENTO_ID || '-'}</p>
+              {record.PROFISSIONAL && (
+                <p className="text-xs text-text-secondary">Profissional: {record.PROFISSIONAL}</p>
+              )}
+            </div>
+
+            {/* Campos de Agendamento */}
+            <div className="space-y-3">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                  <Icon name="Calendar" className="w-3 h-3" />
+                  Data Programada <span className="text-danger">*</span>
+                </span>
+                <input
+                  type="date"
+                  value={dataAgendamento}
+                  onChange={(e) => setDataAgendamento(e.target.value)}
+                  required
+                  min={new Date().toISOString().split('T')[0]}
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/20 transition-all"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-text-secondary flex items-center gap-1">
+                  <Icon name="Clock" className="w-3 h-3" />
+                  Horário Programado <span className="text-danger">*</span>
+                </span>
+                <input
+                  type="time"
+                  value={horarioAgendamento}
+                  onChange={(e) => setHorarioAgendamento(e.target.value)}
+                  required
+                  className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/20 transition-all"
+                />
+              </label>
+            </div>
+
+            {/* Preview do Agendamento */}
+            {dataAgendamento && horarioAgendamento && (
+              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-brand-cyan/5 border border-brand-cyan/20">
+                <Icon name="Info" className="w-4 h-4 text-brand-cyan flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-text-secondary">
+                  O pós-venda será enviado automaticamente em{' '}
+                  <strong className="text-brand-cyan">
+                    {new Date(dataAgendamento + 'T00:00:00').toLocaleDateString('pt-BR')}
+                  </strong>{' '}
+                  às <strong className="text-brand-cyan">{horarioAgendamento}</strong>.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between border-t border-border-secondary bg-bg-tertiary px-5 py-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !dataAgendamento || !horarioAgendamento}
+              className="rounded-lg bg-brand-cyan px-4 py-2 text-sm font-medium text-white hover:bg-brand-cyan/90 focus:outline-none focus:ring-2 focus:ring-brand-cyan transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-cyan/20 flex items-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Icon name="Check" className="w-4 h-4" />
+                  Agendar Envio
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
