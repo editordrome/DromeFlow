@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchAppointments, fetchAppointmentsMulti } from '../../services/data/dataTable.service';
+import { fetchVerifiedClients } from '../../services/data/clientsDirectory.service';
 import { DataRecord } from '../../types';
 import DataDetailModal from '../ui/DataDetailModal';
 import { Icon } from '../ui/Icon';
@@ -53,6 +54,8 @@ const AppointmentsPage: React.FC = () => {
   const [sendingConfirmed, setSendingConfirmed] = useState<Set<string>>(new Set());
   // Campo de busca
   const [searchTerm, setSearchTerm] = useState<string>('');
+  // Clientes verificados
+  const [verifiedClients, setVerifiedClients] = useState<Set<string>>(new Set());
 
   const recordKey = (r: DataRecord) => String((r as any).id ?? r.ATENDIMENTO_ID);
 
@@ -316,6 +319,19 @@ const AppointmentsPage: React.FC = () => {
       loadData(activeDate);
     }
   }, [activeDate, selectedUnit]);
+
+  // Carrega clientes verificados
+  useEffect(() => {
+    if (selectedUnit && selectedUnit.unit_code !== 'ALL') {
+      console.log('[AppointmentsPage] Carregando clientes verificados para unidade:', selectedUnit.id);
+      fetchVerifiedClients(selectedUnit.id).then(clients => {
+        console.log('[AppointmentsPage] Clientes verificados recebidos:', Array.from(clients));
+        setVerifiedClients(clients);
+      });
+    } else {
+      setVerifiedClients(new Set());
+    }
+  }, [selectedUnit]);
 
   // Subscription em tempo real para atualizar automaticamente quando dados mudarem
   useRealtimeSubscription({
@@ -744,7 +760,14 @@ const AppointmentsPage: React.FC = () => {
                   >
                     <td className="px-4 py-2 text-text-primary truncate" title={rec.ATENDIMENTO_ID}>{rec.ATENDIMENTO_ID}</td>
                     <td className="px-4 py-2 font-medium text-text-primary">{formatDisplayHour(rec.HORARIO)}</td>
-                    <td className="px-4 py-2 text-text-primary truncate" title={rec.CLIENTE}>{rec.CLIENTE}</td>
+                    <td className="px-4 py-2 text-text-primary truncate" title={rec.CLIENTE}>
+                      <div className="flex items-center gap-1">
+                        {verifiedClients.has(rec.CLIENTE) && (
+                          <Icon name="BadgeCheck" className="w-4 h-4 text-brand-cyan flex-shrink-0" title="Cliente verificado" />
+                        )}
+                        <span>{rec.CLIENTE}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-2 text-text-secondary text-center">{(() => {
                       const periodo = (rec as any)['PERÍODO'];
                       if (!periodo) return '-';

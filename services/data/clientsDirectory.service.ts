@@ -89,3 +89,21 @@ export async function updateClientNameInAppointments(
   
   return (data?.length || 0);
 }
+
+export async function fetchVerifiedClients(unitId: string): Promise<Set<string>> {
+  if (!unitId) return new Set();
+  
+  const { data, error } = await supabase
+    .from('unit_clients')
+    .select('nome')
+    .eq('unit_id', unitId)
+    .eq('is_verified', true);
+
+  if (error) {
+    console.error('[fetchVerifiedClients] Error:', error);
+    return new Set();
+  }
+
+  console.log('[fetchVerifiedClients] Clientes verificados carregados:', data);
+  return new Set((data || []).map(c => c.nome));
+}
