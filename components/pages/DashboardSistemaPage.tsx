@@ -3,13 +3,6 @@ import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Icon } from '../ui/Icon';
 import { supabase } from '../../services/supabaseClient';
-import {
-  fetchMonitoringLogs,
-  fetchErrorLogs,
-  fetchMonitoringStats,
-  fetchLatestErrorsByWorkflow,
-  fetchActions
-} from '../../services/integration/dataDrome.service';
 import type { N8NMonitoringLog, N8NErrorLog } from '../../types';
 
 type TabType = 'n8n' | 'dados';
@@ -69,14 +62,132 @@ const DashboardSistemaPage: React.FC = () => {
   // Estado para activity logs em tempo real
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [activeConnections, setActiveConnections] = useState(0);
+  
+  // Estado para paginação da tabela de atividades
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   // Verifica se é super_admin
   const isSuperAdmin = profile?.role === 'super_admin';
 
+  // Funções locais para buscar dados (substituindo dataDrome.service.ts removido)
+  const fetchActions = async (): Promise<Map<string, string>> => {
+    try {
+      const { data, error } = await supabase
+        .from('actions')
+        .select('action_code, action_name')
+        .order('action_name', { ascending: true });
+
+      if (error) {
+        console.error('[Dashboard Sistema] Erro ao buscar ações:', error);
+        return new Map();
+      }
+
+      const map = new Map<string, string>();
+      data?.forEach(action => {
+        if (action.action_code && action.action_name) {
+          map.set(action.action_code, action.action_name);
+        }
+      });
+      
+      return map;
+    } catch (error) {
+      console.error('[Dashboard Sistema] Falha ao buscar ações:', error);
+      return new Map();
+    }
+  };
+
+  const fetchMonitoringLogs = async (limit: number = 100): Promise<N8NMonitoringLog[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      // Mapeia activity_logs para formato N8NMonitoringLog
+      return (data || []).map((log: ActivityLog) => ({
+        id: log.id,
+        created_at: log.created_at,
+        unit: log.unit_code || undefined,
+        workflow: log.workflow || undefined,
+        status: log.status || undefined,
+        action: log.action_code || undefined,
+        user_identifier: log.user_identifier || undefined,
+        metadata: log.metadata
+      }));
+    } catch (error) {
+      console.error('[Dashboard Sistema] Falha ao buscar logs de monitoramento:', error);
+      return [];
+    }
+  };
+
+  const fetchErrorLogs = async (limit: number = 50): Promise<N8NErrorLog[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('error_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      return (data || []).map((log: any) => ({
+        id: log.id,
+        created_at: log.created_at,
+        workflow: log.workflow || undefined,
+        erro_message: log.error_message || undefined,
+        url_workflow: log.url_workflow || undefined
+      }));
+    } catch (error) {
+      console.error('[Dashboard Sistema] Falha ao buscar logs de erro:', error);
+      return [];
+    }
+  };
+
+  const fetchLatestErrorsByWorkflow = async (limit: number = 10): Promise<any[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('error_logs')
+        .select('workflow, error_message, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      const logs = data || [];
+      
+      // Agrupar por workflow
+      const grouped = logs.reduce((acc: { [key: string]: any }, log) => {
+        const wf = log.workflow || 'Unknown';
+        if (!acc[wf]) {
+          acc[wf] = {
+            workflow: wf,
+            lastError: log.error_message || 'N/A',
+            lastOccurrence: log.created_at,
+            count: 1
+          };
+        } else {
+          acc[wf].count += 1;
+        }
+        return acc;
+      }, {});
+
+      return Object.values(grouped)
+        .sort((a: any, b: any) => b.count - a.count)
+        .slice(0, limit);
+    } catch (error) {
+      console.error('[Dashboard Sistema] Falha ao buscar últimos erros:', error);
+      return [];
+    }
+  };
+
   // Busca activity logs recentes
   const loadActivityLogs = useCallback(async () => {
     try {
-      // Busca últimas 20 atividades da última hora
+      // Busca últimas 100 atividades da última hora (aumentado para permitir paginação)
       const oneHourAgo = new Date();
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
@@ -85,10 +196,11 @@ const DashboardSistemaPage: React.FC = () => {
         .select('*')
         .gte('created_at', oneHourAgo.toISOString())
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(100);
 
       if (error) throw error;
       setActivityLogs(data || []);
+      setCurrentPage(1); // Reset para primeira página ao atualizar
 
       // Conta conexões únicas ativas (últimos 5 minutos)
       const fiveMinAgo = new Date();
@@ -1035,20 +1147,22 @@ const DashboardSistemaPage: React.FC = () => {
 
               {/* Filtros de Cards - Estilo igual aos filtros de período N8N */}
               <div className="flex w-full gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveCard(activeCard === 'atividades' ? null : 'atividades')}
-                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                    activeCard === 'atividades'
-                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                  }`}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <Icon name="Activity" className="w-4 h-4" />
-                    Atividades
-                  </div>
-                </button>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveCard(activeCard === 'atividades' ? null : 'atividades')}
+                    className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
+                      activeCard === 'atividades'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Icon name="Activity" className="w-4 h-4" />
+                      Atividades
+                    </div>
+                  </button>
+                )}
                 
                 <button
                   type="button"
@@ -1081,8 +1195,8 @@ const DashboardSistemaPage: React.FC = () => {
                 </button>
               </div>
               
-              {/* Activity Logs - Aparecem quando card Atividades é clicado */}
-              {activeCard === 'atividades' && (
+              {/* Activity Logs - Aparecem quando card Atividades é clicado (apenas super_admin) */}
+              {isSuperAdmin && activeCard === 'atividades' && (
                 <div className="space-y-4 p-4 bg-bg-tertiary border border-border-secondary rounded-lg">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -1140,71 +1254,101 @@ const DashboardSistemaPage: React.FC = () => {
                           <thead className="bg-bg-tertiary sticky top-0 border-b border-border-secondary">
                             <tr>
                               <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Data</th>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Horário</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Hora</th>
                               <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Usuário</th>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Ação</th>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Módulo</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Workflow</th>
                               <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Unidade</th>
                               <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border-secondary">
-                            {activityLogs.map((log) => {
-                              const logDate = new Date(log.created_at);
-                              const dateStr = logDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                              const timeStr = logDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                              const isRecent = new Date(log.created_at) > new Date(Date.now() - 60000); // Últimos 60s
+                            {(() => {
+                              const startIndex = (currentPage - 1) * itemsPerPage;
+                              const endIndex = startIndex + itemsPerPage;
+                              const paginatedLogs = activityLogs.slice(startIndex, endIndex);
                               
-                              // Extrai módulo do metadata se existir
-                              const moduleName = log.metadata?.module_name || log.metadata?.module || '-';
-                              
-                              return (
-                                <tr 
-                                  key={log.id} 
-                                  className={`hover:bg-bg-tertiary transition-colors ${
-                                    isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
-                                  }`}
-                                >
-                                  <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
-                                    {isRecent && (
-                                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
-                                    )}
-                                    {dateStr}
-                                  </td>
-                                  <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
-                                    {timeStr}
-                                  </td>
-                                  <td className="px-3 py-2 text-sm font-medium text-text-primary">
-                                    {log.user_identifier || 'N/A'}
-                                  </td>
-                                  <td className="px-3 py-2 text-sm text-text-secondary">
-                                    {getActionName(log.action_code)}
-                                  </td>
-                                  <td className="px-3 py-2 text-sm text-text-secondary">
-                                    {moduleName}
-                                  </td>
-                                  <td className="px-3 py-2 text-sm text-text-secondary">
-                                    {getUnitName(log.unit_code)}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                      log.status?.toLowerCase() === 'success' 
-                                        ? 'bg-green-100 text-green-800' 
-                                        : log.status?.toLowerCase() === 'error'
-                                        ? 'bg-red-100 text-red-800'
-                                        : 'bg-gray-100 text-gray-800'
-                                    }`}>
-                                      {log.status || 'N/A'}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
+                              return paginatedLogs.map((log) => {
+                                const logDate = new Date(log.created_at);
+                                const dateStr = logDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                const timeStr = logDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                const isRecent = new Date(log.created_at) > new Date(Date.now() - 60000); // Últimos 60s
+                                
+                                // Extrai módulo do metadata (workflow mostra o módulo acessado)
+                                const moduleName = log.metadata?.module_name || log.metadata?.module || log.workflow || '-';
+                                
+                                return (
+                                  <tr 
+                                    key={log.id} 
+                                    className={`hover:bg-bg-tertiary transition-colors ${
+                                      isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
+                                    }`}
+                                  >
+                                    <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                      {isRecent && (
+                                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                                      )}
+                                      {dateStr}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                      {timeStr}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm font-medium text-text-primary">
+                                      {log.user_identifier || 'N/A'}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-text-secondary">
+                                      {moduleName}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-text-secondary">
+                                      {getUnitName(log.unit_code)}
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                        log.status?.toLowerCase() === 'success' 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : log.status?.toLowerCase() === 'error'
+                                          ? 'bg-red-100 text-red-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {log.status || 'N/A'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                            })()}
                           </tbody>
                         </table>
                       </div>
                     )}
                   </div>
+                  
+                  {/* Paginação */}
+                  {activityLogs.length > itemsPerPage && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-border-secondary bg-bg-secondary rounded-b-lg">
+                      <div className="text-xs text-text-secondary">
+                        Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, activityLogs.length)} de {activityLogs.length} registros
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1.5 text-xs font-medium rounded border border-border-primary hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Icon name="ChevronLeft" className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-medium text-text-primary px-2">
+                          Página {currentPage} de {Math.ceil(activityLogs.length / itemsPerPage)}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(Math.ceil(activityLogs.length / itemsPerPage), prev + 1))}
+                          disabled={currentPage >= Math.ceil(activityLogs.length / itemsPerPage)}
+                          className="px-3 py-1.5 text-xs font-medium rounded border border-border-primary hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Icon name="ChevronRight" className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -7,7 +7,7 @@ import { Icon } from './Icon';
 
 export type FullUser = User & Profile;
 
-type UserDataPayload = Partial<FullUser> & { 
+type UserDataPayload = Partial<FullUser> & {
   password?: string;
   unit_ids?: string[];
   module_ids?: string[];
@@ -50,10 +50,10 @@ export const UserFormModal: React.FC<{
           fetchAllUnits(),
           fetchAllModules(),
         ]);
-        
+
         // Armazena todos os módulos para filtro dinâmico
         setAllModulesCache(modules);
-        
+
         // Carrega as atribuições do usuário sendo editado (se existir)
         if (user) {
           const { unit_ids, module_ids } = await fetchUserAssignments(user.id);
@@ -94,10 +94,10 @@ export const UserFormModal: React.FC<{
 
     if (user) {
       // Se um admin está tentando editar um super_admin, força o role para admin
-      const roleToSet = (currentAdminProfile?.role === 'admin' && user.role === UserRole.SUPER_ADMIN) 
-        ? UserRole.ADMIN 
+      const roleToSet = (currentAdminProfile?.role === 'admin' && user.role === UserRole.SUPER_ADMIN)
+        ? UserRole.ADMIN
         : user.role;
-      
+
       setFormData({
         full_name: user.full_name,
         email: user.email,
@@ -119,7 +119,7 @@ export const UserFormModal: React.FC<{
         const { module_ids } = await fetchUserAssignments(user.id);
         console.log('[UserFormModal] Módulos carregados do usuário:', module_ids);
         setSelectedModules(new Set(module_ids));
-        
+
         // Distribui módulos do usuário entre as unidades dele
         // (apenas para exibição, user_modules não tem unit_id)
         const newMap = new Map<string, Set<string>>();
@@ -150,7 +150,7 @@ export const UserFormModal: React.FC<{
       try {
         const { fetchUnitModuleIds } = await import('../../services/units/unitModules.service');
         const unitModuleIds = await fetchUnitModuleIds(selectedUnitForModules);
-        
+
         // Filtra módulos disponíveis para esta unidade
         // Exclui módulos exclusivos de super_admin
         const availableModules = allModulesCache
@@ -183,7 +183,7 @@ export const UserFormModal: React.FC<{
   // Inicializa modulesByUnit para unidades que ainda não têm entrada
   useEffect(() => {
     if (!isOpen || selectedUnits.size === 0) return;
-    
+
     setModulesByUnit(prev => {
       const newMap = new Map(prev);
       selectedUnits.forEach(unitId => {
@@ -198,10 +198,10 @@ export const UserFormModal: React.FC<{
   useEffect(() => {
     if (user) {
       // Se um admin está tentando editar um super_admin, força o role para admin
-      const roleToSet = (currentAdminProfile?.role === 'admin' && user.role === UserRole.SUPER_ADMIN) 
-        ? UserRole.ADMIN 
+      const roleToSet = (currentAdminProfile?.role === 'admin' && user.role === UserRole.SUPER_ADMIN)
+        ? UserRole.ADMIN
         : user.role;
-      
+
       setFormData({
         full_name: user.full_name,
         email: user.email,
@@ -225,19 +225,19 @@ export const UserFormModal: React.FC<{
       return s;
     });
   };
-  
+
   const handleModuleToggle = (moduleId: string) => {
     if (!selectedUnitForModules) return;
-    
+
     console.log('[handleModuleToggle] Toggling module:', moduleId, 'for unit:', selectedUnitForModules);
-    
+
     setModulesByUnit(prev => {
       const newMap = new Map(prev);
       const currentUnitModules = newMap.get(selectedUnitForModules) || new Set();
-      
+
       // Cria um NOVO Set (não modifica o existente)
       const updatedUnitModules = new Set(currentUnitModules);
-      
+
       if (updatedUnitModules.has(moduleId)) {
         console.log('[handleModuleToggle] Removendo módulo:', moduleId);
         updatedUnitModules.delete(moduleId);
@@ -245,7 +245,7 @@ export const UserFormModal: React.FC<{
         console.log('[handleModuleToggle] Adicionando módulo:', moduleId);
         updatedUnitModules.add(moduleId);
       }
-      
+
       newMap.set(selectedUnitForModules, updatedUnitModules);
       console.log('[handleModuleToggle] Nova lista de módulos para unidade:', Array.from(updatedUnitModules));
       return newMap;
@@ -259,25 +259,25 @@ export const UserFormModal: React.FC<{
       return;
     }
     const isSuperAdmin = formData.role === UserRole.SUPER_ADMIN;
-    
+
     // Agrupa todos os módulos de todas as unidades
     const allModuleIds = new Set<string>();
     modulesByUnit.forEach((moduleSet, unitId) => {
       console.log(`[UserFormModal] Unidade ${unitId}:`, Array.from(moduleSet));
       moduleSet.forEach(moduleId => allModuleIds.add(moduleId));
     });
-    
+
     console.log('[UserFormModal] Total de módulos a salvar:', Array.from(allModuleIds));
     console.log('[UserFormModal] Unidades selecionadas:', Array.from(selectedUnits));
-    
+
     const dataToSave: UserDataPayload = {
       ...formData,
       unit_ids: isSuperAdmin ? [] : Array.from(selectedUnits),
       module_ids: isSuperAdmin ? [] : Array.from(allModuleIds),
     };
-    
+
     console.log('[UserFormModal] Data to save:', dataToSave);
-    
+
     if (user) dataToSave.id = user.id;
     if (!formData.password) delete dataToSave.password;
     onSave(dataToSave);
@@ -289,7 +289,7 @@ export const UserFormModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onMouseDown={onClose}>
-      <div className="w-full max-w-lg h-[80vh] mx-4 bg-bg-secondary rounded-lg shadow-lg flex flex-col" onMouseDown={(e)=>e.stopPropagation()}>
+      <div className="w-full max-w-lg h-[80vh] mx-4 bg-bg-secondary rounded-lg shadow-lg flex flex-col" onMouseDown={(e) => e.stopPropagation()}>
         <div className="p-6 pb-3 border-b border-border-primary shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-text-primary">{user ? 'Editar Usuário' : 'Adicionar Novo Usuário'}</h2>
@@ -299,9 +299,9 @@ export const UserFormModal: React.FC<{
           </div>
           <div className="mt-3">
             <div className="inline-flex rounded-md border border-border-secondary overflow-hidden">
-              <button type="button" onClick={()=>setActiveTab('dados')} className={`px-3 py-1.5 text-xs ${activeTab==='dados' ? 'bg-accent-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-secondary'}`}>Dados</button>
-              <button type="button" onClick={()=>setActiveTab('units')} className={`px-3 py-1.5 text-xs ${activeTab==='units' ? 'bg-accent-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-secondary'}`}>Unidades</button>
-              <button type="button" onClick={()=>setActiveTab('modules')} className={`px-3 py-1.5 text-xs ${activeTab==='modules' ? 'bg-accent-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-secondary'}`}>Módulos</button>
+              <button type="button" onClick={() => setActiveTab('dados')} className={`px-3 py-1.5 text-xs ${activeTab === 'dados' ? 'bg-accent-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-secondary'}`}>Dados</button>
+              <button type="button" onClick={() => setActiveTab('units')} className={`px-3 py-1.5 text-xs ${activeTab === 'units' ? 'bg-accent-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-secondary'}`}>Unidades</button>
+              <button type="button" onClick={() => setActiveTab('modules')} className={`px-3 py-1.5 text-xs ${activeTab === 'modules' ? 'bg-accent-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-secondary'}`}>Módulos</button>
             </div>
           </div>
         </div>
@@ -317,11 +317,11 @@ export const UserFormModal: React.FC<{
                 </div>
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-text-secondary">Email</label>
-                  <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} required className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+                  <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} required autoComplete="off" className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
                 </div>
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-text-secondary">Senha</label>
-                  <input type="password" name="password" id="password" value={formData.password} onChange={handleChange} placeholder={user ? 'Deixe em branco para não alterar' : ''} required={!user} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+                  <input type="password" name="password" id="password" value={formData.password} onChange={handleChange} placeholder={user ? 'Deixe em branco para não alterar' : ''} required={!user} autoComplete="new-password" className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
                 </div>
                 <div>
                   <label htmlFor="role" className="block text-sm font-medium text-text-secondary">Função</label>
@@ -347,12 +347,12 @@ export const UserFormModal: React.FC<{
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-32 overflow-y-auto">
                       {allUnits.map(unit => (
                         <label key={unit.id} className={`flex items-center space-x-2 text-sm text-text-primary ${formData.role === UserRole.SUPER_ADMIN ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={formData.role === UserRole.SUPER_ADMIN || selectedUnits.has(unit.id)} 
-                            onChange={() => handleUnitToggle(unit.id)} 
+                          <input
+                            type="checkbox"
+                            checked={formData.role === UserRole.SUPER_ADMIN || selectedUnits.has(unit.id)}
+                            onChange={() => handleUnitToggle(unit.id)}
                             disabled={formData.role === UserRole.SUPER_ADMIN}
-                            className="w-4 h-4 rounded text-accent-primary focus:ring-accent-primary disabled:bg-gray-300 disabled:border-gray-400" 
+                            className="w-4 h-4 rounded text-accent-primary focus:ring-accent-primary disabled:bg-gray-300 disabled:border-gray-400"
                           />
                           <span>{unit.unit_name}</span>
                         </label>
@@ -366,14 +366,14 @@ export const UserFormModal: React.FC<{
                 <div>
                   <h3 className="block text-sm font-medium text-text-secondary mb-2">Módulos Atribuídos por Unidade</h3>
                   {formData.role === UserRole.SUPER_ADMIN && <p className="text-xs text-text-secondary mt-1 mb-3">Super Admins têm acesso a todos os módulos.</p>}
-                  
+
                   {formData.role !== UserRole.SUPER_ADMIN && selectedUnits.size === 0 && (
                     <p className="text-xs text-text-secondary bg-bg-tertiary p-2 rounded-md border border-border-secondary">
                       <Icon name="info" className="inline w-4 h-4 mr-1" />
                       Atribua unidades na aba "Unidades" primeiro.
                     </p>
                   )}
-                  
+
                   {formData.role !== UserRole.SUPER_ADMIN && selectedUnits.size > 0 && (
                     <>
                       {/* Seletor de Unidade */}
@@ -381,9 +381,9 @@ export const UserFormModal: React.FC<{
                         <label htmlFor="unit-selector" className="block text-xs font-medium text-text-secondary mb-1">
                           Selecione a unidade para gerenciar módulos:
                         </label>
-                        <select 
-                          value={selectedUnitForModules || ''} 
-                          onChange={(e) => setSelectedUnitForModules(e.target.value)} 
+                        <select
+                          value={selectedUnitForModules || ''}
+                          onChange={(e) => setSelectedUnitForModules(e.target.value)}
                           className="w-full px-3 py-2 text-sm border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
                         >
                           <option value="">-- Escolha uma unidade --</option>
@@ -419,21 +419,21 @@ export const UserFormModal: React.FC<{
                                   const currentUnitModules = modulesByUnit.get(selectedUnitForModules) || new Set();
                                   const isChecked = currentUnitModules.has(module.id);
                                   const disabled = formData.role === UserRole.SUPER_ADMIN;
-                                  
+
                                   // Log para debug
                                   if (module.name === 'Dashboard' || module.name === 'Atendimentos') {
                                     console.log(`[Render checkbox ${module.name}] isChecked:`, isChecked, 'currentUnitModules:', Array.from(currentUnitModules));
                                   }
-                                  
+
                                   return (
-                                    <label 
-                                      key={module.id} 
+                                    <label
+                                      key={module.id}
                                       className={`flex items-center space-x-2 text-sm text-text-primary ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:bg-bg-secondary'} p-1 rounded`}
                                     >
-                                      <input 
-                                        type="checkbox" 
-                                        checked={isChecked} 
-                                        onChange={() => handleModuleToggle(module.id)} 
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => handleModuleToggle(module.id)}
                                         disabled={disabled}
                                         className="w-4 h-4 rounded text-accent-primary focus:ring-accent-primary disabled:bg-gray-300 disabled:border-gray-400"
                                       />

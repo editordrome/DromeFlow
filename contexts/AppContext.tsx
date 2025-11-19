@@ -71,6 +71,23 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
     } catch {}
   }, [loading, userUnits, selectedUnit]);
 
+  // Listener para evento de mudança de unidade (disparado pelo toggleAdminView)
+  useEffect(() => {
+    const handleUnitChange = (event: CustomEvent) => {
+      const unit = event.detail;
+      if (unit && unit.id) {
+        console.log('[AppContext] Evento de mudança de unidade recebido:', unit);
+        setSelectedUnit(unit);
+        setHasInitialized(false); // Reset para recarregar módulos
+      }
+    };
+
+    window.addEventListener('df_unit_changed', handleUnitChange as EventListener);
+    return () => {
+      window.removeEventListener('df_unit_changed', handleUnitChange as EventListener);
+    };
+  }, []);
+
   // Carrega o primeiro módulo disponível para a unidade selecionada
   useEffect(() => {
     const loadFirstModuleForUnit = async () => {

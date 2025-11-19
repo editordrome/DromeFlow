@@ -1,0 +1,17 @@
+{
+    "mcpServers": {
+        "supabase-data": {
+            "comment": "DromeFlow - Projeto Principal (uframhbsgtxckdxttofo)",
+            "description": "Banco de dados transacional principal: autenticação, usuários, unidades, módulos, atendimentos (processed_data), profissionais, comercial, pós-vendas, clientes, configurações (unit_keys), controle de acesso (RLS policies), activity logs, error logs.",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@supabase/mcp-server-supabase@latest",
+                "--project-ref=uframhbsgtxckdxttofo"
+            ],
+            "env": {
+                "SUPABASE_ACCESS_TOKEN": "sbp_7d1de4075f1906b17646d818e6b571d220a6ef9e"
+            }
+        }
+    }
+}

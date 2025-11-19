@@ -51,6 +51,7 @@ Os seguintes módulos implementam atualizações em tempo real via Supabase Real
 - ✅ **Pós-Vendas**: Completo - sincronização bidirecional com `processed_data`
 - ✅ **Agendamentos**: Completo - atualização automática da tabela de agendamentos
 - ✅ **Dashboard/Métricas**: Completo - recalculo automático de métricas
+- ✅ **Dashboard Sistema**: Completo - logs de atividade em tempo real
 
 **Status**: ✅ Implementado e funcionando. Para detalhes técnicos, consulte [`docs/REALTIME_STATUS.md`](docs/REALTIME_STATUS.md).
 
@@ -72,14 +73,102 @@ Os seguintes módulos implementam atualizações em tempo real via Supabase Real
 
 ---
 
+## Rastreamento de Acesso a Módulos
+
+### Sistema Automático de Logging
+
+O sistema registra automaticamente cada vez que um usuário acessa um módulo, criando um histórico completo de navegação.
+
+**Implementação:**
+- **Tabela `actions`**: Cada módulo possui uma action específica (`access_module_{código}`)
+- **Trigger automático**: Ao criar/renomear módulo, a action correspondente é criada/atualizada
+- **Logger centralizado**: `services/utils/activityLogger.service.ts`
+- **Captura no Sidebar**: Registro ao clicar em qualquer módulo
+
+**Exemplo de registro:**
+```json
+{
+  "action_code": "access_module_dashboard",
+  "user_identifier": "joao@exemplo.com",
+  "unit_code": "mb_londrina",
+  "status": "success",
+  "metadata": {
+    "module_code": "dashboard",
+    "module_name": "Dashboard"
+  }
+}
+```
+
+**Visualização**: Dashboard Sistema → Aba "Dados" → "Atividades em Tempo Real"
+
+---
+
+## Logs N8N (Webhooks Externos)
+
+### Tabela Dedicada para Workflows
+
+A tabela `n8n_logs` foi criada para receber logs de workflows N8N via webhooks externos, separada de `activity_logs` (que é alimentada pelo frontend).
+
+**Estrutura:**
+- `id`, `unit_code`, `workflow`, `action_code`, `atend_id`, `user_identifier`, `status`, `horario`, `metadata`, `created_at`
+- 7 índices otimizados para consultas por unidade, workflow, status e data
+- RLS configurado: SELECT para authenticated, INSERT para anon/service_role
+
+**Uso em N8N:**
+```javascript
+// POST https://seu-projeto.supabase.co/rest/v1/n8n_logs
+{
+  "unit_code": "mb_londrina",
+  "workflow": "envio_confirmacao_agendamento",
+  "action_code": "envio_atend_client",
+  "status": "success",
+  "metadata": {"channel": "whatsapp", "message": "Enviado"}
+}
+```
+
+**Documentação completa**: [`docs/N8N_LOGS_TABLE.md`](docs/N8N_LOGS_TABLE.md)
+
+---
+
+## Upload de Planilhas - Lógica de STATUS
+
+### Regra Inteligente de "esperar"
+
+O sistema aplica automaticamente `STATUS = "esperar"` apenas em casos específicos de múltiplos atendimentos no turno da Tarde.
+
+**Condições para aplicar "esperar":**
+1. ✅ Profissional tem 2+ atendimentos no mesmo dia
+2. ✅ TODOS os atendimentos são no turno "Tarde"
+3. ✅ NENHUM atendimento é no turno "Manhã"
+
+**Preservação do STATUS:**
+- ❌ Mix de turnos (Manhã + Tarde) → STATUS preservado
+- ❌ Apenas Manhã → STATUS preservado
+- ❌ Único atendimento → STATUS preservado
+
+**Exemplo:**
+| Profissional | MOMENTO | STATUS Original | STATUS Final |
+|--------------|---------|----------------|--------------|
+| Maria - Dia 1 | Tarde 14:00 | confirmado | **esperar** ✅ |
+| Maria - Dia 1 | Tarde 16:00 | confirmado | **esperar** ✅ |
+| João - Dia 2 | Manhã 09:00 | confirmado | **confirmado** ❌ |
+| João - Dia 2 | Tarde 14:00 | confirmado | **confirmado** ❌ |
+
+**Documentação completa**: [`docs/UPLOAD_STATUS_LOGIC.md`](docs/UPLOAD_STATUS_LOGIC.md)
+
+---
+
 - Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).  
    Nota: O barrel `services/index.ts` e o arquivo de compatibilidade `services/mockApi.ts` seguem ativos até a Fase 6 de limpeza.
-- Módulos dinâmicos (icones + allowed_profiles + ordenação drag & drop persistida).
+- Módulos dinâmicos (ícones + allowed_profiles + ordenação drag & drop persistida).
+- **Rastreamento de acesso a módulos**: Sistema automático que registra cada acesso em `activity_logs` com sincronização via triggers.
 - Dashboard com métricas recalculadas localmente (repasse, ticket médio real).
 - Upload de planilhas XLSX com expansão de múltiplos profissionais e sincronização por período.
+- **Lógica inteligente de STATUS**: Aplica "esperar" apenas quando todos os atendimentos do dia são à Tarde.
 - **Controle de acesso baseado em unidades**: Sistema hierárquico de permissões com `unit_modules` e `user_modules`.
+- **Logs N8N dedicados**: Tabela `n8n_logs` separada para receber webhooks externos de workflows.
 - Visualização multi-unidade ("Todos") em módulos selecionados com agregações corretas por período.
- - Módulo Prestadoras com dois painéis: Profissionais (ativos) e Recrutadora (cadastros), incluindo métricas mensais, ranking e drill‑down de atendimentos por profissional.
+- Módulo Prestadoras com dois painéis: Profissionais (ativos) e Recrutadora (cadastros), incluindo métricas mensais, ranking e drill-down de atendimentos por profissional.
 
 ---
 
@@ -291,20 +380,15 @@ Troubleshooting
 Crie `.env.local` na raiz com as seguintes variáveis:
 
 ```bash
-# DromeFlow - Projeto Principal (Supabase)
+# DromeFlow - Projeto Supabase
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON
-
-# Data Drome - Projeto N8N (Monitoramento e Logs - Opcional)
-VITE_DATA_DROME_URL=https://SEU-PROJETO-DATALOGS.supabase.co
-VITE_DATA_DROME_ANON_KEY=SUA_CHAVE_SERVICE_ROLE
 ```
 
 **Observações:**
-- O cliente Supabase principal é inicializado em `services/supabaseClient.ts` usando `import.meta.env.VITE_SUPABASE_*`
-- O projeto Data Drome é opcional e usado apenas para logs de monitoramento N8N
+- O cliente Supabase é inicializado em `services/supabaseClient.ts` usando `import.meta.env.VITE_SUPABASE_*`
+- Todas as tabelas estão consolidadas no banco DromeFlow (incluindo `actions`, `activity_logs`, `error_logs`)
 - **Cloudflare removido**: Anteriormente o projeto usava Cloudflare R2/D1 para storage. Essa integração foi completamente removida. Cloudflare agora é usado apenas como CDN/DNS/Proxy.
-- Todas as credenciais Cloudflare (R2/D1) foram removidas do `.env.local` e do banco de dados
 
 ---
 ## 3. Instalação e Execução
@@ -357,6 +441,7 @@ services/
 │   ├── storage.service.ts      # Apenas Supabase (Cloudflare removido)
 │   ├── serviceAnalysis.service.ts
 │   ├── repasse.service.ts
+│   ├── activityLogs.service.ts # Logs de atividades N8N/sistema
 │   └── prestadoras.service.ts
 ├── data/                       # Dados de atendimentos
 │   ├── dataTable.service.ts
@@ -376,10 +461,9 @@ services/
 │   └── accessCredentials.service.ts
 ├── content/                    # Conteúdo de webhooks
 │   └── content.service.ts
-├── integration/                # Integrações externas
-│   └── dataDrome.service.ts    # N8N logs (opcional)
 └── utils/                      # Utilitários
-    └── dates.ts
+    ├── dates.ts
+    └── activityLogger.service.ts # Logger centralizado de atividades
 ```
 
 **Observações:**
@@ -387,6 +471,7 @@ services/
 - Lógica de negócio centralizada nos serviços (não nos componentes)
 - Barrel `services/index.ts` será removido na Fase 6 (limpeza)
 - **Storage removido**: Cloudflare R2/D1 completamente removido, apenas Supabase
+- **Data Drome consolidado**: Tabelas `actions`, `activity_logs`, `error_logs` agora estão no DromeFlow
 
 Notas:
 - O `ContentArea` só injeta HTML quando a origem começa com `internal://` (segurança de conteúdo).

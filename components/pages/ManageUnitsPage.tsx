@@ -137,7 +137,7 @@ const UnitFormModal: React.FC<{
           setKeyColumnsLoading(true);
           const cols: ColumnInfo[] = await listUnitKeysColumns(false);
           // filtro de segurança caso o RPC retorne colunas de sistema
-          const system = new Set(['id','unit_id','is_active','created_at','updated_at']);
+          const system = new Set(['id', 'unit_id', 'is_active', 'created_at', 'updated_at']);
           const filtered = cols.filter(c => !system.has(c.column_name));
           setKeyColumns(filtered);
         } catch (e: any) {
@@ -197,25 +197,25 @@ const UnitFormModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onMouseDown={onClose}>
-      <div className="w-full max-w-3xl mx-4 bg-bg-secondary rounded-lg shadow-lg overflow-hidden" onMouseDown={(e)=>e.stopPropagation()}>
+      <div className="w-full max-w-3xl mx-4 bg-bg-secondary rounded-lg shadow-lg overflow-hidden" onMouseDown={(e) => e.stopPropagation()}>
         {/* Header com fundo cinza e abas na mesma linha */}
         <div className="bg-bg-tertiary px-5 py-3.5 flex items-center justify-between border-b border-border-secondary">
           <div className="flex items-center gap-6">
             <h2 className="text-lg font-bold text-text-primary">{unit ? (unit.unit_name || 'Editar Unidade') : 'Adicionar Nova Unidade'}</h2>
-            
+
             {/* Abas (somente em edição) */}
             {unit && (
               <div className="flex gap-2">
-                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab==='dados'?'bg-accent-primary text-white':'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={()=>setActiveTab('dados')}>Dados</button>
-                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab==='usuarios'?'bg-accent-primary text-white':'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={()=>setActiveTab('usuarios')}>Usuários</button>
-                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab==='modulos'?'bg-accent-primary text-white':'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={()=>setActiveTab('modulos')}>Módulos</button>
+                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'dados' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('dados')}>Dados</button>
+                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'usuarios' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('usuarios')}>Usuários</button>
+                <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'modulos' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('modulos')}>Módulos</button>
                 {profile?.role === 'super_admin' && (
-                  <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab==='keys'?'bg-accent-primary text-white':'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={()=>setActiveTab('keys')}>Keys</button>
+                  <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'keys' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('keys')}>Keys</button>
                 )}
               </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-3">
             {profile?.role === 'super_admin' && activeTab === 'keys' && (
               <button
@@ -237,7 +237,7 @@ const UnitFormModal: React.FC<{
                       umbler: 'Bearer/Token',
                     };
                     const opts = cols
-                      .sort((a,b)=> a.ordinal_position - b.ordinal_position)
+                      .sort((a, b) => a.ordinal_position - b.ordinal_position)
                       .map(c => ({ value: c.column_name, label: toTitle(c.column_name), hint: knownHints[c.column_name] }));
                     setKeyTypeOptions(opts);
                     if (opts.length > 0) setSelectedKeyType(opts[0].value);
@@ -274,7 +274,7 @@ const UnitFormModal: React.FC<{
                 <input type="text" name="unit_code" id="unit_code" value={formData.unit_code} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
               </div>
             </form>
-            
+
             {/* Footer da aba dados */}
             <div className="px-5 py-3 bg-bg-tertiary border-t border-border-secondary flex items-center justify-between">
               <div>
@@ -323,7 +323,7 @@ const UnitFormModal: React.FC<{
             {!usersLoading && unitUsers.length > 0 && (
               <ul className="divide-y divide-border-secondary border border-border-secondary rounded-md overflow-hidden">
                 {unitUsers.map(u => (
-                  <li key={u.id} className="px-3 py-2 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between bg-bg-tertiary/30 hover:bg-bg-tertiary transition-colors" onDoubleClick={()=>handleOpenUserModal(u)}>
+                  <li key={u.id} className="px-3 py-2 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between bg-bg-tertiary/30 hover:bg-bg-tertiary transition-colors" onDoubleClick={() => handleOpenUserModal(u)}>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-text-primary truncate">{u.full_name || '(Sem nome)'}</p>
                       <p className="text-xs text-text-secondary truncate font-mono">{u.email}</p>
@@ -339,31 +339,31 @@ const UnitFormModal: React.FC<{
         {unit && activeTab === 'modulos' && (
           <div className="px-5 py-4 space-y-4">
             <p className="text-xs text-text-secondary">Selecione os módulos que os usuários desta unidade poderão acessar.</p>
-            
+
             {modulesLoading && (
               <div className="flex items-center justify-center py-8 space-x-2 text-text-secondary text-sm">
                 <span className="w-4 h-4 border-2 border-t-accent-primary border-border-secondary rounded-full animate-spin" />
                 <span>Carregando módulos...</span>
               </div>
             )}
-            
+
             {modulesError && (
               <div className="text-sm text-danger bg-danger/10 p-3 rounded-md flex items-start gap-2">
                 <Icon name="alert-triangle" className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <span>{modulesError}</span>
               </div>
             )}
-            
+
             {!modulesLoading && !modulesError && allModules.length === 0 && (
               <div className="text-center py-8 text-text-secondary text-sm">
                 <Icon name="inbox" className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Nenhum módulo disponível no sistema.</p>
               </div>
             )}
-            
+
             {!modulesLoading && !modulesError && allModules.length > 0 && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto p-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-1">
                   {allModules
                     .filter(module => {
                       // Filtra módulos exclusivos de super_admin
@@ -371,49 +371,48 @@ const UnitFormModal: React.FC<{
                       const profiles = module.allowed_profiles || [];
                       const hasSuperAdmin = profiles.includes('super_admin');
                       const hasAdminOrUser = profiles.includes('admin') || profiles.includes('user');
-                      
+
                       // Se tem super_admin E (admin OU user), mostra
                       // Se não tem super_admin, mostra
                       // Se tem APENAS super_admin, NÃO mostra
                       return !hasSuperAdmin || hasAdminOrUser;
                     })
                     .map(module => {
-                    const isSelected = selectedModuleIds.includes(module.id);
-                    return (
-                      <label
-                        key={module.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                          isSelected
+                      const isSelected = selectedModuleIds.includes(module.id);
+                      return (
+                        <label
+                          key={module.id}
+                          className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${isSelected
                             ? 'border-accent-primary bg-accent-primary/5'
                             : 'border-border-secondary bg-bg-tertiary/30 hover:border-border-primary hover:bg-bg-tertiary'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedModuleIds(prev => [...prev, module.id]);
-                            } else {
-                              setSelectedModuleIds(prev => prev.filter(id => id !== module.id));
-                            }
-                          }}
-                          className="mt-1 w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Icon name={module.icon_name || 'box'} className="w-4 h-4 text-accent-primary flex-shrink-0" />
-                            <span className="font-medium text-sm text-text-primary truncate">{module.name}</span>
+                            }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedModuleIds(prev => [...prev, module.id]);
+                              } else {
+                                setSelectedModuleIds(prev => prev.filter(id => id !== module.id));
+                              }
+                            }}
+                            className="mt-1 w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20 checked:bg-accent-primary checked:border-transparent"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Icon name={module.icon_name || 'box'} className="w-4 h-4 text-accent-primary flex-shrink-0" />
+                              <span className="font-medium text-sm text-text-primary truncate">{module.name}</span>
+                            </div>
+                            {module.description && (
+                              <p className="text-xs text-text-secondary line-clamp-2">{module.description}</p>
+                            )}
                           </div>
-                          {module.description && (
-                            <p className="text-xs text-text-secondary line-clamp-2">{module.description}</p>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
+                        </label>
+                      );
+                    })}
                 </div>
-                
+
                 <div className="flex items-center justify-between pt-4 border-t border-border-secondary">
                   <div className="text-xs text-text-secondary">
                     <Icon name="info" className="inline w-3.5 h-3.5 mr-1" />
@@ -487,12 +486,12 @@ const UnitFormModal: React.FC<{
                     <p className="text-xs text-text-tertiary mt-1">Clique em "Adicionar Key" para começar</p>
                   </div>
                 )}
-                
+
                 {keys.length > 1 && (
                   <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
                     <Icon name="alert" className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     <div>
-                      <strong>Aviso:</strong> Foram encontradas <strong>{keys.length}</strong> linhas de keys para esta unidade. 
+                      <strong>Aviso:</strong> Foram encontradas <strong>{keys.length}</strong> linhas de keys para esta unidade.
                       O modelo atual consolida tudo em uma única linha. Considere remover registros extras após migrar valores.
                     </div>
                   </div>
@@ -502,16 +501,16 @@ const UnitFormModal: React.FC<{
                   <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                     {keys.map((item) => {
                       const id = String(item.id);
-                      
+
                       const handleFieldChange = (fieldName: string, value: string) => {
                         setKeyEdits(prev => ({ ...prev, [`${id}_${fieldName}`]: value }));
                       };
-                      
+
                       const persistField = async (fieldName: string) => {
                         const editKey = `${id}_${fieldName}`;
                         const value = keyEdits[editKey];
                         if (value === undefined) return;
-                        
+
                         try {
                           setSavingKeyIds(prev => ({ ...prev, [editKey]: true }));
                           await updateUnitKey(String(item.id), { [fieldName]: value } as any);
@@ -526,17 +525,17 @@ const UnitFormModal: React.FC<{
                           setSavingKeyIds(prev => { const n = { ...prev }; delete n[editKey]; return n; });
                         }
                       };
-                      
+
                       const handleDelete = async () => {
                         if (!confirm('Remover esta key?')) return;
                         await deleteUnitKey(String(item.id));
                         const list = await fetchUnitKeys(unit!.id);
                         setKeys(list);
                       };
-                      
+
                       return (
-                        <div 
-                          key={id} 
+                        <div
+                          key={id}
                           className="bg-bg-secondary border border-border-secondary rounded-lg p-4 hover:border-accent-primary/50 transition-all space-y-3"
                         >
                           {/* Header do Card */}
@@ -548,11 +547,10 @@ const UnitFormModal: React.FC<{
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
-                                item.is_active 
-                                  ? 'bg-success/10 text-success border border-success/30' 
-                                  : 'bg-danger/10 text-danger border border-danger/30'
-                              }`}>
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${item.is_active
+                                ? 'bg-success/10 text-success border border-success/30'
+                                : 'bg-danger/10 text-danger border border-danger/30'
+                                }`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${item.is_active ? 'bg-success' : 'bg-danger'}`} />
                                 {item.is_active ? 'Ativo' : 'Inativo'}
                               </span>
@@ -573,12 +571,12 @@ const UnitFormModal: React.FC<{
                               const editKey = `${id}_${fieldName}`;
                               const currentValue = (item as any)[fieldName];
                               const displayValue = keyEdits[editKey] !== undefined ? keyEdits[editKey] : (currentValue || '');
-                              
+
                               const label = col.column_name
                                 .split('_')
                                 .map(s => s.charAt(0).toUpperCase() + s.slice(1))
                                 .join(' ');
-                              
+
                               const knownHints: Record<string, string> = {
                                 codigo: 'Código da unidade',
                                 istancia: 'Nome da instância',
@@ -588,7 +586,7 @@ const UnitFormModal: React.FC<{
                                 organizationID: 'ID da organização',
                                 contato_profissionais: 'Contato'
                               };
-                              
+
                               return (
                                 <div key={fieldName} className="space-y-1.5">
                                   <label className="text-xs font-medium text-text-secondary flex items-center gap-1">
@@ -720,7 +718,7 @@ const KeyListItem: React.FC<{
           <button
             type="button"
             className="px-2 py-1 text-xs rounded-md text-white bg-danger hover:bg-red-700"
-            onClick={async ()=>{
+            onClick={async () => {
               if (confirm('Remover esta key?')) {
                 await deleteUnitKey(String(item.id));
                 await onDeleted();
@@ -734,8 +732,8 @@ const KeyListItem: React.FC<{
           <KeyItemForm
             initial={item}
             autoFocusField={autoFocusField}
-            onSubmit={async (payload)=>{ await updateUnitKey(String(item.id), payload as any); await onUpdated(); }}
-            onDelete={async ()=>{ if (confirm('Remover esta key?')) { await deleteUnitKey(String(item.id)); await onDeleted(); } }}
+            onSubmit={async (payload) => { await updateUnitKey(String(item.id), payload as any); await onUpdated(); }}
+            onDelete={async () => { if (confirm('Remover esta key?')) { await deleteUnitKey(String(item.id)); await onDeleted(); } }}
           />
         </div>
       )}
@@ -799,7 +797,7 @@ const KeyTypePickerModal: React.FC<{
         </div>
         <div className="flex justify-end gap-2 pt-4">
           <button onClick={onCancel} className="px-3 py-1.5 text-sm border rounded-md text-text-secondary border-border-secondary hover:bg-bg-tertiary">Cancelar</button>
-          <button disabled={loading || options.length===0} onClick={() => onConfirm(selected, typedValue)} className={`px-3 py-1.5 text-sm rounded-md text-white ${loading || options.length===0 ? 'opacity-60 cursor-not-allowed bg-accent-primary' : 'bg-accent-primary hover:bg-accent-secondary'}`}>Confirmar</button>
+          <button disabled={loading || options.length === 0} onClick={() => onConfirm(selected, typedValue)} className={`px-3 py-1.5 text-sm rounded-md text-white ${loading || options.length === 0 ? 'opacity-60 cursor-not-allowed bg-accent-primary' : 'bg-accent-primary hover:bg-accent-secondary'}`}>Confirmar</button>
         </div>
       </div>
     </div>
@@ -872,7 +870,7 @@ const KeyItemForm: React.FC<{
     }
   }, [autoFocusField]);
   return (
-    <form ref={formEl} className="space-y-4" onSubmit={async (e)=>{ e.preventDefault(); setError(''); await onSubmit(form); }}>
+    <form ref={formEl} className="space-y-4" onSubmit={async (e) => { e.preventDefault(); setError(''); await onSubmit(form); }}>
       {error && <div className="text-sm text-danger bg-danger/10 p-2 rounded-md">{error}</div>}
       <div className="text-xs text-text-secondary">
         {isSaving ? 'Salvando...' : lastSavedAt ? `Auto-salvo às ${new Date(lastSavedAt).toLocaleTimeString()}` : 'Edições serão salvas automaticamente'}
@@ -936,21 +934,21 @@ const KeyFormModal: React.FC<{
   // Buscar colunas da tabela ao abrir o modal
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const loadColumns = async () => {
       setIsLoadingColumns(true);
       try {
         const { fetchUnitKeysColumns, getColumnLabel, getColumnIcon } = await import('../../services/units/unitKeysColumns.service');
-        
+
         // Buscar colunas diretamente da tabela
         const columnsData = await fetchUnitKeysColumns();
-        
+
         const mappedCols = columnsData.map(col => ({
           name: col.column_name,
           label: getColumnLabel(col.column_name),
           icon: getColumnIcon(col.column_name),
         }));
-        
+
         setColumns(mappedCols);
         console.log('[KeyFormModal] Colunas carregadas dinamicamente:', mappedCols.map(c => c.name));
       } catch (error) {
@@ -959,14 +957,14 @@ const KeyFormModal: React.FC<{
         setIsLoadingColumns(false);
       }
     };
-    
+
     loadColumns();
   }, [isOpen]);
 
   // Preencher formData com base na keyData ou valores vazios
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const initialData: Record<string, any> = {};
     columns.forEach(col => {
       if (col.name === 'is_active') {
@@ -975,7 +973,7 @@ const KeyFormModal: React.FC<{
         initialData[col.name] = keyData?.[col.name as keyof UnitKey] || '';
       }
     });
-    
+
     setFormData(initialData);
   }, [keyData, columns, isOpen]);
 
@@ -1040,21 +1038,21 @@ const KeyFormModal: React.FC<{
                 </div>
               ))}
 
-            {/* Status */}
-            <div className="col-span-2 flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={formData.is_active ?? true}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                className="w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20"
-              />
-              <label htmlFor="is_active" className="text-sm font-medium text-text-primary cursor-pointer">
-                Configuração Ativa
-              </label>
+              {/* Status */}
+              <div className="col-span-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={formData.is_active ?? true}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20"
+                />
+                <label htmlFor="is_active" className="text-sm font-medium text-text-primary cursor-pointer">
+                  Configuração Ativa
+                </label>
+              </div>
             </div>
-          </div>
-        </form>
+          </form>
         )}
 
         {/* Footer */}
@@ -1138,7 +1136,7 @@ const ManageUnitsPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
-  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'keys' | 'modules' | 'actions'>('info');
+  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'keys' | 'modules'>('info');
   const [unitKeys, setUnitKeys] = useState<UnitKey[]>([]);
   const [unitUsers, setUnitUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([]);
   const [userLoginStatus, setUserLoginStatus] = useState<Record<string, { isOnline: boolean; lastActivity: string | null }>>({});
@@ -1208,7 +1206,7 @@ const ManageUnitsPage: React.FC = () => {
         setUnitKeys(keys);
         setUnitUsers(users);
         setUnitModuleIds(moduleIds);
-        
+
         // Buscar status de login dos usuários
         if (users.length > 0) {
           await fetchUserLoginStatus(users.map(u => u.id));
@@ -1241,7 +1239,7 @@ const ManageUnitsPage: React.FC = () => {
       } else {
         await createUser({ ...(payload as any), auto_unit_id: selectedUnit?.id });
       }
-      
+
       // Recarregar lista de usuários
       if (selectedUnit) {
         const users = await fetchUsersForUnit(selectedUnit.id);
@@ -1250,7 +1248,7 @@ const ManageUnitsPage: React.FC = () => {
           await fetchUserLoginStatus(users.map(u => u.id));
         }
       }
-      
+
       handleCloseUserModal();
     } catch (e: any) {
       alert(e?.message || 'Falha ao salvar usuário');
@@ -1260,17 +1258,17 @@ const ManageUnitsPage: React.FC = () => {
 
   const handleToggleModule = async (moduleId: string) => {
     if (!selectedUnit) return;
-    
+
     const newModuleIds = unitModuleIds.includes(moduleId)
       ? unitModuleIds.filter(id => id !== moduleId)
       : [...unitModuleIds, moduleId];
-    
+
     setUnitModuleIds(newModuleIds);
-    
+
     try {
       setSavingModules(true);
       await assignModulesToUnit(selectedUnit.id, newModuleIds);
-      
+
       // Atualizar contagem de módulos
       const moduleCounts = { ...unitModuleCounts };
       moduleCounts[selectedUnit.id] = newModuleIds.length;
@@ -1324,7 +1322,7 @@ const ManageUnitsPage: React.FC = () => {
 
     try {
       await deleteUnitKey(keyId);
-      
+
       // Recarregar keys
       if (selectedUnit) {
         const keys = await fetchUnitKeys(selectedUnit.id);
@@ -1342,7 +1340,7 @@ const ManageUnitsPage: React.FC = () => {
     try {
       const fetchedUnits = await fetchAllUnits();
       setUnits(fetchedUnits);
-      
+
       // Carrega contagem de usuários e módulos para cada unidade
       const userCounts: Record<string, number> = {};
       const moduleCounts: Record<string, number> = {};
@@ -1442,7 +1440,7 @@ const ManageUnitsPage: React.FC = () => {
     setIsModalOpen(false);
     setEditingUnit(null);
   };
-  
+
   const handleOpenDeleteConfirm = (unit: Unit) => {
     setUnitToDelete(unit);
   };
@@ -1454,7 +1452,7 @@ const ManageUnitsPage: React.FC = () => {
   const handleSaveUnit = async (data: UnitDataPayload) => {
     if (editingUnit) {
       await updateUnit(editingUnit.id, data);
-      
+
       // Registrar atualização de unidade
       if (profile) {
         activityLogger.logUnitUpdate(
@@ -1463,13 +1461,13 @@ const ManageUnitsPage: React.FC = () => {
           'success'
         );
       }
-      
+
       handleCloseModal();
       await loadUnits();
       return;
     }
     await createUnit(data);
-    
+
     // Registrar criação de unidade
     if (profile && data.unit_code) {
       activityLogger.logUnitCreate(
@@ -1477,7 +1475,7 @@ const ManageUnitsPage: React.FC = () => {
         'success'
       );
     }
-    
+
     handleCloseModal();
     await loadUnits();
   };
@@ -1491,10 +1489,10 @@ const ManageUnitsPage: React.FC = () => {
       alert(`Erro: ${err.message}`);
     }
   };
-  
+
   const handleDeleteFromModal = (unitId: string) => {
     const unit = units.find(u => u.id === unitId);
-    if(unit) {
+    if (unit) {
       handleCloseModal();
       handleOpenDeleteConfirm(unit);
     }
@@ -1536,7 +1534,7 @@ const ManageUnitsPage: React.FC = () => {
       </div>
 
       {/* Cards de Métricas */}
-      <div className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-4 gap-3">
+      <div className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary">
           <div className="flex items-center gap-2">
             <Icon name="Business" className="w-5 h-5 text-accent-primary" />
@@ -1559,16 +1557,6 @@ const ManageUnitsPage: React.FC = () => {
             <span className="text-sm font-medium text-text-secondary">Total de Usuários</span>
             <span className="ml-auto text-lg font-bold text-text-primary">
               {Object.values(unitUserCounts).reduce((sum, count) => sum + count, 0)}
-            </span>
-          </div>
-        </div>
-
-        <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary">
-          <div className="flex items-center gap-2">
-            <Icon name="Layers" className="w-5 h-5 text-brand-purple" />
-            <span className="text-sm font-medium text-text-secondary">Total de Módulos</span>
-            <span className="ml-auto text-lg font-bold text-text-primary">
-              {Object.values(unitModuleCounts).reduce((sum, count) => sum + count, 0)}
             </span>
           </div>
         </div>
@@ -1605,7 +1593,7 @@ const ManageUnitsPage: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           {isLoading ? (
             <div className="flex items-center justify-center flex-1">
               <div className="w-12 h-12 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
@@ -1624,11 +1612,10 @@ const ManageUnitsPage: React.FC = () => {
                     <div
                       key={unit.id}
                       onClick={() => setSelectedUnit(unit)}
-                      className={`px-4 py-3 cursor-pointer transition-all ${
-                        selectedUnit?.id === unit.id
-                          ? 'bg-gradient-to-r from-brand-purple/20 to-brand-purple/10 border-l-4 border-l-brand-purple font-bold shadow-lg text-brand-purple transform scale-[1.02]'
-                          : 'hover:bg-bg-tertiary border-l-4 border-l-transparent hover:border-l-brand-purple/30'
-                      }`}
+                      className={`px-4 py-3 cursor-pointer transition-all ${selectedUnit?.id === unit.id
+                        ? 'bg-gradient-to-r from-brand-purple/20 to-brand-purple/10 border-l-4 border-l-brand-purple font-bold shadow-lg text-brand-purple transform scale-[1.02]'
+                        : 'hover:bg-bg-tertiary border-l-4 border-l-transparent hover:border-l-brand-purple/30'
+                        }`}
                     >
                       <p className="text-sm">{unit.unit_name}</p>
                     </div>
@@ -1698,50 +1685,38 @@ const ManageUnitsPage: React.FC = () => {
                 <nav className="flex px-4">
                   <button
                     onClick={() => setActiveDetailTab('info')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                      activeDetailTab === 'info'
-                        ? 'border-accent-primary text-accent-primary'
-                        : 'border-transparent text-text-secondary hover:text-text-primary'
-                    }`}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeDetailTab === 'info'
+                      ? 'border-accent-primary text-accent-primary'
+                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                      }`}
                   >
                     Informações
                   </button>
                   <button
                     onClick={() => setActiveDetailTab('keys')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                      activeDetailTab === 'keys'
-                        ? 'border-accent-primary text-accent-primary'
-                        : 'border-transparent text-text-secondary hover:text-text-primary'
-                    }`}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeDetailTab === 'keys'
+                      ? 'border-accent-primary text-accent-primary'
+                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                      }`}
                   >
                     Keys
                   </button>
                   <button
                     onClick={() => setActiveDetailTab('modules')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                      activeDetailTab === 'modules'
-                        ? 'border-accent-primary text-accent-primary'
-                        : 'border-transparent text-text-secondary hover:text-text-primary'
-                    }`}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeDetailTab === 'modules'
+                      ? 'border-accent-primary text-accent-primary'
+                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                      }`}
                   >
                     Módulos
                   </button>
-                  <button
-                    onClick={() => setActiveDetailTab('actions')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                      activeDetailTab === 'actions'
-                        ? 'border-accent-primary text-accent-primary'
-                        : 'border-transparent text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    Ações
-                  </button>
+
                 </nav>
               </div>
 
               {/* Conteúdo das Tabs */}
               <div className="flex-1 overflow-y-auto p-4">
-                
+
                 {/* Tab: Informações */}
                 {activeDetailTab === 'info' && (
                   <div className="grid grid-cols-2 gap-3">
@@ -1777,14 +1752,14 @@ const ManageUnitsPage: React.FC = () => {
                         <div className="flex items-center justify-between py-1.5">
                           <span className="text-xs font-medium text-text-secondary">Unit ID:</span>
                           <div
-                            onClick={() => handleCopyToClipboard(selectedUnit.id, {} as any)}
-                            className="relative flex items-center gap-1.5 px-2 py-1 transition-colors rounded cursor-pointer bg-bg-tertiary hover:bg-accent-primary/10 group/id"
-                            title="Clique para copiar"
+                            onClick={(e) => handleCopyToClipboard(selectedUnit.id, e)}
+                            className="relative flex items-center gap-2 px-2 py-1.5 transition-colors rounded cursor-pointer bg-bg-tertiary hover:bg-accent-primary/10 group/id border border-transparent hover:border-accent-primary/20"
+                            title="Clique para copiar Unit ID"
                           >
-                            <span className="text-xs font-mono text-text-tertiary max-w-[120px] truncate">
+                            <span className="text-xs font-mono text-text-primary font-medium truncate select-all">
                               {selectedUnit.id}
                             </span>
-                            <Icon name="Copy" className="w-3 h-3 text-text-tertiary group-hover/id:text-accent-primary transition-colors flex-shrink-0" />
+                            <Icon name="Copy" className="w-3.5 h-3.5 text-text-tertiary group-hover/id:text-accent-primary transition-colors flex-shrink-0" />
                             {copiedValue === selectedUnit.id && (
                               <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
                                 Copiado!
@@ -1814,7 +1789,7 @@ const ManageUnitsPage: React.FC = () => {
                             {unitUsers.map((user) => {
                               const loginStatus = userLoginStatus[user.id];
                               const isOnline = loginStatus?.isOnline || false;
-                              
+
                               return (
                                 <div
                                   key={user.id}
@@ -1825,20 +1800,20 @@ const ManageUnitsPage: React.FC = () => {
                                   <div className="flex-shrink-0">
                                     <span className={
                                       user.role === 'super_admin' ? 'px-2 py-0.5 text-xs font-medium rounded bg-brand-purple/10 text-brand-purple' :
-                                      user.role === 'admin' ? 'px-2 py-0.5 text-xs font-medium rounded bg-accent-primary/10 text-accent-primary' :
-                                      'px-2 py-0.5 text-xs font-medium rounded bg-brand-cyan/10 text-brand-cyan'
+                                        user.role === 'admin' ? 'px-2 py-0.5 text-xs font-medium rounded bg-accent-primary/10 text-accent-primary' :
+                                          'px-2 py-0.5 text-xs font-medium rounded bg-brand-cyan/10 text-brand-cyan'
                                     }>
                                       {user.role === 'super_admin' ? 'Super' : user.role === 'admin' ? 'Admin' : 'User'}
                                     </span>
                                   </div>
-                                  
+
                                   {/* Nome */}
                                   <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-text-primary truncate">
                                       {user.full_name}
                                     </p>
                                   </div>
-                                  
+
                                   {/* Status de Login */}
                                   <div className="flex-shrink-0 flex items-center gap-1.5" title={isOnline ? 'Online agora' : loginStatus?.lastActivity ? `Última atividade: ${new Date(loginStatus.lastActivity).toLocaleString('pt-BR')}` : 'Nunca logou'}>
                                     <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-text-tertiary'}`} />
@@ -1858,116 +1833,123 @@ const ManageUnitsPage: React.FC = () => {
 
                 {/* Tab: Keys */}
                 {activeDetailTab === 'keys' && (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {unitKeys.length === 0 ? (
-                      <div className="bg-white border border-border-secondary rounded-lg p-6">
-                        <div className="text-center py-6 text-text-secondary text-xs">
-                          <Icon name="KeyRound" className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
-                          <p>Nenhuma chave cadastrada para esta unidade</p>
-                          <p className="text-xs mt-2">Configure as chaves de integração desta unidade</p>
+                      <div className="bg-white border border-border-secondary rounded-lg p-8 flex flex-col items-center justify-center text-center">
+                        <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mb-3">
+                          <Icon name="KeyRound" className="w-6 h-6 text-text-tertiary" />
                         </div>
+                        <h3 className="text-sm font-medium text-text-primary mb-1">Nenhuma chave configurada</h3>
+                        <p className="text-xs text-text-secondary max-w-[250px]">
+                          Adicione as chaves de integração para conectar esta unidade aos serviços externos.
+                        </p>
+                        <button
+                          onClick={() => handleOpenKeyModal()}
+                          className="mt-4 px-4 py-2 text-xs font-medium text-white bg-accent-primary rounded-md hover:bg-accent-secondary transition-colors flex items-center gap-2"
+                        >
+                          <Icon name="Plus" className="w-3.5 h-3.5" />
+                          Configurar Chaves
+                        </button>
                       </div>
                     ) : (
                       unitKeys.map((keySet) => {
+                        // Definição de todos os campos para exibir em grid
                         const keyFields = [
-                          { label: 'Código', value: keySet.codigo, icon: 'Hash' },
-                          { label: 'Instância', value: keySet.istancia, icon: 'Database' },
-                          { label: 'Recrutadora', value: keySet.recrutadora, icon: 'UserSearch' },
-                          { label: 'Bot ID', value: keySet.botID, icon: 'Bot' },
-                          { label: 'Trigger Name', value: keySet.triggerName, icon: 'Zap' },
-                          { label: 'Organization ID', value: keySet.organizationID, icon: 'Building2' },
-                          { label: 'Contato Profissionais', value: keySet.contato_profissionais, icon: 'MessageSquare' },
-                          { label: 'Umbler', value: keySet.umbler, icon: 'Server' },
-                          { label: 'Contato Atendimento', value: keySet.contato_atend, icon: 'MessageCircle' },
-                          { label: 'Pós Vendas', value: keySet.pos_vendas, icon: 'ShoppingBag' },
-                          { label: 'Conexão', value: keySet.conexao, icon: 'Link' },
-                          { label: 'ID Recruta', value: keySet.id_recruta, icon: 'UserPlus' },
-                        ].filter(f => f.value != null && String(f.value).trim() !== '');
-
-                        const hasAnyKey = keyFields.length > 0;
-
-                        if (!hasAnyKey) return null;
+                          { label: 'Código', value: keySet.codigo, icon: 'Hash', fullWidth: false },
+                          { label: 'Instância', value: keySet.istancia, icon: 'Database', fullWidth: false },
+                          { label: 'Recrutadora', value: keySet.recrutadora, icon: 'UserSearch', fullWidth: false },
+                          { label: 'Bot ID', value: keySet.botID, icon: 'Bot', fullWidth: false },
+                          { label: 'Trigger Name', value: keySet.triggerName, icon: 'Zap', fullWidth: false },
+                          { label: 'Organization ID', value: keySet.organizationID, icon: 'Building2', fullWidth: false },
+                          { label: 'Contato Profissionais', value: keySet.contato_profissionais, icon: 'MessageSquare', fullWidth: true },
+                          { label: 'Umbler', value: keySet.umbler, icon: 'Server', fullWidth: true },
+                          { label: 'Contato Atendimento', value: keySet.contato_atend, icon: 'MessageCircle', fullWidth: true },
+                          { label: 'Pós Vendas', value: keySet.pos_vendas, icon: 'ShoppingBag', fullWidth: true },
+                          { label: 'Conexão', value: keySet.conexao, icon: 'Link', fullWidth: true },
+                          { label: 'ID Recruta', value: keySet.id_recruta, icon: 'UserPlus', fullWidth: false },
+                        ];
 
                         return (
-                          <div 
-                            key={keySet.id} 
-                            className="bg-white border border-border-secondary rounded-lg overflow-hidden hover:border-accent-primary/30 transition-colors"
-                            onDoubleClick={() => handleOpenKeyModal(keySet)}
+                          <div
+                            key={keySet.id}
+                            className="bg-white border border-border-secondary rounded-lg overflow-hidden shadow-sm"
                           >
-                            {/* Header */}
-                            <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary flex items-center justify-between">
-                              <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
-                                <Icon name="Key" className="w-3.5 h-3.5 text-accent-primary" />
-                                Chaves e Configurações da Unidade
-                                <span className="text-text-tertiary font-normal">#{String(keySet.id).substring(0, 8)}</span>
-                              </h3>
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                keySet.is_active 
-                                  ? 'bg-success/10 text-success' 
-                                  : 'bg-text-tertiary/10 text-text-tertiary'
-                              }`}>
-                                {keySet.is_active ? 'Ativa' : 'Inativa'}
-                              </span>
+                            {/* Header da Chave */}
+                            <div className="px-4 py-3 bg-bg-tertiary border-b border-border-secondary flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-1.5 rounded bg-accent-primary/10">
+                                  <Icon name="Key" className="w-4 h-4 text-accent-primary" />
+                                </div>
+                                <div>
+                                  <h3 className="text-sm font-bold text-text-primary">Configuração de Integração</h3>
+                                  <p className="text-[10px] text-text-tertiary font-mono">ID: {keySet.id}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full ${keySet.is_active
+                                  ? 'bg-success/10 text-success border border-success/20'
+                                  : 'bg-text-tertiary/10 text-text-tertiary border border-text-tertiary/20'
+                                  }`}>
+                                  {keySet.is_active ? 'Ativa' : 'Inativa'}
+                                </span>
+                                <button
+                                  onClick={() => handleOpenKeyModal(keySet)}
+                                  className="p-1.5 text-text-secondary hover:text-accent-primary hover:bg-accent-primary/10 rounded transition-colors"
+                                  title="Editar Chaves"
+                                >
+                                  <Icon name="Edit" className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
 
-                            {/* Content */}
-                            <div className="p-3 space-y-2">
-                                    <div className="grid grid-cols-1 gap-2">
-                                      {keyFields.map((field) => {
-                                            if (!field.value) return null;
-                                            
-                                            return (
-                                              <div
-                                                key={field.label}
-                                                className="flex items-center gap-2 p-2 bg-bg-tertiary rounded border border-border-secondary hover:border-accent-primary/30 transition-colors"
-                                              >
-                                                <Icon name={field.icon as any} className="w-4 h-4 text-accent-primary flex-shrink-0" />
-                                                <div className="flex-1 min-w-0">
-                                                  <p className="text-xs font-medium text-text-secondary mb-0.5">{field.label}</p>
-                                                  <p className="text-xs font-mono text-text-primary truncate">
-                                                    {field.label === 'Descrição' ? field.value : '***' + String(field.value).slice(-8)}
-                                                  </p>
-                                                </div>
-                                                <button
-                                                  onClick={() => handleCopyToClipboard(String(field.value), {} as any)}
-                                                  className="p-1.5 rounded hover:bg-accent-primary/10 transition-colors flex-shrink-0 relative"
-                                                  title="Copiar"
-                                                >
-                                                  <Icon name="Copy" className="w-3.5 h-3.5 text-accent-primary" />
-                                                  {copiedValue === field.value && (
-                                                    <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
-                                                      Copiado!
-                                                    </span>
-                                                  )}
-                                                </button>
-                                              </div>
-                                            );
-                                          })}
-                                    </div>
-
-                                    {/* Timestamps */}
-                                    <div className="flex items-center gap-3 pt-2 mt-2 border-t border-border-secondary text-xs text-text-tertiary">
-                                      <div className="flex items-center gap-1">
-                                        <Icon name="Clock" className="w-3 h-3" />
-                                        <span>Criado: {new Date(keySet.created_at).toLocaleDateString('pt-BR')}</span>
+                            {/* Grid de Campos */}
+                            <div className="p-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {keyFields.map((field, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`relative group ${field.fullWidth ? 'md:col-span-2' : ''}`}
+                                  >
+                                    <label className="block text-[10px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                      <Icon name={field.icon as any} className="w-3 h-3" />
+                                      {field.label}
+                                    </label>
+                                    <div className="relative flex items-center">
+                                      <div className="w-full px-3 py-2 text-xs font-mono bg-bg-tertiary/50 border border-border-secondary rounded-md text-text-primary min-h-[34px] flex items-center">
+                                        {field.value || <span className="text-text-tertiary italic opacity-50">Não configurado</span>}
                                       </div>
-                                      {keySet.updated_at && (
-                                        <div className="flex items-center gap-1">
-                                          <Icon name="RefreshCw" className="w-3 h-3" />
-                                          <span>Atualizado: {new Date(keySet.updated_at).toLocaleDateString('pt-BR')}</span>
-                                        </div>
+                                      {field.value && (
+                                        <button
+                                          onClick={(e) => handleCopyToClipboard(String(field.value), e)}
+                                          className="absolute right-1 p-1.5 text-text-tertiary hover:text-accent-primary hover:bg-accent-primary/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                          title="Copiar valor"
+                                        >
+                                          <Icon name="Copy" className="w-3.5 h-3.5" />
+                                        </button>
                                       )}
                                     </div>
+                                  </div>
+                                ))}
+                              </div>
 
-                                    {/* Hint */}
-                            <p className="text-xs text-text-tertiary text-center pt-2 border-t border-border-secondary">
-                              Duplo clique para editar ou clique no ícone de edição
-                            </p>
+                              {/* Footer com Datas */}
+                              <div className="flex items-center justify-end gap-4 mt-4 pt-3 border-t border-border-secondary text-[10px] text-text-tertiary">
+                                <span className="flex items-center gap-1">
+                                  <Icon name="Clock" className="w-3 h-3" />
+                                  Criado em: {new Date(keySet.created_at).toLocaleDateString('pt-BR')}
+                                </span>
+                                {keySet.updated_at && (
+                                  <span className="flex items-center gap-1">
+                                    <Icon name="RefreshCw" className="w-3 h-3" />
+                                    Atualizado: {new Date(keySet.updated_at).toLocaleDateString('pt-BR')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
                   </div>
                 )}
 
@@ -1978,7 +1960,10 @@ const ManageUnitsPage: React.FC = () => {
                       <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary flex items-center justify-between">
                         <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
                           <Icon name="Layers" className="w-3.5 h-3.5 text-brand-purple" />
-                          Módulos da Unidade ({unitModuleIds.length}/{allModules.filter(m => !m.allowed_profiles?.includes('super_admin')).length})
+                          Módulos da Unidade ({unitModuleIds.length}/{allModules.filter(m => {
+                            const profiles = m.allowed_profiles || [];
+                            return profiles.includes('admin') || profiles.includes('user') || profiles.length === 0;
+                          }).length})
                         </h3>
                         {savingModules && (
                           <span className="text-xs text-brand-purple flex items-center gap-1">
@@ -1988,30 +1973,41 @@ const ManageUnitsPage: React.FC = () => {
                         )}
                       </div>
                       <div className="p-3">
-                        {allModules.filter(m => !m.allowed_profiles?.includes('super_admin')).length === 0 ? (
+                        {allModules.filter(m => {
+                          const profiles = m.allowed_profiles || [];
+                          // Mostra se tiver 'admin' OU 'user' permitido
+                          // Ou se não tiver restrição de perfil definida (assumindo público/padrão)
+                          return profiles.includes('admin') || profiles.includes('user') || profiles.length === 0;
+                        }).length === 0 ? (
                           <div className="text-center py-6 text-text-secondary text-xs">
                             <Icon name="Layers" className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
                             <p>Nenhum módulo disponível para esta unidade</p>
                           </div>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {allModules
-                              .filter(m => !m.allowed_profiles?.includes('super_admin'))
+                              .filter(m => {
+                                const profiles = m.allowed_profiles || [];
+                                return profiles.includes('admin') || profiles.includes('user') || profiles.length === 0;
+                              })
                               .map((module) => {
                                 const isActive = unitModuleIds.includes(module.id);
                                 return (
                                   <div
                                     key={module.id}
-                                    className="p-3 border rounded-lg bg-white border-border-secondary hover:border-brand-purple/20 transition-colors"
+                                    className={`p-3 border rounded-lg bg-white transition-colors ${isActive
+                                      ? 'border-accent-primary/50 bg-accent-primary/5'
+                                      : 'border-border-secondary hover:border-accent-primary/20'
+                                      }`}
                                   >
                                     <div className="flex items-center justify-between gap-3">
                                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <Icon 
-                                          name={module.icon_name || 'Box'} 
-                                          className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-purple' : 'text-text-tertiary'}`}
+                                        <Icon
+                                          name={module.icon_name || 'Box'}
+                                          className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-accent-primary' : 'text-text-tertiary'}`}
                                         />
                                         <div className="flex-1 min-w-0">
-                                          <p className={`text-sm font-semibold truncate ${isActive ? 'text-brand-purple' : 'text-text-primary'}`}>
+                                          <p className={`text-sm font-semibold truncate ${isActive ? 'text-accent-primary' : 'text-text-primary'}`}>
                                             {module.name}
                                           </p>
                                           {module.description && (
@@ -2023,15 +2019,13 @@ const ManageUnitsPage: React.FC = () => {
                                       </div>
                                       <button
                                         onClick={() => handleToggleModule(module.id)}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-purple focus:ring-offset-2 ${
-                                          isActive ? 'bg-brand-purple' : 'bg-gray-200'
-                                        }`}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 ${isActive ? 'bg-accent-primary' : 'bg-gray-200'
+                                          }`}
                                         disabled={savingModules}
                                       >
                                         <span
-                                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                            isActive ? 'translate-x-6' : 'translate-x-1'
-                                          }`}
+                                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'
+                                            }`}
                                         />
                                       </button>
                                     </div>
@@ -2045,51 +2039,7 @@ const ManageUnitsPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Tab: Ações */}
-                {activeDetailTab === 'actions' && (
-                  <div className="space-y-3">
-                    <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
-                      <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary">
-                        <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
-                          <Icon name="Zap" className="w-3.5 h-3.5 text-accent-primary" />
-                          Ações Disponíveis
-                        </h3>
-                      </div>
-                      <div className="p-3">
-                        <div className="grid grid-cols-1 gap-2">
-                          <button
-                            onClick={() => handleOpenModal(selectedUnit)}
-                            className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium border rounded-lg text-accent-primary border-accent-primary/30 bg-accent-primary/5 hover:bg-accent-primary/10 transition-colors"
-                          >
-                            <Icon name="Edit" className="w-4 h-4" />
-                            Editar Configurações da Unidade
-                          </button>
-                          <button
-                            onClick={() => handleOpenModal(selectedUnit)}
-                            className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium border rounded-lg text-brand-cyan border-brand-cyan/30 bg-brand-cyan/5 hover:bg-brand-cyan/10 transition-colors"
-                          >
-                            <Icon name="UserPlus" className="w-4 h-4" />
-                            Gerenciar Usuários da Unidade
-                          </button>
-                          <button
-                            onClick={() => handleOpenModal(selectedUnit)}
-                            className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium border rounded-lg text-brand-purple border-brand-purple/30 bg-brand-purple/5 hover:bg-brand-purple/10 transition-colors"
-                          >
-                            <Icon name="Package" className="w-4 h-4" />
-                            Configurar Módulos Disponíveis
-                          </button>
-                          <button
-                            onClick={() => handleOpenDeleteConfirm(selectedUnit)}
-                            className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium border rounded-lg text-danger border-danger/30 bg-danger/5 hover:bg-danger/10 transition-colors"
-                          >
-                            <Icon name="Trash2" className="w-4 h-4" />
-                            Excluir Unidade Permanentemente
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+
 
               </div>
             </div>
@@ -2097,7 +2047,7 @@ const ManageUnitsPage: React.FC = () => {
         </div>
       </div>
 
-      <UnitFormModal 
+      <UnitFormModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSave={handleSaveUnit}

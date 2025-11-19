@@ -34,6 +34,16 @@ export function useRealtimeSubscription<T = any>(
 ) {
   const { table, filter, callbacks, enabled = true } = options;
   const channelRef = useRef<RealtimeChannel | null>(null);
+  
+  // Usar refs para callbacks e filter para evitar re-subscription
+  const callbacksRef = useRef(callbacks);
+  const filterRef = useRef(filter);
+  
+  // Atualizar refs quando callbacks/filter mudarem
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+    filterRef.current = filter;
+  }, [callbacks, filter]);
 
   useEffect(() => {
     if (!enabled) {
@@ -44,7 +54,7 @@ export function useRealtimeSubscription<T = any>(
     console.log(`[Realtime] Iniciando subscription na tabela: ${table}`);
 
     // Criar canal único baseado no nome da tabela
-    const channelName = `realtime:${table}:${Date.now()}`;
+    const channelName = `realtime:${table}`;
     const channel = supabase
       .channel(channelName)
       .on(
@@ -59,12 +69,12 @@ export function useRealtimeSubscription<T = any>(
           console.log(`[Realtime] INSERT em ${table}:`, newRecord);
           
           // Aplicar filtro se fornecido
-          if (filter && !filter(newRecord)) {
+          if (filterRef.current && !filterRef.current(newRecord)) {
             console.log(`[Realtime] Registro INSERT ignorado por filtro`);
             return;
           }
           
-          callbacks.onInsert?.(newRecord);
+          callbacksRef.current.onInsert?.(newRecord);
         }
       )
       .on(
@@ -79,12 +89,12 @@ export function useRealtimeSubscription<T = any>(
           console.log(`[Realtime] UPDATE em ${table}:`, updatedRecord);
           
           // Aplicar filtro se fornecido
-          if (filter && !filter(updatedRecord)) {
+          if (filterRef.current && !filterRef.current(updatedRecord)) {
             console.log(`[Realtime] Registro UPDATE ignorado por filtro`);
             return;
           }
           
-          callbacks.onUpdate?.(updatedRecord);
+          callbacksRef.current.onUpdate?.(updatedRecord);
         }
       )
       .on(
@@ -99,7 +109,7 @@ export function useRealtimeSubscription<T = any>(
           console.log(`[Realtime] DELETE em ${table}:`, deletedRecord);
           
           // Para DELETE, não aplicamos filtro pois queremos sempre remover
-          callbacks.onDelete?.(deletedRecord);
+          callbacksRef.current.onDelete?.(deletedRecord);
         }
       )
       .subscribe((status) => {
@@ -126,7 +136,7 @@ export function useRealtimeSubscription<T = any>(
         channelRef.current = null;
       }
     };
-  }, [table, enabled, filter, callbacks]);
+  }, [table, enabled]);
 
   return {
     isConnected: channelRef.current?.state === 'joined'

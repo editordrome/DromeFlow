@@ -36,7 +36,9 @@ export const fetchDataTable = async (
     console.error('Error in fetchDataTable:', error);
     throw error;
   }
-  return { data: (data as DataRecord[]) || [], count: count || 0 };
+
+  const enrichedData = await enrichWithVerification((data as DataRecord[]) || []);
+  return { data: enrichedData, count: count || 0 };
 };
 
 export const fetchDataTableMulti = async (
@@ -75,8 +77,50 @@ export const fetchDataTableMulti = async (
     console.error('Error in fetchDataTableMulti:', error);
     throw error;
   }
-  return { data: (data as DataRecord[]) || [], count: count || 0 };
+
+  const enrichedData = await enrichWithVerification((data as DataRecord[]) || []);
+  return { data: enrichedData, count: count || 0 };
 };
+
+// Helper para enriquecer registros com status de verificação
+async function enrichWithVerification(records: DataRecord[]): Promise<DataRecord[]> {
+  if (!records.length) return [];
+
+  const unitCodes = [...new Set(records.map(r => (r as any).unidade_code).filter(Boolean))];
+  if (unitCodes.length === 0) return records;
+
+  // Buscar IDs das unidades
+  const { data: units } = await supabase.from('units').select('id, unit_code').in('unit_code', unitCodes);
+  if (!units || units.length === 0) return records;
+
+  const unitMap = new Map(units.map(u => [u.unit_code, u.id]));
+
+  const names = [...new Set(records.map(r => r.CLIENTE).filter(Boolean))];
+  const unitIds = units.map(u => u.id);
+
+  if (names.length === 0) return records;
+
+  // Buscar clientes verificados
+  const { data: clients } = await supabase
+    .from('unit_clients')
+    .select('unit_id, nome, is_verified')
+    .in('unit_id', unitIds)
+    .in('nome', names)
+    .eq('is_verified', true);
+
+  if (!clients || clients.length === 0) return records;
+
+  const verifiedSet = new Set<string>(); // key: `${unit_id}:${nome}`
+  clients.forEach(c => verifiedSet.add(`${c.unit_id}:${c.nome}`));
+
+  return records.map(r => {
+    const uId = unitMap.get((r as any).unidade_code || '');
+    if (uId && verifiedSet.has(`${uId}:${r.CLIENTE}`)) {
+      return { ...r, is_verified: true };
+    }
+    return r;
+  });
+}
 
 export const fetchAppointments = async (
   unitCode: string,
@@ -188,7 +232,7 @@ export const fetchDataRecordById = async (recordId: number): Promise<DataRecord 
  */
 export const fetchAvailableYearsFromProcessedData = async (unitCode: string | string[]): Promise<number[]> => {
   const unitCodes = Array.isArray(unitCode) ? unitCode : [unitCode];
-  
+
   if (unitCodes.length === 0 || unitCodes.includes('ALL')) {
     return [new Date().getFullYear()];
   }
@@ -239,4 +283,4 @@ export const fetchAvailableYearsFromProcessedData = async (unitCode: string | st
 
 // TODO: migrar funções: fetchDataTable, updateDataRecord, deleteDataRecord, fetchAppointments
 
-export {};
+export { };

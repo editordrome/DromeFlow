@@ -20,7 +20,7 @@ export interface Unit {
   id: string;
   unit_name: string;
   unit_code: string;
-  slug: string; // Slug único para subdomínio (kebab-case, ex: mb-joinville)
+
   address?: string | null;
   is_active: boolean;
   created_at: string;
@@ -80,22 +80,22 @@ export interface UnitModuleSummary {
   module_names: string[];
 }
 
-export type PageView = 
-  | 'welcome' 
-  | 'module' 
-  | 'manage_users' 
-  | 'manage_modules' 
-  | 'manage_units' 
-  | 'manage_access' 
-  | 'data' 
-  | 'dashboard' 
-  | 'appointments' 
-  | 'agenda' 
-  | 'clients' 
-  | 'clients_base' 
-  | 'recrutadora' 
-  | 'prestadoras' 
-  | 'profissionais' 
+export type PageView =
+  | 'welcome'
+  | 'module'
+  | 'manage_users'
+  | 'manage_modules'
+  | 'manage_units'
+  | 'manage_access'
+  | 'data'
+  | 'dashboard'
+  | 'appointments'
+  | 'agenda'
+  | 'clients'
+  | 'clients_base'
+  | 'recrutadora'
+  | 'prestadoras'
+  | 'profissionais'
   | 'comercial'
   | 'pos_vendas'
   | 'unit_keys'
@@ -169,6 +169,7 @@ export interface DataRecord {
   observacao: string | null;
   'pos vendas': string | null;
   comentario: string | null;
+  is_verified?: boolean;
 }
 
 export interface DashboardMetrics {
@@ -180,11 +181,11 @@ export interface DashboardMetrics {
 }
 
 export interface UploadMetrics {
-    total: number;
-    inserted: number;
-    updated: number;
-    ignored: number;
-    deleted: number;
+  total: number;
+  inserted: number;
+  updated: number;
+  ignored: number;
+  deleted: number;
 }
 
 export interface ServiceAnalysisRecord {
@@ -214,6 +215,7 @@ export interface UnitClient {
   endereco: string | null;
   contato: string | null;
   responsavel?: string | null;
+  is_verified?: boolean;
   created_at?: string;
   updated_at?: string;
 }

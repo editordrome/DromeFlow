@@ -38,7 +38,7 @@ const ClientsPage: React.FC = () => {
   const [atencaoList, setAtencaoList] = useState<ClientRow[]>([]);
   const [period, setPeriod] = useState<string>(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   // Inicia com TOTAL ativo conforme solicitado
   const [activeFilter, setActiveFilter] = useState<string | null>('total');
@@ -135,15 +135,15 @@ const ClientsPage: React.FC = () => {
             ? fetchAllUnitClientsWithHistory({ unitId: selectedUnit.id, unitCode: selectedUnit.unit_code, search })
             : Promise.resolve([])
         ]);
-  const metaAtencao = (list as any)._atencaoSource || [];
-  const filteredList = Array.isArray(list) ? list.filter((x:any) => !Array.isArray(x)) : list;
-  setClients(filteredList);
-  setAllHistoricalClients(historical); // Armazena clientes históricos
-  // metaAtencao já são objetos completos
-  setAtencaoList(metaAtencao);
+        const metaAtencao = (list as any)._atencaoSource || [];
+        const filteredList = Array.isArray(list) ? list.filter((x: any) => !Array.isArray(x)) : list;
+        setClients(filteredList);
+        setAllHistoricalClients(historical); // Armazena clientes históricos
+        // metaAtencao já são objetos completos
+        setAtencaoList(metaAtencao);
         setMetrics(m);
         setPage(1); // reset página ao recarregar dados
-      } catch (e:any) {
+      } catch (e: any) {
         setError('Falha ao carregar clientes');
       } finally { setIsLoading(false); }
     };
@@ -157,7 +157,7 @@ const ClientsPage: React.FC = () => {
         setAvailableYears([new Date().getFullYear()]);
         return;
       }
-      
+
       try {
         const years = await fetchAvailableYears(selectedUnit.unit_code);
         setAvailableYears(years);
@@ -307,7 +307,7 @@ const ClientsPage: React.FC = () => {
             <div className="w-10 h-10 border-4 border-gray-200 border-t-accent-primary rounded-full animate-spin mx-auto" />
           </div>
         )}
-        
+
         {error && (
           <div className="p-8 text-center text-danger">{error}</div>
         )}
@@ -316,243 +316,247 @@ const ClientsPage: React.FC = () => {
           <>
             {/* Cabeçalho das abas e filtros no padrão do Agendamentos */}
             <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
-            <div className="flex w-full gap-2">
-              {([
-                { key: 'all', label: 'Total' },
-                { key: 'pf', label: 'PF' },
-                { key: 'pj', label: 'PJ' },
-              ] as const).map(tab => {
-                const isActive = segmentFilter === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setSegmentFilter(tab.key)}
-                    aria-pressed={isActive}
-                    className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${
-                      isActive
+              <div className="flex w-full gap-2">
+                {([
+                  { key: 'all', label: 'Total' },
+                  { key: 'pf', label: 'PF' },
+                  { key: 'pj', label: 'PJ' },
+                ] as const).map(tab => {
+                  const isActive = segmentFilter === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setSegmentFilter(tab.key)}
+                      aria-pressed={isActive}
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${isActive
                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-            <table className="min-w-full text-sm">
-            {activeFilter !== 'atencao' && (
-              <colgroup>
-                <col className="w-12" />
-                <col className="w-[35%]" />
-                <col className="w-24" />
-                <col className="w-[20%]" />
-                <col className="w-32" />
-                {/* Status apenas no TOTAL */}
-                {activeFilter === 'total' && <col className="w-32" />}
-              </colgroup>
-            )}
-            <thead className="sticky top-0 z-10 bg-bg-tertiary text-text-secondary shadow-sm">
-              <tr>
-                <th className="px-2 py-3 text-center w-12">#</th>
-                <th className="px-4 py-3 text-left">Nome</th>
-                {activeFilter === 'atencao' ? (
-                  <>
-                    <th className="px-4 py-3 text-center">Tipo</th>
-                    {/* Cabeçalhos dinâmicos: últimos 3 meses (M, M-1, M-2) com rótulo pt-BR */}
-                    {(() => {
-                      const sample = atencaoList[0];
-                      const keys = sample?.monthlyCounts ? Object.keys(sample.monthlyCounts) : [];
-                      // Ordena descendente para mostrar M, M-1, M-2
-                      keys.sort().reverse();
-                      const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-                      const fmt = (k: string) => {
-                        const [y, m] = k.split('-');
-                        const idx = Math.max(1, Math.min(12, parseInt(m, 10))) - 1;
-                        return `${months[idx]}/${y}`;
-                      };
-                      return keys.map(k => (
-                        <th key={k} className="px-4 py-3 text-center">{fmt(k)}</th>
-                      ));
-                    })()}
-                    <th className="px-4 py-3 text-center">Ação</th>
-                  </>
-                ) : (
-                  <>
-                    <th className="px-4 py-3 text-center">Tipo</th>
-                    <th className="px-4 py-3 text-center">Contato</th>
-                    <th className="px-4 py-3 text-center">Último Atendimento</th>
-                    {activeFilter === 'total' && (
-                      <th className="px-4 py-3 text-center">
-                        <div className="inline-flex items-center gap-2 relative" ref={statusMenuRef}>
-                          <span>Status</span>
-                          <button
-                            type="button"
-                            aria-label="Filtrar status"
-                            aria-expanded={isStatusMenuOpen}
-                            onClick={() => setIsStatusMenuOpen((v) => !v)}
-                            className={`p-1 rounded hover:bg-bg-secondary border border-transparent ${statusFilter !== 'all' ? 'text-text-primary' : 'text-text-secondary'}`}
-                          >
-                            <Icon name="ChevronDown" className="w-4 h-4" />
-                          </button>
-                          {isStatusMenuOpen && (
-                            <div className="absolute right-0 top-full mt-2 z-20 w-40 rounded-md border border-border-secondary bg-bg-secondary shadow-lg">
-                              {([
-                                { v: 'all', l: 'Todos' },
-                                { v: 'ativo', l: 'Ativo' },
-                                { v: 'atencao', l: 'Atenção' },
-                                { v: 'inativo', l: 'Inativo' },
-                              ] as const).map(opt => (
-                                <button
-                                  key={opt.v}
-                                  className={`block w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-bg-tertiary ${statusFilter === opt.v ? 'bg-accent-primary text-text-on-accent' : 'text-text-primary'}`}
-                                  onClick={() => { setStatusFilter(opt.v as any); setIsStatusMenuOpen(false); }}
-                                >
-                                  {opt.l}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </th>
-                    )}
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const totalRows = resolvedListWithSegment.length;
-                if (totalRows === 0) {
-                  return (
-                    <tr>
-                      <td colSpan={100} className="px-4 py-6 text-center text-text-secondary">
-                        Nenhum cliente encontrado.
-                      </td>
-                    </tr>
+                        }`}
+                    >
+                      {tab.label}
+                    </button>
                   );
-                }
-                const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
-                const currentPage = Math.min(page, totalPages);
-                const start = (currentPage - 1) * pageSize;
-                const paginated = resolvedListWithSegment.slice(start, start + pageSize);
-                return paginated.map((c:any, idx:number) => (
-                  <tr
-                    key={c.id}
-                    className="hover:bg-bg-tertiary cursor-pointer transition-colors duration-150 border-t border-border-secondary"
-                    onDoubleClick={() => { setSelectedClientName(c.nome); setIsClientModalOpen(true); }}
-                  >
-                    <td className="px-2 py-2 text-center text-text-secondary text-xs">{start + idx + 1}</td>
-                    <td className="px-4 py-2 text-sm font-medium text-text-primary truncate whitespace-nowrap" title={c.nome}>{c.nome}</td>
+                })}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table className="min-w-full text-sm">
+                {activeFilter !== 'atencao' && (
+                  <colgroup>
+                    <col className="w-12" />
+                    <col className="w-[35%]" />
+                    <col className="w-24" />
+                    <col className="w-[20%]" />
+                    <col className="w-32" />
+                    {/* Status apenas no TOTAL */}
+                    {activeFilter === 'total' && <col className="w-32" />}
+                  </colgroup>
+                )}
+                <thead className="sticky top-0 z-10 bg-bg-tertiary">
+                  <tr>
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary w-12">#</th>
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Nome</th>
                     {activeFilter === 'atencao' ? (
                       <>
-                        <td className="px-4 py-2 text-sm text-center">{c.tipo || '-'}</td>
+                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">Tipo</th>
+                        {/* Cabeçalhos dinâmicos: últimos 3 meses (M, M-1, M-2) com rótulo pt-BR */}
                         {(() => {
-                          const keys = c.monthlyCounts ? Object.keys(c.monthlyCounts).sort().reverse() : [];
-                          return keys.map((k:string) => (
-                            <td key={k} className="px-4 py-2 text-sm text-center">{c.monthlyCounts[k]}</td>
+                          const sample = atencaoList[0];
+                          const keys = sample?.monthlyCounts ? Object.keys(sample.monthlyCounts) : [];
+                          // Ordena descendente para mostrar M, M-1, M-2
+                          keys.sort().reverse();
+                          const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                          const fmt = (k: string) => {
+                            const [y, m] = k.split('-');
+                            const idx = Math.max(1, Math.min(12, parseInt(m, 10))) - 1;
+                            return `${months[idx]}/${y}`;
+                          };
+                          return keys.map(k => (
+                            <th key={k} className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">{fmt(k)}</th>
                           ));
                         })()}
-                        <td className="px-4 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                          {(() => {
-                            const acaoValue = c.acao || 'Nenhuma';
-                            const styles = {
-                              'Nenhuma': 'bg-gray-500/10 text-gray-600 border-gray-500/30',
-                              'Cancelou': 'bg-red-500/10 text-red-500 border-red-500/30',
-                              'Contatado': 'bg-blue-500/10 text-blue-500 border-blue-500/30'
-                            };
-                            const isOpen = openAcaoDropdown === c.id;
-                            return (
-                              <div className="relative inline-block" ref={isOpen ? acaoDropdownRef : null}>
-                                <button
-                                  type="button"
-                                  onClick={() => setOpenAcaoDropdown(isOpen ? null : c.id)}
-                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border cursor-pointer ${styles[acaoValue as keyof typeof styles] || ''}`}
-                                >
-                                  {acaoValue}
-                                </button>
-                                {isOpen && (
-                                  <div className="absolute right-0 mt-2 z-20 w-32 rounded-md border border-border-secondary bg-bg-secondary shadow-lg">
-                                    {['Nenhuma', 'Cancelou', 'Contatado'].map(opt => (
-                                      <button
-                                        key={opt}
-                                        className={`block w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-bg-tertiary ${acaoValue === opt ? 'bg-accent-primary text-text-on-accent' : 'text-text-primary'}`}
-                                        onClick={async () => {
-                                          if (!selectedUnit) return;
-                                          const success = await updateClientAction(selectedUnit.unit_code, c.nome, opt);
-                                          if (success) {
-                                            setAtencaoList(prev => 
-                                              prev.map(item => 
-                                                item.id === c.id ? { ...item, acao: opt } : item
-                                              )
-                                            );
-                                          }
-                                          setOpenAcaoDropdown(null);
-                                        }}
-                                      >
-                                        {opt}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </td>
+                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">Ação</th>
                       </>
                     ) : (
                       <>
-                        <td className="px-4 py-2 text-sm text-center">{c.tipo || '-'}</td>
-                        <td className="px-4 py-2 text-sm text-center text-text-secondary truncate" title={c.contato || '-'}>
-                          {c.contato || '-'}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-center">{(() => {
-                          const overrideKey = normalizeName(c.nome);
-                          const chosen = c.lastAttendance ?? fallbackLastAttendance[overrideKey] ?? null;
-                          return chosen ? new Date(chosen + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
-                        })()}</td>
+                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">Tipo</th>
+                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">Contato</th>
+                        <th className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">Último Atendimento</th>
                         {activeFilter === 'total' && (
-                          <td className="px-4 py-2 text-sm text-center">
-                            {(() => {
-                              const status = computeStatus(c);
-                              const styles = {
-                                'Ativo': 'bg-green-500/10 text-green-600 border-green-500/30',
-                                'Atenção': 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30',
-                                'Inativo': 'bg-gray-500/10 text-gray-600 border-gray-500/30'
-                              };
-                              return (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${styles[status as keyof typeof styles] || ''}`}>
-                                  {status}
-                                </span>
-                              );
-                            })()}
-                          </td>
+                          <th className="px-6 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">
+                            <div className="inline-flex items-center gap-2 relative" ref={statusMenuRef}>
+                              <span>Status</span>
+                              <button
+                                type="button"
+                                aria-label="Filtrar status"
+                                aria-expanded={isStatusMenuOpen}
+                                onClick={() => setIsStatusMenuOpen((v) => !v)}
+                                className={`p-1 rounded hover:bg-bg-secondary border border-transparent ${statusFilter !== 'all' ? 'text-text-primary' : 'text-text-secondary'}`}
+                              >
+                                <Icon name="ChevronDown" className="w-4 h-4" />
+                              </button>
+                              {isStatusMenuOpen && (
+                                <div className="absolute right-0 top-full mt-2 z-20 w-40 rounded-md border border-border-secondary bg-bg-secondary shadow-lg">
+                                  {([
+                                    { v: 'all', l: 'Todos' },
+                                    { v: 'ativo', l: 'Ativo' },
+                                    { v: 'atencao', l: 'Atenção' },
+                                    { v: 'inativo', l: 'Inativo' },
+                                  ] as const).map(opt => (
+                                    <button
+                                      key={opt.v}
+                                      className={`block w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-bg-tertiary ${statusFilter === opt.v ? 'bg-accent-primary text-text-on-accent' : 'text-text-primary'}`}
+                                      onClick={() => { setStatusFilter(opt.v as any); setIsStatusMenuOpen(false); }}
+                                    >
+                                      {opt.l}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </th>
                         )}
                       </>
                     )}
                   </tr>
-                ));
-              })()}
-            </tbody>
-          </table>
-        </div>
-        
-        {/* Paginação */}
-        <div className="p-4 border-t border-border-secondary bg-bg-tertiary">
-          <Pagination
-            page={page}
-            onChange={setPage}
-            totalItems={resolvedListWithSegment.length}
-            pageSize={pageSize}
-          />
-        </div>
-        </>
+                </thead>
+                <tbody className="bg-bg-secondary divide-y divide-border-primary">
+                  {(() => {
+                    const totalRows = resolvedListWithSegment.length;
+                    if (totalRows === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={100} className="px-6 py-4 text-center text-text-secondary">
+                            Nenhum cliente encontrado.
+                          </td>
+                        </tr>
+                      );
+                    }
+                    const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+                    const currentPage = Math.min(page, totalPages);
+                    const start = (currentPage - 1) * pageSize;
+                    const paginated = resolvedListWithSegment.slice(start, start + pageSize);
+                    return paginated.map((c: any, idx: number) => (
+                      <tr
+                        key={c.id}
+                        className="hover:bg-bg-tertiary cursor-pointer transition-colors duration-150"
+                        onDoubleClick={() => { setSelectedClientName(c.nome); setIsClientModalOpen(true); }}
+                      >
+                        <td className="px-6 py-3 text-center text-text-secondary text-xs">{start + idx + 1}</td>
+                        <td className="px-6 py-3 text-sm font-medium text-text-primary truncate whitespace-nowrap" title={c.nome}>
+                          <div className="flex items-center gap-1.5">
+                            {c.is_verified && <Icon name="CheckCircle" className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                            <span>{c.nome}</span>
+                          </div>
+                        </td>
+                        {activeFilter === 'atencao' ? (
+                          <>
+                            <td className="px-6 py-3 text-sm text-center">{c.tipo || '-'}</td>
+                            {(() => {
+                              const keys = c.monthlyCounts ? Object.keys(c.monthlyCounts).sort().reverse() : [];
+                              return keys.map((k: string) => (
+                                <td key={k} className="px-6 py-3 text-sm text-center">{c.monthlyCounts[k]}</td>
+                              ));
+                            })()}
+                            <td className="px-6 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              {(() => {
+                                const acaoValue = c.acao || 'Nenhuma';
+                                const styles = {
+                                  'Nenhuma': 'bg-gray-500/10 text-gray-600 border-gray-500/30',
+                                  'Cancelou': 'bg-red-500/10 text-red-500 border-red-500/30',
+                                  'Contatado': 'bg-blue-500/10 text-blue-500 border-blue-500/30'
+                                };
+                                const isOpen = openAcaoDropdown === c.id;
+                                return (
+                                  <div className="relative inline-block" ref={isOpen ? acaoDropdownRef : null}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenAcaoDropdown(isOpen ? null : c.id)}
+                                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border cursor-pointer ${styles[acaoValue as keyof typeof styles] || ''}`}
+                                    >
+                                      {acaoValue}
+                                    </button>
+                                    {isOpen && (
+                                      <div className="absolute right-0 mt-2 z-20 w-32 rounded-md border border-border-secondary bg-bg-secondary shadow-lg">
+                                        {['Nenhuma', 'Cancelou', 'Contatado'].map(opt => (
+                                          <button
+                                            key={opt}
+                                            className={`block w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-bg-tertiary ${acaoValue === opt ? 'bg-accent-primary text-text-on-accent' : 'text-text-primary'}`}
+                                            onClick={async () => {
+                                              if (!selectedUnit) return;
+                                              const success = await updateClientAction(selectedUnit.unit_code, c.nome, opt);
+                                              if (success) {
+                                                setAtencaoList(prev =>
+                                                  prev.map(item =>
+                                                    item.id === c.id ? { ...item, acao: opt } : item
+                                                  )
+                                                );
+                                              }
+                                              setOpenAcaoDropdown(null);
+                                            }}
+                                          >
+                                            {opt}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-6 py-3 text-sm text-center">{c.tipo || '-'}</td>
+                            <td className="px-6 py-3 text-sm text-center text-text-secondary truncate" title={c.contato || '-'}>
+                              {c.contato || '-'}
+                            </td>
+                            <td className="px-6 py-3 text-sm text-center">{(() => {
+                              const overrideKey = normalizeName(c.nome);
+                              const chosen = c.lastAttendance ?? fallbackLastAttendance[overrideKey] ?? null;
+                              return chosen ? new Date(chosen + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
+                            })()}</td>
+                            {activeFilter === 'total' && (
+                              <td className="px-6 py-3 text-sm text-center">
+                                {(() => {
+                                  const status = computeStatus(c);
+                                  const styles = {
+                                    'Ativo': 'bg-green-500/10 text-green-600 border-green-500/30',
+                                    'Atenção': 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30',
+                                    'Inativo': 'bg-gray-500/10 text-gray-600 border-gray-500/30'
+                                  };
+                                  return (
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${styles[status as keyof typeof styles] || ''}`}>
+                                      {status}
+                                    </span>
+                                  );
+                                })()}
+                              </td>
+                            )}
+                          </>
+                        )}
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginação */}
+            <div className="p-4 border-t border-border-secondary bg-bg-tertiary">
+              <Pagination
+                page={page}
+                onChange={setPage}
+                totalItems={resolvedListWithSegment.length}
+                pageSize={pageSize}
+              />
+            </div>
+          </>
         )}
       </div>
-      
+
       <ClientDetailModal
         isOpen={isClientModalOpen}
         onClose={() => setIsClientModalOpen(false)}
@@ -568,14 +572,14 @@ const ClientsPage: React.FC = () => {
 export default ClientsPage;
 
 // Componente local PeriodDropdown (padrão alinhado aos demais módulos)
-const PeriodDropdown: React.FC<{ 
-  value: string; 
-  onChange: (v: string) => void; 
+const PeriodDropdown: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
   disabled?: boolean;
   availableYears?: number[];
 }> = ({ value, onChange, disabled = false, availableYears }) => {
   const [isOpen, setIsOpen] = useState(false);
-  
+
   const months = [
     { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' }, { value: '03', label: 'Março' },
     { value: '04', label: 'Abril' }, { value: '05', label: 'Maio' }, { value: '06', label: 'Junho' },
@@ -584,10 +588,10 @@ const PeriodDropdown: React.FC<{
   ];
 
   // Usa os anos disponíveis dos dados, ou fallback para os últimos 3 anos
-  const years = availableYears && availableYears.length > 0 
-    ? availableYears 
+  const years = availableYears && availableYears.length > 0
+    ? availableYears
     : [new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2];
-  
+
   // Gera opções para todos os anos disponíveis
   const options: { value: string; label: string }[] = [];
   years.forEach(year => {
@@ -626,9 +630,8 @@ const PeriodDropdown: React.FC<{
                     onChange(option.value);
                     setIsOpen(false);
                   }}
-                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${
-                    value === option.value ? 'bg-accent-primary text-white' : 'text-text-primary'
-                  }`}
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${value === option.value ? 'bg-accent-primary text-white' : 'text-text-primary'
+                    }`}
                 >
                   {option.label}
                 </button>
@@ -642,27 +645,27 @@ const PeriodDropdown: React.FC<{
 };
 
 // Componente simples de paginação local
-const Pagination: React.FC<{ page: number; onChange: (p:number)=>void; totalItems: number; pageSize: number }> = ({ page, onChange, totalItems, pageSize }) => {
+const Pagination: React.FC<{ page: number; onChange: (p: number) => void; totalItems: number; pageSize: number }> = ({ page, onChange, totalItems, pageSize }) => {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   if (totalPages <= 1) return null;
-  const go = (p:number) => { if (p>=1 && p<= totalPages) onChange(p); };
-  const windowSize = 5;
-  let start = Math.max(1, page - Math.floor(windowSize/2));
-  let end = start + windowSize - 1;
-  if (end > totalPages) { end = totalPages; start = Math.max(1, end - windowSize + 1); }
-  const pages = [] as number[];
-  for (let i=start; i<=end; i++) pages.push(i);
+
   return (
-    <div className="flex items-center justify-between mt-4 text-xs text-text-secondary">
-      <div>Mostrando {(page-1)*pageSize + 1} - {Math.min(page*pageSize, totalItems)} de {totalItems}</div>
-      <div className="flex items-center gap-1">
-        <button onClick={() => go(1)} disabled={page===1} className={`px-2 py-1 rounded-md border ${page===1?'opacity-40 cursor-not-allowed':'hover:bg-bg-tertiary'}`}>«</button>
-        <button onClick={() => go(page-1)} disabled={page===1} className={`px-2 py-1 rounded-md border ${page===1?'opacity-40 cursor-not-allowed':'hover:bg-bg-tertiary'}`}>‹</button>
-        {pages.map(p => (
-          <button key={p} onClick={()=>go(p)} className={`px-2 py-1 rounded-md border min-w-[32px] ${p===page ? 'bg-accent-primary text-white border-accent-secondary' : 'hover:bg-bg-tertiary'}`}>{p}</button>
-        ))}
-        <button onClick={() => go(page+1)} disabled={page===totalPages} className={`px-2 py-1 rounded-md border ${page===totalPages?'opacity-40 cursor-not-allowed':'hover:bg-bg-tertiary'}`}>›</button>
-        <button onClick={() => go(totalPages)} disabled={page===totalPages} className={`px-2 py-1 rounded-md border ${page===totalPages?'opacity-40 cursor-not-allowed':'hover:bg-bg-tertiary'}`}>»</button>
+    <div className="flex items-center justify-between w-full">
+      <p className="text-xs text-text-secondary">
+        Mostrando {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalItems)} de {totalItems}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-bg-secondary transition bg-bg-primary border-border-primary text-text-primary"
+          onClick={() => onChange(Math.max(1, page - 1))}
+          disabled={page <= 1}
+        >Anterior</button>
+        <span className="text-sm text-text-secondary">Página {page} de {totalPages}</span>
+        <button
+          className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-bg-secondary transition bg-bg-primary border-border-primary text-text-primary"
+          onClick={() => onChange(Math.min(totalPages, page + 1))}
+          disabled={page >= totalPages}
+        >Próxima</button>
       </div>
     </div>
   );

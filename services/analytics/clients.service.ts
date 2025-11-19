@@ -34,11 +34,11 @@ export const fetchClients = async ({
 
   // Busca dados de contato da tabela unit_clients para enriquecimento
   const unitsRes = await supabase.from('units').select('id').eq('unit_code', unitCode).maybeSingle();
-  let contactMap = new Map<string, string>();
+  let contactMap = new Map<string, any>();
   if (!unitsRes.error && unitsRes.data?.id) {
     const clientsRes = await supabase
       .from('unit_clients')
-      .select('nome, contato')
+      .select('nome, contato, is_verified')
       .eq('unit_id', unitsRes.data.id);
     if (!clientsRes.error && clientsRes.data) {
       const normalize = (value: string | null | undefined) => {
@@ -55,7 +55,7 @@ export const fetchClients = async ({
       };
       clientsRes.data.forEach((c: any) => {
         const key = normalize(c.nome);
-        if (key && c.contato) contactMap.set(key, c.contato);
+        if (key) contactMap.set(key, { contato: c.contato, is_verified: c.is_verified });
       });
     }
   }
@@ -128,12 +128,13 @@ export const fetchClients = async ({
     const inPrev = prevSet.has(raw);
     const categoria = inPrev ? 'recorrente' : 'outro';
     const normalizedName = normalize(raw);
-    const contato = contactMap.get(normalizedName) || null;
+    const contactInfo = contactMap.get(normalizedName);
     return {
       id: raw,
       nome: raw.trim() || raw,
       tipo: r.TIPO || null,
-      contato: contato,
+      contato: contactInfo?.contato || null,
+      is_verified: contactInfo?.is_verified || false,
       lastAttendance: r.DATA,
       categoria,
     };
@@ -176,12 +177,13 @@ export const fetchClients = async ({
         [currentPeriodKey]: currentCountMap.get(c) || 0,
       };
       const normalizedName = normalize(c);
-      const contato = contactMap.get(normalizedName) || null;
+      const contactInfo = contactMap.get(normalizedName);
       return {
         id: c,
         nome: c.trim() || c,
         tipo: row?.TIPO || null,
-        contato: contato,
+        contato: contactInfo?.contato || null,
+        is_verified: contactInfo?.is_verified || false,
         lastAttendance: row?.DATA || null,
         acao: row?.ACAO || null,
         categoria: 'atencao',
@@ -334,7 +336,7 @@ export const fetchAllUnitClientsWithHistory = async ({
     (() => {
       let query = supabase
         .from('unit_clients')
-        .select('id, nome, tipo, contato')
+        .select('id, nome, tipo, contato, is_verified')
         .eq('unit_id', unitId)
         .order('nome', { ascending: true });
       if (filtersSearch) query = query.ilike('nome', `%${filtersSearch}%`);
@@ -381,6 +383,7 @@ export const fetchAllUnitClientsWithHistory = async ({
     nome: row.nome,
     tipo: row.tipo ?? null,
     contato: row.contato ?? null,
+    is_verified: row.is_verified ?? false,
     lastAttendance: lastAttendanceMap.get(normalize(row.nome)) ?? null,
   }));
 
@@ -552,7 +555,7 @@ export const fetchAvailableYears = async (unitCode: string): Promise<number[]> =
 
     // Converte para array e ordena decrescente
     const years = Array.from(yearsSet).sort((a, b) => b - a);
-    
+
     // Se não encontrou nenhum ano válido, retorna ano atual
     return years.length > 0 ? years : [new Date().getFullYear()];
   } catch (error) {
@@ -568,4 +571,4 @@ export const fetchAvailableYears = async (unitCode: string): Promise<number[]> =
 
 // TODO: migrar funções: fetchClients, fetchClientMetrics, fetchClientMetricsFromProcessed, fetchClientAnalysisData
 
-export {};
+export { };

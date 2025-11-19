@@ -383,8 +383,8 @@ Em dev, Service Worker pode causar confusão com cache. Use DevTools → Applica
 ### Code Splitting
 ```javascript
 manualChunks: {
-  'vendor-react': ['react', 'react-dom'],      // ~150KB gzipped
-  'vendor-supabase': ['@supabase/supabase-js'] // ~80KB gzipped
+  'vendor-react': ['react', 'react-dom'],      // ~12KB raw → ~4KB br / ~8KB gz
+  'vendor-supabase': ['@supabase/supabase-js'] // ~124KB raw → ~28KB br / ~32KB gz
 }
 ```
 
@@ -484,10 +484,6 @@ VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 # === OPCIONAIS ===
-# Data Drome (N8N Logs)
-VITE_DATA_DROME_URL=https://logs.supabase.co
-VITE_DATA_DROME_ANON_KEY=eyJ...
-
 # Gemini AI (se usado)
 GEMINI_API_KEY=AIza...
 ```
@@ -587,14 +583,31 @@ services/
 ### Build Output
 ```
 dist/
-├── index.html
-├── assets/
-│   ├── index-[hash].js (+ .br + .gz)
-│   ├── vendor-react-[hash].js
-│   ├── vendor-supabase-[hash].js
-│   └── index-[hash].css
-└── workbox-[hash].js (Service Worker)
+├── index.html (CSS inline no <head>)
+├── manifest.webmanifest
+├── registerSW.js
+├── sw.js
+├── workbox-[hash].js (+ .br + .gz)
+├── PWA Icons/
+│   ├── android-chrome-192x192.png
+│   ├── android-chrome-512x512.png
+│   ├── apple-touch-icon.png
+│   ├── favicon-16x16.png
+│   ├── favicon-32x32.png
+│   └── favicon.ico
+└── assets/
+    ├── index-[hash].js (~743KB → ~164KB br / ~201KB gz)
+    ├── vendor-react-[hash].js (~12KB → ~4KB br / ~8KB gz)
+    ├── vendor-supabase-[hash].js (~124KB → ~28KB br / ~32KB gz)
+    ├── [Page]-[hash].js (lazy loaded, ~10-50KB cada)
+    └── [Lib]-[hash].js (dnd, jspdf, purify, etc. - com .br/.gz)
 ```
+
+**Observações**:
+- ❌ **Sem arquivo CSS separado**: Tailwind é inline no `<head>` do index.html
+- ✅ **Code splitting agressivo**: Cada página é um chunk separado (lazy load)
+- ✅ **Compressão dual**: Todos JS > 10KB têm versões .br e .gz
+- ✅ **PWA completo**: manifest + service worker + ícones multi-resolução
 
 ### Pós-Deploy
 ```

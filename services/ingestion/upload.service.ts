@@ -90,8 +90,8 @@ const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]):
 	return finalRecords;
 };
 
-// Aplica lógica de STATUS "esperar" para atendimentos do período "Tarde"
-// quando a mesma profissional tem múltiplos atendimentos no mesmo dia
+// Aplica lógica de STATUS "esperar" apenas quando TODOS os atendimentos do dia são à Tarde
+// Se houver mix de turnos (Manhã + Tarde), o STATUS é preservado
 const applyWaitStatusForAfternoonShifts = (records: DataRecord[]): DataRecord[] => {
 	// Agrupar registros por (PROFISSIONAL + DATA)
 	const groupedByProfessionalDate = new Map<string, DataRecord[]>();
@@ -106,18 +106,30 @@ const applyWaitStatusForAfternoonShifts = (records: DataRecord[]): DataRecord[] 
 		groupedByProfessionalDate.get(key)!.push(record);
 	});
 	
-	// Aplicar regra: Se profissional tem múltiplos atendimentos no dia,
-	// marcar atendimentos do período "Tarde" com STATUS = "esperar"
+	// Aplicar regra: Se profissional tem 2+ atendimentos no dia,
+	// marcar com STATUS "esperar" APENAS se TODOS forem à Tarde
 	groupedByProfessionalDate.forEach((recordsGroup) => {
 		if (recordsGroup.length > 1) {
 			// Profissional tem múltiplos atendimentos no mesmo dia
-			recordsGroup.forEach((record) => {
-				// Verificar se MOMENTO contém "Tarde"
+			// Verificar se TODOS os MOMENTO contêm "Tarde" (e nenhum contém "Manhã")
+			const hasManha = recordsGroup.some((record) => {
 				const momento = String(record.MOMENTO || '').toLowerCase();
-				if (momento.includes('tarde')) {
-					record.STATUS = 'esperar';
-				}
+				return momento.includes('manhã') || momento.includes('manha');
 			});
+			
+			const allTarde = recordsGroup.every((record) => {
+				const momento = String(record.MOMENTO || '').toLowerCase();
+				return momento.includes('tarde');
+			});
+			
+			// Aplicar STATUS "esperar" apenas se:
+			// - Não houver nenhum atendimento de Manhã
+			// - TODOS os atendimentos forem à Tarde
+			if (!hasManha && allTarde) {
+				recordsGroup.forEach((record) => {
+					record.status = 'esperar';
+				});
+			}
 		}
 	});
 	

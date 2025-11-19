@@ -216,5 +216,29 @@ export const activityLogger = {
       status,
       moduleName
     });
+  },
+
+  /**
+   * Registra acesso a um módulo do sistema
+   * @param userIdentifier Email ou nome do usuário
+   * @param unitCode Código da unidade
+   * @param moduleCode Código do módulo acessado
+   * @param moduleName Nome do módulo acessado
+   */
+  logModuleAccess(userIdentifier: string, unitCode: string | null, moduleCode: string, moduleName: string) {
+    // Gera o action_code específico do módulo (mesmo padrão do banco)
+    const moduleActionCode = 'access_module_' + moduleCode.toLowerCase().replace(/-/g, '_').replace(/ /g, '_');
+    
+    return this.logActivity({
+      unitCode,
+      actionCode: moduleActionCode,
+      userIdentifier,
+      status: 'success',
+      moduleName,
+      metadata: {
+        module_code: moduleCode,
+        module_name: moduleName
+      }
+    });
   }
 };

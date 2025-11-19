@@ -16,10 +16,10 @@ const PeriodDropdown: React.FC<{
   availableYears?: number[];
 }> = ({ value, onChange, disabled, availableYears }) => {
   const [isOpen, setIsOpen] = useState(false);
-  
+
   const currentYear = new Date().getFullYear();
   const years = availableYears && availableYears.length > 0 ? availableYears : [currentYear, currentYear - 1, currentYear - 2];
-  
+
   const months = [
     { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
     { value: '03', label: 'Março' }, { value: '04', label: 'Abril' },
@@ -53,7 +53,7 @@ const PeriodDropdown: React.FC<{
         <span className="text-sm text-text-primary">{getDisplayLabel()}</span>
         <Icon name={isOpen ? 'close' : 'add'} className="w-4 h-4 text-text-secondary" />
       </button>
-      
+
       {isOpen && !disabled && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
@@ -63,9 +63,8 @@ const PeriodDropdown: React.FC<{
                 <button
                   key={option.value}
                   onClick={() => { onChange(option.value); setIsOpen(false); }}
-                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${
-                    value === option.value ? 'bg-accent-primary text-white' : 'text-text-primary'
-                  }`}
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${value === option.value ? 'bg-accent-primary text-white' : 'text-text-primary'
+                    }`}
                 >
                   {option.label}
                 </button>
@@ -113,7 +112,7 @@ const DataPage: React.FC = () => {
 
   useEffect(() => {
     const handler = setTimeout(() => {
-        setDebouncedSearchTerm(searchTerm);
+      setDebouncedSearchTerm(searchTerm);
     }, 500);
     return () => clearTimeout(handler);
   }, [searchTerm]);
@@ -134,7 +133,7 @@ const DataPage: React.FC = () => {
     }
     const loadYears = async () => {
       try {
-        const unitCode = selectedUnit.unit_code === 'ALL' 
+        const unitCode = selectedUnit.unit_code === 'ALL'
           ? (userUnits || []).map(u => u.unit_code)
           : selectedUnit.unit_code;
         const years = await fetchAvailableYearsFromProcessedData(unitCode);
@@ -160,21 +159,21 @@ const DataPage: React.FC = () => {
       const isAll = selectedUnit.unit_code === 'ALL';
       const { data: result, count } = isAll
         ? await fetchDataTableMulti(
-            (userUnits || []).map(u => u.unit_code),
-            currentPage,
-            pageSize,
-            debouncedSearchTerm,
-            searchColumn,
-            selectedPeriod
-          )
+          (userUnits || []).map(u => u.unit_code),
+          currentPage,
+          pageSize,
+          debouncedSearchTerm,
+          searchColumn,
+          selectedPeriod
+        )
         : await fetchDataTable(
-            selectedUnit.unit_code,
-            currentPage,
-            pageSize,
-            debouncedSearchTerm,
-            searchColumn,
-            selectedPeriod
-          );
+          selectedUnit.unit_code,
+          currentPage,
+          pageSize,
+          debouncedSearchTerm,
+          searchColumn,
+          selectedPeriod
+        );
       setRecords(result);
       setTotalRecords(count);
     } catch (err: any) {
@@ -335,7 +334,7 @@ const DataPage: React.FC = () => {
         <h1 className="text-xl sm:text-2xl font-bold text-text-primary">
           Dados{selectedUnit && selectedUnit.unit_code !== 'ALL' ? ` - ${selectedUnit.unit_name}` : ''}
         </h1>
-        
+
         {selectedUnit && (
           <div className="flex flex-wrap items-center gap-2">
             {/* Campo de busca com seletor de coluna */}
@@ -371,7 +370,7 @@ const DataPage: React.FC = () => {
                 )}
               </div>
             </div>
-            
+
             {/* Filtro de período */}
             <PeriodDropdown
               value={selectedPeriod}
@@ -379,10 +378,10 @@ const DataPage: React.FC = () => {
               disabled={isLoading}
               availableYears={availableYears}
             />
-            
+
             {/* Botão de upload */}
-            <button 
-              onClick={() => setIsUploadModalOpen(true)} 
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
               disabled={!selectedUnit}
               className="p-2 text-white rounded-md bg-accent-primary hover:bg-accent-secondary disabled:bg-gray-400 disabled:cursor-not-allowed"
               title="Importar XLSX"
@@ -397,7 +396,7 @@ const DataPage: React.FC = () => {
       {selectedUnit?.unit_code === 'ALL' && (
         <div className="text-xs text-text-secondary">Exibindo dados agregados de todas as suas unidades.</div>
       )}
-      
+
       {/* Barra de seleção */}
       {selectedRecordIds.size > 0 && (
         <div className="p-3 bg-accent-primary/10 border border-accent-primary/30 rounded-md flex items-center justify-between">
@@ -414,7 +413,7 @@ const DataPage: React.FC = () => {
           </button>
         </div>
       )}
-      
+
       {/* Área de Tabela */}
       <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
         {!selectedUnit ? (
@@ -462,15 +461,15 @@ const DataPage: React.FC = () => {
                 </thead>
                 <tbody className="bg-bg-secondary divide-y divide-border-primary">
                   {records.length === 0 ? (
-                      <tr>
-                          <td colSpan={7} className="px-6 py-10 text-center text-text-secondary">
-                            {searchTerm || selectedPeriod ? 'Nenhum resultado encontrado para os filtros aplicados.' : 'Nenhum dado encontrado para esta unidade.'}
-                          </td>
-                      </tr>
+                    <tr>
+                      <td colSpan={7} className="px-6 py-10 text-center text-text-secondary">
+                        {searchTerm || selectedPeriod ? 'Nenhum resultado encontrado para os filtros aplicados.' : 'Nenhum dado encontrado para esta unidade.'}
+                      </td>
+                    </tr>
                   ) : records.map((row, index) => (
-                    <tr 
-                        key={row.id || index} 
-                        className="transition-colors hover:bg-bg-tertiary"
+                    <tr
+                      key={row.id || index}
+                      className="transition-colors hover:bg-bg-tertiary"
                     >
                       <td className="px-4 py-4 text-center">
                         <input
@@ -483,40 +482,43 @@ const DataPage: React.FC = () => {
                           className="w-4 h-4 cursor-pointer"
                         />
                       </td>
-                      <td 
+                      <td
                         className="px-4 py-4 text-sm whitespace-nowrap text-text-primary cursor-pointer"
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
                         {formatDate(row.DATA)}
                       </td>
-                      <td 
-                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary font-mono cursor-pointer" 
+                      <td
+                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary font-mono cursor-pointer"
                         title={row.ATENDIMENTO_ID}
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
                         {row.ATENDIMENTO_ID}
                       </td>
-                      <td 
-                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-primary cursor-pointer" 
+                      <td
+                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-primary cursor-pointer"
                         title={row.CLIENTE}
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
-                        {row.CLIENTE}
+                        <div className="flex items-center gap-1.5">
+                          {row.is_verified && <Icon name="CheckCircle" className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                          <span>{row.CLIENTE}</span>
+                        </div>
                       </td>
-                      <td 
+                      <td
                         className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary cursor-pointer"
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
                         {Number(row.VALOR ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
-                      <td 
-                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary cursor-pointer" 
+                      <td
+                        className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary cursor-pointer"
                         title={row.PROFISSIONAL}
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
                         {row.PROFISSIONAL}
                       </td>
-                      <td 
+                      <td
                         className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary cursor-pointer"
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
@@ -558,7 +560,7 @@ const DataPage: React.FC = () => {
       </div>
 
       {isUploadModalOpen && (
-        <UploadModal 
+        <UploadModal
           isOpen={isUploadModalOpen}
           onClose={() => setIsUploadModalOpen(false)}
           onUploadSuccess={handleUploadSuccess}

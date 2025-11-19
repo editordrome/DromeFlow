@@ -76,23 +76,31 @@ Arraste **TODO O CONTEÚDO** da pasta `dist/` local para `/public_html/`:
 
 ```
 dist/
-├── .htaccess          → /public_html/.htaccess
-├── index.html         → /public_html/index.html
-├── sw.js              → /public_html/sw.js
-├── manifest.webmanifest → /public_html/manifest.webmanifest
-├── registerSW.js      → /public_html/registerSW.js
-├── workbox-*.js       → /public_html/workbox-*.js
-├── pwa-192x192.png    → /public_html/pwa-192x192.png (se existir)
-├── pwa-512x512.png    → /public_html/pwa-512x512.png (se existir)
-└── assets/            → /public_html/assets/
-    ├── index-*.js
-    ├── vendor-react-*.js
-    ├── vendor-supabase-*.js
-    └── ... (todos os chunks)
+├── .htaccess               → /public_html/.htaccess
+├── index.html              → /public_html/index.html
+├── manifest.webmanifest    → /public_html/manifest.webmanifest
+├── registerSW.js           → /public_html/registerSW.js
+├── sw.js                   → /public_html/sw.js
+├── workbox-*.js (.br/.gz)  → /public_html/workbox-*.js
+├── PWA Icons:
+│   ├── android-chrome-192x192.png
+│   ├── android-chrome-512x512.png
+│   ├── apple-touch-icon.png
+│   ├── favicon-16x16.png
+│   ├── favicon-32x32.png
+│   └── favicon.ico
+└── assets/                 → /public_html/assets/
+    ├── index-*.js (.br/.gz)
+    ├── vendor-react-*.js (.br/.gz)
+    ├── vendor-supabase-*.js (.br/.gz)
+    ├── [Page]-*.js (.br/.gz) - lazy loaded pages
+    └── [Lib]-*.js (.br/.gz) - libraries (dnd, jspdf, purify, etc.)
 ```
 
 **Importante:**
 - Mantenha a estrutura de pastas
+- Todos os arquivos .br e .gz são compressões (servidos automaticamente pelo servidor)
+- Cada página tem seu próprio chunk JS (code splitting)
 - Todos os arquivos `.br` e `.gz` também devem ser enviados
 - O `.htaccess` **DEVE** estar na raiz de `public_html/`
 

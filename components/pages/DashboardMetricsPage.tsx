@@ -371,33 +371,69 @@ const DashboardMetricsPage: React.FC = () => {
 
     const loadMetrics = useCallback(async () => {
         if (!selectedUnit) {
+            console.log('[Dashboard Optimization] ⚠️ Nenhuma unidade selecionada');
             setMetrics(null);
             setPreviousMonthMetrics(null);
             setIsLoading(false);
             return;
         }
 
+        console.log('[Dashboard Optimization] 📊 Iniciando carregamento de métricas...', {
+            unit: selectedUnit.unit_code,
+            period: selectedPeriod,
+            isMultiUnit: selectedUnit.unit_code === 'ALL',
+            multiUnitsCount: multiUnits.length
+        });
+
         setIsLoading(true);
         setError(null);
         const previousPeriod = getPreviousPeriod(selectedPeriod);
+        const startTime = performance.now();
 
         try {
             let currentResult: DashboardMetrics;
             let previousResult: DashboardMetrics;
+            
             if (selectedUnit.unit_code === 'ALL') {
+                console.log('[Dashboard Optimization] Carregando métricas multi-unidade...', multiUnits);
                 currentResult = await fetchDashboardMetricsMulti(multiUnits, selectedPeriod);
                 previousResult = await fetchDashboardMetricsMulti(multiUnits, previousPeriod);
             } else {
+                console.log('[Dashboard Optimization] Carregando métricas unidade única...');
                 [currentResult, previousResult] = await Promise.all([
                     fetchDashboardMetrics(selectedUnit.unit_code, selectedPeriod),
                     fetchDashboardMetrics(selectedUnit.unit_code, previousPeriod)
                 ]);
             }
+            
+            // Validação de dados
+            if (!currentResult || typeof currentResult !== 'object') {
+                throw new Error('Dados de métricas inválidos ou vazios');
+            }
+            
+            console.log('[Dashboard Optimization] ✅ Métricas carregadas:', {
+                totalRevenue: currentResult.totalRevenue,
+                totalServices: currentResult.totalServices,
+                uniqueClients: currentResult.uniqueClients,
+                hasData: currentResult.totalServices > 0
+            });
+            
             setMetrics(currentResult);
             setPreviousMonthMetrics(previousResult);
+            
+            const endTime = performance.now();
+            const duration = ((endTime - startTime) / 1000).toFixed(2);
+            console.log(`[Dashboard Optimization] ✅ Dados mensais carregados em ${duration}s`);
+            
         } catch (err: any) {
-            setError('Falha ao carregar as métricas do dashboard.');
-            console.error(err);
+            const errorMsg = err?.message || 'Falha ao carregar as métricas do dashboard.';
+            setError(errorMsg);
+            console.error('[Dashboard Optimization] ❌ Erro ao carregar métricas:', {
+                error: err,
+                message: errorMsg,
+                unit: selectedUnit.unit_code,
+                period: selectedPeriod
+            });
         } finally {
             setIsLoading(false);
         }
@@ -823,53 +859,53 @@ const DashboardMetricsPage: React.FC = () => {
         }
     }, [selectedMetric, metrics, previousMonthMetrics, loadServiceAnalysisData, loadClientAnalysis, loadRepasseAnalysis, monthlyPeriods, loadMonthlyPeriods]);
 
+    // ✅ Memoizar callback de Realtime para evitar reconexões
+    const handleRealtimeChange = useCallback(() => {
+        console.log('[Dashboard] Mudança em processed_data detectada');
+        if (!isLoading && !isChartLoading) {
+            loadMetrics();
+            loadMonthlyData();
+        }
+    }, [isLoading, isChartLoading, loadMetrics, loadMonthlyData]);
+
+    // ✅ Memoizar filtro de Realtime
+    const realtimeFilter = useCallback((record: any) => {
+        // Filtrar por unidade(s)
+        if (selectedUnit && selectedUnit.unit_code !== 'ALL') {
+            if (record.unidade_code !== selectedUnit.unit_code) {
+                return false;
+            }
+        } else if (multiUnits.length > 0) {
+            if (!multiUnits.includes(record.unidade_code)) {
+                return false;
+            }
+        }
+        
+        // Filtrar por período (recarrega métricas do mês atual)
+        if (record.DATA) {
+            const recordDate = new Date(record.DATA);
+            const [year, month] = selectedPeriod.split('-');
+            const recordMonth = recordDate.getMonth() + 1;
+            const recordYear = recordDate.getFullYear();
+            
+            if (recordYear === parseInt(year) && recordMonth === parseInt(month)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }, [selectedUnit, multiUnits, selectedPeriod]);
+
     // Realtime Subscription para processed_data (Dashboard)
     useRealtimeSubscription({
         table: 'processed_data',
-        filter: (record: any) => {
-            // Filtrar por unidade(s)
-            if (selectedUnit && selectedUnit.unit_code !== 'ALL') {
-                if (record.unidade_code !== selectedUnit.unit_code) {
-                    return false;
-                }
-            } else if (multiUnits.length > 0) {
-                if (!multiUnits.includes(record.unidade_code)) {
-                    return false;
-                }
-            }
-            
-            // Filtrar por período (recarrega métricas do mês atual)
-            if (record.DATA) {
-                const recordDate = new Date(record.DATA);
-                const [year, month] = selectedPeriod.split('-');
-                const recordMonth = recordDate.getMonth() + 1;
-                const recordYear = recordDate.getFullYear();
-                
-                if (recordYear === parseInt(year) && recordMonth === parseInt(month)) {
-                    return true;
-                }
-            }
-            
-            return false;
-        },
+        filter: realtimeFilter,
         callbacks: {
-            onInsert: () => {
-                console.log('[Dashboard] Novo registro em processed_data, recarregando métricas...');
-                loadMetrics();
-                loadMonthlyData();
-            },
-            onUpdate: () => {
-                console.log('[Dashboard] Registro atualizado em processed_data, recarregando métricas...');
-                loadMetrics();
-                loadMonthlyData();
-            },
-            onDelete: () => {
-                console.log('[Dashboard] Registro deletado em processed_data, recarregando métricas...');
-                loadMetrics();
-                loadMonthlyData();
-            }
+            onInsert: handleRealtimeChange,
+            onUpdate: handleRealtimeChange,
+            onDelete: handleRealtimeChange
         },
-        enabled: !isLoading
+        enabled: true
     });
 
     const getMetricConfig = (metric: MetricType) => {
