@@ -259,7 +259,7 @@ const ClientsPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-8">
       {/* Cabeçalho Principal */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary">Clientes</h1>
@@ -314,7 +314,7 @@ const ClientsPage: React.FC = () => {
 
         {!isLoading && !error && (
           <>
-            {/* Cabeçalho das abas e filtros no padrão do Agendamentos */}
+            {/* Cabeçalho das abas - FIXO */}
             <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
               <div className="flex w-full gap-2">
                 {([
@@ -341,6 +341,7 @@ const ClientsPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Área de scroll - apenas tabela */}
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="min-w-full text-sm">
                 {activeFilter !== 'atencao' && (

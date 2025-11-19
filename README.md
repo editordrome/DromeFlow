@@ -11,7 +11,14 @@ Aplicação de gestão e análise construída em React (Vite + TypeScript) com S
 - **Backend**: Supabase (PostgreSQL, Realtime, Row Level Security)
 - **UI/UX**: Tailwind CSS + Lucide Icons
 - **Gestão de Estado**: React Context API
+- **PWA**: Instalável com Service Worker e cache estratégico
 - **Deploy**: Hostinger + Cloudflare (CDN/DNS apenas)
+
+**Melhorias Recentes (Nov 2025):**
+- ✅ Ícone de verificação (BadgeCheck) para clientes validados em Atendimentos
+- ✅ Cabeçalhos fixos (sticky) nas tabelas de Atendimentos e Clientes
+- ✅ Espaçamento otimizado entre cards e conteúdo (space-y-4)
+- ✅ Margens inferiores ajustadas (pb-8) para melhor visualização
 
 **Nota**: Sistema 100% Supabase - toda persistência de dados, storage e autenticação ocorrem no Supabase. Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).
 

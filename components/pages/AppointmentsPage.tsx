@@ -494,7 +494,7 @@ const AppointmentsPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-8">
       {/* Cabeçalho Principal */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary flex items-center flex-wrap gap-x-2">
@@ -625,7 +625,7 @@ const AppointmentsPage: React.FC = () => {
       
       {/* Área de Tabela */}
       <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
-        {/* Barra de abas de dias */}
+        {/* Barra de abas de dias - FIXA */}
         <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
             <div className="flex w-full gap-2">
               {tabs.map(t => (
@@ -714,6 +714,7 @@ const AppointmentsPage: React.FC = () => {
             </div>
           </div>
         
+        {/* Área de scroll - apenas tabela */}
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm table-fixed" style={{ minWidth: '1000px' }}>
             <colgroup>
