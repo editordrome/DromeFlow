@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5173",
+  "loginUser": "admin@example.com",
+  "loginPassword": "admin1234",
+  "executionArgs": {
+    "projectName": "DromeFlow",
+    "projectPath": "/Users/jeanpetri/DromeFlow",
+    "testIds": [],
+    "additionalInstruction": "Execute os testes de frontend. Caso encontre barreiras de login e não existam credenciais no ambiente, foque nos testes que validam a tela de login e fluxos públicos, ou utilize credenciais fictícias de teste se o ambiente permitir.",
+    "envs": {
+      "API_KEY": "sk-user-mwnlj51mdNRZxyrxsddO9xsIk6wFv2RpYxMJf0Ri3ohAsGSQWJAec14EU8JjpsnUkJi3oNPlkyF-PFvbpW5JK4kP2Ajw0z7CgjrNjPcLDY2u4OtWMeYsxom2zbGSxxiFYI8"
+    }
+  },
+  "proxy": "http://41e4b4e6-2b7a-4eb0-bce1-ed02eab14289:YBY1XjyjEhOLK4nLu3vaIhPPTs1LMsIg@tun.testsprite.com:8080"
+}

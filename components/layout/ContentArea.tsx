@@ -20,6 +20,9 @@ const UnitKeysPage = lazy(() => import('../pages/UnitKeysPage'));
 const ComercialPage = lazy(() => import('../pages/ComercialPage'));
 const PosVendasPage = lazy(() => import('../pages/PosVendasPage'));
 const DashboardSistemaPage = lazy(() => import('../pages/DashboardSistemaPage'));
+const ManagePlansPage = lazy(() => import('../pages/ManagePlansPage'));
+const ComercialAdminPage = lazy(() => import('../pages/ComercialAdminPage'));
+const FinancialPage = lazy(() => import('../pages/FinancialPage'));
 
 // Loading component
 const PageLoader = () => (
@@ -109,7 +112,16 @@ const ContentArea: React.FC = () => {
     if (activeView === 'dashboard_admin') {
         return <Suspense fallback={<PageLoader />}><DashboardSistemaPage /></Suspense>;
     }
-    
+    if (activeView === 'manage_plans') {
+        return <Suspense fallback={<PageLoader />}><ManagePlansPage /></Suspense>;
+    }
+    if (activeView === 'comercial_admin') {
+        return <Suspense fallback={<PageLoader />}><ComercialAdminPage /></Suspense>;
+    }
+    if (activeView === 'financial') {
+        return <Suspense fallback={<PageLoader />}><FinancialPage /></Suspense>;
+    }
+
     // Default to module view
     return (
         <div className="h-full w-full bg-bg-secondary rounded-lg shadow-md overflow-hidden flex flex-col">
@@ -118,17 +130,17 @@ const ContentArea: React.FC = () => {
                     <p className="text-text-secondary text-center px-4">Selecione um módulo na barra lateral para começar.</p>
                 </div>
             )}
-            
+
             {activeModule && isLoading && (
                 <div className="flex items-center justify-center h-full min-h-[400px]">
                     <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
                 </div>
             )}
-            
+
             {activeModule && error && (
                 <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md m-4">{error}</div>
             )}
-            
+
             {activeModule && !isLoading && !error && (
                 <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
                     <div

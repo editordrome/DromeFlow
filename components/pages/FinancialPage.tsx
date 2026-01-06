@@ -1,12 +1,24 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { fetchPayments, fetchClientAppointments, updatePaymentAppointment } from '../../services/financial/financial.service';
 import { PaymentRecord } from '../../types';
-import { Icon } from '../ui/Icon';
 import { supabase } from '../../services/supabaseClient';
+import { Icon } from '../ui/Icon';
 import { WebhookScheduleModal } from '../ui/WebhookScheduleModal';
+import {
+    BarChart,
+    Bar,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer
+} from 'recharts';
 import { FinancialSettingsModal } from '../ui/FinancialSettingsModal';
+import { CategoriesManager } from './financial/CategoriesManager';
 
 const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -138,10 +150,15 @@ const FinancialPage: React.FC = () => {
     const [settingsOpen, setSettingsOpen] = useState(false);
 
     // Navigation State
-    const [activeTab, setActiveTab] = useState<MainTab>('resumo');
-    const [activeSubTab, setActiveSubTab] = useState<SubTab>('visao_geral');
+    const [activeTab, setActiveTab] = useState<MainTab>('financas');
+    const [activeSubTab, setActiveSubTab] = useState<SubTab>('gestao');
     const [cardFilter, setCardFilter] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+    const [dashboardStartDate, setDashboardStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [dashboardEndDate, setDashboardEndDate] = useState(new Date().toISOString().split('T')[0]);
+    const [showValues, setShowValues] = useState(true);
+    const [chartPeriod, setChartPeriod] = useState<'THIS_MONTH' | 'THIS_YEAR'>('THIS_MONTH');
 
     // Handle Tab Change and set default sub-tab
     const handleTabChange = (tab: MainTab) => {
@@ -149,7 +166,7 @@ const FinancialPage: React.FC = () => {
         switch (tab) {
             case 'resumo': setActiveSubTab('visao_geral'); break;
             case 'faturamento': setActiveSubTab('todas_cobrancas'); break;
-            case 'financas': setActiveSubTab('fluxo_caixa'); break;
+            case 'financas': setActiveSubTab('gestao'); break;
             case 'gestor': setActiveSubTab('configuracoes'); break;
         }
     };
@@ -163,11 +180,13 @@ const FinancialPage: React.FC = () => {
             { id: 'regua', label: 'Régua de Cobrança', icon: 'Send' },
         ],
         financas: [
+            { id: 'gestao', label: 'Gestão', icon: 'Layout' },
             { id: 'fluxo_caixa', label: 'Fluxo de Caixa', icon: 'TrendingUp' },
             { id: 'contas_pagar', label: 'Contas a Pagar', icon: 'ArrowDownCircle' },
             { id: 'contas_receber', label: 'Contas a Receber', icon: 'ArrowUpCircle' },
         ],
         gestor: [
+            { id: 'categorias', label: 'Categorias', icon: 'Tag' },
             { id: 'configuracoes', label: 'Configurações', icon: 'Settings' },
             { id: 'metas', label: 'Metas', icon: 'Target' },
             { id: 'comissoes', label: 'Comissões', icon: 'Users' },
@@ -276,6 +295,7 @@ const FinancialPage: React.FC = () => {
             console.error('Erro ao carregar financeiro:', error);
         } finally {
             setLoading(false);
+            setLastUpdate(new Date());
         }
     };
 
@@ -305,67 +325,97 @@ const FinancialPage: React.FC = () => {
             pending: calculateCategory(['PENDING', 'PENDENTE']),
             overdue: calculateCategory(['OVERDUE', 'ATRASADO'])
         };
+        return {
+            received: calculateCategory(['RECEIVED', 'RECEIVED_IN_CASH', 'PAGO'], true),
+            confirmed: calculateCategory(['CONFIRMED', 'CONFIRMADO'], true),
+            pending: calculateCategory(['PENDING', 'PENDENTE']),
+            overdue: calculateCategory(['OVERDUE', 'ATRASADO'])
+        };
     }, [payments]);
+
+    const chartData = useMemo(() => {
+        const now = new Date();
+        const data: any[] = [];
+        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+        if (chartPeriod === 'THIS_MONTH') {
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            for (let i = 1; i <= daysInMonth; i++) {
+                data.push({ name: `${i}`, recebimentos: 0, pagamentos: 0, saldo: 0 });
+            }
+
+            payments.forEach(p => {
+                const pDate = p.data_pagamento ? new Date(p.data_pagamento) : (p.data_vencimento ? new Date(p.data_vencimento) : null);
+                if (pDate && pDate.getMonth() === now.getMonth() && pDate.getFullYear() === now.getFullYear()) {
+                    const day = pDate.getDate();
+                    if (['RECEIVED', 'RECEIVED_IN_CASH', 'PAGO'].includes(p.status_pagamento)) {
+                        data[day - 1].recebimentos += Number(p.valor) || 0;
+                    }
+                }
+            });
+        } else {
+            // THIS_YEAR
+            for (let i = 0; i < 12; i++) {
+                data.push({ name: monthNames[i], recebimentos: 0, pagamentos: 0, saldo: 0 });
+            }
+
+            payments.forEach(p => {
+                const pDate = p.data_pagamento ? new Date(p.data_pagamento) : (p.data_vencimento ? new Date(p.data_vencimento) : null);
+                if (pDate && pDate.getFullYear() === now.getFullYear()) {
+                    const month = pDate.getMonth();
+                    if (['RECEIVED', 'RECEIVED_IN_CASH', 'PAGO'].includes(p.status_pagamento)) {
+                        data[month].recebimentos += Number(p.valor) || 0;
+                    }
+                }
+            });
+        }
+
+        // Calculate Saldo
+        data.forEach(item => {
+            item.saldo = item.recebimentos - item.pagamentos;
+        });
+
+        return data;
+    }, [payments, chartPeriod]);
 
     const renderBillingStatus = () => (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-text-primary">Situação das cobranças</h2>
-                <select
-                    value={dateRange}
-                    onChange={(e) => setDateRange(e.target.value as any)}
-                    className="bg-bg-tertiary border border-border-secondary text-text-primary text-sm rounded-md focus:ring-accent-primary focus:border-accent-primary block px-3 py-1.5"
-                >
-                    <option value="TODAY">Hoje</option>
-                    <option value="YESTERDAY">Ontem</option>
-                    <option value="THIS_WEEK">Esta Semana</option>
-                    <option value="THIS_MONTH">Este Mês</option>
-                    <option value="LAST_MONTH">Mês Passado</option>
-                    <option value="ALL">Todo o Período</option>
-                </select>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {([
-                    { key: 'received', label: 'Recebidas', statuses: ['RECEIVED', 'RECEIVED_IN_CASH', 'PAGO'], data: billingMetrics.received, color: 'emerald', barColor: 'bg-emerald-500' },
-                    { key: 'confirmed', label: 'Confirmadas', statuses: ['CONFIRMED', 'CONFIRMADO'], data: billingMetrics.confirmed, color: 'blue', barColor: 'bg-blue-600' },
-                    { key: 'pending', label: 'Aguardando pagamento', statuses: ['PENDING', 'PENDENTE'], data: billingMetrics.pending, color: 'amber', barColor: 'bg-amber-500' },
-                    { key: 'overdue', label: 'Vencidas', statuses: ['OVERDUE', 'ATRASADO'], data: billingMetrics.overdue, color: 'rose', barColor: 'bg-rose-500' }
-                ] as const).map(card => (
-                    <div
-                        key={card.key}
-                        onClick={() => {
-                            // Toggle filter: if already filtered by this card, clear filter; otherwise set filter
-                            if (JSON.stringify(cardFilter) === JSON.stringify(card.statuses)) {
-                                setCardFilter([]);
-                            } else {
-                                setCardFilter([...card.statuses]);
-                            }
-                        }}
-                        className={`bg-bg-secondary rounded-xl border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${JSON.stringify(cardFilter) === JSON.stringify(card.statuses)
-                            ? 'border-accent-primary ring-2 ring-accent-primary/20'
-                            : 'border-border-secondary'
-                            }`}
-                    >
-                        <div className="flex justify-between items-start mb-2">
-                            <span className="font-semibold text-text-primary">{card.label}</span>
-                            <Icon name="Info" className="w-4 h-4 text-text-tertiary cursor-help" />
-                        </div>
-
-                        <div className={`text-2xl font-bold mb-1 text-${card.color}-500`}>
-                            {formatCurrency(card.data.totalValue)}
-                        </div>
-                        <div className="text-xs text-text-secondary mb-4">
-                            {formatCurrency(card.data.totalValue)} líquido
-                        </div>
-
-                        {/* Progress Bar Visual */}
-                        <div className="w-full h-2 bg-bg-tertiary rounded-full mb-4 overflow-hidden">
-                            <div className={`h-full ${card.barColor} rounded-full`} style={{ width: '60%' }}></div>
-                            {/* Width fixa de ex 60% apenas visual, idealmente seria percentual real se houvesse meta */}
-                        </div>
-                    </div>
-                ))}
+                    { key: 'received', label: 'Recebidas', statuses: ['RECEIVED', 'RECEIVED_IN_CASH', 'PAGO'], data: billingMetrics.received, icon: 'CheckCircle' },
+                    { key: 'confirmed', label: 'Confirmadas', statuses: ['CONFIRMED', 'CONFIRMADO'], data: billingMetrics.confirmed, icon: 'CheckSquare' },
+                    { key: 'pending', label: 'Aguardando', statuses: ['PENDING', 'PENDENTE'], data: billingMetrics.pending, icon: 'Clock' },
+                    { key: 'overdue', label: 'Vencidas', statuses: ['OVERDUE', 'ATRASADO'], data: billingMetrics.overdue, icon: 'AlertTriangle' }
+                ] as const).map(card => {
+                    const isFiltered = JSON.stringify(cardFilter) === JSON.stringify(card.statuses);
+                    return (
+                        <button
+                            key={card.key}
+                            type="button"
+                            onClick={() => {
+                                if (isFiltered) {
+                                    setCardFilter([]);
+                                } else {
+                                    setCardFilter([...card.statuses]);
+                                }
+                            }}
+                            className={`p-3 rounded-lg border transition-all text-left ${isFiltered
+                                ? 'bg-accent-primary text-white border-transparent shadow-lg'
+                                : 'bg-bg-secondary border-border-primary hover:shadow-md'
+                                }`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <Icon name={card.icon as any} className={`w-5 h-5 ${isFiltered ? 'text-white' : 'text-text-secondary'}`} />
+                                <span className={`text-sm font-medium ${isFiltered ? 'text-white/90' : 'text-text-secondary'}`}>
+                                    {card.label}
+                                </span>
+                                <span className={`ml-auto text-lg font-bold ${isFiltered ? 'text-white' : 'text-text-primary'}`}>
+                                    {formatCurrency(card.data.totalValue)}
+                                </span>
+                            </div>
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );
@@ -384,17 +434,39 @@ const FinancialPage: React.FC = () => {
 
     const renderTable = () => (
         <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden mt-6">
-            <div className="p-4 border-b border-border-secondary bg-bg-tertiary/30 flex items-center justify-between">
-                <h3 className="font-medium text-text-primary">Registros de Cobrança</h3>
-                <div className="relative">
-                    <Icon name="Search" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
-                    <input
-                        type="text"
-                        placeholder="Buscar por nome ou fatura..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 pr-3 py-1.5 bg-bg-secondary border border-border-secondary rounded-md text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 w-64"
-                    />
+            <div className="p-4 border-b border-border-secondary bg-bg-tertiary/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <h3 className="font-medium text-text-primary">Cobranças</h3>
+                    {lastUpdate && (
+                        <span className="text-xs text-text-tertiary flex items-center gap-1 bg-bg-tertiary px-2 py-1 rounded-full border border-border-secondary">
+                            <Icon name="Clock" className="w-3 h-3" />
+                            Atualizado às {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:flex-initial">
+                        <Icon name="Search" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 pr-3 py-1.5 bg-bg-secondary border border-border-secondary rounded-md text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 w-full sm:w-64"
+                        />
+                    </div>
+                    <select
+                        value={dateRange}
+                        onChange={(e) => setDateRange(e.target.value as any)}
+                        className="bg-bg-secondary border border-border-secondary text-text-primary text-sm rounded-md focus:ring-accent-primary focus:border-accent-primary px-3 py-1.5 min-w-[140px]"
+                    >
+                        <option value="TODAY">Hoje</option>
+                        <option value="YESTERDAY">Ontem</option>
+                        <option value="THIS_WEEK">Esta Semana</option>
+                        <option value="THIS_MONTH">Este Mês</option>
+                        <option value="LAST_MONTH">Mês Passado</option>
+                        <option value="ALL">Todo o Período</option>
+                    </select>
                 </div>
             </div>
 
@@ -512,23 +584,35 @@ const FinancialPage: React.FC = () => {
                         Financeiro
                         <span className="block text-sm font-normal text-text-secondary mt-1">Gestão financeira completa</span>
                     </h1>
+                    <button
+                        onClick={() => setSettingsOpen(true)}
+                        className="p-2 text-text-tertiary hover:text-accent-primary hover:bg-accent-primary/10 rounded-full transition-colors"
+                        title="Configurações e Integração"
+                    >
+                        <Icon name="Settings" className="w-6 h-6" />
+                    </button>
                 </div>
 
                 {/* Main Tabs Navigation - Estilo similar aos Day Tabs do Appointments */}
                 <div className="flex w-full gap-2 p-1 overflow-x-auto">
-                    {(['resumo', 'faturamento', 'financas', 'gestor'] as MainTab[]).map(tab => {
-                        const isActive = activeTab === tab;
+                    {([
+                        { id: 'financas', label: 'Finanças' },
+                        { id: 'resumo', label: 'Cobranças' },
+                        { id: 'faturamento', label: 'Faturamento' },
+                        { id: 'gestor', label: 'Gestor' }
+                    ] as const).map(tab => {
+                        const isActive = activeTab === tab.id;
                         return (
                             <button
-                                key={tab}
-                                onClick={() => handleTabChange(tab)}
+                                key={tab.id}
+                                onClick={() => handleTabChange(tab.id as MainTab)}
                                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition text-center truncate border
                                     ${isActive
                                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                                     }`}
                             >
-                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                {tab.label}
                             </button>
                         );
                     })}
@@ -577,30 +661,252 @@ const FinancialPage: React.FC = () => {
                 )}
 
                 {activeTab === 'financas' && (
-                    <div className="bg-bg-secondary p-12 rounded-lg border border-border-secondary text-center text-text-tertiary h-[400px] flex flex-col items-center justify-center">
-                        <Icon name="DollarSign" className="w-16 h-16 mb-4 opacity-20" />
-                        <h3 className="text-lg font-medium text-text-secondary mb-1">Módulo Finanças</h3>
-                        <p className="max-w-md">Fluxo de Caixa, Contas a Pagar e Receber estarão disponíveis aqui.</p>
+                    <div className="space-y-6">
+                        {activeSubTab === 'gestao' && (
+                            <div className="space-y-6">
+                                <div>
+                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <h2 className="text-lg font-bold text-text-primary">Visão Geral Financeira</h2>
+                                            {lastUpdate && (
+                                                <span className="text-xs text-text-tertiary flex items-center gap-1 bg-bg-tertiary px-2 py-1 rounded-full border border-border-secondary">
+                                                    <Icon name="Clock" className="w-3 h-3" />
+                                                    {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            )}
+                                            <button
+                                                onClick={() => setShowValues(!showValues)}
+                                                className="flex items-center gap-2 p-1.5 text-text-secondary hover:text-accent-primary hover:bg-accent-primary/10 rounded-md transition-colors"
+                                                title={showValues ? "Ocultar valores" : "Mostrar valores"}
+                                            >
+                                                <Icon name={showValues ? "Eye" : "EyeOff"} className="w-4 h-4" />
+                                                <span className="text-sm font-medium">{showValues ? 'Ocultar valores' : 'Mostrar valores'}</span>
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="date"
+                                                value={dashboardStartDate}
+                                                onChange={(e) => setDashboardStartDate(e.target.value)}
+                                                className="bg-bg-tertiary border border-border-secondary text-text-primary text-sm rounded-md focus:ring-accent-primary focus:border-accent-primary px-3 py-1.5"
+                                            />
+                                            <span className="text-text-secondary text-sm">até</span>
+                                            <input
+                                                type="date"
+                                                value={dashboardEndDate}
+                                                onChange={(e) => setDashboardEndDate(e.target.value)}
+                                                className="bg-bg-tertiary border border-border-secondary text-text-primary text-sm rounded-md focus:ring-accent-primary focus:border-accent-primary px-3 py-1.5"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        {/* A receber */}
+                                        <div className="bg-bg-secondary rounded-xl border border-border-secondary p-5 shadow-sm hover:shadow-md transition-all">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="font-semibold text-text-primary">A receber</span>
+                                                <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
+                                                    <Icon name="ArrowDownCircle" className="w-5 h-5" />
+                                                </div>
+                                            </div>
+                                            <div className="text-2xl font-bold text-text-primary mb-1">
+                                                {showValues ? formatCurrency(billingMetrics.pending.totalValue) : 'R$ ****'}
+                                            </div>
+                                            <div className="text-xs text-text-secondary">
+                                                {billingMetrics.pending.count} pagamentos pendentes
+                                            </div>
+                                        </div>
+
+                                        {/* Recebimentos atrasados */}
+                                        <div className="bg-bg-secondary rounded-xl border border-border-secondary p-5 shadow-sm hover:shadow-md transition-all">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="font-semibold text-text-primary">Recebimentos atrasados</span>
+                                                <div className="p-2 rounded-full bg-rose-500/10 text-rose-500">
+                                                    <Icon name="AlertCircle" className="w-5 h-5" />
+                                                </div>
+                                            </div>
+                                            <div className="text-2xl font-bold text-rose-500 mb-1">
+                                                {showValues ? formatCurrency(billingMetrics.overdue.totalValue) : 'R$ ****'}
+                                            </div>
+                                            <div className="text-xs text-text-secondary">
+                                                {billingMetrics.overdue.count} pagamentos vencidos
+                                            </div>
+                                        </div>
+
+                                        {/* Pagar hoje */}
+                                        <div className="bg-bg-secondary rounded-xl border border-border-secondary p-5 shadow-sm hover:shadow-md transition-all">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="font-semibold text-text-primary">Pagar hoje</span>
+                                                <div className="p-2 rounded-full bg-amber-500/10 text-amber-500">
+                                                    <Icon name="Calendar" className="w-5 h-5" />
+                                                </div>
+                                            </div>
+                                            <div className="text-2xl font-bold text-text-primary mb-1">
+                                                {showValues ? formatCurrency(0) : 'R$ ****'}
+                                            </div>
+                                            <div className="text-xs text-text-secondary">
+                                                0 contas vencendo hoje
+                                            </div>
+                                        </div>
+
+                                        {/* Pagamentos atrasados */}
+                                        <div className="bg-bg-secondary rounded-xl border border-border-secondary p-5 shadow-sm hover:shadow-md transition-all">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="font-semibold text-text-primary">Pagamentos atrasados</span>
+                                                <div className="p-2 rounded-full bg-rose-500/10 text-rose-500">
+                                                    <Icon name="AlertTriangle" className="w-5 h-5" />
+                                                </div>
+                                            </div>
+                                            <div className="text-2xl font-bold text-rose-500 mb-1">
+                                                {showValues ? formatCurrency(0) : 'R$ ****'}
+                                            </div>
+                                            <div className="text-xs text-text-secondary">
+                                                0 contas atrasadas
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Chart Section */}
+                                    <div className="bg-bg-secondary rounded-xl border border-border-secondary p-6 shadow-sm mt-6">
+                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+                                            <h3 className="font-bold text-text-primary">Fluxo de Caixa</h3>
+                                            <div className="flex bg-bg-tertiary rounded-lg p-1 border border-border-secondary">
+                                                <button
+                                                    onClick={() => setChartPeriod('THIS_MONTH')}
+                                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${chartPeriod === 'THIS_MONTH'
+                                                        ? 'bg-accent-primary text-white shadow-sm'
+                                                        : 'text-text-secondary hover:text-text-primary'
+                                                        }`}
+                                                >
+                                                    Este mês
+                                                </button>
+                                                <button
+                                                    onClick={() => setChartPeriod('THIS_YEAR')}
+                                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${chartPeriod === 'THIS_YEAR'
+                                                        ? 'bg-accent-primary text-white shadow-sm'
+                                                        : 'text-text-secondary hover:text-text-primary'
+                                                        }`}
+                                                >
+                                                    Este ano
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="h-[300px] w-full">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <LineChart data={chartData} margin={{ top: 25, right: 30, left: 20, bottom: 5 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                                                    <XAxis
+                                                        dataKey="name"
+                                                        stroke="#6B7280"
+                                                        fontSize={12}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        dy={10}
+                                                    />
+                                                    <YAxis
+                                                        stroke="#6B7280"
+                                                        fontSize={12}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tickFormatter={(value) => `R$ ${value}`}
+                                                    />
+                                                    <Tooltip
+                                                        cursor={{ stroke: '#E5E7EB', strokeWidth: 2 }}
+                                                        content={({ active, payload, label }) => {
+                                                            if (active && payload && payload.length) {
+                                                                return (
+                                                                    <div className="bg-bg-secondary border border-border-primary rounded-lg shadow-lg p-3 text-sm">
+                                                                        <p className="text-text-primary font-medium mb-2">{label}</p>
+                                                                        {payload.map((entry: any, index: number) => (
+                                                                            <p key={index} style={{ color: entry.color }} className="flex justify-between gap-4 mb-1">
+                                                                                <span>{entry.name}:</span>
+                                                                                <span className="font-semibold">
+                                                                                    {showValues ? formatCurrency(Number(entry.value)) : '****'}
+                                                                                </span>
+                                                                            </p>
+                                                                        ))}
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        }}
+                                                    />
+                                                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey="recebimentos"
+                                                        name="Recebimentos"
+                                                        stroke="#10b981"
+                                                        strokeWidth={3}
+                                                        dot={{ r: 4, strokeWidth: 2 }}
+                                                        activeDot={{ r: 8, strokeWidth: 2 }}
+                                                    />
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey="pagamentos"
+                                                        name="Pagamentos"
+                                                        stroke="#ef4444"
+                                                        strokeWidth={3}
+                                                        dot={{ r: 4, strokeWidth: 2 }}
+                                                        activeDot={{ r: 8, strokeWidth: 2 }}
+                                                    />
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey="saldo"
+                                                        name="Saldo"
+                                                        stroke="#3b82f6"
+                                                        strokeWidth={3}
+                                                        dot={{ r: 4, strokeWidth: 2 }}
+                                                        activeDot={{ r: 8, strokeWidth: 2 }}
+                                                    />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeSubTab !== 'gestao' && (
+                            <div className="bg-bg-secondary p-12 rounded-lg border border-border-secondary text-center text-text-tertiary h-[400px] flex flex-col items-center justify-center">
+                                <Icon name="DollarSign" className="w-16 h-16 mb-4 opacity-20" />
+                                <h3 className="text-lg font-medium text-text-secondary mb-1">Em Desenvolvimento</h3>
+                                <p className="max-w-md">O módulo {subMenus.financas.find(s => s.id === activeSubTab)?.label} será implementado em breve.</p>
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {activeTab === 'gestor' && (
-                    <div className="space-y-4">
-                        <div className="bg-bg-secondary p-6 rounded-lg border border-border-secondary">
-                            <h3 className="text-lg font-medium text-text-primary mb-4">Configurações Rápidas</h3>
-                            <button
-                                onClick={() => setSettingsOpen(true)}
-                                className="flex items-center gap-3 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary transition-colors w-full sm:w-auto"
-                            >
-                                <div className="p-2 bg-accent-primary/10 rounded-full text-accent-primary">
-                                    <Icon name="Settings" className="w-6 h-6" />
-                                </div>
-                                <div className="text-left">
-                                    <div className="font-medium text-text-primary">Configurar Integrações</div>
-                                    <div className="text-xs text-text-secondary">Gerenciar chaves e preferências financeiras</div>
-                                </div>
-                            </button>
-                        </div>
+                    <div className="space-y-6">
+                        {activeSubTab === 'categorias' && selectedUnit && (
+                            <CategoriesManager unitId={selectedUnit.id} />
+                        )}
+
+                        {activeSubTab === 'configuracoes' && (
+                            <div className="bg-bg-secondary p-6 rounded-lg border border-border-secondary">
+                                <h3 className="text-lg font-medium text-text-primary mb-4">Configurações Rápidas</h3>
+                                <button
+                                    onClick={() => setSettingsOpen(true)}
+                                    className="flex items-center gap-3 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary transition-colors w-full sm:w-auto"
+                                >
+                                    <div className="p-2 bg-accent-primary/10 rounded-full text-accent-primary">
+                                        <Icon name="Settings" className="w-6 h-6" />
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="font-medium text-text-primary">Configurar Integrações</div>
+                                        <div className="text-xs text-text-secondary">Gerenciar chaves e preferências financeiras</div>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
+
+                        {activeSubTab !== 'categorias' && activeSubTab !== 'configuracoes' && (
+                            <div className="bg-bg-secondary p-12 rounded-lg border border-border-secondary text-center text-text-tertiary h-[400px] flex flex-col items-center justify-center">
+                                <Icon name="DollarSign" className="w-16 h-16 mb-4 opacity-20" />
+                                <h3 className="text-lg font-medium text-text-secondary mb-1">Em Desenvolvimento</h3>
+                                <p className="max-w-md">O módulo {subMenus.gestor.find(s => s.id === activeSubTab)?.label} será implementado em breve.</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

@@ -33,6 +33,17 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         return;
       }
 
+      // Debug: verificar se is_active está presente
+      console.log('[Sidebar] selectedUnit:', selectedUnit);
+      console.log('[Sidebar] is_active:', selectedUnit.id !== 'ALL' && 'is_active' in selectedUnit ? selectedUnit.is_active : 'N/A');
+
+      // Se a unidade estiver inativa, não mostra nenhum módulo
+      if (selectedUnit.id !== 'ALL' && 'is_active' in selectedUnit && selectedUnit.is_active === false) {
+        console.log('[Sidebar] Unidade inativa detectada, ocultando módulos');
+        setFilteredModules([]);
+        return;
+      }
+
       setLoadingModules(true);
       try {
         const modules = await getModulesForUnit(selectedUnit.id);
@@ -69,6 +80,23 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       setSelectedUnit(userUnits[0]);
     }
   }, [user, profile, userUnits, selectedUnit, setSelectedUnit]);
+
+  // Verifica se a unidade selecionada foi desativada e redireciona para uma ativa
+  useEffect(() => {
+    if (!selectedUnit || selectedUnit.id === 'ALL') return;
+    if (!('is_active' in selectedUnit)) return;
+
+    // Se a unidade selecionada está inativa, redireciona para a primeira unidade ativa
+    if (selectedUnit.is_active === false) {
+      console.log('[Sidebar] Unidade selecionada está inativa, redirecionando...');
+      const firstActiveUnit = userUnits.find(u => u.is_active !== false);
+      if (firstActiveUnit) {
+        setSelectedUnit(firstActiveUnit);
+      } else if (profile?.role === 'super_admin') {
+        setSelectedUnit({ id: 'ALL', unit_name: 'Todas as Unidades', unit_code: 'ALL' } as any);
+      }
+    }
+  }, [selectedUnit, userUnits, setSelectedUnit, profile]);
 
   const handleUnitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -296,13 +324,13 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
               <label htmlFor="unit-select-top" className="block text-xs font-medium text-gray-400 mb-1">
                 Unidade
               </label>
-              {userUnits.length === 1 ? (
-                // Apenas uma unidade: exibir como texto fixo
+              {userUnits.filter(u => u.is_active !== false).length === 1 ? (
+                // Apenas uma unidade ativa: exibir como texto fixo
                 <div className="block w-full rounded-md border border-gray-600 bg-bg-tertiary py-1.5 pl-2 pr-2 text-xs text-text-primary">
-                  {userUnits[0].unit_name}
+                  {userUnits.find(u => u.is_active !== false)?.unit_name}
                 </div>
               ) : (
-                // Múltiplas unidades: exibir dropdown
+                // Múltiplas unidades: exibir dropdown (apenas unidades ativas)
                 <select
                   id="unit-select-top"
                   value={selectedUnit?.id || ''}
@@ -310,7 +338,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
                   className="block w-full rounded-md border-gray-600 bg-bg-secondary py-1.5 pl-2 pr-8 text-xs text-text-primary focus:border-accent-primary focus:outline-none focus:ring-accent-primary"
                 >
                   <option value="ALL">Todos</option>
-                  {userUnits.map(unit => (
+                  {userUnits.filter(unit => unit.is_active !== false).map(unit => (
                     <option key={unit.id} value={unit.id}>
                       {unit.unit_name}
                     </option>
@@ -320,6 +348,18 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
             </div>
           )}
           <nav className="space-y-2 pt-2">
+            {/* Mensagem quando unidade está inativa */}
+            {selectedUnit && selectedUnit.id !== 'ALL' && 'is_active' in selectedUnit && selectedUnit.is_active === false && !isCollapsed && (
+              <div className="px-4 py-3 bg-danger/10 border border-danger/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Icon name="alert-circle" className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold text-danger">Unidade Inativa</p>
+                    <p className="text-xs text-danger/80 mt-0.5">Esta unidade está desativada. Nenhum módulo está disponível.</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <ul className="list-none m-0 p-0">
               {/* Renderiza os módulos agrupados por pai/filho */}
               {renderModulesTree()}

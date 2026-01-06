@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { fetchAllUnits, createUnit, updateUnit, deleteUnit } from '../../services/units/units.service';
+import { fetchAllUnits, createUnit, updateUnit, deleteUnit, toggleUnitStatus } from '../../services/units/units.service';
 import { fetchUsersForUnit, updateUser, createUser } from '../../services/auth/users.service';
 import { activityLogger } from '../../services/utils/activityLogger.service';
 import { Unit, UnitKey, Module } from '../../types';
 import { Icon } from '../ui/Icon';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAppContext } from '../../contexts/AppContext';
 import { fetchUnitKeys, createUnitKey, updateUnitKey, deleteUnitKey, upsertUnitKeyValue } from '../../services/units/unitKeys.service';
 import { listUnitKeysColumns, ColumnInfo } from '../../services/units/unitKeysAdmin.service';
 import { User as UserType, Profile as ProfileType } from '../../types';
@@ -12,6 +13,9 @@ import { UserFormModal } from '../ui/UserFormModal';
 import { fetchUnitModuleIds, assignModulesToUnit } from '../../services/units/unitModules.service';
 import { fetchAllModules } from '../../services/modules/modules.service';
 import { supabase } from '../../services/supabaseClient';
+import { UnitPlanManager } from '../ui/UnitPlanManager';
+import { UnitIntegrationsManager } from '../ui/UnitIntegrationsManager';
+
 
 type UnitDataPayload = Partial<Unit>;
 
@@ -26,13 +30,20 @@ const UnitFormModal: React.FC<{
   const [formData, setFormData] = useState({
     unit_name: '',
     unit_code: '',
+    razao_social: '',
+    cnpj: '',
+    endereco: '',
+    responsavel: '',
+    contato: '',
+    email: '',
   });
   const [error, setError] = useState('');
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [unitUsers, setUnitUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dados' | 'usuarios' | 'modulos' | 'keys'>('dados');
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dados' | 'usuarios' | 'modulos' | 'keys' | 'planos' | 'integracoes'>('dados');
   const [keys, setKeys] = useState<UnitKey[]>([]);
   // Estado para abrir modal Editar Usuário reaproveitando o componente compartilhado
   const [editingUser, setEditingUser] = useState<(UserType & ProfileType) | null>(null);
@@ -45,6 +56,66 @@ const UnitFormModal: React.FC<{
   const handleCloseUserModal = () => {
     setIsUserModalOpen(false);
     setEditingUser(null);
+  };
+
+  // Função para formatar CNPJ para exibição
+  const formatCNPJ = (cnpj: string | null | undefined): string => {
+    if (!cnpj) return '';
+    const numbers = cnpj.replace(/\D/g, '');
+    if (numbers.length !== 14) return cnpj;
+    return numbers.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  };
+
+  // Função para converter texto para Title Case
+  const toTitleCase = (str: string | null | undefined): string => {
+    if (!str) return '';
+    return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  // Função para buscar dados do CNPJ via BrasilAPI
+  const handleCnpjLookup = async (cnpj: string) => {
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    if (cleanCnpj.length !== 14) return;
+
+    setCnpjLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+      if (!response.ok) throw new Error('CNPJ não encontrado');
+
+      const data = await response.json();
+      const enderecoPartes = [
+        toTitleCase(data.descricao_tipo_de_logradouro),
+        toTitleCase(data.logradouro),
+        data.numero,
+        toTitleCase(data.complemento),
+        toTitleCase(data.bairro),
+        toTitleCase(data.municipio),
+        data.uf?.toUpperCase(),
+        data.cep
+      ].filter(Boolean);
+      const endereco = enderecoPartes.join(', ');
+
+      setFormData(prev => ({
+        ...prev,
+        razao_social: toTitleCase(data.razao_social) || prev.razao_social,
+        endereco: endereco || prev.endereco,
+      }));
+    } catch (err) {
+      console.error('Erro ao buscar CNPJ:', err);
+      setError('Não foi possível buscar os dados do CNPJ.');
+    } finally {
+      setCnpjLoading(false);
+    }
+  };
+
+  const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const numbersOnly = value.replace(/\D/g, '');
+    setFormData(prev => ({ ...prev, cnpj: numbersOnly }));
+    if (error && error.includes('CNPJ')) setError('');
+    if (numbersOnly.length === 14) handleCnpjLookup(numbersOnly);
   };
 
   const handleSaveUserFromUnit = async (payload: Partial<UserType & ProfileType>) => {
@@ -92,12 +163,32 @@ const UnitFormModal: React.FC<{
   const [savingModules, setSavingModules] = useState(false);
   const [modulesSaved, setModulesSaved] = useState(false);
 
+
+
   useEffect(() => {
     // Reset form
     if (unit) {
-      setFormData({ unit_name: unit.unit_name, unit_code: unit.unit_code });
+      setFormData({
+        unit_name: unit.unit_name,
+        unit_code: unit.unit_code,
+        razao_social: unit.razao_social || '',
+        cnpj: unit.cnpj || '',
+        endereco: unit.endereco || '',
+        responsavel: unit.responsavel || '',
+        contato: unit.contato || '',
+        email: unit.email || '',
+      });
     } else {
-      setFormData({ unit_name: '', unit_code: '' });
+      setFormData({
+        unit_name: '',
+        unit_code: '',
+        razao_social: '',
+        cnpj: '',
+        endereco: '',
+        responsavel: '',
+        contato: '',
+        email: '',
+      });
     }
     setError('');
     setUsersError(null);
@@ -166,8 +257,10 @@ const UnitFormModal: React.FC<{
           setModulesLoading(false);
         }
       })();
+
+
     }
-  }, [unit, isOpen]);
+  }, [unit, isOpen, profile]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -210,7 +303,11 @@ const UnitFormModal: React.FC<{
                 <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'usuarios' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('usuarios')}>Usuários</button>
                 <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'modulos' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('modulos')}>Módulos</button>
                 {profile?.role === 'super_admin' && (
-                  <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'keys' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('keys')}>Keys</button>
+                  <>
+                    <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'keys' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('keys')}>Keys</button>
+                    <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'integracoes' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('integracoes')}>Integrações</button>
+                    <button type="button" className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeTab === 'planos' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`} onClick={() => setActiveTab('planos')}>Planos</button>
+                  </>
                 )}
               </div>
             )}
@@ -265,13 +362,72 @@ const UnitFormModal: React.FC<{
           <>
             <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
               {error && <p className="text-sm text-center text-danger bg-danger/10 p-2 rounded-md">{error}</p>}
-              <div>
-                <label htmlFor="unit_name" className="block text-xs font-medium text-text-secondary mb-1">Nome da Unidade</label>
-                <input type="text" name="unit_name" id="unit_name" value={formData.unit_name} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+
+              {/* Seção: Dados Básicos */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-text-primary border-b border-border-secondary pb-2">Dados Básicos</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="unit_name" className="block text-xs font-medium text-text-secondary mb-1">Nome da Unidade *</label>
+                    <input type="text" name="unit_name" id="unit_name" value={formData.unit_name} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+                  </div>
+                  <div>
+                    <label htmlFor="unit_code" className="block text-xs font-medium text-text-secondary mb-1">Código da Unidade *</label>
+                    <input type="text" name="unit_code" id="unit_code" value={formData.unit_code} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label htmlFor="unit_code" className="block text-xs font-medium text-text-secondary mb-1">Código da Unidade</label>
-                <input type="text" name="unit_code" id="unit_code" value={formData.unit_code} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+
+              {/* Seção: Informações da Empresa */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-text-primary border-b border-border-secondary pb-2">Informações da Empresa</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="razao_social" className="block text-xs font-medium text-text-secondary mb-1">Razão Social</label>
+                    <input type="text" name="razao_social" id="razao_social" value={formData.razao_social} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+                  </div>
+                  <div>
+                    <label htmlFor="cnpj" className="block text-xs font-medium text-text-secondary mb-1">
+                      CNPJ (somente números)
+                      {cnpjLoading && <span className="ml-2 text-accent-primary">buscando...</span>}
+                    </label>
+                    <input
+                      type="text"
+                      name="cnpj"
+                      id="cnpj"
+                      value={formData.cnpj}
+                      onChange={handleCnpjChange}
+                      placeholder="00000000000000"
+                      maxLength={14}
+                      disabled={cnpjLoading}
+                      className={`w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary ${cnpjLoading ? 'opacity-50 cursor-wait' : ''}`}
+                    />
+                    <p className="text-xs text-text-tertiary mt-1">Preenche automaticamente razão social e endereço</p>
+                  </div>
+                  <div className="col-span-2">
+                    <label htmlFor="endereco" className="block text-xs font-medium text-text-secondary mb-1">Endereço</label>
+                    <input type="text" name="endereco" id="endereco" value={formData.endereco} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção: Contato */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-text-primary border-b border-border-secondary pb-2">Contato</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="responsavel" className="block text-xs font-medium text-text-secondary mb-1">Responsável</label>
+                    <input type="text" name="responsavel" id="responsavel" value={formData.responsavel} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+                  </div>
+                  <div>
+                    <label htmlFor="contato" className="block text-xs font-medium text-text-secondary mb-1">Telefone</label>
+                    <input type="text" name="contato" id="contato" value={formData.contato} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+                  </div>
+                  <div className="col-span-2">
+                    <label htmlFor="email" className="block text-xs font-medium text-text-secondary mb-1">E-mail</label>
+                    <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+                  </div>
+                </div>
               </div>
             </form>
 
@@ -620,6 +776,18 @@ const UnitFormModal: React.FC<{
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {unit && profile?.role === 'super_admin' && activeTab === 'planos' && (
+          <div className="px-5 py-4 max-h-[600px] overflow-y-auto">
+            <UnitPlanManager unitId={unit.id} />
+          </div>
+        )}
+
+        {unit && profile?.role === 'super_admin' && activeTab === 'integracoes' && (
+          <div className="px-5 py-4 max-h-[600px] overflow-y-auto">
+            <UnitIntegrationsManager unitId={unit.id} />
           </div>
         )}
 
@@ -1124,6 +1292,8 @@ const DeleteConfirmationModal: React.FC<{
 const ITEMS_PER_PAGE = 12;
 
 const ManageUnitsPage: React.FC = () => {
+  const { profile } = useAuth();
+  const { selectedUnit: contextSelectedUnit, setSelectedUnit: setContextSelectedUnit } = useAppContext();
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1133,10 +1303,11 @@ const ManageUnitsPage: React.FC = () => {
   const [unitUserCounts, setUnitUserCounts] = useState<Record<string, number>>({});
   const [unitModuleCounts, setUnitModuleCounts] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
-  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'keys' | 'modules'>('info');
+  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'users' | 'keys' | 'modules' | 'plans'>('info');
   const [unitKeys, setUnitKeys] = useState<UnitKey[]>([]);
   const [unitUsers, setUnitUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([]);
   const [userLoginStatus, setUserLoginStatus] = useState<Record<string, { isOnline: boolean; lastActivity: string | null }>>({});
@@ -1157,6 +1328,34 @@ const ManageUnitsPage: React.FC = () => {
       setTimeout(() => setCopiedValue(null), 2000);
     } catch (err) {
       console.error('Falha ao copiar:', err);
+    }
+  };
+
+  // Função para formatar CNPJ para exibição
+  const formatCNPJ = (cnpj: string | null | undefined): string => {
+    if (!cnpj) return '';
+    const numbers = cnpj.replace(/\D/g, '');
+    if (numbers.length !== 14) return cnpj;
+    return numbers.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  };
+
+  // Handler para ativar/inativar unidade
+  const handleToggleUnitStatus = async (unitId: string, currentStatus: boolean) => {
+    try {
+      await toggleUnitStatus(unitId, !currentStatus);
+      // Atualiza a lista de unidades
+      await loadUnits();
+      // Atualiza a unidade selecionada se for a mesma
+      if (selectedUnit?.id === unitId) {
+        setSelectedUnit(prev => prev ? { ...prev, is_active: !currentStatus } : null);
+      }
+      // Atualiza também no AppContext para refletir no Sidebar
+      if (contextSelectedUnit?.id === unitId && contextSelectedUnit.id !== 'ALL' && 'is_active' in contextSelectedUnit) {
+        setContextSelectedUnit({ ...contextSelectedUnit, is_active: !currentStatus });
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar status:', err);
+      setError('Falha ao atualizar status da unidade.');
     }
   };
 
@@ -1375,17 +1574,26 @@ const ManageUnitsPage: React.FC = () => {
 
   const filteredUnits = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return units;
+
     return units.filter((u) => {
-      const name = (u.unit_name || '').toLowerCase();
-      const code = (u.unit_code || '').toLowerCase();
-      return name.includes(term) || code.includes(term);
+      // Search filter
+      const matchesSearch = !term ||
+        (u.unit_name || '').toLowerCase().includes(term) ||
+        (u.unit_code || '').toLowerCase().includes(term);
+
+      // Status filter
+      const matchesStatus =
+        statusFilter === 'all' ? true :
+          statusFilter === 'active' ? u.is_active !== false :
+            u.is_active === false;
+
+      return matchesSearch && matchesStatus;
     });
-  }, [units, searchTerm]);
+  }, [units, searchTerm, statusFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredUnits.length / ITEMS_PER_PAGE));
 
@@ -1456,7 +1664,7 @@ const ManageUnitsPage: React.FC = () => {
       // Registrar atualização de unidade
       if (profile) {
         activityLogger.logUnitUpdate(
-          profile.email || profile.name,
+          profile.email || profile.full_name,
           editingUnit.unit_code,
           'success'
         );
@@ -1471,7 +1679,7 @@ const ManageUnitsPage: React.FC = () => {
     // Registrar criação de unidade
     if (profile && data.unit_code) {
       activityLogger.logUnitCreate(
-        profile.email || profile.name,
+        profile.email || profile.full_name,
         'success'
       );
     }
@@ -1545,19 +1753,17 @@ const ManageUnitsPage: React.FC = () => {
 
         <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary">
           <div className="flex items-center gap-2">
-            <Icon name="CheckCircle" className="w-5 h-5 text-brand-green" />
+            <Icon name="CheckCircle" className="w-5 h-5 text-success" />
             <span className="text-sm font-medium text-text-secondary">Unidades Ativas</span>
-            <span className="ml-auto text-lg font-bold text-text-primary">{filteredUnits.length}</span>
+            <span className="ml-auto text-lg font-bold text-success">{units.filter(u => u.is_active !== false).length}</span>
           </div>
         </div>
 
         <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary">
           <div className="flex items-center gap-2">
-            <Icon name="Users" className="w-5 h-5 text-brand-cyan" />
-            <span className="text-sm font-medium text-text-secondary">Total de Usuários</span>
-            <span className="ml-auto text-lg font-bold text-text-primary">
-              {Object.values(unitUserCounts).reduce((sum, count) => sum + count, 0)}
-            </span>
+            <Icon name="XCircle" className="w-5 h-5 text-danger" />
+            <span className="text-sm font-medium text-text-secondary">Unidades Inativas</span>
+            <span className="ml-auto text-lg font-bold text-danger">{units.filter(u => u.is_active === false).length}</span>
           </div>
         </div>
       </div>
@@ -1567,29 +1773,44 @@ const ManageUnitsPage: React.FC = () => {
         {/* Coluna 1: Lista de Unidades */}
         <div className="w-1/4 bg-bg-secondary rounded-lg shadow-md overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border-secondary bg-accent-primary">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-white whitespace-nowrap">Unidades</h2>
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar..."
-                  className="w-full pl-9 pr-8 py-2 text-sm border rounded-md bg-white border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
-                />
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary">
-                  <Icon name="Search" className="w-4 h-4" />
-                </span>
-                {searchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-bg-secondary text-text-secondary"
-                    aria-label="Limpar busca"
-                  >
-                    <Icon name="X" className="w-4 h-4" />
-                  </button>
-                )}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-white whitespace-nowrap">Unidades</h2>
+              </div>
+              <div className="flex gap-2">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar..."
+                    className="w-full pl-9 pr-8 py-2 text-sm border rounded-md bg-white border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                  />
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary">
+                    <Icon name="Search" className="w-4 h-4" />
+                  </span>
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-bg-secondary text-text-secondary"
+                      aria-label="Limpar busca"
+                    >
+                      <Icon name="X" className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {/* Status Filter */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                  className="px-3 py-2 text-sm border rounded-md bg-white border-border-secondary focus:ring-accent-primary focus:border-accent-primary"
+                >
+                  <option value="all">Todas</option>
+                  <option value="active">Ativas</option>
+                  <option value="inactive">Inativas</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1686,31 +1907,55 @@ const ManageUnitsPage: React.FC = () => {
                   <button
                     onClick={() => setActiveDetailTab('info')}
                     className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeDetailTab === 'info'
-                      ? 'border-accent-primary text-accent-primary'
-                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                      ? 'text-accent-primary border-accent-primary'
+                      : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border-secondary'
                       }`}
                   >
+                    <Icon name="Info" className="inline w-4 h-4 mr-1.5" />
                     Informações
+                  </button>
+                  <button
+                    onClick={() => setActiveDetailTab('users')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeDetailTab === 'users'
+                      ? 'text-accent-primary border-accent-primary'
+                      : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border-secondary'
+                      }`}
+                  >
+                    <Icon name="Users" className="inline w-4 h-4 mr-1.5" />
+                    Usuários
                   </button>
                   <button
                     onClick={() => setActiveDetailTab('keys')}
                     className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeDetailTab === 'keys'
-                      ? 'border-accent-primary text-accent-primary'
-                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                      ? 'text-accent-primary border-accent-primary'
+                      : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border-secondary'
                       }`}
                   >
+                    <Icon name="Key" className="inline w-4 h-4 mr-1.5" />
                     Keys
                   </button>
                   <button
                     onClick={() => setActiveDetailTab('modules')}
                     className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeDetailTab === 'modules'
-                      ? 'border-accent-primary text-accent-primary'
-                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                      ? 'text-accent-primary border-accent-primary'
+                      : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border-secondary'
                       }`}
                   >
+                    <Icon name="Package" className="inline w-4 h-4 mr-1.5" />
                     Módulos
                   </button>
-
+                  {profile?.role === 'super_admin' && (
+                    <button
+                      onClick={() => setActiveDetailTab('plans')}
+                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeDetailTab === 'plans'
+                        ? 'text-accent-primary border-accent-primary'
+                        : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border-secondary'
+                        }`}
+                    >
+                      <Icon name="CreditCard" className="inline w-4 h-4 mr-1.5" />
+                      Planos
+                    </button>
+                  )}
                 </nav>
               </div>
 
@@ -1719,114 +1964,177 @@ const ManageUnitsPage: React.FC = () => {
 
                 {/* Tab: Informações */}
                 {activeDetailTab === 'info' && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div>
                     {/* Card: Dados da Unidade */}
                     <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
-                      <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary">
+                      <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary flex items-center justify-between">
                         <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
                           <Icon name="Info" className="w-3.5 h-3.5 text-accent-primary" />
                           Dados da Unidade
                         </h3>
-                      </div>
-                      <div className="p-3 space-y-2">
-                        <div className="flex items-center justify-between py-1.5 border-b border-border-secondary">
-                          <span className="text-xs font-medium text-text-secondary">Nome:</span>
-                          <span className="text-xs text-text-primary font-semibold">{selectedUnit.unit_name}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1.5 border-b border-border-secondary">
-                          <span className="text-xs font-medium text-text-secondary">Código:</span>
-                          <div
-                            onClick={() => handleCopyToClipboard(selectedUnit.unit_code, {} as any)}
-                            className="relative flex items-center gap-1.5 px-2 py-0.5 transition-colors rounded cursor-pointer bg-bg-tertiary hover:bg-accent-primary/10 group/code"
-                            title="Clique para copiar"
+                        {/* Toggle Ativar/Inativar */}
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-medium ${selectedUnit.is_active ? 'text-success' : 'text-text-tertiary'}`}>
+                            {selectedUnit.is_active ? 'Ativa' : 'Inativa'}
+                          </span>
+                          <button
+                            onClick={() => handleToggleUnitStatus(selectedUnit.id, selectedUnit.is_active)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 ${selectedUnit.is_active ? 'bg-success' : 'bg-border-secondary'
+                              }`}
+                            role="switch"
+                            aria-checked={selectedUnit.is_active}
                           >
-                            <span className="text-xs font-mono text-accent-primary font-semibold">{selectedUnit.unit_code}</span>
-                            <Icon name="Copy" className="w-3 h-3 text-text-tertiary group-hover/code:text-accent-primary transition-colors" />
-                            {copiedValue === selectedUnit.unit_code && (
-                              <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
-                                Copiado!
-                              </span>
-                            )}
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${selectedUnit.is_active ? 'translate-x-5' : 'translate-x-0.5'
+                                }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        {/* Seção: Identificação */}
+                        <div className="mb-4">
+                          <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-2 pb-1 border-b border-border-secondary">Identificação</h4>
+                          <div className="grid grid-cols-3 gap-3 mb-2">
+                            <div>
+                              <span className="text-xs font-medium text-text-tertiary block mb-0.5">Nome</span>
+                              <span className="text-sm text-text-primary font-semibold">{selectedUnit.unit_name}</span>
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-text-tertiary block mb-0.5">Código</span>
+                              <div
+                                onClick={() => handleCopyToClipboard(selectedUnit.unit_code, {} as any)}
+                                className="relative inline-flex items-center gap-1.5 px-2 py-0.5 transition-colors rounded cursor-pointer bg-bg-tertiary hover:bg-accent-primary/10 group/code"
+                                title="Clique para copiar"
+                              >
+                                <span className="text-sm font-mono text-accent-primary font-semibold">{selectedUnit.unit_code}</span>
+                                <Icon name="Copy" className="w-3 h-3 text-text-tertiary group-hover/code:text-accent-primary transition-colors" />
+                                {copiedValue === selectedUnit.unit_code && (
+                                  <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+                                    Copiado!
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-text-tertiary block mb-0.5">Unit ID</span>
+                              <div
+                                onClick={(e) => handleCopyToClipboard(selectedUnit.id, e)}
+                                className="relative inline-flex items-center gap-1.5 px-2 py-0.5 transition-colors rounded cursor-pointer bg-bg-tertiary hover:bg-accent-primary/10 group/id border border-transparent hover:border-accent-primary/20"
+                                title="Clique para copiar Unit ID"
+                              >
+                                <span className="text-xs font-mono text-text-primary font-medium truncate select-all max-w-[120px]">
+                                  {selectedUnit.id}
+                                </span>
+                                <Icon name="Copy" className="w-3 h-3 text-text-tertiary group-hover/id:text-accent-primary transition-colors flex-shrink-0" />
+                                {copiedValue === selectedUnit.id && (
+                                  <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+                                    Copiado!
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between py-1.5">
-                          <span className="text-xs font-medium text-text-secondary">Unit ID:</span>
-                          <div
-                            onClick={(e) => handleCopyToClipboard(selectedUnit.id, e)}
-                            className="relative flex items-center gap-2 px-2 py-1.5 transition-colors rounded cursor-pointer bg-bg-tertiary hover:bg-accent-primary/10 group/id border border-transparent hover:border-accent-primary/20"
-                            title="Clique para copiar Unit ID"
-                          >
-                            <span className="text-xs font-mono text-text-primary font-medium truncate select-all">
-                              {selectedUnit.id}
-                            </span>
-                            <Icon name="Copy" className="w-3.5 h-3.5 text-text-tertiary group-hover/id:text-accent-primary transition-colors flex-shrink-0" />
-                            {copiedValue === selectedUnit.id && (
-                              <span className="absolute -top-8 right-0 bg-success text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
-                                Copiado!
-                              </span>
-                            )}
+
+                        {/* Seção: Informações da Empresa */}
+                        <div className="mb-4">
+                          <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-2 pb-1 border-b border-border-secondary">Informações da Empresa</h4>
+                          <div className="space-y-2.5">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="text-xs font-medium text-text-tertiary block mb-0.5">Razão Social</span>
+                                <span className="text-sm text-text-primary font-semibold">{selectedUnit.razao_social || '-'}</span>
+                              </div>
+                              <div>
+                                <span className="text-xs font-medium text-text-tertiary block mb-0.5">CNPJ</span>
+                                <span className="text-sm text-text-primary font-semibold font-mono">{formatCNPJ(selectedUnit.cnpj) || '-'}</span>
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-text-tertiary block mb-0.5">Endereço</span>
+                              <span className="text-sm text-text-primary">{selectedUnit.endereco || '-'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Seção: Contato */}
+                        <div>
+                          <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-2 pb-1 border-b border-border-secondary">Contato</h4>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <span className="text-xs font-medium text-text-tertiary block mb-0.5">Responsável</span>
+                              <span className="text-sm text-text-primary font-semibold">{selectedUnit.responsavel || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-text-tertiary block mb-0.5">Telefone</span>
+                              <span className="text-sm text-text-primary font-semibold">{selectedUnit.contato || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-text-tertiary block mb-0.5">E-mail</span>
+                              <span className="text-sm text-text-primary">{selectedUnit.email || '-'}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Card: Usuários */}
-                    <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
-                      <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary">
-                        <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
-                          <Icon name="Users" className="w-3.5 h-3.5 text-brand-cyan" />
-                          Usuários ({unitUsers.length})
-                        </h3>
-                      </div>
-                      <div className="p-3">
-                        {unitUsers.length === 0 ? (
-                          <div className="text-center py-6 text-text-secondary text-xs">
-                            <Icon name="Users" className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
-                            <p>Nenhum usuário cadastrado nesta unidade</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                            {unitUsers.map((user) => {
-                              const loginStatus = userLoginStatus[user.id];
-                              const isOnline = loginStatus?.isOnline || false;
+                  </div>
+                )}
 
-                              return (
-                                <div
-                                  key={user.id}
-                                  onClick={() => handleOpenUserModal(user)}
-                                  className="flex items-center gap-3 p-2 border border-border-secondary rounded-lg hover:border-brand-cyan/30 hover:bg-brand-cyan/5 transition-colors cursor-pointer group"
-                                >
-                                  {/* Role Badge */}
-                                  <div className="flex-shrink-0">
-                                    <span className={
-                                      user.role === 'super_admin' ? 'px-2 py-0.5 text-xs font-medium rounded bg-brand-purple/10 text-brand-purple' :
-                                        user.role === 'admin' ? 'px-2 py-0.5 text-xs font-medium rounded bg-accent-primary/10 text-accent-primary' :
-                                          'px-2 py-0.5 text-xs font-medium rounded bg-brand-cyan/10 text-brand-cyan'
-                                    }>
-                                      {user.role === 'super_admin' ? 'Super' : user.role === 'admin' ? 'Admin' : 'User'}
-                                    </span>
-                                  </div>
+                {/* Tab: Usuários */}
+                {activeDetailTab === 'users' && (
+                  <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                        <Icon name="Users" className="w-3.5 h-3.5 text-brand-cyan" />
+                        Usuários ({unitUsers.length})
+                      </h3>
+                    </div>
+                    <div className="p-3">
+                      {unitUsers.length === 0 ? (
+                        <div className="text-center py-6 text-text-secondary text-xs">
+                          <Icon name="Users" className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
+                          <p>Nenhum usuário cadastrado nesta unidade</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                          {unitUsers.map((user) => {
+                            const loginStatus = userLoginStatus[user.id];
+                            const isOnline = loginStatus?.isOnline || false;
 
-                                  {/* Nome */}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold text-text-primary truncate">
-                                      {user.full_name}
-                                    </p>
-                                  </div>
-
-                                  {/* Status de Login */}
-                                  <div className="flex-shrink-0 flex items-center gap-1.5" title={isOnline ? 'Online agora' : loginStatus?.lastActivity ? `Última atividade: ${new Date(loginStatus.lastActivity).toLocaleString('pt-BR')}` : 'Nunca logou'}>
+                            return (
+                              <div
+                                key={user.id}
+                                onClick={() => handleOpenUserModal(user)}
+                                className="flex items-center gap-3 p-2 border border-border-secondary rounded-lg hover:border-brand-cyan/30 hover:bg-brand-cyan/5 transition-colors cursor-pointer group"
+                              >
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-cyan/10 flex items-center justify-center">
+                                  <Icon name="User" className="w-4 h-4 text-brand-cyan" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-text-primary truncate">{user.full_name}</p>
+                                  <p className="text-xs text-text-secondary truncate">{user.email}</p>
+                                </div>
+                                <div className="flex-shrink-0 flex items-center gap-2">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${user.role === 'admin' ? 'bg-accent-primary/10 text-accent-primary' :
+                                    user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
+                                      'bg-bg-tertiary text-text-secondary'
+                                    }`}>
+                                    {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'User'}
+                                  </span>
+                                  <div className="flex items-center gap-1">
                                     <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-text-tertiary'}`} />
                                     <span className="text-xs font-medium" style={{ color: isOnline ? 'var(--success)' : 'var(--text-tertiary)' }}>
                                       {isOnline ? 'Online' : 'Offline'}
                                     </span>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2039,6 +2347,21 @@ const ManageUnitsPage: React.FC = () => {
                   </div>
                 )}
 
+                {/* Tab: Planos (Somente Super Admin) */}
+                {activeDetailTab === 'plans' && selectedUnit && profile?.role === 'super_admin' && (
+                  <div className="bg-white border border-border-secondary rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-bg-tertiary border-b border-border-secondary flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                        <Icon name="CreditCard" className="w-3.5 h-3.5 text-accent-primary" />
+                        Gestão de Planos da Unidade
+                      </h3>
+                    </div>
+                    <div className="p-4">
+                      <UnitPlanManager unitId={selectedUnit.id} />
+                    </div>
+                  </div>
+                )}
+
 
 
               </div>
@@ -2064,22 +2387,24 @@ const ManageUnitsPage: React.FC = () => {
       />
 
       {/* Modal de Edição de Key */}
-      {isKeyModalOpen && (
-        <KeyFormModal
-          isOpen={isKeyModalOpen}
-          onClose={handleCloseKeyModal}
-          onSave={handleSaveKey}
-          onDelete={editingKey ? () => handleDeleteKey(editingKey.id) : undefined}
-          keyData={editingKey}
-        />
-      )}
+      {
+        isKeyModalOpen && (
+          <KeyFormModal
+            isOpen={isKeyModalOpen}
+            onClose={handleCloseKeyModal}
+            onSave={handleSaveKey}
+            onDelete={editingKey ? () => handleDeleteKey(editingKey.id) : undefined}
+            keyData={editingKey}
+          />
+        )
+      }
 
       <DeleteConfirmationModal
         unit={unitToDelete}
         onClose={handleCloseDeleteConfirm}
         onConfirm={handleDeleteUnit}
       />
-    </div>
+    </div >
   );
 };
 

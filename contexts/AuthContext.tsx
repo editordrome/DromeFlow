@@ -117,11 +117,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     try {
-  // Usa serviço segmentado com fallback (RPC get_user_units -> fallback join manual)
-  const { fetchUserUnits } = await import('../services/auth/users.service');
+      // Usa serviço segmentado com fallback (RPC get_user_units -> fallback join manual)
+      const { fetchUserUnits } = await import('../services/auth/users.service');
       const units = await fetchUserUnits(profile.id as string);
+      console.log('[AuthContext] Units retornadas de fetchUserUnits:', units);
+      console.log('[AuthContext] Primeira unidade tem is_active?', units[0]?.is_active);
       // Ordena por nome para consistência
-      const ordered = [...units].sort((a,b)=> a.unit_name.localeCompare(b.unit_name));
+      const ordered = [...units].sort((a, b) => a.unit_name.localeCompare(b.unit_name));
       setUserUnits(ordered);
     } catch (err) {
       console.error('Erro ao carregar unidades do usuário:', err);
@@ -247,7 +249,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       fetchUserModules(data),
       fetchUnitsForUser(data)
     ]);
-    
+
     // Registrar login no activity_logs
     const unitCode = data.units?.[0]?.code || null;
     activityLogger.logLogin(data.email || data.name, unitCode, data.role);
@@ -259,7 +261,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const unitCode = profile.units?.[0]?.code || null;
       activityLogger.logLogout(profile.email || profile.name, unitCode);
     }
-    
+
     setUser(null);
     setProfile(null);
     setUserModules([]);
@@ -270,7 +272,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.removeItem('df_selected_unit_id');
       localStorage.removeItem('df_active_view');
       localStorage.removeItem('df_active_module_id');
-    } catch {}
+    } catch { }
   };
 
   const value = {

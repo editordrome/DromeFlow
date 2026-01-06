@@ -99,7 +99,7 @@ const AppointmentsPage: React.FC = () => {
       if (!appointmentsWebhook) return;
       if (!activeDate) return;
       const unidadeCode = selectedUnit?.unit_code || '';
-      
+
       // Busca o valor de conexao da unidade
       const { fetchConexao } = await import('../../services/units/unitKeys.service');
       const conexao = selectedUnit ? await fetchConexao(selectedUnit.id) : null;
@@ -342,7 +342,7 @@ const AppointmentsPage: React.FC = () => {
       if (!activeDate) return false;
       const recordDate = record.DATA?.split('T')[0] || record.DATA;
       if (recordDate !== activeDate) return false;
-      
+
       // Filtra por unidade
       if (selectedUnit?.unit_code === 'ALL') {
         const unitCodes = (userUnits || []).map(u => u.unit_code);
@@ -388,7 +388,7 @@ const AppointmentsPage: React.FC = () => {
   // Aplica filtro baseado na métrica selecionada e busca
   const filteredAppointments = useMemo(() => {
     let result = sortedAppointments;
-    
+
     // Filtro por métrica (card)
     if (activeMetricFilter !== 'all') {
       result = result.filter(a => {
@@ -415,7 +415,7 @@ const AppointmentsPage: React.FC = () => {
         }
       });
     }
-    
+
     // Filtro por busca
     if (searchTerm.trim()) {
       const search = searchTerm.toLowerCase();
@@ -424,13 +424,13 @@ const AppointmentsPage: React.FC = () => {
         const profissional = (a.PROFISSIONAL || '').toLowerCase();
         const tipo = (a.TIPO || '').toLowerCase();
         const horario = (a.HORARIO || '').toLowerCase();
-        return cliente.includes(search) || 
-               profissional.includes(search) || 
-               tipo.includes(search) ||
-               horario.includes(search);
+        return cliente.includes(search) ||
+          profissional.includes(search) ||
+          tipo.includes(search) ||
+          horario.includes(search);
       });
     }
-    
+
     return result;
   }, [sortedAppointments, activeMetricFilter, searchTerm]);
 
@@ -461,7 +461,7 @@ const AppointmentsPage: React.FC = () => {
       const isDivisao = (a.IS_DIVISAO || '').toUpperCase();
       return isDivisao !== 'SIM';
     });
-    
+
     const total = originalRecords.length;
     let comercial = 0;
     let residencial = 0;
@@ -546,11 +546,10 @@ const AppointmentsPage: React.FC = () => {
                   key={m.key}
                   type="button"
                   onClick={() => setActiveMetricFilter(prev => (prev === m.key ? 'all' : (m.key as any)))}
-                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                    isActive
-                      ? 'border-accent-primary bg-accent-primary text-text-on-accent'
-                      : 'border-border-secondary bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/70'
-                  }`}
+                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${isActive
+                    ? 'border-accent-primary bg-accent-primary text-text-on-accent'
+                    : 'border-border-secondary bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/70'
+                    }`}
                   aria-pressed={isActive}
                   aria-label={`Filtrar por ${m.label}`}
                   title={`${m.label}: ${m.value}`}
@@ -560,7 +559,7 @@ const AppointmentsPage: React.FC = () => {
               );
             })}
           </div>
-          
+
           {sendFeedback && (
             <div className={`text-sm px-3 py-1 rounded-md border ${sendFeedback.type === 'success' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/40' : 'bg-rose-500/10 text-rose-500 border-rose-500/40'}`}>
               {sendFeedback.message}
@@ -570,9 +569,8 @@ const AppointmentsPage: React.FC = () => {
             type="button"
             disabled={!appointmentsWebhook || isSending || selectedUnit.unit_code === 'ALL'}
             onClick={handleSendWebhook}
-            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow transition focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-              appointmentsWebhook ? 'bg-accent-primary text-text-on-accent hover:bg-accent-primary/90 focus:ring-accent-primary' : 'bg-bg-tertiary text-text-tertiary border border-border-secondary'
-            }`}
+            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow transition focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${appointmentsWebhook ? 'bg-accent-primary text-text-on-accent hover:bg-accent-primary/90 focus:ring-accent-primary' : 'bg-bg-tertiary text-text-tertiary border border-border-secondary'
+              }`}
             aria-disabled={!appointmentsWebhook || isSending}
           >
             {isSending ? (
@@ -589,7 +587,7 @@ const AppointmentsPage: React.FC = () => {
           </button>
         </div>
       </div>
-      
+
       {/* Métricas - Cards principais TOTAL, COMERCIAL, RESIDENCIAL */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {([
@@ -603,11 +601,10 @@ const AppointmentsPage: React.FC = () => {
               key={card.key}
               type="button"
               onClick={() => setActiveMetricFilter(prev => prev === card.key ? 'all' : card.key as any)}
-              className={`p-3 rounded-lg border transition-all ${
-                isActive 
-                  ? 'bg-accent-primary text-white border-transparent shadow-lg' 
-                  : 'bg-bg-secondary border-border-primary hover:shadow-md'
-              }`}
+              className={`p-3 rounded-lg border transition-all ${isActive
+                ? 'bg-accent-primary text-white border-transparent shadow-lg'
+                : 'bg-bg-secondary border-border-primary hover:shadow-md'
+                }`}
               aria-pressed={isActive}
               aria-label={`Filtrar por ${card.label}`}
             >
@@ -622,103 +619,101 @@ const AppointmentsPage: React.FC = () => {
           );
         })}
       </div>
-      
+
       {/* Área de Tabela */}
       <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
         {/* Barra de abas de dias - FIXA */}
         <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
-            <div className="flex w-full gap-2">
-              {tabs.map(t => (
-                <button
-                  key={t.date}
-                  onClick={() => setActiveDate(t.date)}
-                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${
-                    activeDate === t.date
-                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+          <div className="flex w-full gap-2">
+            {tabs.map(t => (
+              <button
+                key={t.date}
+                onClick={() => setActiveDate(t.date)}
+                className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${activeDate === t.date
+                  ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                  : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                   }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-              {/* Botão calendário com popover */}
-              <div className="relative" ref={calendarRef}>
-                <button
-                  type="button"
-                  aria-label="Abrir seletor de data"
-                  onClick={() => setShowCalendar(v => !v)}
-                  className={`h-full aspect-square flex items-center justify-center rounded-md transition border ${
-                    showCalendar ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow' : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+              >
+                {t.label}
+              </button>
+            ))}
+            {/* Botão calendário com popover */}
+            <div className="relative" ref={calendarRef}>
+              <button
+                type="button"
+                aria-label="Abrir seletor de data"
+                onClick={() => setShowCalendar(v => !v)}
+                className={`h-full aspect-square flex items-center justify-center rounded-md transition border ${showCalendar ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow' : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                   }`}
+              >
+                <Icon name="calendar" className="w-5 h-5" />
+              </button>
+              {showCalendar && (
+                <div className="fixed mt-2 z-50 w-72 p-3 rounded-md bg-bg-secondary shadow-lg border border-border-secondary animate-fade-in"
+                  style={{
+                    top: calendarRef.current ? calendarRef.current.getBoundingClientRect().bottom + 8 : 0,
+                    right: calendarRef.current ? window.innerWidth - calendarRef.current.getBoundingClientRect().right : 0,
+                  }}
                 >
-                  <Icon name="calendar" className="w-5 h-5" />
-                </button>
-                {showCalendar && (
-                  <div className="fixed mt-2 z-50 w-72 p-3 rounded-md bg-bg-secondary shadow-lg border border-border-secondary animate-fade-in"
-                    style={{
-                      top: calendarRef.current ? calendarRef.current.getBoundingClientRect().bottom + 8 : 0,
-                      right: calendarRef.current ? window.innerWidth - calendarRef.current.getBoundingClientRect().right : 0,
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <button
-                        type="button"
-                        className="p-1 rounded hover:bg-bg-tertiary"
-                        onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
-                        aria-label="Mês anterior"
-                      >
-                        <span className="text-sm">‹</span>
-                      </button>
-                      <div className="text-sm font-medium text-text-primary select-none">
-                        {calendarMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                      </div>
-                      <button
-                        type="button"
-                        className="p-1 rounded hover:bg-bg-tertiary"
-                        onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
-                        aria-label="Próximo mês"
-                      >
-                        <span className="text-sm">›</span>
-                      </button>
+                  <div className="flex items-center justify-between mb-2">
+                    <button
+                      type="button"
+                      className="p-1 rounded hover:bg-bg-tertiary"
+                      onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+                      aria-label="Mês anterior"
+                    >
+                      <span className="text-sm">‹</span>
+                    </button>
+                    <div className="text-sm font-medium text-text-primary select-none">
+                      {calendarMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                     </div>
-                    <div className="grid grid-cols-7 gap-1 mb-1 text-[10px] uppercase tracking-wide text-text-secondary">
-                      {['S','T','Q','Q','S','S','D'].map(d => <div key={d} className="text-center py-1">{d}</div>)}
-                    </div>
-                    <div className="grid grid-cols-7 gap-1">
-                      {daysMatrix.map((week, wi) => week.map((day, di) => {
-                        if (!day) return <div key={wi+'-'+di} className="h-8" />;
-                        const key = formatDateKey(day);
-                        const isActive = key === activeDate;
-                        const isToday = key === new Date().toISOString().split('T')[0];
-                        return (
-                          <button
-                            type="button"
-                            key={key}
-                            onClick={() => handleSelectDate(day)}
-                            className={`h-8 text-xs rounded-md flex items-center justify-center transition border border-transparent ${
-                              isActive
-                                ? 'bg-accent-primary text-text-on-accent shadow'
-                                : isToday
-                                ? 'bg-bg-tertiary text-text-primary'
-                                : 'hover:bg-bg-tertiary text-text-secondary'
-                            }`}
-                          >
-                            {day.getDate()}
-                          </button>
-                        );
-                      }))}
-                    </div>
+                    <button
+                      type="button"
+                      className="p-1 rounded hover:bg-bg-tertiary"
+                      onClick={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+                      aria-label="Próximo mês"
+                    >
+                      <span className="text-sm">›</span>
+                    </button>
                   </div>
-                )}
-              </div>
+                  <div className="grid grid-cols-7 gap-1 mb-1 text-[10px] uppercase tracking-wide text-text-secondary">
+                    {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((d, i) => <div key={`${d}-${i}`} className="text-center py-1">{d}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {daysMatrix.map((week, wi) => week.map((day, di) => {
+                      if (!day) return <div key={wi + '-' + di} className="h-8" />;
+                      const key = formatDateKey(day);
+                      const isActive = key === activeDate;
+                      const isToday = key === new Date().toISOString().split('T')[0];
+                      return (
+                        <button
+                          type="button"
+                          key={key}
+                          onClick={() => handleSelectDate(day)}
+                          className={`h-8 text-xs rounded-md flex items-center justify-center transition border border-transparent ${isActive
+                            ? 'bg-accent-primary text-text-on-accent shadow'
+                            : isToday
+                              ? 'bg-bg-tertiary text-text-primary'
+                              : 'hover:bg-bg-tertiary text-text-secondary'
+                            }`}
+                        >
+                          {day.getDate()}
+                        </button>
+                      );
+                    }))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        
+        </div>
+
         {/* Área de scroll - apenas tabela */}
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm table-fixed" style={{ minWidth: '1000px' }}>
             <colgroup>
               <col className="w-[10%]" />
+              <col className="w-[8%]" />
               <col className="w-[8%]" />
               <col className="w-[28%]" />
               <col className="w-[10%]" />
@@ -729,6 +724,7 @@ const AppointmentsPage: React.FC = () => {
             <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
               <tr className="bg-bg-tertiary text-text-secondary">
                 <th className="px-4 py-3 text-left font-semibold">ID</th>
+                <th className="px-2 py-3 font-semibold text-center">Pagto</th>
                 <th className="px-4 py-3 text-left font-semibold">Horário</th>
                 <th className="px-4 py-3 text-left font-semibold">Cliente</th>
                 <th className="px-4 py-3 font-semibold text-center">Período</th>
@@ -746,11 +742,11 @@ const AppointmentsPage: React.FC = () => {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-danger">{error}</td>
+                  <td colSpan={8} className="py-6 text-center text-danger">{error}</td>
                 </tr>
               ) : filteredAppointments.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-text-secondary">Nenhum agendamento para esta data.</td>
+                  <td colSpan={8} className="py-6 text-center text-text-secondary">Nenhum agendamento para esta data.</td>
                 </tr>
               ) : (
                 filteredAppointments.map(rec => (
@@ -760,6 +756,28 @@ const AppointmentsPage: React.FC = () => {
                     onClick={() => setSelectedRecord(rec)}
                   >
                     <td className="px-4 py-2 text-text-primary truncate" title={rec.ATENDIMENTO_ID}>{rec.ATENDIMENTO_ID}</td>
+                    <td className="px-2 py-2 text-center text-text-secondary">
+                      {(() => {
+                        const st = rec.pagto || rec.payment_status;
+                        if (!st) return <span className="text-text-tertiary">-</span>;
+                        const validSt = String(st).toUpperCase();
+                        const iconClass = "w-4 h-4";
+                        switch (validSt) {
+                          case 'RECEIVED':
+                          case 'CONFIRMED':
+                          case 'PAID':
+                          case 'PAGO':
+                            return <div className="flex justify-center" title="Pago"><Icon name="CheckCircle" className={`${iconClass} text-emerald-500`} /></div>;
+                          case 'PENDING':
+                          case 'PENDENTE':
+                            return <div className="flex justify-center" title="Pendente"><Icon name="Clock" className={`${iconClass} text-amber-500`} /></div>;
+                          case 'OVERDUE':
+                          case 'ATRASADO':
+                            return <div className="flex justify-center" title="Atrasado"><Icon name="AlertTriangle" className={`${iconClass} text-rose-500`} /></div>;
+                          default: return <span className="text-xs">{st}</span>;
+                        }
+                      })()}
+                    </td>
                     <td className="px-4 py-2 font-medium text-text-primary">{formatDisplayHour(rec.HORARIO)}</td>
                     <td className="px-4 py-2 text-text-primary truncate" title={rec.CLIENTE}>
                       <div className="flex items-center gap-1">

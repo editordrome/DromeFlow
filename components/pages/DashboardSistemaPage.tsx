@@ -24,7 +24,7 @@ interface ActivityLog {
 const DashboardSistemaPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
   const { profile } = useAuth();
-  
+
   const [activeTab, setActiveTab] = useState<TabType>('n8n');
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('today');
   const [monitoringLogs, setMonitoringLogs] = useState<N8NMonitoringLog[]>([]);
@@ -36,33 +36,33 @@ const DashboardSistemaPage: React.FC = () => {
     byWorkflow: { workflow: string; count: number }[];
   }>({ total: 0, successCount: 0, errorCount: 0, byWorkflow: [] });
   const [latestErrors, setLatestErrors] = useState<any[]>([]);
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Estado para filtro de workflow
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const [isWorkflowDropdownOpen, setIsWorkflowDropdownOpen] = useState(false);
-  
+
   // Estado para filtro de unidade
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string | null>(null);
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [unitsMap, setUnitsMap] = useState<Map<string, string>>(new Map()); // unit_code -> unit_name
   const [actionsMap, setActionsMap] = useState<Map<string, string>>(new Map()); // action_code -> action_name
-  
+
   // Estado para mostrar gráfico de evolução
   const [showExecutionChart, setShowExecutionChart] = useState(false);
-  
+
   // Estado para mostrar logs de erro
   const [showErrorLogs, setShowErrorLogs] = useState(false);
-  
+
   // Estado para controlar qual card está ativo (apenas um por vez)
   const [activeCard, setActiveCard] = useState<'atividades' | 'indexScans' | 'operacoes' | null>('atividades');
-  
+
   // Estado para activity logs em tempo real
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [activeConnections, setActiveConnections] = useState(0);
-  
+
   // Estado para paginação da tabela de atividades
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -89,7 +89,7 @@ const DashboardSistemaPage: React.FC = () => {
           map.set(action.action_code, action.action_name);
         }
       });
-      
+
       return map;
     } catch (error) {
       console.error('[Dashboard Sistema] Falha ao buscar ações:', error);
@@ -158,7 +158,7 @@ const DashboardSistemaPage: React.FC = () => {
       if (error) throw error;
 
       const logs = data || [];
-      
+
       // Agrupar por workflow
       const grouped = logs.reduce((acc: { [key: string]: any }, log) => {
         const wf = log.workflow || 'Unknown';
@@ -205,7 +205,7 @@ const DashboardSistemaPage: React.FC = () => {
       // Conta conexões únicas ativas (últimos 5 minutos)
       const fiveMinAgo = new Date();
       fiveMinAgo.setMinutes(fiveMinAgo.getMinutes() - 5);
-      
+
       const uniqueUsers = new Set(
         (data || [])
           .filter(log => new Date(log.created_at) >= fiveMinAgo)
@@ -236,7 +236,7 @@ const DashboardSistemaPage: React.FC = () => {
         },
         (payload) => {
           console.log('[Realtime] Nova atividade:', payload.new);
-          
+
           // Garantir que o payload tenha um ID antes de adicionar
           const newLog = payload.new as ActivityLog;
           if (newLog && newLog.id) {
@@ -248,7 +248,7 @@ const DashboardSistemaPage: React.FC = () => {
               return [newLog, ...prev.slice(0, 19)];
             });
           }
-          
+
           // Atualiza contagem de conexões ativas
           loadActivityLogs();
         }
@@ -271,9 +271,9 @@ const DashboardSistemaPage: React.FC = () => {
         const { data: units, error } = await supabase
           .from('units')
           .select('unit_code, unit_name');
-        
+
         if (error) throw error;
-        
+
         const map = new Map<string, string>();
         units?.forEach(unit => {
           if (unit.unit_code && unit.unit_name) {
@@ -285,7 +285,7 @@ const DashboardSistemaPage: React.FC = () => {
         console.error('[Dashboard Sistema] Erro ao buscar unidades:', err);
       }
     };
-    
+
     const fetchActionsData = async () => {
       try {
         const map = await fetchActions();
@@ -294,7 +294,7 @@ const DashboardSistemaPage: React.FC = () => {
         console.error('[Dashboard Sistema] Erro ao buscar ações:', err);
       }
     };
-    
+
     fetchUnits();
     fetchActionsData();
   }, []);
@@ -314,7 +314,7 @@ const DashboardSistemaPage: React.FC = () => {
   // Calcula intervalo de datas baseado no filtro
   const getDateRange = (period: PeriodFilter): { start: Date; end: Date } => {
     const now = new Date();
-    const end = new Date(now);
+    let end = new Date(now);
     let start = new Date(now);
 
     switch (period) {
@@ -383,7 +383,7 @@ const DashboardSistemaPage: React.FC = () => {
       setMonitoringLogs(logs);
       setErrorLogs(errors);
       setLatestErrors(latestErrs);
-      
+
       // Calcula stats dos logs filtrados
       const filteredLogs = filterLogsByPeriod(logs);
       const total = filteredLogs.length;
@@ -447,11 +447,10 @@ const DashboardSistemaPage: React.FC = () => {
     const isError = statusLower === 'error' || statusLower === 'erro';
 
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded ${
-        isSuccess ? 'bg-green-100 text-green-800' :
-        isError ? 'bg-red-100 text-red-800' :
-        'bg-gray-100 text-gray-800'
-      }`}>
+      <span className={`px-2 py-1 text-xs font-medium rounded ${isSuccess ? 'bg-green-100 text-green-800' :
+          isError ? 'bg-red-100 text-red-800' :
+            'bg-gray-100 text-gray-800'
+        }`}>
         {status || 'N/A'}
       </span>
     );
@@ -499,22 +498,20 @@ const DashboardSistemaPage: React.FC = () => {
         <nav className="flex gap-4">
           <button
             onClick={() => setActiveTab('n8n')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-              activeTab === 'n8n'
+            className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'n8n'
                 ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
+              }`}
           >
             N8N
           </button>
 
           <button
             onClick={() => setActiveTab('dados')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-              activeTab === 'dados'
+            className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'dados'
                 ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
+              }`}
           >
             Dados
           </button>
@@ -549,17 +546,16 @@ const DashboardSistemaPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowExecutionChart(!showExecutionChart)}
-                  className={`p-3 rounded-lg border bg-bg-secondary border-border-primary hover:shadow-md transition-all ${
-                    showExecutionChart ? 'ring-2 ring-accent-primary' : ''
-                  }`}
+                  className={`p-3 rounded-lg border bg-bg-secondary border-border-primary hover:shadow-md transition-all ${showExecutionChart ? 'ring-2 ring-accent-primary' : ''
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="Activity" className="w-5 h-5 text-blue-600" />
                     <span className="text-sm font-medium text-text-secondary">Total Execuções</span>
                     <span className="ml-auto text-lg font-bold text-text-primary">{stats.total}</span>
-                    <Icon 
-                      name={showExecutionChart ? "ChevronUp" : "ChevronDown"} 
-                      className="w-4 h-4 text-text-secondary" 
+                    <Icon
+                      name={showExecutionChart ? "ChevronUp" : "ChevronDown"}
+                      className="w-4 h-4 text-text-secondary"
                     />
                   </div>
                 </button>
@@ -576,17 +572,16 @@ const DashboardSistemaPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowErrorLogs(!showErrorLogs)}
-                  className={`p-3 rounded-lg border bg-bg-secondary border-border-primary hover:shadow-md transition-all ${
-                    showErrorLogs ? 'ring-2 ring-red-500' : ''
-                  }`}
+                  className={`p-3 rounded-lg border bg-bg-secondary border-border-primary hover:shadow-md transition-all ${showErrorLogs ? 'ring-2 ring-red-500' : ''
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="XCircle" className="w-5 h-5 text-red-600" />
                     <span className="text-sm font-medium text-text-secondary">Erros</span>
                     <span className="ml-auto text-lg font-bold text-red-600">{stats.errorCount}</span>
-                    <Icon 
-                      name={showErrorLogs ? "ChevronUp" : "ChevronDown"} 
-                      className="w-4 h-4 text-text-secondary" 
+                    <Icon
+                      name={showErrorLogs ? "ChevronUp" : "ChevronDown"}
+                      className="w-4 h-4 text-text-secondary"
                     />
                   </div>
                 </button>
@@ -611,67 +606,61 @@ const DashboardSistemaPage: React.FC = () => {
                   <div className="flex w-full gap-2">
                     <button
                       onClick={() => setSelectedPeriod('today')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'today'
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'today'
                           ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                           : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                        }`}
                     >
                       Hoje
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('yesterday')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'yesterday'
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'yesterday'
                           ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                           : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                        }`}
                     >
                       Dia Anterior
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('last7days')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'last7days'
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'last7days'
                           ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                           : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                        }`}
                     >
                       Últimos 7 dias
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('lastWeek')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'lastWeek'
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'lastWeek'
                           ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                           : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                        }`}
                     >
                       Última Semana
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('lastMonth')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'lastMonth'
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'lastMonth'
                           ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                           : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                        }`}
                     >
                       Mês Anterior
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('last30days')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'last30days'
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'last30days'
                           ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                           : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                        }`}
                     >
                       Últimos 30 dias
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Gráfico de Evolução das Execuções */}
                 {showExecutionChart && (
                   <div className="p-4 bg-bg-secondary border-t border-border-secondary">
@@ -684,31 +673,31 @@ const DashboardSistemaPage: React.FC = () => {
                       const filteredLogs = filterLogsByPeriod(monitoringLogs)
                         .filter(log => !selectedWorkflow || log.workflow === selectedWorkflow)
                         .filter(log => !selectedUnitFilter || log.unit === selectedUnitFilter);
-                      
+
                       const hourlyData = new Map<number, { success: number; error: number }>();
-                      
+
                       filteredLogs.forEach(log => {
                         const date = new Date(log.created_at);
                         const hour = date.getHours();
-                        
+
                         if (!hourlyData.has(hour)) {
                           hourlyData.set(hour, { success: 0, error: 0 });
                         }
-                        
+
                         const data = hourlyData.get(hour)!;
                         const isSuccess = log.status?.toLowerCase() === 'success';
-                        
+
                         if (isSuccess) {
                           data.success++;
                         } else {
                           data.error++;
                         }
                       });
-                      
+
                       // Ordena as horas e preenche intervalo contínuo
                       const sortedHours = Array.from(hourlyData.entries())
                         .sort((a, b) => a[0] - b[0]);
-                      
+
                       if (sortedHours.length === 0) {
                         return (
                           <div className="space-y-4">
@@ -718,20 +707,20 @@ const DashboardSistemaPage: React.FC = () => {
                           </div>
                         );
                       }
-                      
+
                       // Pega primeira e última hora com dados, limitando ao horário comercial
                       const firstHour = 6; // Sempre inicia às 6h
                       const lastHour = 23; // Sempre termina às 23h
-                      
+
                       // Cria array contínuo de horas (inclui horas sem execuções)
                       const continuousHours: Array<[number, { success: number; error: number }]> = [];
                       for (let h = firstHour; h <= lastHour; h++) {
                         continuousHours.push([h, hourlyData.get(h) || { success: 0, error: 0 }]);
                       }
-                      
+
                       // Define valor máximo baseado no maior número de execuções em uma hora
                       const maxValue = Math.max(...continuousHours.map(([_, data]) => data.success + data.error));
-                      
+
                       return (
                         <div className="space-y-4">
                           <>
@@ -751,7 +740,7 @@ const DashboardSistemaPage: React.FC = () => {
                                   );
                                 })}
                               </div>
-                              
+
                               {/* Barras - Colunas únicas por hora */}
                               <div className="absolute inset-0 pl-12 flex items-end gap-1 pb-8">
                                 {continuousHours.map(([hour, data]) => {
@@ -759,7 +748,7 @@ const DashboardSistemaPage: React.FC = () => {
                                   const totalHeight = total > 0 ? (total / maxValue) * 100 : 0;
                                   const successPercent = total > 0 ? (data.success / total) * 100 : 0;
                                   const errorPercent = total > 0 ? (data.error / total) * 100 : 0;
-                                  
+
                                   // Define cor baseada na proporção de sucesso
                                   let barColor = 'bg-gray-300';
                                   if (total > 0) {
@@ -777,17 +766,17 @@ const DashboardSistemaPage: React.FC = () => {
                                       barColor = 'bg-red-400 hover:bg-red-500';
                                     }
                                   }
-                                  
+
                                   return (
-                                    <div 
-                                      key={hour} 
+                                    <div
+                                      key={hour}
                                       className="flex-1 flex flex-col items-center justify-end"
                                       style={{ minWidth: '20px' }}
                                     >
                                       {total > 0 ? (
-                                        <div 
+                                        <div
                                           className={`w-full ${barColor} rounded-t transition-all cursor-pointer relative group`}
-                                          style={{ 
+                                          style={{
                                             height: `${Math.max(totalHeight, 8)}%`,
                                             minHeight: '30px'
                                           }}
@@ -813,12 +802,12 @@ const DashboardSistemaPage: React.FC = () => {
                                   );
                                 })}
                               </div>
-                              
+
                               {/* Eixo X - Horas (a partir da primeira execução) */}
                               <div className="absolute bottom-0 left-12 right-0 flex gap-1">
                                 {continuousHours.map(([hour]) => (
-                                  <div 
-                                    key={hour} 
+                                  <div
+                                    key={hour}
                                     className="flex-1 text-center"
                                     style={{ minWidth: '16px' }}
                                   >
@@ -829,7 +818,7 @@ const DashboardSistemaPage: React.FC = () => {
                                 ))}
                               </div>
                             </div>
-                            
+
                             {/* Legenda */}
                             <div className="flex items-center justify-center gap-6 pt-2 border-t border-border-secondary">
                               <div className="flex items-center gap-2">
@@ -852,7 +841,7 @@ const DashboardSistemaPage: React.FC = () => {
                     })()}
                   </div>
                 )}
-                
+
                 {/* Logs de Erro - Aparecem quando card Erros é clicado */}
                 {showErrorLogs && (
                   <div className="space-y-4 p-4 bg-bg-tertiary border-t border-border-secondary">
@@ -860,7 +849,7 @@ const DashboardSistemaPage: React.FC = () => {
                       <Icon name="AlertTriangle" className="w-4 h-4 text-red-600" />
                       Logs de Erro
                     </h3>
-                    
+
                     {/* Latest Errors by Workflow */}
                     {latestErrors.length > 0 && (
                       <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
@@ -954,7 +943,7 @@ const DashboardSistemaPage: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-bg-primary border-y border-border-secondary">
@@ -986,9 +975,8 @@ const DashboardSistemaPage: React.FC = () => {
                                     setSelectedWorkflow(null);
                                     setIsWorkflowDropdownOpen(false);
                                   }}
-                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors ${
-                                    !selectedWorkflow ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                  }`}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors ${!selectedWorkflow ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
+                                    }`}
                                 >
                                   Todos os workflows
                                 </button>
@@ -1001,9 +989,8 @@ const DashboardSistemaPage: React.FC = () => {
                                         setSelectedWorkflow(workflow!);
                                         setIsWorkflowDropdownOpen(false);
                                       }}
-                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${
-                                        selectedWorkflow === workflow ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                      }`}
+                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${selectedWorkflow === workflow ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
+                                        }`}
                                     >
                                       {workflow}
                                     </button>
@@ -1038,9 +1025,8 @@ const DashboardSistemaPage: React.FC = () => {
                                     setSelectedUnitFilter(null);
                                     setIsUnitDropdownOpen(false);
                                   }}
-                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors ${
-                                    !selectedUnitFilter ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                  }`}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors ${!selectedUnitFilter ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
+                                    }`}
                                 >
                                   Todas as unidades
                                 </button>
@@ -1057,9 +1043,8 @@ const DashboardSistemaPage: React.FC = () => {
                                         setSelectedUnitFilter(unit!);
                                         setIsUnitDropdownOpen(false);
                                       }}
-                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${
-                                        selectedUnitFilter === unit ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                      }`}
+                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${selectedUnitFilter === unit ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
+                                        }`}
                                     >
                                       {getUnitName(unit!)}
                                     </button>
@@ -1086,30 +1071,30 @@ const DashboardSistemaPage: React.FC = () => {
                           .filter(log => !selectedWorkflow || log.workflow === selectedWorkflow)
                           .filter(log => !selectedUnitFilter || log.unit === selectedUnitFilter)
                           .map((log) => (
-                          <tr key={log.id} className="hover:bg-bg-tertiary transition-colors">
-                            <td className="px-4 py-3 text-sm text-text-secondary">
-                              {formatDateTime(log.created_at)}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-primary font-medium">
-                              {log.workflow || 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-secondary">
-                              {getUnitName(log.unit)}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-secondary">
-                              {log.user || 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-secondary">
-                              {getActionName(log.action)}
-                            </td>
-                            <td className="px-4 py-3">
-                              <StatusBadge status={log.status} />
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-secondary font-mono">
-                              {log.atend_id || 'N/A'}
-                            </td>
-                          </tr>
-                        ))
+                            <tr key={log.id} className="hover:bg-bg-tertiary transition-colors">
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {formatDateTime(log.created_at)}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-primary font-medium">
+                                {log.workflow || 'N/A'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {getUnitName(log.unit)}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {log.user || 'N/A'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {getActionName(log.action)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <StatusBadge status={log.status} />
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary font-mono">
+                                {log.atend_id || 'N/A'}
+                              </td>
+                            </tr>
+                          ))
                       )}
                     </tbody>
                   </table>
@@ -1151,11 +1136,10 @@ const DashboardSistemaPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveCard(activeCard === 'atividades' ? null : 'atividades')}
-                    className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                      activeCard === 'atividades'
+                    className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'atividades'
                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-center gap-2">
                       <Icon name="Activity" className="w-4 h-4" />
@@ -1163,30 +1147,28 @@ const DashboardSistemaPage: React.FC = () => {
                     </div>
                   </button>
                 )}
-                
+
                 <button
                   type="button"
                   onClick={() => setActiveCard(activeCard === 'indexScans' ? null : 'indexScans')}
-                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                    activeCard === 'indexScans'
+                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'indexScans'
                       ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                       : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-center gap-2">
                     <Icon name="Zap" className="w-4 h-4" />
                     Index Scans
                   </div>
                 </button>
-                
+
                 <button
                   type="button"
                   onClick={() => setActiveCard(activeCard === 'operacoes' ? null : 'operacoes')}
-                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                    activeCard === 'operacoes'
+                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'operacoes'
                       ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                       : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-center gap-2">
                     <Icon name="Edit" className="w-4 h-4" />
@@ -1194,7 +1176,7 @@ const DashboardSistemaPage: React.FC = () => {
                   </div>
                 </button>
               </div>
-              
+
               {/* Activity Logs - Aparecem quando card Atividades é clicado (apenas super_admin) */}
               {isSuperAdmin && activeCard === 'atividades' && (
                 <div className="space-y-4 p-4 bg-bg-tertiary border border-border-secondary rounded-lg">
@@ -1238,7 +1220,7 @@ const DashboardSistemaPage: React.FC = () => {
                       <Icon name="RefreshCw" className="w-4 h-4 text-text-secondary" />
                     </button>
                   </div>
-                  
+
                   <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
                     {activityLogs.length === 0 ? (
                       <div className="p-6 text-center">
@@ -1266,22 +1248,21 @@ const DashboardSistemaPage: React.FC = () => {
                               const startIndex = (currentPage - 1) * itemsPerPage;
                               const endIndex = startIndex + itemsPerPage;
                               const paginatedLogs = activityLogs.slice(startIndex, endIndex);
-                              
+
                               return paginatedLogs.map((log) => {
                                 const logDate = new Date(log.created_at);
                                 const dateStr = logDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                                 const timeStr = logDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                                 const isRecent = new Date(log.created_at) > new Date(Date.now() - 60000); // Últimos 60s
-                                
+
                                 // Extrai módulo do metadata (workflow mostra o módulo acessado)
                                 const moduleName = log.metadata?.module_name || log.metadata?.module || log.workflow || '-';
-                                
+
                                 return (
-                                  <tr 
-                                    key={log.id} 
-                                    className={`hover:bg-bg-tertiary transition-colors ${
-                                      isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
-                                    }`}
+                                  <tr
+                                    key={log.id}
+                                    className={`hover:bg-bg-tertiary transition-colors ${isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
+                                      }`}
                                   >
                                     <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
                                       {isRecent && (
@@ -1302,13 +1283,12 @@ const DashboardSistemaPage: React.FC = () => {
                                       {getUnitName(log.unit_code)}
                                     </td>
                                     <td className="px-3 py-2">
-                                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                        log.status?.toLowerCase() === 'success' 
-                                          ? 'bg-green-100 text-green-800' 
+                                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${log.status?.toLowerCase() === 'success'
+                                          ? 'bg-green-100 text-green-800'
                                           : log.status?.toLowerCase() === 'error'
-                                          ? 'bg-red-100 text-red-800'
-                                          : 'bg-gray-100 text-gray-800'
-                                      }`}>
+                                            ? 'bg-red-100 text-red-800'
+                                            : 'bg-gray-100 text-gray-800'
+                                        }`}>
                                         {log.status || 'N/A'}
                                       </span>
                                     </td>
@@ -1321,7 +1301,7 @@ const DashboardSistemaPage: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Paginação */}
                   {activityLogs.length > itemsPerPage && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-border-secondary bg-bg-secondary rounded-b-lg">
@@ -1361,363 +1341,363 @@ const DashboardSistemaPage: React.FC = () => {
                       Tabelas por Tamanho e Performance
                     </h3>
                   </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-bg-primary border-b border-border-secondary">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Tabela</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Registros</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Tamanho Total</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Dados</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Índices</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">% do Banco</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-secondary">
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">processed_data</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">63,335</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">52 MB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">28 MB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">24 MB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-blue-500 h-2 rounded-full" style={{ width: '62.7%' }}></div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-bg-primary border-b border-border-secondary">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Tabela</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Registros</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Tamanho Total</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Dados</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Índices</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">% do Banco</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-secondary">
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">processed_data</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">63,335</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">52 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">28 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">24 MB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: '62.7%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">62.7%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">62.7%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">pos_vendas</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">43,749</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">12 MB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">6.5 MB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">6.3 MB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-green-500 h-2 rounded-full" style={{ width: '14.5%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">pos_vendas</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">43,749</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">12 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">6.5 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">6.3 MB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-green-500 h-2 rounded-full" style={{ width: '14.5%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">14.5%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">14.5%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">recrutadora</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">2,297</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">2 MB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">1.5 MB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">600 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-purple-500 h-2 rounded-full" style={{ width: '2.4%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">recrutadora</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">2,297</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">2 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">1.5 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">600 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-purple-500 h-2 rounded-full" style={{ width: '2.4%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">2.4%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">2.4%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">unit_clients</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">3,772</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">1.5 MB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">928 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">576 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-orange-500 h-2 rounded-full" style={{ width: '1.8%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">unit_clients</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">3,772</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">1.5 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">928 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">576 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-orange-500 h-2 rounded-full" style={{ width: '1.8%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">1.8%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">1.8%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">profissionais</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">502</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">432 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">104 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">328 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-cyan-500 h-2 rounded-full" style={{ width: '0.5%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">profissionais</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">502</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">432 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">104 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">328 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-cyan-500 h-2 rounded-full" style={{ width: '0.5%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">0.5%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">0.5%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">comercial</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">120</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~200 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~100 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~100 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-pink-500 h-2 rounded-full" style={{ width: '0.2%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">comercial</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">120</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~200 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~100 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~100 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-pink-500 h-2 rounded-full" style={{ width: '0.2%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">0.2%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">0.2%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">atend_status</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">510</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~150 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~80 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~70 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-indigo-500 h-2 rounded-full" style={{ width: '0.2%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">atend_status</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">510</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~150 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~80 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~70 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-indigo-500 h-2 rounded-full" style={{ width: '0.2%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">0.2%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">0.2%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">unit_modules</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">66</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~50 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-teal-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">unit_modules</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">66</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~50 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-teal-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">user_modules</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">125</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~40 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-violet-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">user_modules</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">125</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~40 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-violet-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">user_units</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">45</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~30 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-fuchsia-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">user_units</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">45</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~30 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-fuchsia-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">profiles</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">23</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~12 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~13 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-rose-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">profiles</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">23</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~12 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~13 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-rose-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">units</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">19</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-amber-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">units</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">19</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-amber-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">modules</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">15</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~8 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~7 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-lime-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">modules</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">15</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~8 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~7 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-lime-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">actions</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">10</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">actions</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">10</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">activity_logs</td>
-                        <td className="px-4 py-3 text-sm font-mono">
-                          <span className="text-green-600 font-semibold">{activityLogs.length}</span>
-                          <span className="text-text-secondary"> (tempo real)</span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~2 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~3 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-sky-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">activity_logs</td>
+                          <td className="px-4 py-3 text-sm font-mono">
+                            <span className="text-green-600 font-semibold">{activityLogs.length}</span>
+                            <span className="text-text-secondary"> (tempo real)</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~2 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~3 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-sky-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-bg-tertiary transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-text-primary">error_logs</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">0</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~2 KB</td>
-                        <td className="px-4 py-3 text-sm text-text-secondary font-mono">~3 KB</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
-                              <div className="bg-red-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">error_logs</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">0</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~2 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~3 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-red-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
                             </div>
-                            <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
               )}
 
               {/* Operações - Aparecem quando card Operações é clicado */}
               {activeCard === 'operacoes' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Index vs Sequential Scans */}
-                <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
-                  <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-                    <Icon name="Search" className="w-4 h-4 text-blue-600" />
-                    Tipos de Busca
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-secondary">Index Scans</span>
-                      <span className="text-sm font-bold text-green-600">1.4M</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Index vs Sequential Scans */}
+                  <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                    <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                      <Icon name="Search" className="w-4 h-4 text-blue-600" />
+                      Tipos de Busca
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary">Index Scans</span>
+                        <span className="text-sm font-bold text-green-600">1.4M</span>
+                      </div>
+                      <div className="w-full bg-border-secondary rounded-full h-2">
+                        <div className="bg-green-500 h-2 rounded-full" style={{ width: '96.5%' }}></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary">Sequential Scans</span>
+                        <span className="text-sm font-bold text-orange-600">51.4K</span>
+                      </div>
+                      <div className="w-full bg-border-secondary rounded-full h-2">
+                        <div className="bg-orange-500 h-2 rounded-full" style={{ width: '3.5%' }}></div>
+                      </div>
+                      <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                        <Icon name="TrendingUp" className="w-3 h-3 inline mr-1 text-green-600" />
+                        96.5% das buscas usando índices (excelente!)
+                      </p>
                     </div>
-                    <div className="w-full bg-border-secondary rounded-full h-2">
-                      <div className="bg-green-500 h-2 rounded-full" style={{ width: '96.5%' }}></div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-secondary">Sequential Scans</span>
-                      <span className="text-sm font-bold text-orange-600">51.4K</span>
-                    </div>
-                    <div className="w-full bg-border-secondary rounded-full h-2">
-                      <div className="bg-orange-500 h-2 rounded-full" style={{ width: '3.5%' }}></div>
-                    </div>
-                    <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
-                      <Icon name="TrendingUp" className="w-3 h-3 inline mr-1 text-green-600" />
-                      96.5% das buscas usando índices (excelente!)
-                    </p>
                   </div>
-                </div>
 
-                {/* Operações de Escrita */}
-                <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
-                  <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-                    <Icon name="Edit" className="w-4 h-4 text-purple-600" />
-                    Operações de Escrita
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <span className="text-xs text-text-secondary">Inserts</span>
+                  {/* Operações de Escrita */}
+                  <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                    <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                      <Icon name="Edit" className="w-4 h-4 text-purple-600" />
+                      Operações de Escrita
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="text-xs text-text-secondary">Inserts</span>
+                        </div>
+                        <span className="text-sm font-bold text-text-primary">306.6K</span>
                       </div>
-                      <span className="text-sm font-bold text-text-primary">306.6K</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-xs text-text-secondary">Updates</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-xs text-text-secondary">Updates</span>
+                        </div>
+                        <span className="text-sm font-bold text-text-primary">301.4K</span>
                       </div>
-                      <span className="text-sm font-bold text-text-primary">301.4K</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                        <span className="text-xs text-text-secondary">Deletes</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                          <span className="text-xs text-text-secondary">Deletes</span>
+                        </div>
+                        <span className="text-sm font-bold text-text-primary">40.0K</span>
                       </div>
-                      <span className="text-sm font-bold text-text-primary">40.0K</span>
+                      <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                        Total de 648K operações realizadas
+                      </p>
                     </div>
-                    <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
-                      Total de 648K operações realizadas
-                    </p>
                   </div>
-                </div>
 
-                {/* Top Índices Mais Usados */}
-                <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
-                  <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-                    <Icon name="Zap" className="w-4 h-4 text-yellow-600" />
-                    Índices Mais Utilizados
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-secondary truncate">processed_data_pkey</span>
-                      <span className="text-xs font-bold text-text-primary">935K</span>
+                  {/* Top Índices Mais Usados */}
+                  <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                    <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                      <Icon name="Zap" className="w-4 h-4 text-yellow-600" />
+                      Índices Mais Utilizados
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary truncate">processed_data_pkey</span>
+                        <span className="text-xs font-bold text-text-primary">935K</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary truncate">idx_unidade_code_data</span>
+                        <span className="text-xs font-bold text-text-primary">199K</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary truncate">units_pkey</span>
+                        <span className="text-xs font-bold text-text-primary">79K</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary truncate">unidade_atendimento</span>
+                        <span className="text-xs font-bold text-text-primary">69K</span>
+                      </div>
+                      <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                        <Icon name="Info" className="w-3 h-3 inline mr-1" />
+                        Performance otimizada com índices
+                      </p>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-secondary truncate">idx_unidade_code_data</span>
-                      <span className="text-xs font-bold text-text-primary">199K</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-secondary truncate">units_pkey</span>
-                      <span className="text-xs font-bold text-text-primary">79K</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-secondary truncate">unidade_atendimento</span>
-                      <span className="text-xs font-bold text-text-primary">69K</span>
-                    </div>
-                    <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
-                      <Icon name="Info" className="w-3 h-3 inline mr-1" />
-                      Performance otimizada com índices
-                    </p>
                   </div>
                 </div>
-              </div>
               )}
 
             </div>

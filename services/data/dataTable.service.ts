@@ -38,7 +38,8 @@ export const fetchDataTable = async (
   }
 
   const enrichedData = await enrichWithVerification((data as DataRecord[]) || []);
-  return { data: enrichedData, count: count || 0 };
+  const fullyEnrichedData = await enrichWithPayments(enrichedData);
+  return { data: fullyEnrichedData, count: count || 0 };
 };
 
 export const fetchDataTableMulti = async (
@@ -79,7 +80,58 @@ export const fetchDataTableMulti = async (
   }
 
   const enrichedData = await enrichWithVerification((data as DataRecord[]) || []);
-  return { data: enrichedData, count: count || 0 };
+  const fullyEnrichedData = await enrichWithPayments(enrichedData);
+  return { data: fullyEnrichedData, count: count || 0 };
+};
+
+// Busca um único registro por ID (ATENDIMENTO_ID ou id)
+export const fetchDataRecordById = async (id: string): Promise<DataRecord | null> => {
+  if (!id) return null;
+
+  let record: DataRecord | null = null;
+  let fetchError: any = null;
+
+  // 1. Try fetching by ATENDIMENTO_ID
+  const { data: dataByAtendimentoId, error: errorByAtendimentoId } = await supabase
+    .from('processed_data')
+    .select('*')
+    .eq('ATENDIMENTO_ID', id)
+    .single();
+
+  if (dataByAtendimentoId) {
+    record = dataByAtendimentoId;
+  } else if (errorByAtendimentoId && errorByAtendimentoId.code !== 'PGRST116') { // PGRST116 is 'Row not found'
+    fetchError = errorByAtendimentoId;
+  }
+
+  // 2. If not found by ATENDIMENTO_ID and 'id' is numeric, try fetching by 'id' (PK)
+  if (!record && !isNaN(Number(id))) {
+    const { data: dataById, error: errorById } = await supabase
+      .from('processed_data')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (dataById) {
+      record = dataById;
+    } else if (errorById && errorById.code !== 'PGRST116') {
+      fetchError = errorById; // Prioritize this error if it's not just "not found"
+    }
+  }
+
+  if (fetchError) {
+    console.error("Error fetching record by ID:", fetchError);
+    throw fetchError;
+  }
+
+  if (!record) {
+    console.warn("Record not found for ID:", id);
+    return null;
+  }
+
+  const enriched = await enrichWithVerification([record]);
+  const fullyEnriched = await enrichWithPayments(enriched);
+  return fullyEnriched[0] || null;
 };
 
 // Helper para enriquecer registros com status de verificação
@@ -117,6 +169,85 @@ async function enrichWithVerification(records: DataRecord[]): Promise<DataRecord
     const uId = unitMap.get((r as any).unidade_code || '');
     if (uId && verifiedSet.has(`${uId}:${r.CLIENTE}`)) {
       return { ...r, is_verified: true };
+    }
+    return r;
+  });
+}
+
+// Helper para enriquecer registros com status de pagamento
+async function enrichWithPayments(records: DataRecord[]): Promise<DataRecord[]> {
+  if (!records.length) return [];
+
+  // Coleta todos os possíveis identificadores para buscar no banco
+  // Isso inclui: ATENDIMENTO_ID (ex: "1234", "#1234"), ID interno (ex: 50) e versões normalizadas (apenas números)
+  const allPossibleIds = new Set<string>();
+
+  records.forEach(r => {
+    if (r.ATENDIMENTO_ID) {
+      const s = String(r.ATENDIMENTO_ID);
+      allPossibleIds.add(s); // Original
+      allPossibleIds.add(s.replace(/\D/g, '')); // Numérico
+    }
+    if (r.id) {
+      allPossibleIds.add(String(r.id)); // ID interno
+    }
+  });
+
+  const filterList = Array.from(allPossibleIds).filter(Boolean);
+  if (filterList.length === 0) return records;
+
+  // Buscar registros de pagamento vinculados
+  // Nota: assume que payment_records.atendimento_id é texto ou compatível
+  const { data: payments } = await supabase
+    .from('payment_records')
+    .select('atendimento_id, status_pagamento')
+    .in('atendimento_id', filterList);
+
+  if (!payments || payments.length === 0) return records;
+
+  // Criar mapa de busca robusto (Mapeia ID -> Status)
+  // Armazena tanto a chave original quanto a normalizada
+  const paymentMap = new Map<string, string>();
+
+  payments.forEach(p => {
+    if (p.atendimento_id) {
+      const pId = String(p.atendimento_id);
+      const pNorm = pId.replace(/\D/g, '');
+
+      // Registra status para chave exata
+      paymentMap.set(pId, p.status_pagamento);
+      // Registra status para chave normalizada (se diferente)
+      if (pNorm && pNorm !== pId) {
+        paymentMap.set(pNorm, p.status_pagamento);
+      }
+    }
+  });
+
+  return records.map(r => {
+    let status = null;
+
+    // Tenta match exato pelo ATENDIMENTO_ID Visual
+    if (r.ATENDIMENTO_ID && paymentMap.has(r.ATENDIMENTO_ID)) {
+      status = paymentMap.get(r.ATENDIMENTO_ID);
+    }
+    // Tenta match normalizado pelo ATENDIMENTO_ID Visual (ex: #123 -> 123)
+    else if (r.ATENDIMENTO_ID) {
+      const norm = String(r.ATENDIMENTO_ID).replace(/\D/g, '');
+      if (paymentMap.has(norm)) {
+        status = paymentMap.get(norm);
+      }
+    }
+
+    // Fallback: Tenta match pelo ID interno do registro
+    if (!status && r.id) {
+      const idStr = String(r.id);
+      if (paymentMap.has(idStr)) {
+        status = paymentMap.get(idStr);
+      }
+    }
+
+    if (status) {
+      return { ...r, payment_status: status };
     }
     return r;
   });
@@ -213,18 +344,7 @@ export const deleteDataRecords = async (recordIds: string[]): Promise<void> => {
   }
 };
 
-export const fetchDataRecordById = async (recordId: number): Promise<DataRecord | null> => {
-  const { data, error } = await supabase
-    .from('processed_data')
-    .select('*')
-    .eq('id', recordId)
-    .maybeSingle();
-  if (error) {
-    console.error('Erro ao buscar registro por ID:', error);
-    return null;
-  }
-  return (data as DataRecord) || null;
-};
+
 
 /**
  * Busca os anos disponíveis com dados para a unidade ou múltiplas unidades

@@ -455,6 +455,7 @@ const DataPage: React.FC = () => {
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Atendimento ID</th>
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Cliente</th>
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Valor</th>
+                    <th className="px-4 py-3 text-xs font-medium tracking-wider text-center uppercase text-text-secondary">Status Pagto</th>
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Profissional</th>
                     <th className="px-4 py-3 text-xs font-medium tracking-wider text-left uppercase text-text-secondary">Repasse</th>
                   </tr>
@@ -510,6 +511,17 @@ const DataPage: React.FC = () => {
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
                         {Number(row.VALOR ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                      <td className="px-4 py-4 text-center cursor-pointer" onDoubleClick={() => handleOpenDetailModal(row)}>
+                        {(() => {
+                          if (!row.payment_status) return <span className="text-text-tertiary">-</span>;
+                          switch (row.payment_status) {
+                            case 'RECEIVED': return <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-medium border border-emerald-500/20">Pago</span>;
+                            case 'PENDING': return <span className="px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 text-xs font-medium border border-yellow-500/20">Pendente</span>;
+                            case 'OVERDUE': return <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 text-xs font-medium border border-rose-500/20">Atrasado</span>;
+                            default: return <span className="px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-500 text-xs font-medium border border-gray-500/20">{row.payment_status}</span>;
+                          }
+                        })()}
                       </td>
                       <td
                         className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary cursor-pointer"

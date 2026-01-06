@@ -24,6 +24,14 @@ export interface Unit {
   address?: string | null;
   is_active: boolean;
   created_at: string;
+
+  // Company information fields
+  razao_social?: string | null;
+  cnpj?: string | null;
+  endereco?: string | null;
+  responsavel?: string | null;
+  contato?: string | null;
+  email?: string | null;
 }
 
 export interface UnitKey {
@@ -45,6 +53,18 @@ export interface UnitKey {
   pos_vendas: string | null;
   conexao: string | null;
   id_recruta: string | null;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  description: string | null;
+  value: number;
+  cycle: 'monthly' | 'annual';
+  status: boolean;
+  payment_link: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Module {
@@ -97,9 +117,12 @@ export type PageView =
   | 'prestadoras'
   | 'profissionais'
   | 'comercial'
+  | 'comercial_admin'
   | 'pos_vendas'
   | 'unit_keys'
-  | 'dashboard_admin';
+  | 'dashboard_admin'
+  | 'manage_plans'
+  | 'financial';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
 
@@ -170,6 +193,8 @@ export interface DataRecord {
   'pos vendas': string | null;
   comentario: string | null;
   is_verified?: boolean;
+  payment_status?: string | null;
+  pagto?: string | null;
 }
 
 export interface DashboardMetrics {
@@ -216,6 +241,7 @@ export interface UnitClient {
   contato: string | null;
   responsavel?: string | null;
   is_verified?: boolean;
+  asaas_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -301,6 +327,43 @@ export interface ComercialCard {
   position: number;
 }
 
+// Comercial Admin (Kanban para Super Admin)
+export interface ComercialAdminColumn {
+  id: string;
+  unit_id: string | null;
+  code: string;
+  name: string;
+  color?: string | null;
+  image_url?: string | null;
+  position: number;
+  is_active: boolean;
+}
+
+export interface ComercialAdminCard {
+  id: string;
+  unit_id: string;
+  nome: string;
+  endereco: string | null;
+  contato: string | null;
+  origem: string | null;
+  status: string;
+  observacao: string | null;
+  plano_id: string | null;
+  data_inicio_teste: string | null; // ISO date (YYYY-MM-DD)
+  data_fim_teste: string | null; // ISO date (YYYY-MM-DD)
+  position: number;
+  created_at: string;
+  updated_at: string;
+
+  // Campos populados via JOIN (não persistidos)
+  plano?: {
+    id: string;
+    name: string;
+    value: number;
+    cycle: 'monthly' | 'annual';
+  };
+}
+
 // Pós-Vendas
 export interface PosVenda {
   id: string;
@@ -335,12 +398,63 @@ export interface PosVendaFormData {
   horario_agendamento?: string | null; // Horário programado para envio
 }
 
+// Unit Plans & Payments
+export interface UnitPlan {
+  id: string;
+  unit_id: string;
+  plan_id: string;
+  start_date: string;
+  end_date: string | null;
+  status: 'active' | 'inactive' | 'cancelled';
+  due_day?: number;
+  payment_type?: 'pix' | 'credit_card';
+  created_at: string;
+  updated_at: string;
+  parent_unit_id: string | null;
+  // Joins
+  plan?: Plan;
+}
+
+export interface UnitPayment {
+  id: string;
+  unit_plan_id: string;
+  reference_date: string; // YYYY-MM-DD
+  amount: number;
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  payment_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AtendimentoSearchResult {
   ATENDIMENTO_ID: string;
   CLIENTE: string;
   DATA: string;
   SERVICO: string;
   ENDERECO: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  cliente_asaas_id: string;
+  atendimento_id?: string | null;
+  id_pagamento_asaas: string;
+  status_pagamento: string;
+  valor: number;
+  data_vencimento: string; // YYYY-MM-DD
+  tipo_pagamento?: string | null;
+  data_pagamento?: string | null; // ISO timestamp
+  link?: string | null;
+  grupo?: string | null;
+  nome?: string | null; // Nome do cliente desnormalizado
+  unit_id?: string | null; // ID da unidade (opcional se quiser filtrar direto sem join)
+  created_at: string;
+  updated_at: string;
+  // Joins
+  unit_clients?: {
+    nome: string;
+    // outros campos se necessário
+  };
 }
 
 // ============================================================================

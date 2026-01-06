@@ -36,7 +36,7 @@ export interface BatchUpdateResult {
 /**
  * Tabelas suportadas para batch update
  */
-export type BatchUpdateTable = 'recrutadora' | 'comercial' | 'comercial_columns' | 'modules';
+export type BatchUpdateTable = 'recrutadora' | 'comercial' | 'comercial_columns' | 'modules' | 'comercial_admin' | 'comercial_admin_columns';
 
 /**
  * Atualiza múltiplos registros (position) em uma única transação
@@ -92,7 +92,7 @@ export async function batchUpdatePositions(
 
   // Retorna o resultado
   const result = data as BatchUpdateResult;
-  
+
   // Log de sucesso
   if (result.success) {
     console.log(`[batchUpdatePositions] ✅ ${result.updated_count}/${result.total} registros atualizados em ${tableName}`);
@@ -121,7 +121,7 @@ export async function batchUpdatePositionsChunked(
   chunkSize: number = 500
 ): Promise<BatchUpdateResult> {
   const chunks: BatchPositionUpdate[][] = [];
-  
+
   // Divide em chunks
   for (let i = 0; i < updates.length; i += chunkSize) {
     chunks.push(updates.slice(i, i + chunkSize));
