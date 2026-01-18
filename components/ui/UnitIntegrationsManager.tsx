@@ -88,10 +88,10 @@ export const UnitIntegrationsManager: React.FC<Props> = ({ unitId }) => {
 
     // Webhook URL generator
     const getWebhookUrl = () => {
-        // Assuming standard Supabase Edge Function URL structure
-        // You might want to make this dynamic based on environment
-        const projectRef = 'uframhbsgtxckdxttofo'; // Or get from env
-        return `https://${projectRef}.supabase.co/functions/v1/asaas-webhook?unit_id=${unitId}`;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        // Handle potential trailing slash
+        const baseUrl = supabaseUrl.endsWith('/') ? supabaseUrl.slice(0, -1) : supabaseUrl;
+        return `${baseUrl}/functions/v1/asaas-webhook?unit_id=${unitId}`;
     };
 
     return (

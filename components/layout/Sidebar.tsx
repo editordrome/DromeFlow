@@ -363,7 +363,19 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
             <ul className="list-none m-0 p-0">
               {/* Renderiza os módulos agrupados por pai/filho */}
               {renderModulesTree()}
-              {/* Removido fallback de Agendamentos para evitar exibir módulo não autorizado */}
+
+              {/* Item fixo: Configurações (apenas para admin e user) */}
+              {profile && (profile.role === 'admin' || profile.role === 'user') && (
+                <NavLink
+                  icon="Settings"
+                  label="Configurações"
+                  isActive={activeView === 'configuracoes'}
+                  onClick={() => {
+                    setView('configuracoes', null);
+                    setSidebarOpen(false);
+                  }}
+                />
+              )}
             </ul>
           </nav>
         </div>

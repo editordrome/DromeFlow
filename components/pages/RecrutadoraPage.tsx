@@ -83,7 +83,7 @@ const RecrutadoraPage: React.FC = () => {
             .eq('is_active', true)
             .limit(1)
             .single();
-          
+
           setRecrutadoraUrl(unitKeyData?.recrutadora || null);
         } else {
           setRecrutadoraUrl(null);
@@ -154,7 +154,7 @@ const RecrutadoraPage: React.FC = () => {
     }
     // garantir ordenação local por position
     for (const k of Object.keys(map)) {
-      map[k].sort((a,b) => a.position - b.position || (a.created_at < b.created_at ? 1 : -1));
+      map[k].sort((a, b) => a.position - b.position || (a.created_at < b.created_at ? 1 : -1));
     }
     return map;
   }, [visibleCards]);
@@ -223,7 +223,7 @@ const RecrutadoraPage: React.FC = () => {
     // normalização simples apenas para visual; quando ALL recarregamos após sucesso
     const normalize = (status: string) => {
       let i = 1;
-      for (const c of nextCards.filter(x => x.status === status).sort((a,b)=>a.position-b.position)) {
+      for (const c of nextCards.filter(x => x.status === status).sort((a, b) => a.position - b.position)) {
         c.position = i++;
       }
     };
@@ -262,7 +262,7 @@ const RecrutadoraPage: React.FC = () => {
       }
     } catch (e: any) {
       // reverte
-      setError('Falha ao mover card: ' + (e.message || '')); 
+      setError('Falha ao mover card: ' + (e.message || ''));
       // força reload
       if (selectedUnit) {
         const cols = await fetchColumns(selectedUnit.id as any);
@@ -389,11 +389,10 @@ const RecrutadoraPage: React.FC = () => {
                   key={metric.key}
                   type="button"
                   onClick={() => setActivePeriod(prev => (prev === metric.key ? 'all' : metric.key))}
-                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                    isActive
-                      ? 'border-accent-primary bg-accent-primary text-text-on-accent'
-                      : 'border-border-secondary bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/70'
-                  }`}
+                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${isActive
+                    ? 'border-accent-primary bg-accent-primary text-text-on-accent'
+                    : 'border-border-secondary bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/70'
+                    }`}
                   aria-pressed={isActive}
                 >
                   <Icon name={metric.icon as any} className={`h-4 w-4 ${isActive ? 'text-text-on-accent' : metric.color}`} />
@@ -411,104 +410,113 @@ const RecrutadoraPage: React.FC = () => {
         <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
           <div className="flex-1 min-h-0 overflow-x-auto pb-2 pr-1">
             <div className="inline-flex gap-4 h-full">
-            {renderColumns.map((col: any) => {
-              const droppableId = col._unitForQual ? `qualificadas|${col._unitForQual.id}` : col.code;
-              const columnCards = col._unitForQual
-                ? visibleCards.filter(c => c.status === 'qualificadas' && c.unit_id === col._unitForQual.id)
-                : (cardsByStatus[col.code] || []);
-              return (
-                <div key={col.id} className="bg-bg-tertiary rounded-lg border border-border-secondary flex flex-col h-full w-[320px] min-w-[320px] shrink-0">
-                  <div className="p-0 h-[100px] md:h-[120px] rounded-t-lg border-b border-border-secondary relative overflow-hidden" style={{ backgroundColor: col.color || undefined }}>
-                    {col.image_url && (
-                      <div
-                        aria-label={col.name}
-                        className="absolute inset-0 bg-center bg-no-repeat bg-cover"
-                        style={{ backgroundImage: `url(${col.image_url})` }}
-                      />
-                    )}
-                    {isAllUnits && col._unitForQual && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs font-semibold px-2 py-1 text-center">
-                        {col._unitForQual.unit_name}
-                      </div>
-                    )}
-                    <span className={`absolute top-1 right-1 z-10 ${getBadgeClasses(col.color)}`}>
-                      {col._unitForQual ? columnCards.length : (cardsByStatus[col.code] || []).length}
-                    </span>
+              {renderColumns.map((col: any) => {
+                const droppableId = col._unitForQual ? `qualificadas|${col._unitForQual.id}` : col.code;
+                const columnCards = col._unitForQual
+                  ? visibleCards.filter(c => c.status === 'qualificadas' && c.unit_id === col._unitForQual.id)
+                  : (cardsByStatus[col.code] || []);
+                return (
+                  <div key={col.id} className="bg-bg-tertiary rounded-lg border border-border-secondary flex flex-col h-full w-[320px] min-w-[320px] shrink-0">
+                    <div className="p-0 h-[100px] md:h-[120px] rounded-t-lg border-b border-border-secondary relative overflow-hidden" style={{ backgroundColor: col.color || undefined }}>
+                      {col.image_url && (
+                        <div
+                          aria-label={col.name}
+                          className="absolute inset-0 bg-center bg-no-repeat bg-cover"
+                          style={{ backgroundImage: `url(${col.image_url})` }}
+                        />
+                      )}
+                      {isAllUnits && col._unitForQual && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs font-semibold px-2 py-1 text-center">
+                          {col._unitForQual.unit_name}
+                        </div>
+                      )}
+                      <span className={`absolute top-1 right-1 z-10 ${getBadgeClasses(col.color)}`}>
+                        {col._unitForQual ? columnCards.length : (cardsByStatus[col.code] || []).length}
+                      </span>
+                    </div>
+                    <Droppable droppableId={droppableId}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className={`flex-1 overflow-y-auto p-3 space-y-3 transition-colors ${snapshot.isDraggingOver ? 'bg-accent-primary/5 ring-1 ring-accent-primary/30' : ''}`}
+                        >
+                          {columnCards.map((card: RecrutadoraCard, index: number, arr: RecrutadoraCard[]) => {
+                            const elements: React.ReactNode[] = [];
+                            const shouldShowIndicator = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === index;
+                            if (shouldShowIndicator) {
+                              elements.push(
+                                <div
+                                  key={`drop-indicator-${droppableId}-${index}`}
+                                  className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
+                                />
+                              );
+                            }
+                            const draggableElement = (
+                              <Draggable draggableId={String(card.id)} index={index}>
+                                {(dragProvided, dragSnapshot) => {
+                                  const content = (
+                                    <div
+                                      ref={dragProvided.innerRef}
+                                      {...dragProvided.draggableProps}
+                                      {...dragProvided.dragHandleProps}
+                                      className={`bg-bg-secondary rounded-md p-3 text-text-primary border border-border-secondary transition-shadow cursor-pointer ${dragSnapshot.isDragging ? 'shadow-2xl ring-2 ring-accent-primary/50 bg-bg-tertiary' : 'shadow-sm hover:bg-bg-tertiary'}`}
+                                      style={{
+                                        ...dragProvided.draggableProps.style,
+                                        opacity: dragSnapshot.isDragging ? 0.8 : 1,
+                                        borderLeft: `4px solid ${isAllUnits ? (unitColorMap[card.unit_id] || '#4ade80') : (card.color_card || '#4ade80')}`,
+                                      }}
+                                      onClick={() => { setEditingCard(card); setModalStatus(card.status); setModalOpen(true); }}
+                                    >
+                                      <div className="font-semibold leading-snug truncate">{card.nome || 'Sem nome'}</div>
+                                      <div className="mt-1">
+                                        <div className="text-xs text-text-secondary">Cadastrado em: {new Date(card.created_at).toLocaleDateString('pt-BR')}</div>
+                                        {card.observacao && card.observacao.trim() && (
+                                          <div className="text-xs text-text-secondary opacity-70 truncate mt-0.5">
+                                            {card.observacao.split('\n')[0]}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                  return dragSnapshot.isDragging ? createPortal(content, document.body) : content;
+                                }}
+                              </Draggable>
+                            );
+                            elements.push(React.cloneElement(draggableElement, { key: card.id }));
+                            // indicador no final da coluna
+                            const isLast = index === arr.length - 1;
+                            const shouldShowAtEnd = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === arr.length && isLast;
+                            if (shouldShowAtEnd) {
+                              elements.push(
+                                <div
+                                  key={`drop-indicator-${droppableId}-end`}
+                                  className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
+                                />
+                              );
+                            }
+                            return elements;
+                          })}
+                          {provided.placeholder}
+                          {columnCards.length === 0 && (
+                            <>
+                              {dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === 0 && (
+                                <div className="h-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none mb-3" />
+                              )}
+                              <div className="text-xs text-text-secondary text-center py-6 border border-dashed border-border-secondary rounded">
+                                Nenhum card nesta coluna
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </Droppable>
                   </div>
-                  <Droppable droppableId={droppableId}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={`flex-1 overflow-y-auto p-3 space-y-3 transition-colors ${snapshot.isDraggingOver ? 'bg-accent-primary/5 ring-1 ring-accent-primary/30' : ''}`}
-                      >
-                        {columnCards.map((card: RecrutadoraCard, index: number, arr: RecrutadoraCard[]) => {
-                          const elements: React.ReactNode[] = [];
-                          const shouldShowIndicator = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === index;
-                          if (shouldShowIndicator) {
-                            elements.push(
-                              <div
-                                key={`drop-indicator-${droppableId}-${index}`}
-                                className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
-                              />
-                            );
-                          }
-                          elements.push(
-                            <Draggable key={card.id} draggableId={String(card.id)} index={index}>
-                              {(dragProvided, dragSnapshot) => {
-                                const content = (
-                                  <div
-                                    ref={dragProvided.innerRef}
-                                    {...dragProvided.draggableProps}
-                                    {...dragProvided.dragHandleProps}
-                                    className={`bg-bg-secondary rounded-md p-3 text-text-primary border border-border-secondary transition-shadow cursor-pointer ${dragSnapshot.isDragging ? 'shadow-2xl ring-2 ring-accent-primary/50 bg-bg-tertiary' : 'shadow-sm hover:bg-bg-tertiary'}`}
-                                    style={{
-                                      ...dragProvided.draggableProps.style,
-                                      borderLeft: `4px solid ${isAllUnits ? (unitColorMap[card.unit_id] || '#4ade80') : (card.color_card || '#4ade80')}`,
-                                    }}
-                                    onClick={() => { setEditingCard(card); setModalStatus(card.status); setModalOpen(true); }}
-                                  >
-                                    <div className="font-semibold leading-snug truncate">{card.nome || 'Sem nome'}</div>
-                                    <div className="text-xs text-text-secondary mt-1">Cadastrado em: {new Date(card.created_at).toLocaleDateString('pt-BR')}</div>
-                                  </div>
-                                );
-                                return dragSnapshot.isDragging ? createPortal(content, document.body) : content;
-                              }}
-                            </Draggable>
-                          );
-                          // indicador no final da coluna
-                          const isLast = index === arr.length - 1;
-                          const shouldShowAtEnd = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === arr.length && isLast;
-                          if (shouldShowAtEnd) {
-                            elements.push(
-                              <div
-                                key={`drop-indicator-${droppableId}-end`}
-                                className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
-                              />
-                            );
-                          }
-                          return elements;
-                        })}
-                        {provided.placeholder}
-                        {columnCards.length === 0 && (
-                          <>
-                            {dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === 0 && (
-                              <div className="h-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none mb-3" />
-                            )}
-                            <div className="text-xs text-text-secondary text-center py-6 border border-dashed border-border-secondary rounded">
-                              Nenhum card nesta coluna
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </Droppable>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </DragDropContext>
+        </DragDropContext>
       </div>
 
       <RecrutadoraCardModal
@@ -537,7 +545,7 @@ const RecrutadoraPage: React.FC = () => {
             setMetrics(m);
           }
         }}
-  unidade={selectedUnit.unit_name}
+        unidade={selectedUnit.unit_name}
         defaultStatus={editingCard ? undefined : modalStatus}
         initialCard={editingCard}
         onCreate={async (payload) => {

@@ -23,6 +23,7 @@ const DashboardSistemaPage = lazy(() => import('../pages/DashboardSistemaPage'))
 const ManagePlansPage = lazy(() => import('../pages/ManagePlansPage'));
 const ComercialAdminPage = lazy(() => import('../pages/ComercialAdminPage'));
 const FinancialPage = lazy(() => import('../pages/FinancialPage'));
+const ConfiguracoesPage = lazy(() => import('../pages/ConfiguracoesPage'));
 
 // Loading component
 const PageLoader = () => (
@@ -120,6 +121,9 @@ const ContentArea: React.FC = () => {
     }
     if (activeView === 'financial') {
         return <Suspense fallback={<PageLoader />}><FinancialPage /></Suspense>;
+    }
+    if (activeView === 'configuracoes') {
+        return <Suspense fallback={<PageLoader />}><ConfiguracoesPage /></Suspense>;
     }
 
     // Default to module view

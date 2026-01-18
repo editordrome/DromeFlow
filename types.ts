@@ -34,6 +34,15 @@ export interface Unit {
   email?: string | null;
 }
 
+export interface UnitService {
+  id: string;
+  unit_id: string;
+  name: string;
+  repasse_value: number;
+  active: boolean;
+  created_at: string;
+}
+
 export interface UnitKey {
   id: string | number;
   created_at: string;
@@ -122,7 +131,8 @@ export type PageView =
   | 'unit_keys'
   | 'dashboard_admin'
   | 'manage_plans'
-  | 'financial';
+  | 'financial'
+  | 'configuracoes';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
 

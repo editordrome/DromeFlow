@@ -72,9 +72,9 @@ serve(async (req) => {
                 name: data.nome || data.name,
                 email: data.email,
                 cpfCnpj: data.cpfCnpj || data.cpf_cnpj,
-                mobilePhone: data.mobilePhone || data.celular || data.contato,
+                mobilePhone: data.mobilePhone || data.celular,
+                phone: data.phone || data.telefone || data.contato,
                 address: data.address || data.endereco,
-                // Add more fields mapping as needed
             }
 
             let method = 'POST'
