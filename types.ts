@@ -32,13 +32,14 @@ export interface Unit {
   responsavel?: string | null;
   contato?: string | null;
   email?: string | null;
+  uniform_value?: string | number | null;
 }
 
 export interface UnitService {
   id: string;
   unit_id: string;
   name: string;
-  repasse_value: number;
+  repasse_value: string;
   active: boolean;
   created_at: string;
 }
@@ -308,6 +309,9 @@ export interface RecrutadoraCard {
 
   // Observação
   observacao?: string | null;
+
+  // Data de assinatura do contrato
+  assinatura?: string | null;
 }
 
 // Comercial (Kanban)

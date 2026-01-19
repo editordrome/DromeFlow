@@ -19,6 +19,14 @@ const formatDate = (date: string): string => {
   return d.toLocaleDateString('pt-BR');
 };
 
+// Função para formatar valor monetário
+const formatCurrency = (value: string | number | null | undefined): string => {
+  if (!value) return '0,00';
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(numValue)) return '0,00';
+  return numValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 // Função para gerar HTML do Aditamento Contratual COMPLETO
 export function generateAditamentoHTML(data: any): string {
   const { profissional, unidade, contrato } = data;
@@ -157,7 +165,7 @@ export function generateAditamentoHTML(data: any): string {
     <strong>4.5.</strong> <strong>O AGENCIADO</strong> declara estar ciente de que os uniformes utilizados durante os atendimentos intermediados poderão ser entregues mediante uma das seguintes modalidades, a critério exclusivo do <strong>AGENCIADOR</strong>:
   </p>
   <p>
-    <strong>I.</strong> Mediante caução: o <strong>AGENCIADOR</strong> entregará o uniforme ao <strong>AGENCIADO</strong>, e, a título de caução e será retido o valor de R$ [●], equivalente ao custo de fabricação do item, diretamente no primeiro repasse financeiro realizado. Caso o <strong>AGENCIADO</strong> deixe de realizar atendimentos intermediados, deverá restituir o uniforme em <strong>bom estado de conservação e uso</strong>, hipótese em que o valor da caução será integralmente devolvido. Não sendo devolvido o uniforme ao final da parceria, implicará na retenção definitiva do valor de caução.<br><br>
+    <strong>I.</strong> Mediante caução: o <strong>AGENCIADOR</strong> entregará o uniforme ao <strong>AGENCIADO</strong>, e, a título de caução e será retido o valor de R$ ${formatCurrency(unidade.uniformValue || unidade.uniform_value)}, equivalente ao custo de fabricação do item, diretamente no primeiro repasse financeiro realizado. Caso o <strong>AGENCIADO</strong> deixe de realizar atendimentos intermediados, deverá restituir o uniforme em <strong>bom estado de conservação e uso</strong>, hipótese em que o valor da caução será integralmente devolvido. Não sendo devolvido o uniforme ao final da parceria, implicará na retenção definitiva do valor de caução.<br><br>
     <strong>II.</strong> Sem caução: caso o <strong>AGENCIADOR</strong> opte por não reter caução, o <strong>AGENCIADO</strong> se compromete a devolver o uniforme ao final da parceria. Em caso de <strong>não devolução no prazo de até 5 (cinco) dias úteis</strong> contados da data de encerramento da relação contratual, ou devolução em <strong>estado que inviabilize sua reutilização</strong>, o <strong>AGENCIADO</strong> ficará sujeito ao pagamento de <strong>multa compensatória no valor de R$ 200,00 (duzentos reais)</strong>, sem prejuízo da apuração de perdas e danos adicionais e demais medidas cabíveis.
   </p>
   <p>

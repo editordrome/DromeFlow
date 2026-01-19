@@ -16,19 +16,24 @@ const ConfiguracoesPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'company' | 'services'>('company');
 
     // Form Data da Empresa
-    const [formData, setFormData] = useState<Partial<Unit>>({
+    const [formData, setFormData] = useState({
         razao_social: '',
         cnpj: '',
         endereco: '',
         contato: '',
         email: '',
         responsavel: '',
+        uniform_value: '0'
     });
 
     // Serviços Data
     const [services, setServices] = useState<UnitService[]>([]);
-    const [newService, setNewService] = useState({ name: '4 horas', repasse_value: '' });
-
+    const [newService, setNewService] = useState<Omit<UnitService, 'id' | 'created_at' | 'uniform_value'>>({
+        unit_id: selectedUnit?.id || '',
+        name: '2 horas',
+        repasse_value: '',
+        active: true
+    });
     // States de UI
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -44,7 +49,7 @@ const ConfiguracoesPage: React.FC = () => {
 
             setIsLoading(true);
             try {
-                // Carregar Configurações
+                // Carregar Configurações da Empresa
                 const configData = await getUnitConfig(selectedUnit.id);
                 if (configData) {
                     setFormData({
@@ -54,6 +59,9 @@ const ConfiguracoesPage: React.FC = () => {
                         contato: configData.contato || '',
                         email: configData.email || '',
                         responsavel: configData.responsavel || '',
+                        uniform_value: configData.uniform_value
+                            ? String(configData.uniform_value).replace('.', ',')
+                            : '0,00'
                     });
                 }
 
@@ -97,36 +105,51 @@ const ConfiguracoesPage: React.FC = () => {
     const handleSaveCompany = async () => {
         if (!selectedUnit || selectedUnit.id === 'ALL') return;
 
-        if (!formData.razao_social?.trim()) {
-            setSaveMessage({ type: 'error', text: 'Razão Social é obrigatória' });
-            return;
-        }
-
         setIsSaving(true);
-        setSaveMessage(null);
+        try {
+            // Converter vírgula para ponto no valor do uniforme
+            const uniformValue = formData.uniform_value
+                ? parseFloat(formData.uniform_value.replace(',', '.'))
+                : 0;
 
-        const result = await updateUnitConfig(selectedUnit.id, formData);
+            const result = await updateUnitConfig(selectedUnit.id, {
+                ...formData,
+                uniform_value: uniformValue
+            });
 
-        if (result.success) {
-            setSaveMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
-        } else {
-            setSaveMessage({ type: 'error', text: result.error || 'Erro ao salvar configurações' });
+            if (result.success) {
+                setSaveMessage({ type: 'success', text: 'Dados salvos com sucesso!' });
+                setTimeout(() => setSaveMessage(null), 3000);
+            } else {
+                setSaveMessage({ type: 'error', text: result.error || 'Erro ao salvar' });
+            }
+        } catch (error) {
+            console.error(error);
+            setSaveMessage({ type: 'error', text: 'Erro ao salvar dados' });
+        } finally {
+            setIsSaving(false);
         }
-
-        setIsSaving(false);
     };
 
     // Gerenciar Serviços
     const handleAddService = async () => {
         if (!selectedUnit || selectedUnit.id === 'ALL') return;
-        if (!newService.repasse_value) {
+
+        if (!newService.repasse_value || newService.repasse_value.trim() === '') {
             alert('Informe o valor do repasse');
             return;
         }
 
-        const value = parseFloat(newService.repasse_value.replace(',', '.'));
-        if (isNaN(value)) {
-            alert('Valor inválido');
+        // Converter vírgula para ponto
+        const repasseValue = parseFloat(newService.repasse_value.replace(',', '.'));
+
+        if (isNaN(repasseValue)) {
+            alert('Valor de repasse inválido');
+            return;
+        }
+
+        if (!selectedUnit) {
+            console.error('No unit selected');
             return;
         }
 
@@ -137,7 +160,10 @@ const ConfiguracoesPage: React.FC = () => {
         try {
             if (existingService) {
                 // Update
-                const updated = await updateUnitService(existingService.id, { repasse_value: value, active: true });
+                const updated = await updateUnitService(existingService.id, {
+                    repasse_value: repasseValue.toString(),
+                    active: true
+                });
                 setServices(prev => prev.map(s => s.id === updated.id ? updated : s));
             } else {
                 // Create
@@ -145,7 +171,7 @@ const ConfiguracoesPage: React.FC = () => {
                 const created = await createUnitService({
                     unit_id: selectedUnit.id,
                     name: newService.name,
-                    repasse_value: value,
+                    repasse_value: repasseValue.toString(),
                     active: true
                 });
                 setServices(prev => [...prev, created]);
@@ -237,9 +263,44 @@ const ConfiguracoesPage: React.FC = () => {
             <div className="flex-1 overflow-y-auto">
                 {activeTab === 'company' ? (
                     <div className="bg-bg-secondary rounded-lg border border-border-secondary p-6">
-                        <div className="flex items-center gap-2 mb-6">
-                            <Icon name="Building2" className="w-5 h-5 text-accent-primary" />
-                            <h2 className="text-lg font-semibold text-text-primary">Dados da Empresa</h2>
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-2">
+                                <Icon name="Building2" className="w-5 h-5 text-accent-primary" />
+                                <h2 className="text-lg font-semibold text-text-primary">Dados da Empresa</h2>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="w-24">
+                                    <label className="block text-xs font-medium text-text-secondary mb-1">
+                                        Uniforme (R$)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={
+                                            formData.uniform_value && formData.uniform_value !== '0'
+                                                ? formatCurrency(parseFloat(formData.uniform_value.toString().replace(',', '.'))).replace('R$', '').trim()
+                                                : '0,00'
+                                        }
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/[^0-9,.]/g, '');
+                                            handleChange('uniform_value', val);
+                                        }}
+                                        className="w-full px-2 py-2 bg-bg-primary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary text-sm"
+                                        placeholder="0,00"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleSaveCompany}
+                                    disabled={isSaving}
+                                    className="p-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Salvar Alterações"
+                                >
+                                    {isSaving ? (
+                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                    ) : (
+                                        <Icon name="Save" className="w-5 h-5" />
+                                    )}
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-4">
@@ -346,127 +407,96 @@ const ConfiguracoesPage: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Botão Salvar */}
-                        <div className="mt-6 flex items-center justify-between">
-                            <div className="text-xs text-text-secondary flex items-center gap-1">
-                                <Icon name="Info" className="w-4 h-4" />
-                                <span>Estes dados serão usados nos documentos PDF gerados</span>
-                            </div>
-                            <button
-                                onClick={handleSaveCompany}
-                                disabled={isSaving}
-                                className="px-6 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                {isSaving ? (
-                                    <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                        Salvando...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Icon name="Save" className="w-4 h-4" />
-                                        Salvar Alterações
-                                    </>
-                                )}
-                            </button>
-                        </div>
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        {/* Formulário de Adição */}
-                        <div className="bg-bg-secondary rounded-lg border border-border-secondary p-6">
-                            <div className="flex items-center gap-2 mb-6">
+                    <div className="bg-bg-secondary rounded-lg border border-border-secondary p-6">
+                        {/* Formulário de adição no topo */}
+                        <div className="flex items-center justify-between mb-6 pb-6 border-b border-border-secondary">
+                            <div className="flex items-center gap-2">
                                 <Icon name="Briefcase" className="w-5 h-5 text-accent-primary" />
-                                <h2 className="text-lg font-semibold text-text-primary">Adicionar Serviço</h2>
+                                <h2 className="text-lg font-semibold text-text-primary whitespace-nowrap">Gestão de Serviços</h2>
                             </div>
 
-                            <div className="flex gap-4 items-end">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-text-primary mb-1">
-                                        Tipo de Serviço
-                                    </label>
-                                    <select
-                                        value={newService.name}
-                                        onChange={(e) => setNewService(prev => ({ ...prev, name: e.target.value }))}
-                                        className="w-full px-3 py-2 bg-bg-primary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                                    >
-                                        {SERVICE_OPTIONS.map(opt => (
-                                            <option key={opt} value={opt}>{opt}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                            <div className="flex items-center gap-3">
+                                <select
+                                    value={newService.name}
+                                    onChange={(e) => setNewService(prev => ({ ...prev, name: e.target.value }))}
+                                    className="px-3 py-2 bg-bg-primary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary text-sm h-[38px]"
+                                >
+                                    {SERVICE_OPTIONS.map(opt => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                    ))}
+                                </select>
 
-                                <div className="w-40">
-                                    <label className="block text-sm font-medium text-text-primary mb-1">
-                                        Valor Repasse (R$)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={newService.repasse_value}
-                                        onChange={(e) => {
-                                            // Allow only numbers and comma/dot
-                                            const val = e.target.value.replace(/[^0-9,.]/g, '');
+                                <input
+                                    type="text"
+                                    value={newService.repasse_value}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/[^0-9]/g, '');
+                                        // Auto-format: insert comma before last 2 digits
+                                        if (val.length > 2) {
+                                            const formatted = val.slice(0, -2) + ',' + val.slice(-2);
+                                            setNewService(prev => ({ ...prev, repasse_value: formatted }));
+                                        } else if (val.length > 0) {
                                             setNewService(prev => ({ ...prev, repasse_value: val }));
-                                        }}
-                                        className="w-full px-3 py-2 bg-bg-primary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                                        placeholder="0,00"
-                                    />
-                                </div>
+                                        } else {
+                                            setNewService(prev => ({ ...prev, repasse_value: '' }));
+                                        }
+                                    }}
+                                    className="w-28 px-3 py-2 bg-bg-primary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary text-sm h-[38px]"
+                                    placeholder="100,00"
+                                />
 
                                 <button
                                     onClick={handleAddService}
                                     disabled={isSaving}
-                                    className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-md font-medium disabled:opacity-50 h-[42px] flex items-center gap-2"
+                                    className="p-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-md disabled:opacity-50 transition-colors h-[38px] w-[38px] flex items-center justify-center"
+                                    title="Adicionar Serviço"
                                 >
-                                    <Icon name="Plus" className="w-4 h-4" />
-                                    Adicionar
+                                    <Icon name="Plus" className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Lista de Serviços */}
-                        <div className="bg-bg-secondary rounded-lg border border-border-secondary p-6">
-                            <h3 className="text-lg font-semibold text-text-primary mb-4">Serviços Ativos</h3>
-
-                            {services.length === 0 ? (
-                                <p className="text-text-secondary text-center py-8">Nenhum serviço cadastrado.</p>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="border-b border-border-secondary">
-                                                <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">Serviço</th>
-                                                <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">Valor Repasse</th>
-                                                <th className="text-right py-3 px-4 text-sm font-medium text-text-secondary">Ações</th>
+                        {/* Tabela de serviços */}
+                        {services.length === 0 ? (
+                            <p className="text-text-secondary text-center py-8">Nenhum serviço cadastrado.</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-border-secondary">
+                                            <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">Serviço</th>
+                                            <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">Valor Repasse</th>
+                                            <th className="text-right py-3 px-4 text-sm font-medium text-text-secondary">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {services.map(service => (
+                                            <tr key={service.id} className="border-b border-border-secondary last:border-0 hover:bg-white/5">
+                                                <td className="py-3 px-4 text-text-primary">{service.name}</td>
+                                                <td className="py-3 px-4 text-text-primary font-medium">
+                                                    {formatCurrency(service.repasse_value)}
+                                                </td>
+                                                <td className="py-3 px-4 text-right">
+                                                    <button
+                                                        onClick={() => handleDeleteService(service.id)}
+                                                        className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors"
+                                                        title="Excluir serviço"
+                                                    >
+                                                        <Icon name="Trash2" className="w-4 h-4" />
+                                                    </button>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {services.map(service => (
-                                                <tr key={service.id} className="border-b border-border-secondary last:border-0 hover:bg-white/5">
-                                                    <td className="py-3 px-4 text-text-primary">{service.name}</td>
-                                                    <td className="py-3 px-4 text-text-primary font-medium">
-                                                        {formatCurrency(service.repasse_value)}
-                                                    </td>
-                                                    <td className="py-3 px-4 text-right">
-                                                        <button
-                                                            onClick={() => handleDeleteService(service.id)}
-                                                            className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors"
-                                                            title="Excluir serviço"
-                                                        >
-                                                            <Icon name="Trash2" className="w-4 h-4" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
-        </div >
+        </div>
     );
 };
 

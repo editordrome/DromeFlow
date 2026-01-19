@@ -30,6 +30,7 @@ export type Profissional = {
   dias_livres: string | null;
   dias_semana: string | null;
   fumante: string | null;
+  assinatura: string | null; // ISO date
   created_at: string;
   updated_at: string;
 };
@@ -139,7 +140,7 @@ export const fetchProfessionalPosVendaMetrics = async (
       if (item.ATENDIMENTO_ID && notaMap.has(item.ATENDIMENTO_ID)) {
         const nota = notaMap.get(item.ATENDIMENTO_ID)!;
         const tipo = (item.TIPO || '').toLowerCase();
-        
+
         if (tipo.includes('comercial')) {
           comercialNotas.push(nota);
         } else if (tipo.includes('residencial')) {
@@ -188,6 +189,8 @@ export const updateProfissional = async (
     | 'nome_recado'
     | 'tel_recado'
     | 'observacao'
+    | 'status'
+    | 'assinatura'
   >>
 ): Promise<Profissional | null> => {
   if (!id) return null;
@@ -198,9 +201,9 @@ export const updateProfissional = async (
     .eq('id', id)
     .select('*')
     .single();
-  
+
   console.log('profissionais.service: Resposta do Supabase:', { data, error });
-  
+
   if (error) {
     console.error('profissionais.service: Erro do Supabase:', error);
     throw new Error(`Erro ao atualizar profissional: ${error.message} (Código: ${error.code})`);
@@ -213,20 +216,20 @@ export const createProfissional = async (
   profissionalData: Partial<Omit<Profissional, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<Profissional | null> => {
   console.log('profissionais.service: Criando profissional:', profissionalData);
-  
+
   const { data, error } = await supabase
     .from('profissionais')
     .insert(profissionalData)
     .select('*')
     .single();
-  
+
   console.log('profissionais.service: Resposta do INSERT:', { data, error });
-  
+
   if (error) {
     console.error('profissionais.service: Erro ao criar profissional:', error);
     throw new Error(`Erro ao criar profissional: ${error.message} (Código: ${error.code})`);
   }
-  
+
   return (data as Profissional) || null;
 };
 

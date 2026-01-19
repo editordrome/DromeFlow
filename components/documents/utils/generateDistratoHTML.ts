@@ -1,44 +1,57 @@
 // Função auxiliar para formatar CPF
 const formatCPF = (cpf: string): string => {
-    if (!cpf) return '';
-    const numbers = cpf.replace(/\D/g, '');
-    return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  if (!cpf) return '';
+  const numbers = cpf.replace(/\D/g, '');
+  return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 };
 
 // Função auxiliar para formatar CNPJ
 const formatCNPJ = (cnpj: string): string => {
-    if (!cnpj) return '';
-    const numbers = cnpj.replace(/\D/g, '');
-    return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  if (!cnpj) return '';
+  const numbers = cnpj.replace(/\D/g, '');
+  return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
 };
 
 // Função auxiliar para formatar data
 const formatDate = (date: string): string => {
-    if (!date) return '';
-    const d = new Date(date);
-    return d.toLocaleDateString('pt-BR');
+  if (!date) return '';
+  const d = new Date(date);
+  return d.toLocaleDateString('pt-BR');
+};
+
+// Função para formatar data atual por extenso (ex: "18 de Janeiro de 2026")
+const formatCurrentDateExtended = (): string => {
+  const now = new Date();
+  const day = now.getDate();
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  const month = months[now.getMonth()];
+  const year = now.getFullYear();
+  return `${day} de ${month} de ${year}`;
 };
 
 // Função para gerar HTML do Distrato de Contrato
 export function generateDistratoHTML(data: any): string {
-    const { profissional, unidade } = data;
-    const HEADER_URL = 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/cabe-mb-doc.png';
+  const { profissional, unidade } = data;
+  const HEADER_URL = 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/cabe-mb-doc.png';
 
-    // Extrair cidade do unit_name (texto após "MB")
-    const extractCity = (unitName: string): string => {
-        if (!unitName) return '';
-        const parts = unitName.split('MB');
-        return parts.length > 1 ? parts[1].trim() : '';
-    };
+  // Extrair cidade do unit_name (texto após "MB")
+  const extractCity = (unitName: string): string => {
+    if (!unitName) return '';
+    const parts = unitName.split('MB');
+    return parts.length > 1 ? parts[1].trim() : '';
+  };
 
-    const cidade = extractCity(unidade.unitName);
+  const cidade = extractCity(unidade.unitName);
 
-    // Helper para exibir dados ou placeholder
-    const displayOrPlaceholder = (value: string | undefined | null, placeholder: string): string => {
-        return value && value.trim() !== '' ? value : placeholder;
-    };
+  // Helper para exibir dados ou placeholder
+  const displayOrPlaceholder = (value: string | undefined | null, placeholder: string): string => {
+    return value && value.trim() !== '' ? value : placeholder;
+  };
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -165,7 +178,7 @@ export function generateDistratoHTML(data: any): string {
 
   <p>Por estarem de acordo, as partes firmam o presente.</p>
 
-  <p class="center-text">_____ de _____________ de 202x.</p>
+  <p class="center-text">${formatCurrentDateExtended()}.</p>
 
   <div class="signatures">
     <div class="center-text">

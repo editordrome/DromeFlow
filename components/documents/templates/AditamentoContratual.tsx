@@ -5,6 +5,15 @@ import { formatCPF, formatCNPJ, formatDate } from '../utils/documentHelpers';
 export const AditamentoContratual: React.FC<DocumentTemplateProps> = ({ data }) => {
     const { profissional, unidade, contrato } = data;
 
+    // Função para formatar valor monetário
+    const formatCurrency = (value: string | number | null | undefined): string => {
+        if (!value) return '0,00';
+        const numValue = typeof value === 'string' ? parseFloat(value) : value;
+        if (isNaN(numValue)) return '0,00';
+        return numValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+
     return (
         <div className="document-template bg-white text-black" style={{
             maxWidth: '210mm',
@@ -137,7 +146,7 @@ export const AditamentoContratual: React.FC<DocumentTemplateProps> = ({ data }) 
 
             <p>
                 <strong>I.</strong> Mediante caução: o <strong>AGENCIADOR</strong> entregará o uniforme ao <strong>AGENCIADO</strong>, e, a título de caução e será
-                retido o valor de R$ [●], equivalente ao custo de fabricação do item, diretamente no primeiro repasse financeiro realizado. Caso o
+                retido o valor de R$ {formatCurrency((unidade as any).uniformValue || (unidade as any).uniform_value)}, equivalente ao custo de fabricação do item, diretamente no primeiro repasse financeiro realizado. Caso o
                 <strong>AGENCIADO</strong> deixe de realizar atendimentos intermediados, deverá restituir o uniforme em <strong>bom estado de conservação e uso</strong>,
                 hipótese em que o valor da caução será integralmente devolvido. Não sendo devolvido o uniforme ao final da parceria, implicará na retenção definitiva
                 do valor de caução.<br /><br />

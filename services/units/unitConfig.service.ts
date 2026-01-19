@@ -32,7 +32,9 @@ export async function updateUnitConfig(
     data: Partial<Unit>
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const { error } = await supabase
+        console.log('[updateUnitConfig] Updating unit:', unitId, 'with data:', data);
+
+        const { data: result, error } = await supabase
             .from('units')
             .update({
                 razao_social: data.razao_social,
@@ -41,17 +43,22 @@ export async function updateUnitConfig(
                 contato: data.contato,
                 email: data.email,
                 responsavel: data.responsavel,
+                uniform_value: typeof data.uniform_value === 'string'
+                    ? parseFloat(data.uniform_value.replace(',', '.'))
+                    : data.uniform_value,
             })
-            .eq('id', unitId);
+            .eq('id', unitId)
+            .select();
 
         if (error) {
-            console.error('Erro ao atualizar configuração da unidade:', error);
+            console.error('[updateUnitConfig] Supabase error:', error);
             return { success: false, error: error.message };
         }
 
+        console.log('[updateUnitConfig] Update successful:', result);
         return { success: true };
     } catch (error: any) {
-        console.error('Erro ao atualizar configuração da unidade:', error);
-        return { success: false, error: error.message };
+        console.error('[updateUnitConfig] Catch error:', error);
+        return { success: false, error: error.message || 'Erro desconhecido' };
     }
 }

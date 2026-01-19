@@ -2,6 +2,8 @@ import { supabase } from '../supabaseClient';
 import { UnitService } from '../../types';
 
 export const getUnitServices = async (unitId: string): Promise<UnitService[]> => {
+    console.log('[getUnitServices] Fetching services for unit:', unitId);
+
     const { data, error } = await supabase
         .from('unit_services')
         .select('*')
@@ -10,10 +12,11 @@ export const getUnitServices = async (unitId: string): Promise<UnitService[]> =>
         .order('created_at', { ascending: true });
 
     if (error) {
-        console.error('Erro ao buscar serviços:', error);
+        console.error('[getUnitServices] Erro ao buscar serviços:', error);
         throw error;
     }
 
+    console.log('[getUnitServices] Services found:', data);
     return data || [];
 };
 

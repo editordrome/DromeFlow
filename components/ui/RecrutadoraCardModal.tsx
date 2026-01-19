@@ -63,6 +63,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   const [sitAtual, setSitAtual] = useState<string>('');
   const [motivoCadastro, setMotivoCadastro] = useState<string>(''); // UI; envia em motivo_cadastro
   const [transporte, setTransporte] = useState<string>('');
+  const [assinatura, setAssinatura] = useState<string>(''); // Data de assinatura do contrato
   // Observação
   const [observacao, setObservacao] = useState<string>('');
   // Histórico removido
@@ -118,6 +119,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       setSitAtual(initialCard.sit_atual || '');
       setMotivoCadastro(initialCard.motivo_cadastro || (initialCard as any).motivo_cadstro || '');
       setTransporte(initialCard.transporte || '');
+      setAssinatura(initialCard.assinatura || '');
       // observação
       setObservacao(initialCard.observacao || '');
       prevObservacaoRef.current = initialCard.observacao || '';
@@ -163,7 +165,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
         fumante: fumante === null ? null : (fumante ? 'sim' : 'nao') as any,
         estado_civil: estadoCivil || null,
         filhos: filhos === null ? null : (filhos ? 'sim' : 'nao') as any,
-        qto_filhos: qtosFilhos === '' ? null : String(qtosFilhos),
+        qto_filhos: qtosFilhos === '' ? null : Number(qtosFilhos),
         rotina_filhos: rotinaFilhos || null,
         ['endereço']: endereco || null as any,
         rg: rg || null,
@@ -177,6 +179,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
         sit_atual: sitAtual || null,
         motivo_cadastro: motivoCadastro || null,
         transporte: transporte || null,
+        assinatura: assinatura || null,
         observacao: observacao || null,
         status: (statusLabel as any) || undefined,
       };
@@ -911,16 +914,28 @@ const RecrutadoraCardModal: React.FC<Props> = ({
 
           {activeTab === "documentos" && (
             <div className="space-y-3">
-              <div className="text-sm text-text-secondary mb-3">
-                Selecione um documento para visualizar ou baixar em PDF
+              {/* Linha com informação e campo de assinatura */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm text-text-secondary">
+                  Selecione um documento para visualizar ou baixar em PDF
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-text-secondary whitespace-nowrap">Data Assinatura:</label>
+                  <input
+                    type="date"
+                    value={assinatura}
+                    onChange={(e) => setAssinatura(e.target.value)}
+                    className="px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none text-sm"
+                  />
+                </div>
               </div>
 
-              {/* Grid de documentos */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {/* Grid de documentos - agora Flex Scroll */}
+              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
                 {/* Ficha - PDF existente */}
                 <button
                   onClick={generatePdf}
-                  className="flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group"
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                 >
                   <div className="w-12 h-12 rounded-lg bg-accent-primary/10 flex items-center justify-center group-hover:bg-accent-primary/20 transition-colors">
                     <Icon name="FileText" className="w-6 h-6 text-accent-primary" />
@@ -974,6 +989,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         email: unit.email || '',
                         unitName: unit.unit_name || '',
                         unitCode: unit.unit_code || '',
+                        uniform_value: (unit as any).uniform_value,
                       },
                       contrato: {
                         dataAssinatura: new Date().toLocaleDateString('pt-BR'),
@@ -985,7 +1001,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     const templateHtml = generateAditamentoHTML(documentData);
                     generateTemplateDocument(templateHtml, `Aditamento_${nome || 'sem_nome'}.pdf`);
                   }}
-                  className="flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group"
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                 >
                   <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
                     <Icon name="FileText" className="w-6 h-6 text-blue-500" />
@@ -1016,6 +1032,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         cnpj: (selectedUnit as Unit).cnpj,
                         endereco: (selectedUnit as Unit).endereco,
                         unitName: (selectedUnit as Unit).unit_name,
+                        uniform_value: (selectedUnit as Unit).uniform_value,
                       },
                       contrato: {
                         percentualProfissional: 55,
@@ -1024,7 +1041,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     const html = generateContratoHTML(documentData);
                     generateTemplateDocument(html, 'Contrato_Agenciamento');
                   }}
-                  className="flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group"
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                 >
                   <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
                     <Icon name="FileText" className="w-6 h-6 text-green-500" />
@@ -1060,85 +1077,13 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     const html = generateTermoHTML(documentData);
                     generateTemplateDocument(html, 'Termo_Confidencialidade');
                   }}
-                  className="flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group"
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                 >
                   <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
                     <Icon name="FileText" className="w-6 h-6 text-purple-500" />
                   </div>
                   <div className="text-sm font-medium text-text-primary text-center">Termo</div>
                   <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
-                </button>
-
-                {/* Notificação de Recisão */}
-                <button
-                  onClick={() => {
-                    if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
-                      alert('Por favor, selecione uma unidade específica para gerar o documento.');
-                      return;
-                    }
-                    const documentData = {
-                      profissional: {
-                        nome,
-                        cpf,
-                        rg,
-                        dataNascimento,
-                        estadoCivil,
-                        endereco,
-                        whatsapp,
-                      },
-                      unidade: {
-                        razaoSocial: (selectedUnit as Unit).razao_social,
-                        cnpj: (selectedUnit as Unit).cnpj,
-                        endereco: (selectedUnit as Unit).endereco,
-                        unitName: (selectedUnit as Unit).unit_name,
-                      },
-                    };
-                    const html = generateNotificacaoHTML(documentData);
-                    generateTemplateDocument(html, 'Notificacao_Rescisao');
-                  }}
-                  className="flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
-                    <Icon name="FileText" className="w-6 h-6 text-orange-500" />
-                  </div>
-                  <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
-                  <div className="text-xs text-text-secondary text-center">Recisão</div>
-                </button>
-
-                {/* Distrato de Contrato */}
-                <button
-                  onClick={() => {
-                    if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
-                      alert('Por favor, selecione uma unidade específica para gerar o documento.');
-                      return;
-                    }
-                    const documentData = {
-                      profissional: {
-                        nome,
-                        cpf,
-                        rg,
-                        dataNascimento,
-                        estadoCivil,
-                        endereco,
-                        whatsapp,
-                      },
-                      unidade: {
-                        razaoSocial: (selectedUnit as Unit).razao_social,
-                        cnpj: (selectedUnit as Unit).cnpj,
-                        endereco: (selectedUnit as Unit).endereco,
-                        unitName: (selectedUnit as Unit).unit_name,
-                      },
-                    };
-                    const html = generateDistratoHTML(documentData);
-                    generateTemplateDocument(html, 'Distrato_Contrato');
-                  }}
-                  className="flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-pink-500/10 flex items-center justify-center group-hover:bg-pink-500/20 transition-colors">
-                    <Icon name="FileText" className="w-6 h-6 text-pink-500" />
-                  </div>
-                  <div className="text-sm font-medium text-text-primary text-center">Distrato</div>
-                  <div className="text-xs text-text-secondary text-center">Contrato</div>
                 </button>
               </div>
             </div>

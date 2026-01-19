@@ -1,44 +1,65 @@
 // Função auxiliar para formatar CPF
 const formatCPF = (cpf: string): string => {
-    if (!cpf) return '';
-    const numbers = cpf.replace(/\D/g, '');
-    return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  if (!cpf) return '';
+  const numbers = cpf.replace(/\D/g, '');
+  return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 };
 
 // Função auxiliar para formatar CNPJ
 const formatCNPJ = (cnpj: string): string => {
-    if (!cnpj) return '';
-    const numbers = cnpj.replace(/\D/g, '');
-    return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  if (!cnpj) return '';
+  const numbers = cnpj.replace(/\D/g, '');
+  return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
 };
 
 // Função auxiliar para formatar data
 const formatDate = (date: string): string => {
-    if (!date) return '';
-    const d = new Date(date);
-    return d.toLocaleDateString('pt-BR');
+  if (!date) return '';
+  const d = new Date(date);
+  return d.toLocaleDateString('pt-BR');
+};
+
+// Função para formatar data atual por extenso (ex: "18 de Janeiro de 2026")
+const formatCurrentDateExtended = (): string => {
+  const now = new Date();
+  const day = now.getDate();
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  const month = months[now.getMonth()];
+  const year = now.getFullYear();
+  return `${day} de ${month} de ${year}`;
+};
+
+// Função para formatar valor monetário
+const formatCurrency = (value: string | number | null | undefined): string => {
+  if (!value) return '0,00';
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(numValue)) return '0,00';
+  return numValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 // Função para gerar HTML do Contrato de Agenciamento COMPLETO
 export function generateContratoHTML(data: any): string {
-    const { profissional, unidade, contrato } = data;
-    const HEADER_URL = 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/cabe-mb-doc.png';
+  const { profissional, unidade, contrato } = data;
+  const HEADER_URL = 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/cabe-mb-doc.png';
 
-    // Extrair cidade do unit_name (texto após "MB")
-    const extractCity = (unitName: string): string => {
-        if (!unitName) return '';
-        const parts = unitName.split('MB');
-        return parts.length > 1 ? parts[1].trim() : '';
-    };
+  // Extrair cidade do unit_name (texto após "MB")
+  const extractCity = (unitName: string): string => {
+    if (!unitName) return '';
+    const parts = unitName.split('MB');
+    return parts.length > 1 ? parts[1].trim() : '';
+  };
 
-    const cidade = extractCity(unidade.unitName);
+  const cidade = extractCity(unidade.unitName);
 
-    // Helper para exibir dados ou placeholder
-    const displayOrPlaceholder = (value: string | undefined | null, placeholder: string): string => {
-        return value && value.trim() !== '' ? value : placeholder;
-    };
+  // Helper para exibir dados ou placeholder
+  const displayOrPlaceholder = (value: string | undefined | null, placeholder: string): string => {
+    return value && value.trim() !== '' ? value : placeholder;
+  };
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -165,7 +186,7 @@ export function generateContratoHTML(data: any): string {
 
   <p><strong>2.5.</strong> O AGENCIADO declara estar ciente de que os uniformes utilizados durante os atendimentos intermediados poderão ser entregues mediante uma das seguintes modalidades, a critério exclusivo do AGENCIADOR:</p>
   <ul class="list-roman">
-    <li><strong>Mediante caução:</strong> o AGENCIADOR entregará o uniforme ao AGENCIADO, e, a título de caução e será retido o valor de R$ [●], equivalente ao custo de fabricação do item, diretamente no primeiro repasse financeiro realizado. Caso AGENCIADO deixe de realizar atendimentos intermediados, deverá restituir o uniforme em bom estado de conservação e uso, hipótese em que o valor da caução será integralmente devolvido. Não sendo devolvido o uniforme ao final da parceria, implicará na retenção definitiva do valor de caução.</li>
+    <li><strong>Mediante caução:</strong> o AGENCIADOR entregará o uniforme ao AGENCIADO, e, a título de caução e será retido o valor de R$ ${formatCurrency(unidade.uniformValue || unidade.uniform_value)}, equivalente ao custo de fabricação do item, diretamente no primeiro repasse financeiro realizado. Caso AGENCIADO deixe de realizar atendimentos intermediados, deverá restituir o uniforme em bom estado de conservação e uso, hipótese em que o valor da caução será integralmente devolvido. Não sendo devolvido o uniforme ao final da parceria, implicará na retenção definitiva do valor de caução.</li>
     <li><strong>Sem caução:</strong> caso o AGENCIADOR opte por não reter caução, AGENCIADO se compromete a devolver o uniforme ao final da parceria. Em caso de não devolução no prazo de até 5 (cinco) dias úteis contados da data de encerramento da relação contratual, ou devolução em estado que inviabilize sua reutilização, o AGENCIADO ficará sujeito ao pagamento de multa compensatória no valor de R$ 200,00 (duzentos reais), sem prejuízo da apuração de perdas e danos adicionais e demais medidas cabíveis.</li>
   </ul>
 
@@ -318,7 +339,7 @@ export function generateContratoHTML(data: any): string {
 
   <p>Por estarem de acordo, as partes firmam o presente.</p>
 
-  <p class="center-text">_____ de _____________ de 202x.</p>
+  <p class="center-text">${formatCurrentDateExtended()}.</p>
 
   <div class="signatures">
     <div class="center-text">
