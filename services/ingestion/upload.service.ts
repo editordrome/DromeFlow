@@ -95,17 +95,17 @@ const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]):
 const applyWaitStatusForAfternoonShifts = (records: DataRecord[]): DataRecord[] => {
 	// Agrupar registros por (PROFISSIONAL + DATA)
 	const groupedByProfessionalDate = new Map<string, DataRecord[]>();
-	
+
 	records.forEach((record) => {
 		if (!record.PROFISSIONAL || !record.DATA) return;
-		
+
 		const key = `${record.PROFISSIONAL}|${record.DATA}`;
 		if (!groupedByProfessionalDate.has(key)) {
 			groupedByProfessionalDate.set(key, []);
 		}
 		groupedByProfessionalDate.get(key)!.push(record);
 	});
-	
+
 	// Aplicar regra: Se profissional tem 2+ atendimentos no dia,
 	// marcar com STATUS "esperar" APENAS se TODOS forem à Tarde
 	groupedByProfessionalDate.forEach((recordsGroup) => {
@@ -116,12 +116,12 @@ const applyWaitStatusForAfternoonShifts = (records: DataRecord[]): DataRecord[] 
 				const momento = String(record.MOMENTO || '').toLowerCase();
 				return momento.includes('manhã') || momento.includes('manha');
 			});
-			
+
 			const allTarde = recordsGroup.every((record) => {
 				const momento = String(record.MOMENTO || '').toLowerCase();
 				return momento.includes('tarde');
 			});
-			
+
 			// Aplicar STATUS "esperar" apenas se:
 			// - Não houver nenhum atendimento de Manhã
 			// - TODOS os atendimentos forem à Tarde
@@ -132,7 +132,7 @@ const applyWaitStatusForAfternoonShifts = (records: DataRecord[]): DataRecord[] 
 			}
 		}
 	});
-	
+
 	return records;
 };
 
@@ -198,7 +198,7 @@ export const uploadXlsxData = async (
 
 	// Processar multi-profissionais e aplicar sufixos
 	let processedRecords = processMultipleProfessionalsRecords(records);
-	
+
 	// Aplicar lógica de STATUS "esperar" para atendimentos da Tarde
 	// quando a mesma profissional tem múltiplos atendimentos no dia
 	processedRecords = applyWaitStatusForAfternoonShifts(processedRecords);
@@ -239,11 +239,14 @@ export const uploadXlsxData = async (
 			const batchForRpc = batch.map((r) => ({
 				...sanitizeRecord(r),
 				profissional: (r as any).PROFISSIONAL ?? '',
+				STATUS: (r as any).status || (r as any).STATUS || 'PENDENTE'
 			}));
+
 			const { data, error } = await supabase.rpc('process_xlsx_upload', {
 				unit_code_arg: unitCode,
 				records_arg: batchForRpc,
 			});
+
 			if (error) {
 				throw new Error(`Erro durante upload do lote: ${error.message}`);
 			}
@@ -299,11 +302,11 @@ export const uploadXlsxData = async (
 				IS_DIVISAO: r.IS_DIVISAO,
 				PROFISSIONAL: (r as any).PROFISSIONAL,
 			};
-		const { error: upErr } = await supabase
-			.from('processed_data')
-			.update(updPayload)
-			.eq('unidade_code', unitCode)
-			.eq('ATENDIMENTO_ID', r.ATENDIMENTO_ID);
+			const { error: upErr } = await supabase
+				.from('processed_data')
+				.update(updPayload)
+				.eq('unidade_code', unitCode)
+				.eq('ATENDIMENTO_ID', r.ATENDIMENTO_ID);
 			if (upErr) throw new Error(`Falha no update fallback: ${upErr.message}`);
 			updated += 1;
 		}
@@ -312,16 +315,16 @@ export const uploadXlsxData = async (
 	};
 
 	try {
-			const result = await tryRpcUpload();
-			// Sincroniza base de clientes a partir do processed_data para a unidade
-			try { await syncUnitClientsFromProcessed(unitCode); } catch (e) { console.warn('[upload] syncUnitClients warning:', e); }
-			return result;
+		const result = await tryRpcUpload();
+		// Sincroniza base de clientes a partir do processed_data para a unidade
+		try { await syncUnitClientsFromProcessed(unitCode); } catch (e) { console.warn('[upload] syncUnitClients warning:', e); }
+		return result;
 	} catch (e: any) {
 		const msg = String(e?.message || '').toLowerCase();
 		if (msg.includes('column "profissional" does not exist')) {
-					const res = await manualFallbackUpload();
-					try { await syncUnitClientsFromProcessed(unitCode); } catch (e) { console.warn('[upload] syncUnitClients warning:', e); }
-					return res;
+			const res = await manualFallbackUpload();
+			try { await syncUnitClientsFromProcessed(unitCode); } catch (e) { console.warn('[upload] syncUnitClients warning:', e); }
+			return res;
 		}
 		throw e;
 	}

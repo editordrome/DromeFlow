@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+// UPDATED: 2026-01-19 09:37 - Separate address fields
 import { Icon } from './Icon';
 import type { Profissional } from '../../services/profissionais/profissionais.service';
 import { useAppContext } from '../../contexts/AppContext';
@@ -12,6 +13,7 @@ import { generateContratoHTML } from '../documents/utils/generateContratoHTML';
 import { generateDistratoHTML } from '../documents/utils/generateDistratoHTML';
 import { generateTermoHTML } from '../documents/utils/generateTermoHTML';
 import { generateNotificacaoHTML } from '../documents/utils/generateNotificacaoHTML';
+import { supabase } from '../../services/supabaseClient';
 import type { Unit } from '../../types';
 
 interface Props {
@@ -23,6 +25,12 @@ interface Props {
 }
 
 const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissional, onEdit, onCreate }) => {
+  // DEBUG: Log imediato ao receber props
+  if (isOpen && profissional) {
+    console.log('[ProfissionalDetailModal] PROPS recebidas - profissional:', profissional);
+    console.log('[ProfissionalDetailModal] PROPS - profissional.assinatura:', profissional.assinatura);
+  }
+
   const { selectedUnit } = useAppContext();
   const unitCode = (selectedUnit as any)?.unit_code || null;
   const unitName = (selectedUnit as any)?.unit_name || null;
@@ -57,6 +65,10 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
   const [editFilhos, setEditFilhos] = useState<string>('');
   const [editQtoFilhos, setEditQtoFilhos] = useState<string>('');
   const [editEndereco, setEditEndereco] = useState<string>('');
+  const [editRua, setEditRua] = useState<string>('');
+  const [editCidade, setEditCidade] = useState<string>('');
+  const [editEstado, setEditEstado] = useState<string>('');
+  const [editCep, setEditCep] = useState<string>('');
   const [editNomeRecado, setEditNomeRecado] = useState<string>('');
   const [editTelRecado, setEditTelRecado] = useState<string>('');
   const [editObservacao, setEditObservacao] = useState<string>('');
@@ -102,11 +114,15 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
   const lastProfissionalIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    console.log('🔥 [ProfissionalDetailModal] CÓDIGO ATUALIZADO - Versão 2026-01-19 09:48 - Campos separados de endereço');
     // Detecta se é uma nova abertura do modal ou mudança de profissional
     const profissionalId = profissional?.id || null;
     const isNewModal = isOpen && (!initializedRef.current || lastProfissionalIdRef.current !== profissionalId);
 
     if (isNewModal) {
+      console.log('[ProfissionalDetailModal] Profissional recebido:', profissional);
+      console.log('[ProfissionalDetailModal] Campo assinatura do profissional:', profissional?.assinatura);
+
       if (profissional) {
         // Modo edição - carrega dados existentes
         setEditNome(profissional.nome || '');
@@ -121,7 +137,24 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
         setEditFumante(profissional.fumante || '');
         setEditFilhos(profissional.filhos || '');
         setEditQtoFilhos(profissional.qto_filhos || '');
-        setEditEndereco(profissional.endereco || '');
+
+        // Parsear endereço: "Rua, Cidade, Estado, CEP"
+        const enderecoCompleto = profissional.endereco || '';
+        setEditEndereco(enderecoCompleto);
+
+        if (enderecoCompleto) {
+          const partes = enderecoCompleto.split(',').map(p => p.trim());
+          setEditRua(partes[0] || '');
+          setEditCidade(partes[1] || '');
+          setEditEstado(partes[2] || '');
+          setEditCep(partes[3] || '');
+        } else {
+          setEditRua('');
+          setEditCidade('');
+          setEditEstado('');
+          setEditCep('');
+        }
+
         setEditNomeRecado(profissional.nome_recado || '');
         setEditTelRecado(profissional.tel_recado || '');
         setEditObservacao(profissional.observacao || '');
@@ -143,6 +176,10 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
         setEditFilhos('');
         setEditQtoFilhos('');
         setEditEndereco('');
+        setEditRua('');
+        setEditCidade('');
+        setEditEstado('');
+        setEditCep('');
         setEditNomeRecado('');
         setEditTelRecado('');
         setEditObservacao('');
@@ -198,7 +235,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
           fumante: editFumante || null,
           filhos: editFilhos || null,
           qto_filhos: editQtoFilhos || null,
-          endereco: editEndereco || null,
+          endereco: [editRua, editCidade, editEstado, editCep].filter(p => p.trim()).join(', ') || null,
           nome_recado: editNomeRecado || null,
           tel_recado: editTelRecado || null,
           observacao: editObservacao || null,
@@ -235,7 +272,9 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
       if (editFumante !== (profissional.fumante || '')) patch.fumante = editFumante;
       if (editFilhos !== (profissional.filhos || '')) patch.filhos = editFilhos;
       if (editQtoFilhos !== (profissional.qto_filhos || '')) patch.qto_filhos = editQtoFilhos;
-      if (editEndereco !== (profissional.endereco || '')) patch.endereco = editEndereco;
+      // Concatenar endereço antes de comparar
+      const enderecoAtual = [editRua, editCidade, editEstado, editCep].filter(p => p.trim()).join(', ');
+      if (enderecoAtual !== (profissional.endereco || '')) patch.endereco = enderecoAtual || null;
       if (editNomeRecado !== (profissional.nome_recado || '')) patch.nome_recado = editNomeRecado;
       if (editTelRecado !== (profissional.tel_recado || '')) patch.tel_recado = editTelRecado;
       if (editObservacao !== (profissional.observacao || '')) patch.observacao = editObservacao;
@@ -803,14 +842,49 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-text-secondary mb-1">Endereço</label>
-                      <input
-                        type="text"
-                        value={editEndereco}
-                        onChange={(e) => setEditEndereco(e.target.value)}
-                        className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-text-secondary mb-1">Rua</label>
+                        <input
+                          type="text"
+                          value={editRua}
+                          onChange={(e) => setEditRua(e.target.value)}
+                          placeholder="Ex: Rua das Flores, 123"
+                          className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-text-secondary mb-1">Cidade</label>
+                        <input
+                          type="text"
+                          value={editCidade}
+                          onChange={(e) => setEditCidade(e.target.value)}
+                          placeholder="Ex: São Paulo"
+                          className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-text-secondary mb-1">Estado</label>
+                        <input
+                          type="text"
+                          value={editEstado}
+                          onChange={(e) => setEditEstado(e.target.value)}
+                          placeholder="Ex: SP"
+                          maxLength={2}
+                          className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all uppercase"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-text-secondary mb-1">CEP</label>
+                        <input
+                          type="text"
+                          value={editCep}
+                          onChange={(e) => setEditCep(e.target.value)}
+                          placeholder="Ex: 12345-678"
+                          maxLength={9}
+                          className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -998,11 +1072,22 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                   {/* Aditamento Contratual */}
                   <button
                     onClick={() => {
+                      // UPDATED: 2026-01-19 09:05 - Fixed assinatura field
+                      console.log('[Aditamento] CÓDIGO ATUALIZADO - Timestamp: 2026-01-19 09:05');
+
                       if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
                         alert('Por favor, selecione uma unidade específica.');
                         return;
                       }
+
                       const unit = selectedUnit as Unit;
+                      const assinaturaValue = editAssinatura || profissional?.assinatura || '';
+
+                      console.log('[Aditamento] Profissional:', profissional);
+                      console.log('[Aditamento] editAssinatura:', editAssinatura);
+                      console.log('[Aditamento] profissional?.assinatura:', profissional?.assinatura);
+                      console.log('[Aditamento] assinaturaValue final:', assinaturaValue);
+
                       const documentData = {
                         profissional: {
                           nome: editNome || profissional?.nome || '',
@@ -1012,6 +1097,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                           estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
                           endereco: editEndereco || profissional?.endereco || '',
                           whatsapp: editWhatsapp || profissional?.whatsapp || '',
+                          assinatura: assinaturaValue,
                         },
                         unidade: {
                           razaoSocial: unit.razao_social || '',
@@ -1022,9 +1108,15 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                         },
                         contrato: {
                           percentualProfissional: 55,
-                          dataAssinatura: editAssinatura ? new Date(editAssinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+                          dataAssinatura: assinaturaValue
+                            ? new Date(assinaturaValue + 'T12:00:00').toLocaleDateString('pt-BR')
+                            : new Date().toLocaleDateString('pt-BR'),
                         },
                       };
+
+                      console.log('[Aditamento] documentData:', documentData);
+                      console.log('[Aditamento] documentData.profissional.assinatura:', documentData.profissional.assinatura);
+
                       const html = generateAditamentoHTML(documentData);
                       generateTemplateDocument(html, `Aditamento_${(editNome || profissional?.nome || 'sem_nome').replace(/\s+/g, '_')}`);
                     }}
@@ -1240,3 +1332,4 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
 };
 
 export default ProfissionalDetailModal;
+// Updated: 2026-01-19 - Fixed assinatura field in Aditamento document

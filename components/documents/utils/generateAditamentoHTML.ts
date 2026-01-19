@@ -14,9 +14,30 @@ const formatCNPJ = (cnpj: string): string => {
 
 // Função auxiliar para formatar data
 const formatDate = (date: string): string => {
-  if (!date) return '';
-  const d = new Date(date);
-  return d.toLocaleDateString('pt-BR');
+  console.log('[formatDate] Input:', date);
+  if (!date) {
+    console.log('[formatDate] Data vazia, retornando string vazia');
+    return '';
+  }
+
+  // Se já está no formato dd/mm/yyyy, retorna direto
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(date)) {
+    console.log('[formatDate] Já está formatado:', date);
+    return date;
+  }
+
+  // Trata formato ISO (YYYY-MM-DD) adicionando horário para evitar problemas de timezone
+  const d = new Date(date + 'T12:00:00');
+  console.log('[formatDate] Date object:', d);
+
+  if (isNaN(d.getTime())) {
+    console.log('[formatDate] Data inválida, retornando string vazia');
+    return '';
+  }
+
+  const formatted = d.toLocaleDateString('pt-BR');
+  console.log('[formatDate] Output formatado:', formatted);
+  return formatted;
 };
 
 // Função para formatar valor monetário
@@ -30,6 +51,15 @@ const formatCurrency = (value: string | number | null | undefined): string => {
 // Função para gerar HTML do Aditamento Contratual COMPLETO
 export function generateAditamentoHTML(data: any): string {
   const { profissional, unidade, contrato } = data;
+
+  // WORKAROUND: Buscar assinatura de múltiplas fontes
+  const assinaturaFinal = profissional.assinatura || profissional.data_assinatura || contrato?.dataAssinatura || '';
+
+  console.log('[generateAditamentoHTML] Data recebida:', data);
+  console.log('[generateAditamentoHTML] profissional.assinatura:', profissional.assinatura);
+  console.log('[generateAditamentoHTML] contrato?.dataAssinatura:', contrato?.dataAssinatura);
+  console.log('[generateAditamentoHTML] assinaturaFinal:', assinaturaFinal);
+
   const HEADER_URL = 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/cabe-mb-doc.png';
 
   // Extrair cidade do unit_name (texto após "MB")
@@ -120,7 +150,21 @@ export function generateAditamentoHTML(data: any): string {
   </p>
   <div class="article-title">ARTIGO 1º – DO OBJETO DO ADITAMENTO</div>
   <p>
-    <strong>1.</strong> O presente aditamento tem por objeto formalizar que, a partir desta data, a relação contratual entre as partes passa a vigorar, exclusivamente, de acordo com os termos e condições constantes neste aditamento, que substitui integralmente os termos e condições do documento anteriormente aceito e assinado pelo <strong>AGENCIADO</strong> na data de <strong>[inserir data do recibo ou contrato anterior].</strong>
+    <strong>1.</strong> O presente aditamento tem por objeto formalizar que, a partir desta data, a relação contratual entre as partes passa a vigorar, exclusivamente, de acordo com os termos e condições constantes neste aditamento, que substitui integralmente os termos e condições do documento anteriormente aceito e assinado pelo <strong>AGENCIADO</strong> na data de <strong>${(() => {
+      console.log('[generateAditamentoHTML ARTIGO 1] profissional object:', profissional);
+      console.log('[generateAditamentoHTML ARTIGO 1] assinaturaFinal:', assinaturaFinal);
+      console.log('[generateAditamentoHTML ARTIGO 1] typeof assinaturaFinal:', typeof assinaturaFinal);
+      console.log('[generateAditamentoHTML ARTIGO 1] assinaturaFinal ? true : false:', assinaturaFinal ? true : false);
+
+      if (assinaturaFinal) {
+        const formatted = formatDate(assinaturaFinal);
+        console.log('[generateAditamentoHTML ARTIGO 1] formatDate result:', formatted);
+        return formatted;
+      } else {
+        console.log('[generateAditamentoHTML ARTIGO 1] assinatura is falsy, using placeholder');
+        return '[inserir data do recibo ou contrato anterior]';
+      }
+    })()}.</strong>
   </p>
   <div class="article-title">ARTIGO 2º – DA MANUTENÇÃO DA NATUREZA DA RELAÇÃO</div>
   <p>

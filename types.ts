@@ -203,6 +203,8 @@ export interface DataRecord {
   observacao: string | null;
   'pos vendas': string | null;
   comentario: string | null;
+  reagendou?: boolean | null;
+  unidade_code: string;
   is_verified?: boolean;
   payment_status?: string | null;
   pagto?: string | null;

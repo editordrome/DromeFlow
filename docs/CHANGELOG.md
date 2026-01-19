@@ -2,6 +2,27 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-01-19] - Sincronização em Tempo Real (Realtime) e Build de Produção
+
+### 🔧 Correções Técnicas
+
+#### 1. Robustez em IDs do Realtime
+- **Problema**: Inconsistência entre IDs numéricos (JS) e strings (Supabase Realtime) causava falha na atualização de tabelas.
+- **Solução**: Implementada conversão explícita para `String()` em todas as comparações de ID no Realtime (`AppointmentsPage.tsx`, `DataPage.tsx`).
+
+#### 2. Correção de Fuso Horário (Timezone Bug)
+- **Problema**: Uso de `new Date()` em filtros de Realtime deslocava datas para o dia anterior, ignorando atualizações em bordas de mês.
+- **Solução**: Substituída lógica de data por comparação direta de strings (`split('-')`) em `DataPage.tsx` e `DashboardMetricsPage.tsx`.
+
+#### 3. Tipagem e Consistência de Dados
+- **Interface**: Adicionados campos `unidade_code` e `reagendou` ao `DataRecord` no `types.ts`.
+- **Upload**: Mapeamento garantido do campo `STATUS` (para RPC do banco) no `upload.service.ts`.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` com todas as correções aplicadas.
+
+---
+
 ## [2025-11-07] - Padronização de Modais: UX/UI Otimizado
 
 ### 🎨 UI/UX Enhancement

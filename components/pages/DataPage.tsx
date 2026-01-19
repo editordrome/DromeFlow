@@ -199,13 +199,12 @@ const DataPage: React.FC = () => {
       } else if (multiUnits.length > 0) {
         if (!multiUnits.includes(record.unidade_code)) return false;
       }
-      // Filtrar por período
+      // Filtrar por período usando comparação robusta de string (evita bug de timezone)
       if (record.DATA) {
-        const [year, month] = selectedPeriod.split('-');
-        const recordDate = new Date(record.DATA);
-        const recordMonth = recordDate.getMonth() + 1;
-        const recordYear = recordDate.getFullYear();
-        if (recordYear !== parseInt(year) || recordMonth !== parseInt(month)) return false;
+        const [targetYear, targetMonth] = selectedPeriod.split('-');
+        const dateStr = typeof record.DATA === 'string' ? record.DATA.split('T')[0] : '';
+        const [rYear, rMonth] = dateStr.split('-');
+        if (rYear !== targetYear || rMonth !== targetMonth) return false;
       }
       return true;
     },
@@ -216,11 +215,11 @@ const DataPage: React.FC = () => {
       },
       onUpdate: (updatedRecord) => {
         console.log('[DataPage] Registro atualizado');
-        setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+        setRecords(prev => prev.map(r => String(r.id) === String(updatedRecord.id) ? updatedRecord : r));
       },
       onDelete: (deletedRecord) => {
         console.log('[DataPage] Registro deletado');
-        setRecords(prev => prev.filter(r => r.id !== deletedRecord.id));
+        setRecords(prev => prev.filter(r => String(r.id) !== String(deletedRecord.id)));
       }
     },
     enabled: !isLoading

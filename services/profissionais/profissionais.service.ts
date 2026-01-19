@@ -42,6 +42,13 @@ export const fetchProfissionais = async (unitId?: string): Promise<Profissional[
   }
   const { data, error } = await q;
   if (error) throw error;
+
+  console.log('[fetchProfissionais] Dados retornados do Supabase:', data);
+  if (data && data.length > 0) {
+    console.log('[fetchProfissionais] Primeiro profissional:', data[0]);
+    console.log('[fetchProfissionais] Campo assinatura do primeiro:', data[0].assinatura);
+  }
+
   return (data as Profissional[]) || [];
 };
 

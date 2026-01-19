@@ -71,7 +71,7 @@ export const AditamentoContratual: React.FC<DocumentTemplateProps> = ({ data }) 
             <p>
                 <strong>1.</strong> O presente aditamento tem por objeto formalizar que, a partir desta data, a relação contratual entre as partes
                 passa a vigorar, exclusivamente, de acordo com os termos e condições constantes neste aditamento, que substitui integralmente os
-                termos e condições do documento anteriormente aceito e assinado pelo <strong>AGENCIADO</strong> na data de <strong>[inserir data do recibo ou contrato anterior].</strong>
+                termos e condições do documento anteriormente aceito e assinado pelo <strong>AGENCIADO</strong> na data de <strong>{profissional.assinatura ? formatDate(profissional.assinatura) : '[inserir data do recibo ou contrato anterior]'}.</strong>
             </p>
 
             {/* ARTIGO 2º */}

@@ -354,8 +354,8 @@ const AppointmentsPage: React.FC = () => {
       onInsert: (newRecord: any) => {
         console.log('[Realtime] Novo agendamento inserido:', newRecord);
         setAppointments(prev => {
-          // Evita duplicatas
-          const exists = prev.find(r => (r as any).id === newRecord.id);
+          // Evita duplicatas usando comparação segura de string para IDs (BigInt fix)
+          const exists = prev.find(r => String((r as any).id) === String(newRecord.id));
           if (exists) return prev;
           return [...prev, newRecord as DataRecord];
         });
@@ -363,12 +363,12 @@ const AppointmentsPage: React.FC = () => {
       onUpdate: (updatedRecord: any) => {
         console.log('[Realtime] Agendamento atualizado:', updatedRecord);
         setAppointments(prev =>
-          prev.map(r => ((r as any).id === updatedRecord.id ? updatedRecord as DataRecord : r))
+          prev.map(r => (String((r as any).id) === String(updatedRecord.id) ? updatedRecord as DataRecord : r))
         );
       },
       onDelete: (deletedRecord: any) => {
         console.log('[Realtime] Agendamento deletado:', deletedRecord);
-        setAppointments(prev => prev.filter(r => (r as any).id !== deletedRecord.id));
+        setAppointments(prev => prev.filter(r => String((r as any).id) !== String(deletedRecord.id)));
       }
     }
   });
@@ -855,7 +855,9 @@ const AppointmentsPage: React.FC = () => {
         onEdit={(updated) => {
           // Atualiza lista e o registro selecionado
           setAppointments(prev => prev.map(r => {
-            const sameId = (r.id != null && updated.id != null && r.id === updated.id);
+            const rId = r.id != null ? String(r.id) : null;
+            const uId = updated.id != null ? String(updated.id) : null;
+            const sameId = (rId != null && uId != null && rId === uId);
             const sameKey = r.ATENDIMENTO_ID && updated.ATENDIMENTO_ID && r.ATENDIMENTO_ID === updated.ATENDIMENTO_ID;
             return (sameId || sameKey) ? { ...r, ...updated } as any : r;
           }));

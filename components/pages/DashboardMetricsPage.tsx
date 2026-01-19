@@ -12,138 +12,136 @@ import { supabase } from '../../services/supabaseClient';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    PieChart,
+    Pie,
+    Cell
 } from 'recharts';
 
 
 const MetricCard: React.FC<{
-  title: string;
-  value: string;
-  icon: string;
-  iconBgColor: string;
-  isSelected?: boolean;
-  onClick?: () => void;
+    title: string;
+    value: string;
+    icon: string;
+    iconBgColor: string;
+    isSelected?: boolean;
+    onClick?: () => void;
 }> = ({ title, value, icon, iconBgColor, isSelected = false, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`p-3 rounded-lg border transition-all ${
-      isSelected 
-        ? 'bg-accent-primary text-white border-transparent shadow-lg' 
-        : 'bg-bg-secondary border-border-primary hover:shadow-md'
-    }`}
-    aria-pressed={isSelected}
-  >
-    <div className="flex items-center gap-2">
-      <Icon name={icon} className="w-5 h-5" />
-      <span className="text-sm font-medium">{title}</span>
-      <span className={`ml-auto text-lg font-bold ${isSelected ? 'text-white' : 'text-text-primary'}`}>
-        {value}
-      </span>
-    </div>
-  </button>
+    <button
+        type="button"
+        onClick={onClick}
+        className={`p-3 rounded-lg border transition-all ${isSelected
+            ? 'bg-accent-primary text-white border-transparent shadow-lg'
+            : 'bg-bg-secondary border-border-primary hover:shadow-md'
+            }`}
+        aria-pressed={isSelected}
+    >
+        <div className="flex items-center gap-2">
+            <Icon name={icon} className="w-5 h-5" />
+            <span className="text-sm font-medium">{title}</span>
+            <span className={`ml-auto text-lg font-bold ${isSelected ? 'text-white' : 'text-text-primary'}`}>
+                {value}
+            </span>
+        </div>
+    </button>
 );
 
 // Componente de dropdown personalizado para filtro de período
 const PeriodDropdown: React.FC<{
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  availableYears?: number[];
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+    availableYears?: number[];
 }> = ({ value, onChange, disabled, availableYears }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  const currentYear = new Date().getFullYear();
-  const years = availableYears && availableYears.length > 0 ? availableYears : [currentYear, currentYear - 1, currentYear - 2];
-  
-  const months = [
-    { value: '01', label: 'Janeiro' },
-    { value: '02', label: 'Fevereiro' },
-    { value: '03', label: 'Março' },
-    { value: '04', label: 'Abril' },
-    { value: '05', label: 'Maio' },
-    { value: '06', label: 'Junho' },
-    { value: '07', label: 'Julho' },
-    { value: '08', label: 'Agosto' },
-    { value: '09', label: 'Setembro' },
-    { value: '10', label: 'Outubro' },
-    { value: '11', label: 'Novembro' },
-    { value: '12', label: 'Dezembro' }
-  ];
+    const [isOpen, setIsOpen] = useState(false);
 
-  // Gera opções do dropdown
-  const options: { value: string; label: string }[] = [];
-  
-  // Adiciona opções mensais
-  years.forEach(year => {
-    months.forEach(month => {
-      options.push({
-        value: `${year}-${month.value}`,
-        label: `${month.label} ${year}`
-      });
+    const currentYear = new Date().getFullYear();
+    const years = availableYears && availableYears.length > 0 ? availableYears : [currentYear, currentYear - 1, currentYear - 2];
+
+    const months = [
+        { value: '01', label: 'Janeiro' },
+        { value: '02', label: 'Fevereiro' },
+        { value: '03', label: 'Março' },
+        { value: '04', label: 'Abril' },
+        { value: '05', label: 'Maio' },
+        { value: '06', label: 'Junho' },
+        { value: '07', label: 'Julho' },
+        { value: '08', label: 'Agosto' },
+        { value: '09', label: 'Setembro' },
+        { value: '10', label: 'Outubro' },
+        { value: '11', label: 'Novembro' },
+        { value: '12', label: 'Dezembro' }
+    ];
+
+    // Gera opções do dropdown
+    const options: { value: string; label: string }[] = [];
+
+    // Adiciona opções mensais
+    years.forEach(year => {
+        months.forEach(month => {
+            options.push({
+                value: `${year}-${month.value}`,
+                label: `${month.label} ${year}`
+            });
+        });
     });
-  });
 
-  const getDisplayLabel = () => {
-    // Mês específico
-    const [year, monthValue] = value.split('-');
-    const month = months.find(m => m.value === monthValue);
-    return month ? `${month.label} ${year}` : value;
-  };
+    const getDisplayLabel = () => {
+        // Mês específico
+        const [year, monthValue] = value.split('-');
+        const month = months.find(m => m.value === monthValue);
+        return month ? `${month.label} ${year}` : value;
+    };
 
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
-        className="flex items-center justify-between w-64 px-3 py-2 text-left border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
-      >
-        <span className="text-sm text-text-primary">{getDisplayLabel()}</span>
-        <Icon name={isOpen ? 'close' : 'add'} className="w-4 h-4 text-text-secondary" />
-      </button>
-      
-      {isOpen && !disabled && (
-        <>
-          {/* Overlay para fechar dropdown */}
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={() => setIsOpen(false)}
-          />
-          
-          {/* Menu dropdown */}
-          <div className="absolute right-0 z-20 w-64 mt-1 bg-bg-secondary border rounded-md shadow-lg border-border-secondary max-h-80 overflow-y-auto">
-            <div className="py-1">
-              {options.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    onChange(option.value);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${
-                    value === option.value ? 'bg-accent-primary text-white' : 'text-text-primary'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                disabled={disabled}
+                className="flex items-center justify-between w-64 px-3 py-2 text-left border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+                <span className="text-sm text-text-primary">{getDisplayLabel()}</span>
+                <Icon name={isOpen ? 'close' : 'add'} className="w-4 h-4 text-text-secondary" />
+            </button>
+
+            {isOpen && !disabled && (
+                <>
+                    {/* Overlay para fechar dropdown */}
+                    <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setIsOpen(false)}
+                    />
+
+                    {/* Menu dropdown */}
+                    <div className="absolute right-0 z-20 w-64 mt-1 bg-bg-secondary border rounded-md shadow-lg border-border-secondary max-h-80 overflow-y-auto">
+                        <div className="py-1">
+                            {options.map((option) => (
+                                <button
+                                    key={option.value}
+                                    onClick={() => {
+                                        onChange(option.value);
+                                        setIsOpen(false);
+                                    }}
+                                    className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${value === option.value ? 'bg-accent-primary text-white' : 'text-text-primary'
+                                        }`}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
 };
 
 const SubMetricCard: React.FC<{ title: string; value: string; subtext?: string; valueColor?: string; onClick?: () => void; isActive?: boolean }> = ({ title, value, subtext, valueColor, onClick, isActive }) => {
@@ -208,12 +206,12 @@ const DayAnalysisCard: React.FC<{ day: string; percentage: number; count: number
                     <div className="flex items-center justify-center">
                         <span className="text-[10px] font-bold text-white uppercase tracking-wide">{getDayAbbr(day)}</span>
                     </div>
-                    
+
                     {/* Percentual - Destaque principal */}
                     <div className="flex flex-col items-center py-0.5">
                         <span className="text-2xl font-bold text-white leading-none">{percentage.toFixed(1)}%</span>
                     </div>
-                    
+
                     {/* Total e Média lado a lado */}
                     <div className="flex items-center justify-center gap-2 pt-1 border-t border-white border-opacity-20">
                         <div className="flex items-baseline gap-1">
@@ -251,23 +249,23 @@ const TypeAnalysisBar: React.FC<{ type: string; percentage: number, count: numbe
 
 const CustomEvolutionTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
-      return (
-        <div className="bg-bg-secondary border border-border-primary rounded-lg shadow-lg p-3 text-sm">
-          <p className="font-bold text-text-primary mb-2">Dia: {label}</p>
-          <p className="text-brand-cyan">
-            {`Atend. (Antigos): ${payload[0].value}`}
-          </p>
-          <p className="text-brand-green">
-            {`Atend. (Novos): ${payload[1].value}`}
-          </p>
-           <p className="font-semibold text-text-primary mt-1 border-t border-border-secondary pt-1">
-            {`Total: ${Number(payload[0].value) + Number(payload[1].value)}`}
-          </p>
-        </div>
-      );
+        return (
+            <div className="bg-bg-secondary border border-border-primary rounded-lg shadow-lg p-3 text-sm">
+                <p className="font-bold text-text-primary mb-2">Dia: {label}</p>
+                <p className="text-brand-cyan">
+                    {`Atend. (Antigos): ${payload[0].value}`}
+                </p>
+                <p className="text-brand-green">
+                    {`Atend. (Novos): ${payload[1].value}`}
+                </p>
+                <p className="font-semibold text-text-primary mt-1 border-t border-border-secondary pt-1">
+                    {`Total: ${Number(payload[0].value) + Number(payload[1].value)}`}
+                </p>
+            </div>
+        );
     }
     return null;
-  };
+};
 
 type MetricType = 'totalRevenue' | 'totalServices' | 'uniqueClients' | 'totalRepasse';
 type RevenueSubMetric = 'none' | 'averageTicket' | 'margin' | 'marginPerService';
@@ -393,7 +391,7 @@ const DashboardMetricsPage: React.FC = () => {
         try {
             let currentResult: DashboardMetrics;
             let previousResult: DashboardMetrics;
-            
+
             if (selectedUnit.unit_code === 'ALL') {
                 console.log('[Dashboard Optimization] Carregando métricas multi-unidade...', multiUnits);
                 currentResult = await fetchDashboardMetricsMulti(multiUnits, selectedPeriod);
@@ -405,26 +403,26 @@ const DashboardMetricsPage: React.FC = () => {
                     fetchDashboardMetrics(selectedUnit.unit_code, previousPeriod)
                 ]);
             }
-            
+
             // Validação de dados
             if (!currentResult || typeof currentResult !== 'object') {
                 throw new Error('Dados de métricas inválidos ou vazios');
             }
-            
+
             console.log('[Dashboard Optimization] ✅ Métricas carregadas:', {
                 totalRevenue: currentResult.totalRevenue,
                 totalServices: currentResult.totalServices,
                 uniqueClients: currentResult.uniqueClients,
                 hasData: currentResult.totalServices > 0
             });
-            
+
             setMetrics(currentResult);
             setPreviousMonthMetrics(previousResult);
-            
+
             const endTime = performance.now();
             const duration = ((endTime - startTime) / 1000).toFixed(2);
             console.log(`[Dashboard Optimization] ✅ Dados mensais carregados em ${duration}s`);
-            
+
         } catch (err: any) {
             const errorMsg = err?.message || 'Falha ao carregar as métricas do dashboard.';
             setError(errorMsg);
@@ -446,7 +444,7 @@ const DashboardMetricsPage: React.FC = () => {
         const startTime = performance.now();
         try {
             const currentYear = parseInt(selectedPeriod.split('-')[0], 10);
-            
+
             if (selectedUnit.unit_code === 'ALL') {
                 const aggregated: { [month: string]: MonthlyChartData } = {};
                 for (const code of multiUnits) {
@@ -464,44 +462,44 @@ const DashboardMetricsPage: React.FC = () => {
                 const finalArray = Object.values(aggregated).map(m => ({
                     ...m,
                     averageTicket: m.totalServices > 0 ? m.totalRevenue / m.totalServices : 0
-                })).sort((a,b)=>a.month.localeCompare(b.month));
+                })).sort((a, b) => a.month.localeCompare(b.month));
                 setMonthlyData(finalArray);
-                
+
                 // Buscar submétricas de repasse usando serviço (mesmo padrão de Services/Clients)
                 const repasseMonthly = await fetchRepasseMonthlySubmetricsMulti(multiUnits, currentYear);
                 setRepasseMonthlyData(repasseMonthly);
             } else {
                 const result = await fetchMonthlyChartData(selectedUnit.unit_code, currentYear);
                 setMonthlyData(result);
-                
+
                 // Buscar submétricas de repasse usando serviço
                 const repasseMonthly = await fetchRepasseMonthlySubmetrics(selectedUnit.unit_code, currentYear);
                 setRepasseMonthlyData(repasseMonthly);
             }
-                        // também carregar submétricas de atendimentos para o ano
-                                    if (selectedUnit.unit_code === 'ALL') {
-                            const sub = await fetchServiceMonthlySubmetricsMulti(multiUnits, currentYear);
-                            setServicesMonthlyData(sub);
-                                        const csub = await fetchClientMonthlySubmetricsMulti(multiUnits, currentYear);
-                                        setClientsMonthlyData(csub);
-                        } else {
-                            const sub = await fetchServiceMonthlySubmetrics(selectedUnit.unit_code, currentYear);
-                            setServicesMonthlyData(sub);
-                                        const csub = await fetchClientMonthlySubmetrics(selectedUnit.unit_code, currentYear);
-                                        setClientsMonthlyData(csub);
-                        }
+            // também carregar submétricas de atendimentos para o ano
+            if (selectedUnit.unit_code === 'ALL') {
+                const sub = await fetchServiceMonthlySubmetricsMulti(multiUnits, currentYear);
+                setServicesMonthlyData(sub);
+                const csub = await fetchClientMonthlySubmetricsMulti(multiUnits, currentYear);
+                setClientsMonthlyData(csub);
+            } else {
+                const sub = await fetchServiceMonthlySubmetrics(selectedUnit.unit_code, currentYear);
+                setServicesMonthlyData(sub);
+                const csub = await fetchClientMonthlySubmetrics(selectedUnit.unit_code, currentYear);
+                setClientsMonthlyData(csub);
+            }
 
-                        // ✅ OTIMIZAÇÃO FASE 1: Lazy loading de períodos (não carrega automaticamente)
-                        // Períodos serão carregados apenas quando usuário visualizar análise de serviços
-                        console.log('[Dashboard Optimization] Lazy loading habilitado - períodos carregados sob demanda');
-                        setMonthlyPeriods({});
+            // ✅ OTIMIZAÇÃO FASE 1: Lazy loading de períodos (não carrega automaticamente)
+            // Períodos serão carregados apenas quando usuário visualizar análise de serviços
+            console.log('[Dashboard Optimization] Lazy loading habilitado - períodos carregados sob demanda');
+            setMonthlyPeriods({});
         } catch (err: any) {
             console.error('[DASHBOARD] Erro ao carregar dados mensais:', err);
-                        setMonthlyData([]);
-                        setServicesMonthlyData([]);
-                        setClientsMonthlyData([]);
-                        setRepasseMonthlyData([]);
-                        setMonthlyPeriods({});
+            setMonthlyData([]);
+            setServicesMonthlyData([]);
+            setClientsMonthlyData([]);
+            setRepasseMonthlyData([]);
+            setMonthlyPeriods({});
         } finally {
             setIsChartLoading(false);
             const endTime = performance.now();
@@ -509,27 +507,27 @@ const DashboardMetricsPage: React.FC = () => {
             console.log(`[Dashboard Optimization] ✅ Dados mensais carregados em ${duration}s`);
         }
     }, [selectedUnit, multiUnits, selectedPeriod]);
-    
+
     // ✅ OTIMIZAÇÃO FASE 1: Lazy loading de períodos mensais (carrega sob demanda)
     const loadMonthlyPeriods = useCallback(async () => {
         if (!selectedUnit || Object.keys(monthlyPeriods).length > 0) {
             // Já carregado, não recarrega
             return;
         }
-        
+
         console.log('[Dashboard Optimization] Carregando períodos mensais sob demanda...');
         setIsPeriodsLoading(true);
-        
+
         try {
             const currentYear = new Date().getFullYear();
             const periodsByMonth: { [month: string]: { [period: string]: number } } = {};
-            
+
             if (selectedUnit.unit_code === 'ALL') {
                 // Para múltiplas unidades, agregar os dados
                 for (let month = 1; month <= 12; month++) {
                     const periodKey = `${currentYear}-${String(month).padStart(2, '0')}`;
                     const periodCounts: { [period: string]: number } = {};
-                    
+
                     for (const unitCode of multiUnits) {
                         const periodData = await fetchServicePeriodAnalysisData(unitCode, periodKey);
                         periodData.forEach(item => {
@@ -537,7 +535,7 @@ const DashboardMetricsPage: React.FC = () => {
                             periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
                         });
                     }
-                    
+
                     periodsByMonth[periodKey] = periodCounts;
                 }
             } else {
@@ -548,17 +546,17 @@ const DashboardMetricsPage: React.FC = () => {
                         selectedUnit.unit_code,
                         periodKey
                     );
-                    
+
                     const periodCounts: { [period: string]: number } = {};
                     periodData.forEach(item => {
                         const periodo = item.PERÍODO?.trim() || 'Não especificado';
                         periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
                     });
-                    
+
                     periodsByMonth[periodKey] = periodCounts;
                 }
             }
-            
+
             console.log('📊 Monthly Periods Data (Lazy Loaded):', periodsByMonth);
             setMonthlyPeriods(periodsByMonth);
         } catch (err: any) {
@@ -567,14 +565,14 @@ const DashboardMetricsPage: React.FC = () => {
             setIsPeriodsLoading(false);
         }
     }, [selectedUnit, multiUnits, monthlyPeriods]);
-    
+
     const loadServiceAnalysisData = useCallback(async () => {
         if (!selectedUnit || !metrics) return;
-        
+
         setIsAnalysisLoading(true);
         try {
             const records = await fetchServiceAnalysisData(selectedUnit.unit_code, selectedPeriod);
-            
+
             const uniqueAppointments = Array.from(
                 new Map(records.map(record => [record.ATENDIMENTO_ID, record])).values()
             );
@@ -600,7 +598,7 @@ const DashboardMetricsPage: React.FC = () => {
             const averagePerDay = daysWithMoreThan5Services > 0
                 ? (metrics.totalServices / daysWithMoreThan5Services).toFixed(1)
                 : 'N/A';
-            
+
             const dayOfWeekCounts: { [day: string]: number } = {};
             const dayOfWeekDates: { [day: string]: Set<string> } = {}; // Track unique dates for each day
             records.forEach(r => {
@@ -623,7 +621,7 @@ const DashboardMetricsPage: React.FC = () => {
 
             // Daily Evolution Chart Data Calculation (using unique ATENDIMENTO_ID)
             const dailyData: { [day: string]: { old: Set<string>; new: Set<string> } } = {};
-            
+
             records.forEach(r => {
                 if (r.DATA && r.ATENDIMENTO_ID) {
                     const day = r.DATA.split('-')[2];
@@ -662,24 +660,24 @@ const DashboardMetricsPage: React.FC = () => {
             const periodData = await fetchServicePeriodAnalysisData(selectedUnit.unit_code, selectedPeriod);
             const periodCounts: { [key: string]: number } = {};
             const periodByType: { [key: string]: { comercial: number; residencial: number } } = {};
-            
+
             periodData.forEach(item => {
                 const periodo = item.PERÍODO?.trim() || 'Não especificado';
                 const tipo = item.TIPO?.trim().toLowerCase() || 'não especificado';
-                
+
                 periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
-                
+
                 if (!periodByType[periodo]) {
                     periodByType[periodo] = { comercial: 0, residencial: 0 };
                 }
-                
+
                 if (tipo === 'comercial') {
                     periodByType[periodo].comercial++;
                 } else if (tipo === 'residencial') {
                     periodByType[periodo].residencial++;
                 }
             });
-            
+
             const totalRecords = periodData.length;
             const periodAnalysis = Object.keys(periodCounts).map(type => ({
                 type,
@@ -728,10 +726,10 @@ const DashboardMetricsPage: React.FC = () => {
             const currentClients = currentData.currentMonthClients;
             const previousMonthClients = previousPeriodData.currentMonthClients;
             const allHistoricClientsBeforeThisMonth = new Set([...previousPeriodData.allPreviousClients, ...previousMonthClients]);
-            
+
             const recurringCount = [...currentClients].filter(c => previousMonthClients.has(c)).length;
             const servicesPerClient = metrics.uniqueClients > 0 ? (metrics.totalServices / metrics.uniqueClients).toFixed(2) : '0.00';
-            
+
             // Churn: clientes que estavam no mês anterior e NÃO estão no mês atual
             const churnCount = [...previousMonthClients].filter(c => !currentClients.has(c)).length;
             const churnRate = previousMonthClients.size > 0 ? ((churnCount / previousMonthClients.size) * 100).toFixed(1) : '0.0';
@@ -742,11 +740,11 @@ const DashboardMetricsPage: React.FC = () => {
             // Análise de tipo por CLIENTE ÚNICO (não por atendimento)
             // 1. Agrupar atendimentos por cliente
             const clientTypeMap: { [clientKey: string]: { [tipo: string]: number } } = {};
-            
+
             currentData.clientDetails.forEach((detail) => {
                 const clientKey = `${detail.CLIENTE || 'sem-nome'}_${detail.CADASTRO || 'sem-cadastro'}`;
                 const tipo = detail.TIPO?.trim() || 'Não especificado';
-                
+
                 if (!clientTypeMap[clientKey]) {
                     clientTypeMap[clientKey] = {};
                 }
@@ -759,12 +757,12 @@ const DashboardMetricsPage: React.FC = () => {
                 // Encontra o tipo com mais atendimentos para este cliente
                 const predominantType = Object.entries(types)
                     .sort((a, b) => b[1] - a[1])[0][0];
-                
+
                 typeCounts[predominantType] = (typeCounts[predominantType] || 0) + 1;
             });
 
             const totalUniqueClients = currentClients.size;
-            
+
             // 3. Calcular percentual baseado em clientes únicos
             const typeAnalysis = Object.keys(typeCounts).map(type => ({
                 type,
@@ -799,35 +797,35 @@ const DashboardMetricsPage: React.FC = () => {
 
             // Calcula o total de repasse a partir dos dados brutos para consistência
             const totalRepasseFromRecords = records.reduce((sum, record) => sum + (record.REPASSE || 0), 0);
-    
+
             const averagePerService = metrics.totalServices > 0 ? totalRepasseFromRecords / metrics.totalServices : 0;
-    
+
             const [year, month] = selectedPeriod.split('-').map(Number);
             const daysInMonth = new Date(year, month, 0).getDate();
             const weeksInMonth = daysInMonth / 7;
             const averagePerWeek = weeksInMonth > 0 ? totalRepasseFromRecords / weeksInMonth : 0;
-    
+
             const professionalTotals = new Map<string, number>();
             records.forEach(record => {
                 const currentTotal = professionalTotals.get(record.PROFISSIONAL) || 0;
                 professionalTotals.set(record.PROFISSIONAL, currentTotal + (record.REPASSE || 0));
             });
-    
+
             const uniqueProfessionals = professionalTotals.size;
             const averagePerProfessional = uniqueProfessionals > 0 ? totalRepasseFromRecords / uniqueProfessionals : 0;
-    
+
             const professionalRanking = Array.from(professionalTotals.entries())
                 .map(([professional, total]) => ({ professional, total }))
                 .sort((a, b) => b.total - a.total)
                 .slice(0, 10);
-    
+
             setRepasseAnalysis({
                 averagePerService,
                 averagePerWeek,
                 averagePerProfessional,
                 professionalRanking,
             });
-    
+
         } catch (e) {
             console.error("Failed to load repasse analysis data", e);
             setRepasseAnalysis(null);
@@ -841,7 +839,7 @@ const DashboardMetricsPage: React.FC = () => {
         loadMetrics();
         loadMonthlyData();
     }, [loadMetrics, loadMonthlyData]);
-    
+
     useEffect(() => {
         if (selectedMetric === 'totalServices' && metrics) {
             loadServiceAnalysisData();
@@ -880,19 +878,15 @@ const DashboardMetricsPage: React.FC = () => {
                 return false;
             }
         }
-        
-        // Filtrar por período (recarrega métricas do mês atual)
+
+        // Filtrar por período (recarrega métricas do mês atual) usando comparação robusta de string
         if (record.DATA) {
-            const recordDate = new Date(record.DATA);
-            const [year, month] = selectedPeriod.split('-');
-            const recordMonth = recordDate.getMonth() + 1;
-            const recordYear = recordDate.getFullYear();
-            
-            if (recordYear === parseInt(year) && recordMonth === parseInt(month)) {
-                return true;
-            }
+            const [targetYear, targetMonth] = selectedPeriod.split('-');
+            const dateStr = typeof record.DATA === 'string' ? record.DATA.split('T')[0] : '';
+            const [rYear, rMonth] = dateStr.split('-');
+            if (rYear === targetYear && rMonth === targetMonth) return true;
         }
-        
+
         return false;
     }, [selectedUnit, multiUnits, selectedPeriod]);
 
@@ -917,17 +911,17 @@ const DashboardMetricsPage: React.FC = () => {
                 return { title: 'Faturamento por Mês' };
             }
             case 'totalServices': {
-              if (selectedServicesSubMetric === 'startOfMonth') return { title: 'Início Mês (Atend.) por Mês' };
-              if (selectedServicesSubMetric === 'evolution') return { title: 'Evolução (Atend.) por Mês' };
-              if (selectedServicesSubMetric === 'productiveDayAvg') return { title: 'Média/Dia Produtivo por Mês' };
-              return { title: 'Atendimentos por Mês' };
+                if (selectedServicesSubMetric === 'startOfMonth') return { title: 'Início Mês (Atend.) por Mês' };
+                if (selectedServicesSubMetric === 'evolution') return { title: 'Evolução (Atend.) por Mês' };
+                if (selectedServicesSubMetric === 'productiveDayAvg') return { title: 'Média/Dia Produtivo por Mês' };
+                return { title: 'Atendimentos por Mês' };
             }
-                        case 'uniqueClients': {
-                            if (selectedClientsSubMetric === 'recurringCount') return { title: 'Recorrentes por Mês' };
-                            if (selectedClientsSubMetric === 'servicesPerClient') return { title: 'Atend. por Cliente (Mês)' };
-                            if (selectedClientsSubMetric === 'churnRate') return { title: 'Churn por Mês' };
-                            return { title: 'Clientes por Mês' };
-                        }
+            case 'uniqueClients': {
+                if (selectedClientsSubMetric === 'recurringCount') return { title: 'Recorrentes por Mês' };
+                if (selectedClientsSubMetric === 'servicesPerClient') return { title: 'Atend. por Cliente (Mês)' };
+                if (selectedClientsSubMetric === 'churnRate') return { title: 'Churn por Mês' };
+                return { title: 'Clientes por Mês' };
+            }
             case 'totalRepasse': {
                 if (selectedRepasseSubMetric === 'averagePerService') return { title: 'Média/Atend. (Repasse) por Mês' };
                 if (selectedRepasseSubMetric === 'averagePerWeek') return { title: 'Média/Semana (Repasse) por Mês' };
@@ -948,7 +942,7 @@ const DashboardMetricsPage: React.FC = () => {
         // Filtrar apenas meses até o atual
         const currentMonth = new Date().getMonth() + 1;
         const filteredData = data.filter(item => parseInt(item.month) <= currentMonth);
-        
+
         if (filteredData.length === 0) return null;
 
         // Calcular campos derivados
@@ -1039,10 +1033,10 @@ const DashboardMetricsPage: React.FC = () => {
     };
 
     const getMinMaxFromData = (data: any[], field: string) => {
-        const maxItem = data.reduce((max, current) => 
+        const maxItem = data.reduce((max, current) =>
             current[field] > max[field] ? current : max
         );
-        const minItem = data.reduce((min, current) => 
+        const minItem = data.reduce((min, current) =>
             current[field] < min[field] ? current : min
         );
 
@@ -1054,7 +1048,7 @@ const DashboardMetricsPage: React.FC = () => {
 
     const formatMetricValue = (value: number, metric: MetricType) => {
         const monetaryMetrics = ['totalRevenue', 'totalRepasse', 'averageTicket', 'margin', 'marginPerService'];
-        if (monetaryMetrics.includes(metric) || 
+        if (monetaryMetrics.includes(metric) ||
             (metric === 'totalRevenue' && ['averageTicket', 'margin', 'marginPerService'].includes(selectedRevenueSubMetric)) ||
             (metric === 'totalRepasse' && selectedRepasseSubMetric !== 'none')) {
             return formatCurrency(value);
@@ -1075,7 +1069,7 @@ const DashboardMetricsPage: React.FC = () => {
             </div>
         );
     }
-    
+
     return (
         <div className="space-y-6">
             {/* Cabeçalho Principal */}
@@ -1088,7 +1082,7 @@ const DashboardMetricsPage: React.FC = () => {
                     availableYears={availableYears}
                 />
             </div>
-            
+
             {isLoading ? (
                 <div className="flex items-center justify-center h-64">
                     <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
@@ -1099,7 +1093,7 @@ const DashboardMetricsPage: React.FC = () => {
                 <>
                     {/* Cards de Métricas Principais */}
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-                        <MetricCard 
+                        <MetricCard
                             title="Faturamento"
                             value={formatCurrency(metrics?.totalRevenue || 0)}
                             icon="chart"
@@ -1107,7 +1101,7 @@ const DashboardMetricsPage: React.FC = () => {
                             isSelected={selectedMetric === 'totalRevenue'}
                             onClick={() => { setSelectedMetric('totalRevenue'); setSelectedServicesSubMetric('none'); setSelectedClientsSubMetric('none'); setSelectedRepasseSubMetric('none'); }}
                         />
-                         <MetricCard 
+                        <MetricCard
                             title="Atendimentos"
                             value={String(metrics?.totalServices || 0)}
                             icon="briefcase"
@@ -1115,7 +1109,7 @@ const DashboardMetricsPage: React.FC = () => {
                             isSelected={selectedMetric === 'totalServices'}
                             onClick={() => { setSelectedMetric('totalServices'); setSelectedRevenueSubMetric('none'); setSelectedClientsSubMetric('none'); setSelectedRepasseSubMetric('none'); }}
                         />
-                         <MetricCard 
+                        <MetricCard
                             title="Clientes"
                             value={String(metrics?.uniqueClients || 0)}
                             icon="users"
@@ -1123,7 +1117,7 @@ const DashboardMetricsPage: React.FC = () => {
                             isSelected={selectedMetric === 'uniqueClients'}
                             onClick={() => { setSelectedMetric('uniqueClients'); setSelectedRevenueSubMetric('none'); setSelectedServicesSubMetric('none'); setSelectedRepasseSubMetric('none'); }}
                         />
-                         <MetricCard 
+                        <MetricCard
                             title="Repasse"
                             value={formatCurrency(metrics?.totalRepasse || 0)}
                             icon="dollar"
@@ -1140,11 +1134,10 @@ const DashboardMetricsPage: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
                                 {/* Margem Total (Faturamento - Repasse) */}
                                 <div
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedRevenueSubMetric === 'margin'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedRevenueSubMetric === 'margin'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedRevenueSubMetric(prev => prev === 'margin' ? 'none' : 'margin')}
                                 >
                                     <button
@@ -1167,8 +1160,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'margin' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1183,14 +1176,13 @@ const DashboardMetricsPage: React.FC = () => {
                                         </>
                                     )}
                                 </div>
-                                
+
                                 {/* Média por Atendimento */}
                                 <div
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedRevenueSubMetric === 'averageTicket'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedRevenueSubMetric === 'averageTicket'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedRevenueSubMetric(prev => prev === 'averageTicket' ? 'none' : 'averageTicket')}
                                 >
                                     <button
@@ -1213,8 +1205,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'averageTicket' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1229,14 +1221,13 @@ const DashboardMetricsPage: React.FC = () => {
                                         </>
                                     )}
                                 </div>
-                                
+
                                 {/* Margem por Atendimento */}
                                 <div
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedRevenueSubMetric === 'marginPerService'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedRevenueSubMetric === 'marginPerService'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedRevenueSubMetric(prev => prev === 'marginPerService' ? 'none' : 'marginPerService')}
                                 >
                                     <button
@@ -1259,8 +1250,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'marginPerService' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1285,11 +1276,10 @@ const DashboardMetricsPage: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
                                 {/* Início Mês */}
                                 <div
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedServicesSubMetric === 'startOfMonth'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedServicesSubMetric === 'startOfMonth'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedServicesSubMetric(prev => prev === 'startOfMonth' ? 'none' : 'startOfMonth')}
                                 >
                                     <button
@@ -1312,8 +1302,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'startOfMonth' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1328,11 +1318,10 @@ const DashboardMetricsPage: React.FC = () => {
 
                                 {/* Evolução */}
                                 <div
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedServicesSubMetric === 'evolution'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedServicesSubMetric === 'evolution'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedServicesSubMetric(prev => prev === 'evolution' ? 'none' : 'evolution')}
                                 >
                                     <button
@@ -1355,8 +1344,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'evolution' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1371,11 +1360,10 @@ const DashboardMetricsPage: React.FC = () => {
 
                                 {/* Média por Dia Produtivo */}
                                 <div
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedServicesSubMetric === 'productiveDayAvg'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedServicesSubMetric === 'productiveDayAvg'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedServicesSubMetric(prev => prev === 'productiveDayAvg' ? 'none' : 'productiveDayAvg')}
                                 >
                                     <button
@@ -1398,8 +1386,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'productiveDayAvg' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1420,12 +1408,11 @@ const DashboardMetricsPage: React.FC = () => {
                         <div className="mt-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
                                 {/* Recorrentes */}
-                                <div 
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedClientsSubMetric === 'recurringCount'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedClientsSubMetric === 'recurringCount'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedClientsSubMetric(prev => prev === 'recurringCount' ? 'none' : 'recurringCount')}
                                 >
                                     <button
@@ -1448,8 +1435,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'clients-recurring' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1463,12 +1450,11 @@ const DashboardMetricsPage: React.FC = () => {
                                 </div>
 
                                 {/* Atendimentos por Cliente */}
-                                <div 
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedClientsSubMetric === 'servicesPerClient'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedClientsSubMetric === 'servicesPerClient'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedClientsSubMetric(prev => prev === 'servicesPerClient' ? 'none' : 'servicesPerClient')}
                                 >
                                     <button
@@ -1491,8 +1477,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'clients-services' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1506,12 +1492,11 @@ const DashboardMetricsPage: React.FC = () => {
                                 </div>
 
                                 {/* Churn */}
-                                <div 
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedClientsSubMetric === 'churnRate'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedClientsSubMetric === 'churnRate'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedClientsSubMetric(prev => prev === 'churnRate' ? 'none' : 'churnRate')}
                                 >
                                     <button
@@ -1537,8 +1522,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'clients-churn' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1559,12 +1544,11 @@ const DashboardMetricsPage: React.FC = () => {
                         <div className="mt-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
                                 {/* Média por Atendimento */}
-                                <div 
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedRepasseSubMetric === 'averagePerService'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedRepasseSubMetric === 'averagePerService'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedRepasseSubMetric(prev => prev === 'averagePerService' ? 'none' : 'averagePerService')}
                                 >
                                     <button
@@ -1587,8 +1571,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'repasse-service' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1602,12 +1586,11 @@ const DashboardMetricsPage: React.FC = () => {
                                 </div>
 
                                 {/* Média por Semana */}
-                                <div 
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedRepasseSubMetric === 'averagePerWeek'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedRepasseSubMetric === 'averagePerWeek'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedRepasseSubMetric(prev => prev === 'averagePerWeek' ? 'none' : 'averagePerWeek')}
                                 >
                                     <button
@@ -1630,8 +1613,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'repasse-week' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1645,12 +1628,11 @@ const DashboardMetricsPage: React.FC = () => {
                                 </div>
 
                                 {/* Média por Profissional */}
-                                <div 
-                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${
-                                        selectedRepasseSubMetric === 'averagePerProfessional'
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
-                                    }`}
+                                <div
+                                    className={`relative py-3 px-4 rounded-lg shadow-sm border transition-all cursor-pointer ${selectedRepasseSubMetric === 'averagePerProfessional'
+                                        ? 'bg-blue-100 border-blue-500'
+                                        : 'bg-bg-tertiary border-border-secondary hover:border-accent-primary/50 hover:shadow-md'
+                                        }`}
                                     onClick={() => setSelectedRepasseSubMetric(prev => prev === 'averagePerProfessional' ? 'none' : 'averagePerProfessional')}
                                 >
                                     <button
@@ -1673,8 +1655,8 @@ const DashboardMetricsPage: React.FC = () => {
                                     </div>
                                     {activeTooltip === 'repasse-professional' && (
                                         <>
-                                            <div 
-                                                className="fixed inset-0 z-10" 
+                                            <div
+                                                className="fixed inset-0 z-10"
                                                 onClick={() => setActiveTooltip(null)}
                                             />
                                             <div className="absolute top-10 right-0 z-20 w-64 p-3 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg">
@@ -1786,58 +1768,58 @@ const DashboardMetricsPage: React.FC = () => {
                                 className={`transition-all duration-500 ease-in-out overflow-hidden ${isChartVisible ? 'max-h-[500px]' : 'max-h-0'}`}
                             >
                                 <div className="px-6 pb-6">
-                                                                                                            <MonthlyComparisonChart
-                                                                                                                    data={
-                                                                                                                        selectedMetric === 'totalServices' && selectedServicesSubMetric !== 'none'
-                                                                                                                            ? monthlyData.map((m) => {
-                                                                                                                                    const s = servicesMonthlyData.find(x => x.month === m.month);
-                                                                                                                                    return {
-                                                                                                                                        ...m,
-                                                                                                                                        totalServices:
-                                                                                                                                            selectedServicesSubMetric === 'startOfMonth' ? (s?.startOfMonth || 0)
-                                                                                                                                            : selectedServicesSubMetric === 'evolution' ? (s?.evolution || 0)
-                                                                                                                                            : (s?.productiveDayAvg || 0),
-                                                                                                                                    } as MonthlyChartData;
-                                                                                                                                })
-                                                                                                                            : selectedMetric === 'uniqueClients' && selectedClientsSubMetric !== 'none'
-                                                                                                                                ? monthlyData.map((m) => {
-                                                                                                                                        const c = clientsMonthlyData.find(x => x.month === m.month);
-                                                                                                                                        return {
-                                                                                                                                            ...m,
-                                                                                                                                            uniqueClients:
-                                                                                                                                                selectedClientsSubMetric === 'recurringCount' ? (c?.recurringCount || 0)
-                                                                                                                                                : selectedClientsSubMetric === 'servicesPerClient' ? (c?.servicesPerClient || 0)
-                                                                                                                                                : (c?.churnRate || 0),
-                                                                                                                                        } as MonthlyChartData;
-                                                                                                                                    })
-                                                                                                                            : selectedMetric === 'totalRepasse' && selectedRepasseSubMetric !== 'none'
-                                                                                                                                ? (() => {
-                                                                                                                                    console.log('[Chart Data] repasseMonthlyData:', repasseMonthlyData);
-                                                                                                                                    console.log('[Chart Data] selectedRepasseSubMetric:', selectedRepasseSubMetric);
-                                                                                                                                    const mappedData = monthlyData.map((m) => {
-                                                                                                                                        const r = repasseMonthlyData.find(x => x.month === m.month);
-                                                                                                                                        console.log(`[Chart Data] Month ${m.month}: found=${!!r}, value=${selectedRepasseSubMetric === 'averagePerService' ? (r?.averagePerService || 0) : selectedRepasseSubMetric === 'averagePerWeek' ? (r?.averagePerWeek || 0) : (r?.averagePerProfessional || 0)}`);
-                                                                                                                                        return {
-                                                                                                                                            ...m,
-                                                                                                                                            totalRepasse:
-                                                                                                                                                selectedRepasseSubMetric === 'averagePerService' ? (r?.averagePerService || 0)
-                                                                                                                                                : selectedRepasseSubMetric === 'averagePerWeek' ? (r?.averagePerWeek || 0)
-                                                                                                                                                : (r?.averagePerProfessional || 0),
-                                                                                                                                        } as MonthlyChartData;
-                                                                                                                                    });
-                                                                                                                                    console.log('[Chart Data] Final mapped data:', mappedData);
-                                                                                                                                    return mappedData;
-                                                                                                                                })()
-                                                                                                                                : monthlyData
-                                                                                                                    }
-                                                                                                                    selectedMetric={
-                                                                                                                        selectedMetric === 'totalRevenue' && selectedRevenueSubMetric !== 'none'
-                                                                                                                            ? (selectedRevenueSubMetric as any)
-                                                                                                                            : selectedMetric
-                                                                                                                    }
-                                                                                                                    isLoading={isChartLoading}
-                                                                                                                    invertColors={selectedMetric === 'uniqueClients' && selectedClientsSubMetric === 'churnRate'}
-                                                                                                            />
+                                    <MonthlyComparisonChart
+                                        data={
+                                            selectedMetric === 'totalServices' && selectedServicesSubMetric !== 'none'
+                                                ? monthlyData.map((m) => {
+                                                    const s = servicesMonthlyData.find(x => x.month === m.month);
+                                                    return {
+                                                        ...m,
+                                                        totalServices:
+                                                            selectedServicesSubMetric === 'startOfMonth' ? (s?.startOfMonth || 0)
+                                                                : selectedServicesSubMetric === 'evolution' ? (s?.evolution || 0)
+                                                                    : (s?.productiveDayAvg || 0),
+                                                    } as MonthlyChartData;
+                                                })
+                                                : selectedMetric === 'uniqueClients' && selectedClientsSubMetric !== 'none'
+                                                    ? monthlyData.map((m) => {
+                                                        const c = clientsMonthlyData.find(x => x.month === m.month);
+                                                        return {
+                                                            ...m,
+                                                            uniqueClients:
+                                                                selectedClientsSubMetric === 'recurringCount' ? (c?.recurringCount || 0)
+                                                                    : selectedClientsSubMetric === 'servicesPerClient' ? (c?.servicesPerClient || 0)
+                                                                        : (c?.churnRate || 0),
+                                                        } as MonthlyChartData;
+                                                    })
+                                                    : selectedMetric === 'totalRepasse' && selectedRepasseSubMetric !== 'none'
+                                                        ? (() => {
+                                                            console.log('[Chart Data] repasseMonthlyData:', repasseMonthlyData);
+                                                            console.log('[Chart Data] selectedRepasseSubMetric:', selectedRepasseSubMetric);
+                                                            const mappedData = monthlyData.map((m) => {
+                                                                const r = repasseMonthlyData.find(x => x.month === m.month);
+                                                                console.log(`[Chart Data] Month ${m.month}: found=${!!r}, value=${selectedRepasseSubMetric === 'averagePerService' ? (r?.averagePerService || 0) : selectedRepasseSubMetric === 'averagePerWeek' ? (r?.averagePerWeek || 0) : (r?.averagePerProfessional || 0)}`);
+                                                                return {
+                                                                    ...m,
+                                                                    totalRepasse:
+                                                                        selectedRepasseSubMetric === 'averagePerService' ? (r?.averagePerService || 0)
+                                                                            : selectedRepasseSubMetric === 'averagePerWeek' ? (r?.averagePerWeek || 0)
+                                                                                : (r?.averagePerProfessional || 0),
+                                                                } as MonthlyChartData;
+                                                            });
+                                                            console.log('[Chart Data] Final mapped data:', mappedData);
+                                                            return mappedData;
+                                                        })()
+                                                        : monthlyData
+                                        }
+                                        selectedMetric={
+                                            selectedMetric === 'totalRevenue' && selectedRevenueSubMetric !== 'none'
+                                                ? (selectedRevenueSubMetric as any)
+                                                : selectedMetric
+                                        }
+                                        isLoading={isChartLoading}
+                                        invertColors={selectedMetric === 'uniqueClients' && selectedClientsSubMetric === 'churnRate'}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -1850,7 +1832,7 @@ const DashboardMetricsPage: React.FC = () => {
                         const totalRepasse = monthlyData.reduce((sum, m) => sum + m.totalRepasse, 0);
                         const totalMargem = totalRevenue - totalRepasse;
                         const totalServices = monthlyData.reduce((sum, m) => sum + m.totalServices, 0);
-                        
+
                         const totalMonths = monthlyData.length;
                         const avgRevenue = totalRevenue / totalMonths;
                         const avgMargem = totalMargem / totalMonths;
@@ -1862,488 +1844,488 @@ const DashboardMetricsPage: React.FC = () => {
                                 <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
                                     <div className="p-6">
                                         <h3 className="text-lg font-semibold text-text-primary mb-4">
-                                            Métricas Mensais de Faturamento 
+                                            Métricas Mensais de Faturamento
                                             <span className="ml-3 text-accent-primary font-bold">
                                                 Total: {formatCurrency(totalRevenue)}
                                             </span>
                                         </h3>
                                         <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-bg-tertiary">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                        Mês
-                                                    </th>
-                                                    <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                        Faturamento
-                                                    </th>
-                                                    <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                        Margem
-                                                    </th>
-                                                    <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                        Média/Atend
-                                                    </th>
-                                                    <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                        Margem/Atend
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-border-primary">
-                                                {monthlyData.map((monthData) => {
-                                                    const margem = monthData.totalRevenue - monthData.totalRepasse;
-                                                    const mediaAtend = monthData.totalServices > 0 ? monthData.totalRevenue / monthData.totalServices : 0;
-                                                    const margemAtend = monthData.totalServices > 0 ? margem / monthData.totalServices : 0;
-                                                    
-                                                    return (
-                                                        <tr key={monthData.month} className="hover:bg-bg-tertiary transition-colors">
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-text-primary">
-                                                                {monthData.monthName}
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary font-semibold">
-                                                                {formatCurrency(monthData.totalRevenue)}
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
-                                                                {formatCurrency(margem)}
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
-                                                                {formatCurrency(mediaAtend)}
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
-                                                                {formatCurrency(margemAtend)}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                                {/* Linha de Média */}
-                                                <tr className="bg-gray-600 border-t-2 border-gray-500 font-semibold">
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                        Média
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white font-bold">
-                                                        {formatCurrency(avgRevenue)}
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                        {formatCurrency(avgMargem)}
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                        {formatCurrency(avgMediaAtend)}
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                        {formatCurrency(avgMargemAtend)}
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                            <table className="w-full">
+                                                <thead className="bg-bg-tertiary">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                            Mês
+                                                        </th>
+                                                        <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                            Faturamento
+                                                        </th>
+                                                        <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                            Margem
+                                                        </th>
+                                                        <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                            Média/Atend
+                                                        </th>
+                                                        <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                            Margem/Atend
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-border-primary">
+                                                    {monthlyData.map((monthData) => {
+                                                        const margem = monthData.totalRevenue - monthData.totalRepasse;
+                                                        const mediaAtend = monthData.totalServices > 0 ? monthData.totalRevenue / monthData.totalServices : 0;
+                                                        const margemAtend = monthData.totalServices > 0 ? margem / monthData.totalServices : 0;
+
+                                                        return (
+                                                            <tr key={monthData.month} className="hover:bg-bg-tertiary transition-colors">
+                                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-text-primary">
+                                                                    {monthData.monthName}
+                                                                </td>
+                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary font-semibold">
+                                                                    {formatCurrency(monthData.totalRevenue)}
+                                                                </td>
+                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
+                                                                    {formatCurrency(margem)}
+                                                                </td>
+                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
+                                                                    {formatCurrency(mediaAtend)}
+                                                                </td>
+                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
+                                                                    {formatCurrency(margemAtend)}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {/* Linha de Média */}
+                                                    <tr className="bg-gray-600 border-t-2 border-gray-500 font-semibold">
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                            Média
+                                                        </td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white font-bold">
+                                                            {formatCurrency(avgRevenue)}
+                                                        </td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                            {formatCurrency(avgMargem)}
+                                                        </td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                            {formatCurrency(avgMediaAtend)}
+                                                        </td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                            {formatCurrency(avgMargemAtend)}
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
                         );
                     })()}
-                    
+
                     {!isLoading && selectedMetric === 'totalServices' && (
-                      isAnalysisLoading ? (
-                         <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div></div>
-                      ) : serviceAnalysis && metrics && (
-                        <div className="mt-8 space-y-8">
-                            <div className="bg-bg-secondary rounded-lg shadow-md">
-                                <div
-                                    className="flex items-center justify-between p-6 cursor-pointer"
-                                    onClick={() => setIsEvolutionChartVisible(!isEvolutionChartVisible)}
-                                    aria-expanded={isEvolutionChartVisible}
-                                >
-                                    <h3 className="text-lg font-semibold text-text-primary">
-                                        Evolução Mês
-                                        {serviceAnalysis.evolutionCount > 0 && (serviceAnalysis.startOfMonthCount + serviceAnalysis.evolutionCount) > 0 && (
-                                            <span className="ml-2 text-sm font-normal text-brand-green">
-                                                +{((serviceAnalysis.evolutionCount / (serviceAnalysis.startOfMonthCount + serviceAnalysis.evolutionCount)) * 100).toFixed(1)}% Novos
-                                            </span>
-                                        )}
-                                    </h3>
-                                    <button className="p-1 rounded-full hover:bg-bg-tertiary">
-                                        <Icon name={isEvolutionChartVisible ? 'chevron-up' : 'chevron-down'} className="w-5 h-5 text-text-secondary" />
-                                    </button>
-                                </div>
-                                <div
-                                    className={`transition-all duration-500 ease-in-out overflow-hidden ${isEvolutionChartVisible ? 'max-h-[400px]' : 'max-h-0'}`}
-                                >
-                                    <div className="px-6 pb-6">
-                                        <div className="h-72">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart
-                                                    data={serviceAnalysis.dailyEvolutionData}
-                                                    margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
-                                                >
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                    <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
-                                                    <YAxis allowDecimals={false} fontSize={12} tickLine={false} axisLine={false} />
-                                                    <Tooltip content={<CustomEvolutionTooltip />} cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }} />
-                                                    <Legend
-                                                        formatter={(value) => (
-                                                            <span className="text-sm text-text-secondary">{value}</span>
-                                                        )}
-                                                    />
-                                                    <Bar dataKey="Atend. (Clientes Antigos)" name="Atend. (Antigos)" stackId="a" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-                                                    <Bar dataKey="Atend. (Clientes Novos)" name="Atend. (Novos)" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                                </BarChart>
-                                            </ResponsiveContainer>
+                        isAnalysisLoading ? (
+                            <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div></div>
+                        ) : serviceAnalysis && metrics && (
+                            <div className="mt-8 space-y-8">
+                                <div className="bg-bg-secondary rounded-lg shadow-md">
+                                    <div
+                                        className="flex items-center justify-between p-6 cursor-pointer"
+                                        onClick={() => setIsEvolutionChartVisible(!isEvolutionChartVisible)}
+                                        aria-expanded={isEvolutionChartVisible}
+                                    >
+                                        <h3 className="text-lg font-semibold text-text-primary">
+                                            Evolução Mês
+                                            {serviceAnalysis.evolutionCount > 0 && (serviceAnalysis.startOfMonthCount + serviceAnalysis.evolutionCount) > 0 && (
+                                                <span className="ml-2 text-sm font-normal text-brand-green">
+                                                    +{((serviceAnalysis.evolutionCount / (serviceAnalysis.startOfMonthCount + serviceAnalysis.evolutionCount)) * 100).toFixed(1)}% Novos
+                                                </span>
+                                            )}
+                                        </h3>
+                                        <button className="p-1 rounded-full hover:bg-bg-tertiary">
+                                            <Icon name={isEvolutionChartVisible ? 'chevron-up' : 'chevron-down'} className="w-5 h-5 text-text-secondary" />
+                                        </button>
+                                    </div>
+                                    <div
+                                        className={`transition-all duration-500 ease-in-out overflow-hidden ${isEvolutionChartVisible ? 'max-h-[400px]' : 'max-h-0'}`}
+                                    >
+                                        <div className="px-6 pb-6">
+                                            <div className="h-72">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart
+                                                        data={serviceAnalysis.dailyEvolutionData}
+                                                        margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                                                    >
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
+                                                        <YAxis allowDecimals={false} fontSize={12} tickLine={false} axisLine={false} />
+                                                        <Tooltip content={<CustomEvolutionTooltip />} cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }} />
+                                                        <Legend
+                                                            formatter={(value) => (
+                                                                <span className="text-sm text-text-secondary">{value}</span>
+                                                            )}
+                                                        />
+                                                        <Bar dataKey="Atend. (Clientes Antigos)" name="Atend. (Antigos)" stackId="a" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                                                        <Bar dataKey="Atend. (Clientes Novos)" name="Atend. (Novos)" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            {/* Análise por Dia da Semana - Linha completa */}
-                            <div className="p-5 bg-bg-secondary rounded-lg shadow-md">
-                                <h4 className="text-base font-semibold text-center text-text-primary mb-3">Análise por Dia da Semana</h4>
-                                <div className="grid grid-cols-7 gap-2">
-                                    {serviceAnalysis.dayOfWeekAnalysis.map(item => (
-                                        <DayAnalysisCard key={item.day} day={item.day} percentage={item.percentage} count={item.count} average={item.average} />
-                                    ))}
+
+                                {/* Análise por Dia da Semana - Linha completa */}
+                                <div className="p-5 bg-bg-secondary rounded-lg shadow-md">
+                                    <h4 className="text-base font-semibold text-center text-text-primary mb-3">Análise por Dia da Semana</h4>
+                                    <div className="grid grid-cols-7 gap-2">
+                                        {serviceAnalysis.dayOfWeekAnalysis.map(item => (
+                                            <DayAnalysisCard key={item.day} day={item.day} percentage={item.percentage} count={item.count} average={item.average} />
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Período de Atendimento - Grid com 2 gráficos */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Gráfico 1: Período de Atendimento */}
-                                <div className="p-6 bg-bg-secondary rounded-lg shadow-md h-96">
-                                    {(() => {
-                                        // Usa os dados de periodAnalysis do serviceAnalysis
-                                        const periodAnalysis = serviceAnalysis?.periodAnalysis || [];
+                                {/* Período de Atendimento - Grid com 2 gráficos */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Gráfico 1: Período de Atendimento */}
+                                    <div className="p-6 bg-bg-secondary rounded-lg shadow-md h-96">
+                                        {(() => {
+                                            // Usa os dados de periodAnalysis do serviceAnalysis
+                                            const periodAnalysis = serviceAnalysis?.periodAnalysis || [];
 
-                                        // Ordena por período (menor para maior)
-                                        const sortedPeriodAnalysis = [...periodAnalysis].sort((a, b) => {
-                                            const numA = parseInt(a.type);
-                                            const numB = parseInt(b.type);
-                                            return numA - numB;
-                                        });
+                                            // Ordena por período (menor para maior)
+                                            const sortedPeriodAnalysis = [...periodAnalysis].sort((a, b) => {
+                                                const numA = parseInt(a.type);
+                                                const numB = parseInt(b.type);
+                                                return numA - numB;
+                                            });
 
-                                        const chartData = sortedPeriodAnalysis.map(item => ({
-                                            name: `${item.type}h`,
-                                            value: item.count,
-                                            percentage: item.percentage
-                                        }));
+                                            const chartData = sortedPeriodAnalysis.map(item => ({
+                                                name: `${item.type}h`,
+                                                value: item.count,
+                                                percentage: item.percentage
+                                            }));
 
-                                        // Cores oficiais do sistema
-                                        const COLORS = ['#a855f7', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                                            // Cores oficiais do sistema
+                                            const COLORS = ['#a855f7', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-                                        if (chartData.length === 0) {
+                                            if (chartData.length === 0) {
+                                                return (
+                                                    <div className="flex items-center justify-center h-full">
+                                                        <p className="text-text-secondary text-sm">Sem dados de período de atendimento</p>
+                                                    </div>
+                                                );
+                                            }
+
                                             return (
-                                                <div className="flex items-center justify-center h-full">
-                                                    <p className="text-text-secondary text-sm">Sem dados de período de atendimento</p>
-                                                </div>
-                                            );
-                                        }
-
-                                        return (
-                                            <div className="grid grid-cols-5 gap-6 h-full">
-                                                {/* Coluna do Título e Legendas (2/5) */}
-                                                <div className="col-span-2 flex flex-col justify-center">
-                                                    <h4 className="text-lg font-semibold text-text-primary mb-6">Período de Atendimento</h4>
-                                                    <div className="space-y-3">
-                                                        {chartData.map((item, index) => (
-                                                            <div key={index} className="flex items-center gap-3">
-                                                                <div 
-                                                                    className="w-4 h-4 rounded-full flex-shrink-0" 
-                                                                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                                                                />
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-sm font-medium text-text-primary">{item.name}</span>
-                                                                    <span className="text-xs text-text-secondary">
-                                                                        {item.value} atendimentos ({item.percentage.toFixed(1)}%)
-                                                                    </span>
+                                                <div className="grid grid-cols-5 gap-6 h-full">
+                                                    {/* Coluna do Título e Legendas (2/5) */}
+                                                    <div className="col-span-2 flex flex-col justify-center">
+                                                        <h4 className="text-lg font-semibold text-text-primary mb-6">Período de Atendimento</h4>
+                                                        <div className="space-y-3">
+                                                            {chartData.map((item, index) => (
+                                                                <div key={index} className="flex items-center gap-3">
+                                                                    <div
+                                                                        className="w-4 h-4 rounded-full flex-shrink-0"
+                                                                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                                                                    />
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-sm font-medium text-text-primary">{item.name}</span>
+                                                                        <span className="text-xs text-text-secondary">
+                                                                            {item.value} atendimentos ({item.percentage.toFixed(1)}%)
+                                                                        </span>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        ))}
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Coluna do Gráfico de Pizza (3/5) */}
+                                                    <div className="col-span-3 flex items-center justify-center">
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <PieChart>
+                                                                <Pie
+                                                                    data={chartData}
+                                                                    cx="50%"
+                                                                    cy="50%"
+                                                                    labelLine={false}
+                                                                    label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                                                                        const RADIAN = Math.PI / 180;
+                                                                        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                                                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                                                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                                                                        return (
+                                                                            <text
+                                                                                x={x}
+                                                                                y={y}
+                                                                                fill="white"
+                                                                                textAnchor={x > cx ? 'start' : 'end'}
+                                                                                dominantBaseline="central"
+                                                                                className="font-bold text-sm"
+                                                                            >
+                                                                                {`${(percent * 100).toFixed(1)}%`}
+                                                                            </text>
+                                                                        );
+                                                                    }}
+                                                                    outerRadius={140}
+                                                                    fill="#a855f7"
+                                                                    dataKey="value"
+                                                                >
+                                                                    {chartData.map((entry, index) => (
+                                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                                    ))}
+                                                                </Pie>
+                                                                <Tooltip
+                                                                    formatter={(value: any, name: any) => [`${value} atendimentos`, name]}
+                                                                />
+                                                            </PieChart>
+                                                        </ResponsiveContainer>
                                                     </div>
                                                 </div>
-
-                                                {/* Coluna do Gráfico de Pizza (3/5) */}
-                                                <div className="col-span-3 flex items-center justify-center">
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <PieChart>
-                                                            <Pie
-                                                                data={chartData}
-                                                                cx="50%"
-                                                                cy="50%"
-                                                                labelLine={false}
-                                                                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-                                                                    const RADIAN = Math.PI / 180;
-                                                                    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                                                                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                                                                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                                                                    
-                                                                    return (
-                                                                        <text 
-                                                                            x={x} 
-                                                                            y={y} 
-                                                                            fill="white" 
-                                                                            textAnchor={x > cx ? 'start' : 'end'} 
-                                                                            dominantBaseline="central"
-                                                                            className="font-bold text-sm"
-                                                                        >
-                                                                            {`${(percent * 100).toFixed(1)}%`}
-                                                                        </text>
-                                                                    );
-                                                                }}
-                                                                outerRadius={140}
-                                                                fill="#a855f7"
-                                                                dataKey="value"
-                                                            >
-                                                                {chartData.map((entry, index) => (
-                                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                                ))}
-                                                            </Pie>
-                                                            <Tooltip 
-                                                                formatter={(value: any, name: any) => [`${value} atendimentos`, name]}
-                                                            />
-                                                        </PieChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-
-                                {/* Gráfico 2: Período por Tipo (Comercial/Residencial) */}
-                                <div className="p-6 bg-bg-secondary rounded-lg shadow-md h-96">
-                                    {(() => {
-                                        const periodByTypeAnalysis = serviceAnalysis?.periodByTypeAnalysis || [];
-
-                                        if (periodByTypeAnalysis.length === 0) {
-                                            return (
-                                                <div className="flex items-center justify-center h-full">
-                                                    <p className="text-text-secondary text-sm">Sem dados de período por tipo</p>
-                                                </div>
                                             );
-                                        }
+                                        })()}
+                                    </div>
 
-                                        const chartData = periodByTypeAnalysis.map(item => {
-                                            const total = item.comercial + item.residencial;
-                                            return {
-                                                name: `${item.type}h`,
-                                                Comercial: item.comercial,
-                                                Residencial: item.residencial,
-                                                ComercialPct: total > 0 ? ((item.comercial / total) * 100).toFixed(1) : '0',
-                                                ResidencialPct: total > 0 ? ((item.residencial / total) * 100).toFixed(1) : '0'
+                                    {/* Gráfico 2: Período por Tipo (Comercial/Residencial) */}
+                                    <div className="p-6 bg-bg-secondary rounded-lg shadow-md h-96">
+                                        {(() => {
+                                            const periodByTypeAnalysis = serviceAnalysis?.periodByTypeAnalysis || [];
+
+                                            if (periodByTypeAnalysis.length === 0) {
+                                                return (
+                                                    <div className="flex items-center justify-center h-full">
+                                                        <p className="text-text-secondary text-sm">Sem dados de período por tipo</p>
+                                                    </div>
+                                                );
+                                            }
+
+                                            const chartData = periodByTypeAnalysis.map(item => {
+                                                const total = item.comercial + item.residencial;
+                                                return {
+                                                    name: `${item.type}h`,
+                                                    Comercial: item.comercial,
+                                                    Residencial: item.residencial,
+                                                    ComercialPct: total > 0 ? ((item.comercial / total) * 100).toFixed(1) : '0',
+                                                    ResidencialPct: total > 0 ? ((item.residencial / total) * 100).toFixed(1) : '0'
+                                                };
+                                            });
+
+                                            const renderCustomBarLabel = (props: any) => {
+                                                const { x, y, width, height, value } = props;
+                                                if (value === 0) return null;
+                                                return (
+                                                    <text
+                                                        x={x + width / 2}
+                                                        y={y + height / 2}
+                                                        fill="white"
+                                                        textAnchor="middle"
+                                                        dominantBaseline="middle"
+                                                        className="text-xs font-bold"
+                                                    >
+                                                        {value}
+                                                    </text>
+                                                );
                                             };
-                                        });
 
-                                        const renderCustomBarLabel = (props: any) => {
-                                            const { x, y, width, height, value } = props;
-                                            if (value === 0) return null;
                                             return (
-                                                <text
-                                                    x={x + width / 2}
-                                                    y={y + height / 2}
-                                                    fill="white"
-                                                    textAnchor="middle"
-                                                    dominantBaseline="middle"
-                                                    className="text-xs font-bold"
-                                                >
-                                                    {value}
-                                                </text>
-                                            );
-                                        };
-
-                                        return (
-                                            <div className="flex flex-col h-full">
-                                                <h4 className="text-lg font-semibold text-text-primary mb-4">Período por Tipo</h4>
-                                                <div className="flex-1">
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <BarChart
-                                                            data={chartData}
-                                                            margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
-                                                        >
-                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                            <XAxis 
-                                                                dataKey="name" 
-                                                                fontSize={12} 
-                                                                tickLine={false} 
-                                                                axisLine={false}
-                                                            />
-                                                            <YAxis 
-                                                                allowDecimals={false} 
-                                                                fontSize={12} 
-                                                                tickLine={false} 
-                                                                axisLine={false}
-                                                            />
-                                                            <Tooltip 
-                                                                cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }}
-                                                                contentStyle={{
-                                                                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                                                                    border: '1px solid #e2e8f0',
-                                                                    borderRadius: '8px',
-                                                                    padding: '12px'
-                                                                }}
-                                                                formatter={(value: any, name: any, props: any) => {
-                                                                    const pct = name === 'Comercial' ? props.payload.ComercialPct : props.payload.ResidencialPct;
-                                                                    return [`${value} (${pct}%)`, name];
-                                                                }}
-                                                            />
-                                                            <Legend
-                                                                formatter={(value) => (
-                                                                    <span className="text-sm text-text-secondary">{value}</span>
-                                                                )}
-                                                            />
-                                                            <Bar 
-                                                                dataKey="Comercial" 
-                                                                fill="#06b6d4" 
-                                                                radius={[4, 4, 0, 0]}
-                                                                label={renderCustomBarLabel}
-                                                            />
-                                                            <Bar 
-                                                                dataKey="Residencial" 
-                                                                fill="#10b981" 
-                                                                radius={[4, 4, 0, 0]}
-                                                                label={renderCustomBarLabel}
-                                                            />
-                                                        </BarChart>
-                                                    </ResponsiveContainer>
+                                                <div className="flex flex-col h-full">
+                                                    <h4 className="text-lg font-semibold text-text-primary mb-4">Período por Tipo</h4>
+                                                    <div className="flex-1">
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <BarChart
+                                                                data={chartData}
+                                                                margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                                                            >
+                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                <XAxis
+                                                                    dataKey="name"
+                                                                    fontSize={12}
+                                                                    tickLine={false}
+                                                                    axisLine={false}
+                                                                />
+                                                                <YAxis
+                                                                    allowDecimals={false}
+                                                                    fontSize={12}
+                                                                    tickLine={false}
+                                                                    axisLine={false}
+                                                                />
+                                                                <Tooltip
+                                                                    cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }}
+                                                                    contentStyle={{
+                                                                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                                                        border: '1px solid #e2e8f0',
+                                                                        borderRadius: '8px',
+                                                                        padding: '12px'
+                                                                    }}
+                                                                    formatter={(value: any, name: any, props: any) => {
+                                                                        const pct = name === 'Comercial' ? props.payload.ComercialPct : props.payload.ResidencialPct;
+                                                                        return [`${value} (${pct}%)`, name];
+                                                                    }}
+                                                                />
+                                                                <Legend
+                                                                    formatter={(value) => (
+                                                                        <span className="text-sm text-text-secondary">{value}</span>
+                                                                    )}
+                                                                />
+                                                                <Bar
+                                                                    dataKey="Comercial"
+                                                                    fill="#06b6d4"
+                                                                    radius={[4, 4, 0, 0]}
+                                                                    label={renderCustomBarLabel}
+                                                                />
+                                                                <Bar
+                                                                    dataKey="Residencial"
+                                                                    fill="#10b981"
+                                                                    radius={[4, 4, 0, 0]}
+                                                                    label={renderCustomBarLabel}
+                                                                />
+                                                            </BarChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })()}
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Tabela de Métricas de Atendimentos por Mês */}
-                            {monthlyData && servicesMonthlyData && (() => {
-                                // Identificar todos os períodos únicos
-                                const allPeriods = new Set<string>();
-                                Object.values(monthlyPeriods).forEach(periodCounts => {
-                                    Object.keys(periodCounts).forEach(period => allPeriods.add(period));
-                                });
-                                const sortedPeriods = Array.from(allPeriods).sort((a, b) => {
-                                    const numA = parseInt(a);
-                                    const numB = parseInt(b);
-                                    return numA - numB;
-                                });
+                                {/* Tabela de Métricas de Atendimentos por Mês */}
+                                {monthlyData && servicesMonthlyData && (() => {
+                                    // Identificar todos os períodos únicos
+                                    const allPeriods = new Set<string>();
+                                    Object.values(monthlyPeriods).forEach(periodCounts => {
+                                        Object.keys(periodCounts).forEach(period => allPeriods.add(period));
+                                    });
+                                    const sortedPeriods = Array.from(allPeriods).sort((a, b) => {
+                                        const numA = parseInt(a);
+                                        const numB = parseInt(b);
+                                        return numA - numB;
+                                    });
 
-                                console.log('🔍 Table Debug:', {
-                                    allPeriods: Array.from(allPeriods),
-                                    sortedPeriods,
-                                    monthlyPeriods,
-                                    sampleMonth: monthlyPeriods['2025-01']
-                                });
+                                    console.log('🔍 Table Debug:', {
+                                        allPeriods: Array.from(allPeriods),
+                                        sortedPeriods,
+                                        monthlyPeriods,
+                                        sampleMonth: monthlyPeriods['2025-01']
+                                    });
 
-                                // Calcular total do ano
-                                const totalYearServices = monthlyData.reduce((sum, m) => sum + m.totalServices, 0);
+                                    // Calcular total do ano
+                                    const totalYearServices = monthlyData.reduce((sum, m) => sum + m.totalServices, 0);
 
-                                // Calcular médias
-                                const totalMonths = monthlyData.length;
-                                const avgServices = (totalYearServices / totalMonths).toFixed(1);
-                                const avgStart = (servicesMonthlyData.reduce((sum, s) => sum + (s.startOfMonth || 0), 0) / totalMonths).toFixed(1);
-                                const avgEvolution = (servicesMonthlyData.reduce((sum, s) => sum + (s.evolution || 0), 0) / totalMonths).toFixed(1);
-                                const avgProductiveDay = (servicesMonthlyData.reduce((sum, s) => sum + (Number(s.productiveDayAvg) || 0), 0) / totalMonths).toFixed(1);
-                                
-                                // Calcular média por período
-                                const avgPeriods: { [period: string]: string } = {};
-                                sortedPeriods.forEach(period => {
-                                    const total = Object.values(monthlyPeriods).reduce((sum, periodCounts) => sum + (periodCounts[period] || 0), 0);
-                                    avgPeriods[period] = (total / totalMonths).toFixed(1);
-                                });
+                                    // Calcular médias
+                                    const totalMonths = monthlyData.length;
+                                    const avgServices = (totalYearServices / totalMonths).toFixed(1);
+                                    const avgStart = (servicesMonthlyData.reduce((sum, s) => sum + (s.startOfMonth || 0), 0) / totalMonths).toFixed(1);
+                                    const avgEvolution = (servicesMonthlyData.reduce((sum, s) => sum + (s.evolution || 0), 0) / totalMonths).toFixed(1);
+                                    const avgProductiveDay = (servicesMonthlyData.reduce((sum, s) => sum + (Number(s.productiveDayAvg) || 0), 0) / totalMonths).toFixed(1);
 
-                                return (
-                                    <div className="mt-6">
-                                        <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
-                                            <div className="p-6">
-                                                <h3 className="text-lg font-semibold text-text-primary mb-4">
-                                                    Métricas Mensais de Atendimentos 
-                                                    <span className="ml-3 text-accent-primary font-bold">
-                                                        Total: {totalYearServices.toLocaleString('pt-BR')}
-                                                    </span>
-                                                </h3>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full">
-                                                        <thead className="bg-bg-tertiary">
-                                                            <tr>
-                                                                <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                                    Mês
-                                                                </th>
-                                                                <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                                    Atendimentos
-                                                                </th>
-                                                                <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                                    Início
-                                                                </th>
-                                                                <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                                    Evolução
-                                                                </th>
-                                                                <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                                    Média/Dia
-                                                                </th>
-                                                                {sortedPeriods.map(period => (
-                                                                    <th key={period} className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
-                                                                        {period}h
+                                    // Calcular média por período
+                                    const avgPeriods: { [period: string]: string } = {};
+                                    sortedPeriods.forEach(period => {
+                                        const total = Object.values(monthlyPeriods).reduce((sum, periodCounts) => sum + (periodCounts[period] || 0), 0);
+                                        avgPeriods[period] = (total / totalMonths).toFixed(1);
+                                    });
+
+                                    return (
+                                        <div className="mt-6">
+                                            <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
+                                                <div className="p-6">
+                                                    <h3 className="text-lg font-semibold text-text-primary mb-4">
+                                                        Métricas Mensais de Atendimentos
+                                                        <span className="ml-3 text-accent-primary font-bold">
+                                                            Total: {totalYearServices.toLocaleString('pt-BR')}
+                                                        </span>
+                                                    </h3>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full">
+                                                            <thead className="bg-bg-tertiary">
+                                                                <tr>
+                                                                    <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                                        Mês
                                                                     </th>
-                                                                ))}
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-border-primary">
-                                                            {monthlyData.map((monthData) => {
-                                                                const serviceData = servicesMonthlyData.find(s => s.month === monthData.month);
-                                                                const currentYear = selectedPeriod.split('-')[0];
-                                                                const monthKey = `${currentYear}-${monthData.month}`;
-                                                                const monthPeriods = monthlyPeriods[monthKey] || {};
-                                                            
-                                                                return (
-                                                                    <tr key={monthData.month} className="hover:bg-bg-tertiary transition-colors">
-                                                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-text-primary">
-                                                                            {monthData.monthName}
-                                                                        </td>
-                                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary font-semibold">
-                                                                            {monthData.totalServices}
-                                                                        </td>
-                                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
-                                                                            {serviceData?.startOfMonth || 0}
-                                                                        </td>
-                                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
-                                                                            {serviceData?.evolution || 0}
-                                                                        </td>
-                                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
-                                                                            {serviceData?.productiveDayAvg ? Number(serviceData.productiveDayAvg).toFixed(1) : '0.0'}
-                                                                        </td>
-                                                                        {sortedPeriods.map(period => (
-                                                                            <td key={period} className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
-                                                                                {monthPeriods[period] || 0}
+                                                                    <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                                        Atendimentos
+                                                                    </th>
+                                                                    <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                                        Início
+                                                                    </th>
+                                                                    <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                                        Evolução
+                                                                    </th>
+                                                                    <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                                        Média/Dia
+                                                                    </th>
+                                                                    {sortedPeriods.map(period => (
+                                                                        <th key={period} className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                                                            {period}h
+                                                                        </th>
+                                                                    ))}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-border-primary">
+                                                                {monthlyData.map((monthData) => {
+                                                                    const serviceData = servicesMonthlyData.find(s => s.month === monthData.month);
+                                                                    const currentYear = selectedPeriod.split('-')[0];
+                                                                    const monthKey = `${currentYear}-${monthData.month}`;
+                                                                    const monthPeriods = monthlyPeriods[monthKey] || {};
+
+                                                                    return (
+                                                                        <tr key={monthData.month} className="hover:bg-bg-tertiary transition-colors">
+                                                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-text-primary">
+                                                                                {monthData.monthName}
                                                                             </td>
-                                                                        ))}
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                            {/* Linha de Média */}
-                                                            <tr className="bg-gray-600 border-t-2 border-gray-500 font-semibold">
-                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                                    Média
-                                                                </td>
-                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white font-bold">
-                                                                    {avgServices}
-                                                                </td>
-                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                                    {avgStart}
-                                                                </td>
-                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                                    {avgEvolution}
-                                                                </td>
-                                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                                    {avgProductiveDay}
-                                                                </td>
-                                                                {sortedPeriods.map(period => (
-                                                                    <td key={period} className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
-                                                                        {avgPeriods[period]}
+                                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary font-semibold">
+                                                                                {monthData.totalServices}
+                                                                            </td>
+                                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
+                                                                                {serviceData?.startOfMonth || 0}
+                                                                            </td>
+                                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
+                                                                                {serviceData?.evolution || 0}
+                                                                            </td>
+                                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
+                                                                                {serviceData?.productiveDayAvg ? Number(serviceData.productiveDayAvg).toFixed(1) : '0.0'}
+                                                                            </td>
+                                                                            {sortedPeriods.map(period => (
+                                                                                <td key={period} className="px-4 py-3 whitespace-nowrap text-sm text-center text-text-primary">
+                                                                                    {monthPeriods[period] || 0}
+                                                                                </td>
+                                                                            ))}
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                                {/* Linha de Média */}
+                                                                <tr className="bg-gray-600 border-t-2 border-gray-500 font-semibold">
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                                        Média
                                                                     </td>
-                                                                ))}
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white font-bold">
+                                                                        {avgServices}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                                        {avgStart}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                                        {avgEvolution}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                                        {avgProductiveDay}
+                                                                    </td>
+                                                                    {sortedPeriods.map(period => (
+                                                                        <td key={period} className="px-4 py-3 whitespace-nowrap text-sm text-center text-white">
+                                                                            {avgPeriods[period]}
+                                                                        </td>
+                                                                    ))}
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                      )
+                                    );
+                                })()}
+                            </div>
+                        )
                     )}
 
                     {!isLoading && selectedMetric === 'uniqueClients' && (
@@ -2374,7 +2356,7 @@ const DashboardMetricsPage: React.FC = () => {
 
                     {!isLoading && selectedMetric === 'totalRepasse' && (
                         isAnalysisLoading ? (
-                             <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div></div>
+                            <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div></div>
                         ) : repasseAnalysis && (
                             <div className="mt-8 space-y-8">
                                 <div className="p-6 bg-bg-secondary rounded-lg shadow-md">
