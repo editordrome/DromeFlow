@@ -24,6 +24,7 @@ const ManagePlansPage = lazy(() => import('../pages/ManagePlansPage'));
 const ComercialAdminPage = lazy(() => import('../pages/ComercialAdminPage'));
 const FinancialPage = lazy(() => import('../pages/FinancialPage'));
 const ConfiguracoesPage = lazy(() => import('../pages/ConfiguracoesPage'));
+const ManageVersionsPage = lazy(() => import('../pages/ManageVersionsPage'));
 
 // Loading component
 const PageLoader = () => (
@@ -124,6 +125,10 @@ const ContentArea: React.FC = () => {
     }
     if (activeView === 'configuracoes') {
         return <Suspense fallback={<PageLoader />}><ConfiguracoesPage /></Suspense>;
+    }
+    // @ts-ignore - TypeScript não consegue inferir todos os valores possíveis de activeView
+    if (activeView === 'manage_versions') {
+        return <Suspense fallback={<PageLoader />}><ManageVersionsPage /></Suspense>;
     }
 
     // Default to module view

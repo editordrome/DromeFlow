@@ -2,6 +2,29 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-01-20] - Dashboard N8N, Sidebar Otimizada e Visão Super Admin
+
+### ✨ Novas Funcionalidades
+
+#### 1. Integração com API do N8N
+- **Service**: Criado `services/n8n/n8n.service.ts` para consumo da API v1 do n8n.
+- **Dashboard**: Refatoração da aba N8N no Dashboard de Sistema para exibir execuções reais, duração e links diretos para o bot.
+- **Métricas**: Novos cards de métricas (Total, Sucesso, Erros, Taxa) com fallback automático para logs do banco caso a API falhe.
+- **Agrupamento de Erros**: Nova visão detalhada de erros agrupados por workflow para facilitar o troubleshooting.
+
+#### 2. Visão Admin para Super Admin
+- **View Mode Toggle**: Implementado seletor "Sistema" vs "Unidades" na Sidebar exclusivo para Super Admins.
+- **Unidades Dinâmicas**: Super Admin agora pode selecionar qualquer unidade e visualizar o sistema exatamente como um Admin daquela unidade verá (módulos, dados e permissões).
+
+#### 3. Melhorias na Sidebar e Navegação
+- **Logo Toggle**: O botão de recolher a sidebar agora fica invisível sobre a logo, aparecendo apenas no hover.
+- **User Management**: Módulo de usuários movido para as Configurações (aba Usuários), unificando a gestão e limpando o menu lateral.
+- **Dropdown no Collapse**: Menu de usuário agora funciona corretamente mesmo com a sidebar recolhida.
+
+### 🔧 Correções Técnicas
+- **Fix Erro 406**: Resolvido erro de RLS e Payload no salvamento de versões em `VersionFormModal.tsx`.
+- **JSX Health**: Corrigidos erros estruturais de JSX no `DashboardSistemaPage.tsx` que causavam falhas de renderização.
+
 ## [2026-01-19] - Sincronização em Tempo Real (Realtime) e Build de Produção
 
 ### 🔧 Correções Técnicas

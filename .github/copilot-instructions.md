@@ -99,7 +99,10 @@ Não há um passo de build explícito mencionado para desenvolvimento, pois o Vi
 - **Contagem de Serviços**: Baseada exclusivamente em registros originais (`IS_DIVISAO != 'SIM'` ou `ATENDIMENTO_ID` sem sufixo).
 - **Repasse**: Sempre soma todos os registros (originais + derivados) para refletir distribuição integral.
 - **Futuro (Planejado)**: hash de senha, migração para `auth.users` + triggers, RPC batch para ordenação, políticas RLS restritivas e índices analíticos.
- - **Super Admin**: Exibe apenas módulos cujo `allowed_profiles` contém `super_admin` (sem herdar públicos automaticamente).
+ - **Super Admin**: Exibe apenas módulos cujo `allowed_profiles` contém `super_admin`. Possui seletor de modo ("Sistema" vs "Unidades") na Sidebar. No modo "Unidades", pode selecionar uma unidade específica para visualizar o sistema como um Admin daquela unidade.
+ - **Integração N8N**: Consumo direto da API v1 do N8N via `n8n.service.ts`. Dashboard com métricas reais e agrupamento de erros.
+ - **Gestão de Usuários**: Centralizada em Settings → aba Usuários (remover links redundantes no menu lateral).
+ - **Toggle Sidebar**: Botão transparente na logo para recolher/expandir.
  - **Ordenação densa**: Após drag & drop reatribuir `position` como sequência contínua (1..n); evitar gaps.
  - **Webhook Agendamentos**: Fluxo preferencial POST JSON completo; fallback automático GET com payload compactado + chunking (limite ~3000 chars) em falha de rede/CORS; inclui campo `endereco` e forma compacta (`e`).
  - **Compat de Serviços**: O barrel `services/index.ts` e `services/mockApi.ts` permanecem ativos até a Fase 6 (limpeza). Não remova nem altere imports globalmente sem PR dedicado à Fase 6.
@@ -161,6 +164,7 @@ Todos os modais da aplicação seguem um padrão compacto e consistente para mel
 - Border radius: `rounded-lg` para inputs e cards
 - Transições: `transition-all` em elementos interativos
 - Focus: `focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20`
+- **JSX Health**: Sempre garantir o fechamento correto de tags e manter a integridade estrutural (divs, fragmentos) para evitar falhas de build.
 - Cores de status: Usar variáveis CSS do tema (accent-primary, brand-cyan, etc.)
 
 ## Guia Rápido: Criar um Novo Módulo (padrão)

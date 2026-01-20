@@ -13,36 +13,9 @@ export const fetchPayments = async (unitId: string | null, filters?: { status?: 
         `)
         .order('data_vencimento', { ascending: false });
 
-    // Filter by unit if needed (requires joining unit_clients -> unit_id, but payment_records has asaas_id which links to unit_clients)
-    // Currently relying on RLS or application level filtering if unit_clients has unit_id.
-    // Ideally payment_records should be filtered by unit via the join.
-
-    // For now, let's assume we fetch all and filter client-side or modify query if we have unit_id on payment_records?
-    // Looking at schema, payment_records links to unit_clients. unit_clients has unit_id.
-
+    // Filter by unit_id directly (now that payment_records has unit_id column)
     if (unitId && unitId !== 'ALL') {
-        // This is a bit complex with standard Supabase syntax for filtering on joined table
-        // syntax: !inner join to filter parent by child condition
-        query = query.not('unit_clients', 'is', null);
-        // We'll need to filter by unit_clients.unit_id.
-        // Supabase JS: .eq('unit_clients.unit_id', unitId) works if correctly set up?
-        // Actually, it's safer to rely on the 'inner' join logic:
-        // .innerJoin('unit_clients', { unit_id: unitId }) equivalent
-
-        // Simplified approach for now:
-        // We can't easily filter by nested relation property in the top-level .eq() without !inner
-        // Let's use the !inner hint
-        query = supabase
-            .from('payment_records')
-            .select(`
-                *,
-                unit_clients!inner (
-                    nome,
-                    unit_id
-                )
-            `)
-            .eq('unit_clients.unit_id', unitId)
-            .order('data_vencimento', { ascending: false });
+        query = query.eq('unit_id', unitId);
     }
 
     if (filters?.status) {

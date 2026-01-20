@@ -3,6 +3,7 @@ import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Icon } from '../ui/Icon';
 import { supabase } from '../../services/supabaseClient';
+import { n8nService, N8NExecution, N8NWorkflow } from '../../services/n8n/n8n.service';
 import type { N8NMonitoringLog, N8NErrorLog } from '../../types';
 
 type TabType = 'n8n' | 'dados';
@@ -29,6 +30,12 @@ const DashboardSistemaPage: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('today');
   const [monitoringLogs, setMonitoringLogs] = useState<N8NMonitoringLog[]>([]);
   const [errorLogs, setErrorLogs] = useState<N8NErrorLog[]>([]);
+
+  // Estados para N8N API
+  const [n8nExecutions, setN8nExecutions] = useState<N8NExecution[]>([]);
+  const [n8nWorkflows, setN8nWorkflows] = useState<N8NWorkflow[]>([]);
+  const [workflowsMap, setWorkflowsMap] = useState<Map<string, string>>(new Map());
+
   const [stats, setStats] = useState<{
     total: number;
     successCount: number;
@@ -111,11 +118,14 @@ const DashboardSistemaPage: React.FC = () => {
       return (data || []).map((log: ActivityLog) => ({
         id: log.id,
         created_at: log.created_at,
+        horario: log.created_at, // Usa created_at como horario se não houver
         unit: log.unit_code || undefined,
         workflow: log.workflow || undefined,
         status: log.status || undefined,
         action: log.action_code || undefined,
+        user: log.user_identifier || undefined,
         user_identifier: log.user_identifier || undefined,
+        atend_id: log.atend_id || undefined,
         metadata: log.metadata
       }));
     } catch (error) {
@@ -139,6 +149,7 @@ const DashboardSistemaPage: React.FC = () => {
         created_at: log.created_at,
         workflow: log.workflow || undefined,
         erro_message: log.error_message || undefined,
+        error_message: log.error_message || undefined, // Suporte a ambas as chaves
         url_workflow: log.url_workflow || undefined
       }));
     } catch (error) {
@@ -373,9 +384,9 @@ const DashboardSistemaPage: React.FC = () => {
     setError(null);
 
     try {
-      // Busca todos os logs (filtro será aplicado no frontend)
+      // 1. Busca dados do Supabase
       const [logs, errors, latestErrs] = await Promise.all([
-        fetchMonitoringLogs(1000), // Aumenta limite para ter dados suficientes
+        fetchMonitoringLogs(1000),
         fetchErrorLogs(500),
         fetchLatestErrorsByWorkflow(10)
       ]);
@@ -384,23 +395,57 @@ const DashboardSistemaPage: React.FC = () => {
       setErrorLogs(errors);
       setLatestErrors(latestErrs);
 
-      // Calcula stats dos logs filtrados
-      const filteredLogs = filterLogsByPeriod(logs);
-      const total = filteredLogs.length;
-      const successCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'success' || l.status?.toLowerCase() === 'sucesso').length;
-      const errorCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'error' || l.status?.toLowerCase() === 'erro').length;
+      // 2. Busca dados da API do N8N
+      try {
+        const [executionsResult, workflows] = await Promise.all([
+          n8nService.getExecutions(50),
+          n8nService.getWorkflows()
+        ]);
 
-      const workflowCounts = filteredLogs.reduce((acc: { [key: string]: number }, log) => {
-        const wf = log.workflow || 'Unknown';
-        acc[wf] = (acc[wf] || 0) + 1;
-        return acc;
-      }, {});
+        setN8nExecutions(executionsResult.data);
+        setN8nWorkflows(workflows);
 
-      const byWorkflow = Object.entries(workflowCounts)
-        .map(([workflow, count]) => ({ workflow, count: count as number }))
-        .sort((a, b) => b.count - a.count);
+        const wfMap = new Map<string, string>();
+        workflows.forEach(wf => wfMap.set(wf.id, wf.name));
+        setWorkflowsMap(wfMap);
 
-      setStats({ total, successCount, errorCount, byWorkflow });
+        // Se estivermos na aba n8n, as métricas do topo usam os dados da API
+        const executions = executionsResult.data;
+        const total = executions.length;
+        const successCount = executions.filter(e => e.status === 'success').length;
+        const errorCount = executions.filter(e => e.status === 'error').length;
+
+        const workflowStats = executions.reduce((acc: { [key: string]: number }, exec) => {
+          const wfName = wfMap.get(exec.workflowId) || exec.workflowId;
+          acc[wfName] = (acc[wfName] || 0) + 1;
+          return acc;
+        }, {});
+
+        const byWorkflow = Object.entries(workflowStats)
+          .map(([workflow, count]) => ({ workflow, count: count as number }))
+          .sort((a, b) => b.count - a.count);
+
+        setStats({ total, successCount, errorCount, byWorkflow });
+      } catch (n8nErr) {
+        console.warn('[Dashboard Sistema] Falha ao carregar dados da API do N8N:', n8nErr);
+        // Fallback para métricas baseadas em logs do Supabase se a API falhar (ex: CORS ou credenciais)
+        const filteredLogs = filterLogsByPeriod(logs);
+        const total = filteredLogs.length;
+        const successCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'success' || l.status?.toLowerCase() === 'sucesso').length;
+        const errorCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'error' || l.status?.toLowerCase() === 'erro').length;
+
+        const workflowCounts = filteredLogs.reduce((acc: { [key: string]: number }, log) => {
+          const wf = log.workflow || 'Unknown';
+          acc[wf] = (acc[wf] || 0) + 1;
+          return acc;
+        }, {});
+
+        const byWorkflow = Object.entries(workflowCounts)
+          .map(([workflow, count]) => ({ workflow, count: count as number }))
+          .sort((a, b) => b.count - a.count);
+
+        setStats({ total, successCount, errorCount, byWorkflow });
+      }
     } catch (err: any) {
       console.error('[Dashboard Sistema] Erro ao carregar dados:', err);
       setError('Falha ao carregar dados do sistema');
@@ -448,8 +493,8 @@ const DashboardSistemaPage: React.FC = () => {
 
     return (
       <span className={`px-2 py-1 text-xs font-medium rounded ${isSuccess ? 'bg-green-100 text-green-800' :
-          isError ? 'bg-red-100 text-red-800' :
-            'bg-gray-100 text-gray-800'
+        isError ? 'bg-red-100 text-red-800' :
+          'bg-gray-100 text-gray-800'
         }`}>
         {status || 'N/A'}
       </span>
@@ -499,8 +544,8 @@ const DashboardSistemaPage: React.FC = () => {
           <button
             onClick={() => setActiveTab('n8n')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'n8n'
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
+              ? 'border-accent-primary text-accent-primary'
+              : 'border-transparent text-text-secondary hover:text-text-primary'
               }`}
           >
             N8N
@@ -509,8 +554,8 @@ const DashboardSistemaPage: React.FC = () => {
           <button
             onClick={() => setActiveTab('dados')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'dados'
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
+              ? 'border-accent-primary text-accent-primary'
+              : 'border-transparent text-text-secondary hover:text-text-primary'
               }`}
           >
             Dados
@@ -607,8 +652,8 @@ const DashboardSistemaPage: React.FC = () => {
                     <button
                       onClick={() => setSelectedPeriod('today')}
                       className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'today'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
                     >
                       Hoje
@@ -616,8 +661,8 @@ const DashboardSistemaPage: React.FC = () => {
                     <button
                       onClick={() => setSelectedPeriod('yesterday')}
                       className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'yesterday'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
                     >
                       Dia Anterior
@@ -625,8 +670,8 @@ const DashboardSistemaPage: React.FC = () => {
                     <button
                       onClick={() => setSelectedPeriod('last7days')}
                       className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'last7days'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
                     >
                       Últimos 7 dias
@@ -634,8 +679,8 @@ const DashboardSistemaPage: React.FC = () => {
                     <button
                       onClick={() => setSelectedPeriod('lastWeek')}
                       className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'lastWeek'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
                     >
                       Última Semana
@@ -643,8 +688,8 @@ const DashboardSistemaPage: React.FC = () => {
                     <button
                       onClick={() => setSelectedPeriod('lastMonth')}
                       className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'lastMonth'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
                     >
                       Mês Anterior
@@ -652,8 +697,8 @@ const DashboardSistemaPage: React.FC = () => {
                     <button
                       onClick={() => setSelectedPeriod('last30days')}
                       className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'last30days'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
                     >
                       Últimos 30 dias
@@ -980,93 +1025,92 @@ const DashboardSistemaPage: React.FC = () => {
                                 >
                                   Todos os workflows
                                 </button>
-                                {Array.from(new Set(filterLogsByPeriod(monitoringLogs).map(log => log.workflow).filter(Boolean)))
-                                  .sort()
-                                  .map((workflow) => (
-                                    <button
-                                      key={workflow}
-                                      onClick={() => {
-                                        setSelectedWorkflow(workflow!);
-                                        setIsWorkflowDropdownOpen(false);
-                                      }}
-                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${selectedWorkflow === workflow ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                        }`}
-                                    >
-                                      {workflow}
-                                    </button>
-                                  ))}
+                                {((n8nExecutions.length > 0)
+                                  ? Array.from(new Set(n8nExecutions.map(e => workflowsMap.get(e.workflowId) || e.workflowId)))
+                                  : Array.from(new Set(filterLogsByPeriod(monitoringLogs).map(log => log.workflow).filter(Boolean)))
+                                ).sort().map((wf) => (
+                                  <button
+                                    key={wf}
+                                    onClick={() => {
+                                      setSelectedWorkflow(wf!);
+                                      setIsWorkflowDropdownOpen(false);
+                                    }}
+                                    className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${selectedWorkflow === wf ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
+                                      }`}
+                                  >
+                                    {wf}
+                                  </button>
+                                ))}
                               </div>
                             )}
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
-                          <div className="flex items-center gap-2 relative">
-                            <span>Unidade</span>
-                            <button
-                              onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
-                              className="p-1 hover:bg-bg-tertiary rounded transition-colors"
-                              title="Filtrar por unidade"
-                            >
-                              <Icon name="Filter" className="w-3.5 h-3.5" />
-                            </button>
-                            {selectedUnitFilter && (
-                              <button
-                                onClick={() => setSelectedUnitFilter(null)}
-                                className="p-1 hover:bg-bg-tertiary rounded transition-colors text-accent-primary"
-                                title="Limpar filtro"
-                              >
-                                <Icon name="X" className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {isUnitDropdownOpen && (
-                              <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border-primary rounded-lg shadow-lg z-10 min-w-[200px] max-h-[300px] overflow-y-auto">
-                                <button
-                                  onClick={() => {
-                                    setSelectedUnitFilter(null);
-                                    setIsUnitDropdownOpen(false);
-                                  }}
-                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors ${!selectedUnitFilter ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                    }`}
-                                >
-                                  Todas as unidades
-                                </button>
-                                {Array.from(new Set(filterLogsByPeriod(monitoringLogs).map(log => log.unit).filter(Boolean)))
-                                  .sort((a, b) => {
-                                    const nameA = getUnitName(a!);
-                                    const nameB = getUnitName(b!);
-                                    return nameA.localeCompare(nameB);
-                                  })
-                                  .map((unit) => (
-                                    <button
-                                      key={unit}
-                                      onClick={() => {
-                                        setSelectedUnitFilter(unit!);
-                                        setIsUnitDropdownOpen(false);
-                                      }}
-                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${selectedUnitFilter === unit ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                        }`}
-                                    >
-                                      {getUnitName(unit!)}
-                                    </button>
-                                  ))}
-                              </div>
-                            )}
-                          </div>
+                          {n8nExecutions.length > 0 ? 'ID Execução' : 'Unidade'}
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Usuário</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Ação</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                          {n8nExecutions.length > 0 ? 'Modo' : 'Usuário'}
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                          {n8nExecutions.length > 0 ? 'Duração' : 'Ação'}
+                        </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Atend. ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                          {n8nExecutions.length > 0 ? 'Link' : 'Atend. ID'}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-secondary">
-                      {filterLogsByPeriod(monitoringLogs).length === 0 ? (
+                      {n8nExecutions.length > 0 ? (
+                        /* Renderização via N8N API */
+                        n8nExecutions
+                          .filter(exec => {
+                            const wfName = workflowsMap.get(exec.workflowId) || exec.workflowId;
+                            return !selectedWorkflow || wfName === selectedWorkflow;
+                          })
+                          .map((exec) => (
+                            <tr key={exec.id} className="hover:bg-bg-tertiary transition-colors">
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {formatDateTime(exec.startedAt)}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-primary font-medium">
+                                {workflowsMap.get(exec.workflowId) || exec.workflowId}
+                                <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-bg-tertiary text-text-tertiary rounded border border-border-secondary">
+                                  ID: {exec.workflowId.substring(0, 8)}...
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary font-mono">
+                                {exec.id}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {exec.mode === 'trigger' ? 'Trigger' : 'Manual'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {exec.stoppedAt ? Math.round((new Date(exec.stoppedAt).getTime() - new Date(exec.startedAt).getTime()) / 1000) + 's' : '-'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <StatusBadge status={exec.status} />
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                <a
+                                  href={`https://bot.dromeflow.com/workflow/${exec.workflowId}/executions/${exec.id}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-accent-primary hover:underline flex items-center gap-1"
+                                >
+                                  Abrir <Icon name="ExternalLink" className="w-3 h-3" />
+                                </a>
+                              </td>
+                            </tr>
+                          ))
+                      ) : filterLogsByPeriod(monitoringLogs).length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-4 py-8 text-center text-text-secondary">
-                            Nenhum log de monitoramento encontrado para o período selecionado
+                            Nenhum dado de execução encontrado (API ou Logs)
                           </td>
                         </tr>
                       ) : (
+                        /* Fallback para logs do Supabase */
                         filterLogsByPeriod(monitoringLogs)
                           .filter(log => !selectedWorkflow || log.workflow === selectedWorkflow)
                           .filter(log => !selectedUnitFilter || log.unit === selectedUnitFilter)
@@ -1078,14 +1122,8 @@ const DashboardSistemaPage: React.FC = () => {
                               <td className="px-4 py-3 text-sm text-text-primary font-medium">
                                 {log.workflow || 'N/A'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-text-secondary">
-                                {getUnitName(log.unit)}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-text-secondary">
-                                {log.user || 'N/A'}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-text-secondary">
-                                {getActionName(log.action)}
+                              <td className="px-4 py-3 text-sm text-text-secondary text-center" colSpan={3}>
+                                {getUnitName(log.unit)} - {getActionName(log.action)}
                               </td>
                               <td className="px-4 py-3">
                                 <StatusBadge status={log.status} />
@@ -1137,8 +1175,8 @@ const DashboardSistemaPage: React.FC = () => {
                     type="button"
                     onClick={() => setActiveCard(activeCard === 'atividades' ? null : 'atividades')}
                     className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'atividades'
-                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                       }`}
                   >
                     <div className="flex items-center justify-center gap-2">
@@ -1152,8 +1190,8 @@ const DashboardSistemaPage: React.FC = () => {
                   type="button"
                   onClick={() => setActiveCard(activeCard === 'indexScans' ? null : 'indexScans')}
                   className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'indexScans'
-                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                    ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                    : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                     }`}
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -1166,8 +1204,8 @@ const DashboardSistemaPage: React.FC = () => {
                   type="button"
                   onClick={() => setActiveCard(activeCard === 'operacoes' ? null : 'operacoes')}
                   className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'operacoes'
-                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                    ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                    : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                     }`}
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -1284,10 +1322,10 @@ const DashboardSistemaPage: React.FC = () => {
                                     </td>
                                     <td className="px-3 py-2">
                                       <span className={`px-2 py-0.5 text-xs font-medium rounded ${log.status?.toLowerCase() === 'success'
-                                          ? 'bg-green-100 text-green-800'
-                                          : log.status?.toLowerCase() === 'error'
-                                            ? 'bg-red-100 text-red-800'
-                                            : 'bg-gray-100 text-gray-800'
+                                        ? 'bg-green-100 text-green-800'
+                                        : log.status?.toLowerCase() === 'error'
+                                          ? 'bg-red-100 text-red-800'
+                                          : 'bg-gray-100 text-gray-800'
                                         }`}>
                                         {log.status || 'N/A'}
                                       </span>

@@ -91,11 +91,9 @@ const AppointmentsPage: React.FC = () => {
     return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
   };
 
-  // OBS: Payload mínimo — apenas unidade_code e data
-
-  // Envia payload mínimo ao webhook (POST JSON com fallback GET)
+  // Envia payload simplificado ao webhook (POST JSON com fallback GET)
   const sendWebhookPayload = useCallback(
-    async (_enriched: any[], _total: number, keyword?: string, atendimentoId?: string) => {
+    async (_appointmentsData: DataRecord[], _total: number, keyword?: string, _atendimentoId?: string) => {
       if (!appointmentsWebhook) return;
       if (!activeDate) return;
       const unidadeCode = selectedUnit?.unit_code || '';
@@ -107,15 +105,17 @@ const AppointmentsPage: React.FC = () => {
       // Timestamp da ação (ISO 8601)
       const timestamp = new Date().toISOString();
 
+      // Payload simplificado - apenas metadados
       const payload = {
-        unidade_code: unidadeCode,
-        data: activeDate,
-        conexao,
+        DATA: activeDate,
+        unit_id: selectedUnit.id,
+        keyword: keyword || 'atendimento',
         usuario_email: profile?.email || null,
+        unidade_code: unidadeCode,
         usuario_nome: profile?.full_name || null,
         timestamp,
-        ...(keyword ? { keyword } : {}),
-        ...(atendimentoId ? { atendimento_id: String(atendimentoId) } : {})
+        conexao,
+        atendimento_id: _atendimentoId || null
       } as any;
 
       let usedFallback = false;
@@ -141,14 +141,15 @@ const AppointmentsPage: React.FC = () => {
 
       if (usedFallback) {
         const url = new URL(appointmentsWebhook);
-        url.searchParams.set('u', unidadeCode);
-        url.searchParams.set('d', activeDate);
-        url.searchParams.set('cx', conexao || '');
-        if (profile?.email) url.searchParams.set('ue', profile.email);
-        if (profile?.full_name) url.searchParams.set('un', profile.full_name);
-        url.searchParams.set('ts', timestamp);
-        if (keyword) url.searchParams.set('kw', keyword);
-        if (atendimentoId) url.searchParams.set('aid', String(atendimentoId));
+        url.searchParams.set('DATA', activeDate);
+        url.searchParams.set('unit_id', selectedUnit.id);
+        url.searchParams.set('keyword', keyword || 'atendimento');
+        if (profile?.email) url.searchParams.set('usuario_email', profile.email);
+        url.searchParams.set('unidade_code', unidadeCode);
+        if (profile?.full_name) url.searchParams.set('usuario_nome', profile.full_name);
+        url.searchParams.set('timestamp', timestamp);
+        if (conexao) url.searchParams.set('conexao', conexao);
+        if (_atendimentoId) url.searchParams.set('atendimento_id', _atendimentoId);
         const r = await fetch(url.toString(), { method: 'GET' });
         if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
         return { ok: true as const, mode: 'GET-ONE' };
@@ -164,7 +165,8 @@ const AppointmentsPage: React.FC = () => {
     setIsSending(true);
     setSendFeedback(null);
     try {
-      const result = await sendWebhookPayload([], 0, 'atendimento');
+      // Envia todos os atendimentos filtrados do dia
+      const result = await sendWebhookPayload(filteredAppointments, filteredAppointments.length, 'atendimento');
       if (result?.ok) {
         const msg = result.mode === 'POST' ? 'Atendimentos enviados.' : 'Webhook via fallback GET.';
         setSendFeedback({ type: 'success', message: msg });
@@ -195,7 +197,8 @@ const AppointmentsPage: React.FC = () => {
     });
     try {
       const atendimentoId = String(((rec as any).ATENDIMENTO_ID || (rec as any).id) ?? '');
-      const result = await sendWebhookPayload([], 0, 'cliente', atendimentoId);
+      // Envia apenas este atendimento específico
+      const result = await sendWebhookPayload([rec], 1, 'cliente', atendimentoId);
       if (result?.ok) {
         setSendFeedback({ type: 'success', message: 'Envio realizado.' });
         setSentConfirmed(prev => {

@@ -14,11 +14,11 @@ Aplicação de gestão e análise construída em React (Vite + TypeScript) com S
 - **PWA**: Instalável com Service Worker e cache estratégico
 - **Deploy**: Hostinger + Cloudflare (CDN/DNS apenas)
 
-**Melhorias Recentes (Nov 2025):**
-- ✅ Ícone de verificação (BadgeCheck) para clientes validados em Atendimentos
-- ✅ Cabeçalhos fixos (sticky) nas tabelas de Atendimentos e Clientes
-- ✅ Espaçamento otimizado entre cards e conteúdo (space-y-4)
-- ✅ Margens inferiores ajustadas (pb-8) para melhor visualização
+- ✅ **N8N API Integration**: Visualização real de execuções, status e duração via API.
+- ✅ **Sidebar Super Admin**: Novo modo de visualização (Sistema vs Unidades) com seletor de unidade.
+- ✅ **Toggle Sidebar Invisível**: Botão de recolher transparente na área da logo.
+- ✅ **Gestão de Usuários Unificada**: Movida para Settings → aba Usuários.
+- ✅ **Correção de Erro 406**: Estabilização do salvamento de versões da aplicação.
 
 **Nota**: Sistema 100% Supabase - toda persistência de dados, storage e autenticação ocorrem no Supabase. Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).
 
@@ -134,6 +134,13 @@ A tabela `n8n_logs` foi criada para receber logs de workflows N8N via webhooks e
 ```
 
 **Documentação completa**: [`docs/N8N_LOGS_TABLE.md`](docs/N8N_LOGS_TABLE.md)
+
+### Integração Direta N8N (API)
+
+O sistema agora se conecta diretamente à API do N8N através do `n8n.service.ts` para fornecer métricas reais:
+- **Execuções**: Lista de execuções com status, modo, duração e link direto para o bot.
+- **Workflow Map**: Mapeamento automático de nomes de workflows via API.
+- **Troubleshooting**: Aba dedicada para visualização de erros agrupados.
 
 ---
 

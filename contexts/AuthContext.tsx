@@ -110,10 +110,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Carrega unidades do usuário (não centralizado antes). Para super_admin mantemos comportamento atual: nenhuma unidade listada.
+  // Carrega unidades do usuário. Para super_admin, agora carrega TODAS as unidades ativas para permitir a "Visão Admin".
   const fetchUnitsForUser = async (profile: Profile) => {
     if (profile.role === 'super_admin') {
-      setUserUnits([]);
+      try {
+        const { data, error } = await supabase
+          .from('units')
+          .select('*')
+          .eq('is_active', true)
+          .order('unit_name');
+
+        if (error) throw error;
+
+        const mappedUnits: Unit[] = (data || []).map(u => ({
+          id: u.id,
+          unit_name: u.unit_name,
+          unit_code: u.unit_code,
+          is_active: u.is_active,
+          created_at: u.created_at
+        }));
+
+        setUserUnits(mappedUnits);
+      } catch (err) {
+        console.error('[AuthContext] Erro ao carregar todas as unidades para super_admin:', err);
+        setUserUnits([]);
+      }
       return;
     }
     try {
@@ -153,6 +174,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
+      // 0. Para SUPER_ADMIN: se houver unitId e não for 'ALL', retorna os módulos daquela unidade (Modo Admin View)
+      // Se não houver unitId ou for ALL, o comportamento padrão já retorna userModules (módulos de sistema)
+      if (profile.role === 'super_admin') {
+        if (!unitId || unitId === 'ALL') {
+          return userModules;
+        }
+
+        const unitModuleIds = await fetchUnitModuleIds(unitId);
+        if (unitModuleIds.length === 0) return [];
+
+        const { data: superAdminUnitModules, error } = await supabase
+          .from('modules')
+          .select('*')
+          .in('id', unitModuleIds)
+          .eq('is_active', true);
+
+        if (error) {
+          console.error('[AuthContext] Erro ao buscar módulos da unidade (super_admin view):', error);
+          return userModules;
+        }
+
+        const list = (superAdminUnitModules || []) as Module[];
+        return list.sort((a, b) => {
+          const posA = a.position ?? 0;
+          const posB = b.position ?? 0;
+          if (posA !== posB) return posA - posB;
+          return a.name.localeCompare(b.name);
+        });
+      }
+
       // 1. Busca módulos atribuídos à unidade
       const unitModuleIds = await fetchUnitModuleIds(unitId);
 
