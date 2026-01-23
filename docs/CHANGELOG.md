@@ -2,6 +2,46 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-01-23] - Busca de Profissionais com Conflito e Pesquisa Clerk
+
+### ✨ Novas Funcionalidades
+
+#### 1. Autocomplete de Profissionais com Validação de Conflito
+- **Componente**: Criado `components/ui/ProfessionalAutocomplete.tsx` para busca dinâmica de profissionais.
+- **Lógica de Conflito**: Implementada busca inteligente em `profissionais.service.ts` que valida:
+  - Disponibilidade no dia específico.
+  - Sobreposição de horários (4h, 6h ou 8h).
+  - Unidade correta.
+- **UX**: Retorno imediato apenas de profissionais disponíveis para facilitar o agendamento manual.
+
+#### 2. Pesquisa de Integração Clerk + Supabase
+- **Docs**: Criados guias de integração e gerenciamento customizado para substituição do Auth atual por Clerk.
+- **Customização**: Demonstração de componentes Clerk estilizados com a identidade visual do DromeFlow.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada refletindo as melhorias de busca e novos componentes de UI.
+
+---
+
+## [2026-01-22] - Recuperação de Dados (MB Londrina) e Melhoria no Upload
+
+### ✨ Novas Funcionalidades
+
+#### 1. Priorização de Cadastro no Upload
+- **Banco de Dados**: Modificada a RPC `process_xlsx_upload` para priorizar informações do diretório de clientes (`unit_clients`).
+- **Lógica**: Se um cliente já possui telefone cadastrado no sistema, o upload de planilha **não mais sobrescreve** esse dado, preservando a informação oficial e evitando números desatualizados na visão de atendimentos.
+
+### 🔧 Correções e Recuperação
+
+#### 2. Restauração MB Londrina
+- **Status**: Recuperados **1.071 registros** de status que haviam sido resetados para `PENDENTE` devido a um upload massivo.
+- **Telefones**: Restaurados **4.908 números de telefone** na tabela `processed_data` através do cruzamento com o cadastro mestre de clientes.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as melhorias de backend e integridade de dados.
+
+---
+
 ## [2026-01-20] - Dashboard N8N, Sidebar Otimizada e Visão Super Admin
 
 ### ✨ Novas Funcionalidades

@@ -90,9 +90,13 @@ const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]):
 	return finalRecords;
 };
 
-// Aplica lógica de STATUS "esperar" apenas quando TODOS os atendimentos do dia são à Tarde
-// Se houver mix de turnos (Manhã + Tarde), o STATUS é preservado
-const applyWaitStatusForAfternoonShifts = (records: DataRecord[]): DataRecord[] => {
+// Aplica lógica de STATUS baseada em ordem cronológica (HORARIO)
+// Quando a mesma profissional tem 2+ atendimentos no mesmo dia:
+// - Primeiro atendimento (por HORARIO) → STATUS = "PENDENTE"
+// - Demais atendimentos → STATUS = "ESPERAR"
+const applyWaitStatusByOrder = (records: DataRecord[]): DataRecord[] => {
+	console.log('[applyWaitStatusByOrder] Processing', records.length, 'records');
+
 	// Agrupar registros por (PROFISSIONAL + DATA)
 	const groupedByProfessionalDate = new Map<string, DataRecord[]>();
 
@@ -106,85 +110,139 @@ const applyWaitStatusForAfternoonShifts = (records: DataRecord[]): DataRecord[] 
 		groupedByProfessionalDate.get(key)!.push(record);
 	});
 
+	console.log('[applyWaitStatusByOrder] Grouped into', groupedByProfessionalDate.size, 'professional-date combinations');
+
 	// Aplicar regra: Se profissional tem 2+ atendimentos no dia,
-	// marcar com STATUS "esperar" APENAS se TODOS forem à Tarde
-	groupedByProfessionalDate.forEach((recordsGroup) => {
+	// ordenar por HORARIO e marcar primeiro como PENDENTE, demais como ESPERAR
+	let statusChangedCount = 0;
+	groupedByProfessionalDate.forEach((recordsGroup, key) => {
 		if (recordsGroup.length > 1) {
 			// Profissional tem múltiplos atendimentos no mesmo dia
-			// Verificar se TODOS os MOMENTO contêm "Tarde" (e nenhum contém "Manhã")
-			const hasManha = recordsGroup.some((record) => {
-				const momento = String(record.MOMENTO || '').toLowerCase();
-				return momento.includes('manhã') || momento.includes('manha');
+			// Ordenar por HORARIO (crescente) - normaliza para comparação
+			recordsGroup.sort((a, b) => {
+				const horarioA = String(a.HORARIO || '00:00').trim();
+				const horarioB = String(b.HORARIO || '00:00').trim();
+				return horarioA.localeCompare(horarioB);
 			});
 
-			const allTarde = recordsGroup.every((record) => {
-				const momento = String(record.MOMENTO || '').toLowerCase();
-				return momento.includes('tarde');
-			});
+			console.log(`[applyWaitStatusByOrder] Processing ${recordsGroup.length} appointments for ${key}`);
 
-			// Aplicar STATUS "esperar" apenas se:
-			// - Não houver nenhum atendimento de Manhã
-			// - TODOS os atendimentos forem à Tarde
-			if (!hasManha && allTarde) {
-				recordsGroup.forEach((record) => {
-					record.status = 'esperar';
-				});
-			}
+			// Aplicar STATUS baseado na posição
+			recordsGroup.forEach((record, index) => {
+				if (index === 0) {
+					// Primeiro atendimento do dia
+					(record as any).STATUS = 'PENDENTE';
+					console.log(`  → [${record.HORARIO}] ${record.ATENDIMENTO_ID}: PENDENTE (1º)`);
+				} else {
+					// Demais atendimentos
+					(record as any).STATUS = 'ESPERAR';
+					statusChangedCount++;
+					console.log(`  → [${record.HORARIO}] ${record.ATENDIMENTO_ID}: ESPERAR (${index + 1}º)`);
+				}
+			});
 		}
 	});
 
+	console.log('[applyWaitStatusByOrder] Changed STATUS to "ESPERAR" for', statusChangedCount, 'records');
 	return records;
 };
 
 // Remove registros obsoletos usando 'ATENDIMENTO_ID' base como chave lógica
-// Agora extrai a base do ATENDIMENTO_ID (remove sufixos _1, _2 dos derivados)
+// Extrai a base do ATENDIMENTO_ID (remove sufixos _1, _2 dos derivados)
+// Remove TODOS os registros (original + derivados) quando o ID base não está mais no arquivo
 const removeObsoleteRecords = async (
 	unitCode: string,
 	startDate: string,
 	endDate: string,
 	baseAtendimentosInFile: Set<string>
 ): Promise<number> => {
+	console.log('[removeObsoleteRecords] Checking for obsolete records in range:', startDate, 'to', endDate);
+	console.log('[removeObsoleteRecords] Base IDs in file:', baseAtendimentosInFile.size);
+
 	const { data: existingRecords, error: fetchError } = await supabase
 		.from('processed_data')
 		.select('ATENDIMENTO_ID, IS_DIVISAO')
 		.eq('unidade_code', unitCode)
 		.gte('DATA', startDate)
 		.lte('DATA', endDate);
-	if (fetchError) return 0;
-	if (!existingRecords || existingRecords.length === 0) return 0;
+
+	if (fetchError) {
+		console.error('[removeObsoleteRecords] Error fetching existing records:', fetchError);
+		return 0;
+	}
+	if (!existingRecords || existingRecords.length === 0) {
+		console.log('[removeObsoleteRecords] No existing records found in date range');
+		return 0;
+	}
+
+	console.log('[removeObsoleteRecords] Found', existingRecords.length, 'existing records in database');
 
 	// Extrai o ID base do ATENDIMENTO_ID (remove sufixos _1, _2, _3...)
 	const baseFromAtendimento = (atendId: any): string => {
 		const str = String(atendId || '').trim();
-		const match = str.match(/^(.+)_\d+$/);
+		// Match pattern: anything followed by underscore and digits (e.g., "12345_1" -> "12345")
+		const match = str.match(/^(.+)_(\d+)$/);
 		return match ? match[1] : str;
 	};
 
-	const existingBaseAtendimentos = new Set<string>();
-	const recordsWithBase: { ATENDIMENTO_ID: string; base: string }[] = [];
-	(existingRecords || []).forEach((r: any) => {
-		const base = baseFromAtendimento(r.ATENDIMENTO_ID);
-		recordsWithBase.push({ ATENDIMENTO_ID: r.ATENDIMENTO_ID, base });
-		if (r.IS_DIVISAO !== 'SIM') existingBaseAtendimentos.add(base);
+	// Build map of base IDs to all their ATENDIMENTO_IDs (original + derivados)
+	const baseToAtendimentosMap = new Map<string, string[]>();
+
+	existingRecords.forEach((r: any) => {
+		const atendimentoId = String(r.ATENDIMENTO_ID || '').trim();
+		if (!atendimentoId) return;
+
+		const base = baseFromAtendimento(atendimentoId);
+
+		if (!baseToAtendimentosMap.has(base)) {
+			baseToAtendimentosMap.set(base, []);
+		}
+		baseToAtendimentosMap.get(base)!.push(atendimentoId);
 	});
 
-	const basesToRemove = Array.from(existingBaseAtendimentos).filter((b) => !baseAtendimentosInFile.has(b));
-	if (basesToRemove.length === 0) return 0;
+	console.log('[removeObsoleteRecords] Unique base IDs in database:', baseToAtendimentosMap.size);
 
-	const atendimentosParaRemoverSet = new Set<string>();
-	recordsWithBase.forEach((r) => {
-		if (basesToRemove.includes(r.base)) atendimentosParaRemoverSet.add(r.ATENDIMENTO_ID);
+	// Find base IDs that exist in DB but NOT in the uploaded file
+	const basesToRemove: string[] = [];
+	baseToAtendimentosMap.forEach((atendimentos, base) => {
+		if (!baseAtendimentosInFile.has(base)) {
+			basesToRemove.push(base);
+		}
 	});
-	const atendimentosParaRemover = Array.from(atendimentosParaRemoverSet).filter(Boolean);
-	if (atendimentosParaRemover.length === 0) return 0;
 
+	if (basesToRemove.length === 0) {
+		console.log('[removeObsoleteRecords] No obsolete records to remove');
+		return 0;
+	}
+
+	console.log('[removeObsoleteRecords] Found', basesToRemove.length, 'obsolete base IDs:', basesToRemove.slice(0, 5), '...');
+
+	// Collect ALL ATENDIMENTO_IDs to remove (original + all derivados)
+	const atendimentosToRemove: string[] = [];
+	basesToRemove.forEach((base) => {
+		const ids = baseToAtendimentosMap.get(base) || [];
+		atendimentosToRemove.push(...ids);
+	});
+
+	console.log('[removeObsoleteRecords] Total records to delete (including derivados):', atendimentosToRemove.length);
+
+	if (atendimentosToRemove.length === 0) return 0;
+
+	// Delete all records (original + derivados) in one operation
 	const { error: deleteError, count } = await supabase
 		.from('processed_data')
 		.delete({ count: 'exact' })
 		.eq('unidade_code', unitCode)
-		.in('ATENDIMENTO_ID', atendimentosParaRemover);
-	if (deleteError) return 0;
-	return count || 0;
+		.in('ATENDIMENTO_ID', atendimentosToRemove);
+
+	if (deleteError) {
+		console.error('[removeObsoleteRecords] Error deleting records:', deleteError);
+		return 0;
+	}
+
+	const deletedCount = count || 0;
+	console.log('[removeObsoleteRecords] Successfully deleted', deletedCount, 'records');
+	return deletedCount;
 };
 
 // API pública: Upload de XLSX com sincronização
@@ -196,12 +254,15 @@ export const uploadXlsxData = async (
 		return { total: 0, inserted: 0, updated: 0, ignored: 0, deleted: 0 };
 	}
 
+	console.log('[uploadXlsxData] Starting upload for unit:', unitCode, 'with', records.length, 'raw records');
+
 	// Processar multi-profissionais e aplicar sufixos
 	let processedRecords = processMultipleProfessionalsRecords(records);
+	console.log('[uploadXlsxData] After multi-professional expansion:', processedRecords.length, 'records');
 
-	// Aplicar lógica de STATUS "esperar" para atendimentos da Tarde
-	// quando a mesma profissional tem múltiplos atendimentos no dia
-	processedRecords = applyWaitStatusForAfternoonShifts(processedRecords);
+	// Aplicar lógica de STATUS baseada em ordem cronológica (HORARIO)
+	// Primeiro atendimento do dia → PENDENTE, demais → ESPERAR
+	processedRecords = applyWaitStatusByOrder(processedRecords);
 
 	let deletedCount = 0;
 	let minDate: Date | null = null;
@@ -239,7 +300,8 @@ export const uploadXlsxData = async (
 			const batchForRpc = batch.map((r) => ({
 				...sanitizeRecord(r),
 				profissional: (r as any).PROFISSIONAL ?? '',
-				STATUS: (r as any).status || (r as any).STATUS || 'PENDENTE'
+				// Prioriza STATUS (uppercase) definido pela lógica de esperar
+				STATUS: (r as any).STATUS || 'PENDENTE'
 			}));
 
 			const { data, error } = await supabase.rpc('process_xlsx_upload', {

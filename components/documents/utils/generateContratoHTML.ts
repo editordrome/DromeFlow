@@ -12,11 +12,16 @@ const formatCNPJ = (cnpj: string): string => {
   return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
 };
 
-// Função auxiliar para formatar data
+// Função auxiliar para formatar data (ISO YYYY-MM-DD → DD/MM/YYYY)
 const formatDate = (date: string): string => {
   if (!date) return '';
-  const d = new Date(date);
-  return d.toLocaleDateString('pt-BR');
+
+  // Parsear data localmente sem conversão de timezone
+  const parts = date.split('-');
+  if (parts.length !== 3) return date; // Retorna original se formato inválido
+
+  const [year, month, day] = parts;
+  return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
 };
 
 // Função para formatar data atual por extenso (ex: "18 de Janeiro de 2026")

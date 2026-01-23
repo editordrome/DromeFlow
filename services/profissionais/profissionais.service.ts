@@ -52,6 +52,157 @@ export const fetchProfissionais = async (unitId?: string): Promise<Profissional[
   return (data as Profissional[]) || [];
 };
 
+/**
+ * Converte horário (HH:MM ou HH:MM:SS) para minutos desde meia-noite
+ */
+function timeToMinutes(time: string): number {
+  const parts = time.split(':');
+  const hours = parseInt(parts[0] || '0', 10);
+  const minutes = parseInt(parts[1] || '0', 10);
+  return hours * 60 + minutes;
+}
+
+/**
+ * Verifica se dois períodos de tempo se sobrepõem
+ */
+function checkTimeConflict(
+  time1: string,
+  duration1: number,
+  time2: string,
+  duration2: number
+): boolean {
+  const start1 = timeToMinutes(time1);
+  const end1 = start1 + (duration1 * 60);
+  const start2 = timeToMinutes(time2);
+  const end2 = start2 + (duration2 * 60);
+  return start1 < end2 && start2 < end1;
+}
+
+/**
+ * Obtém o unit_code a partir do unit_id
+ */
+async function getUnitCodeById(unitId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('units')
+    .select('unit_code')
+    .eq('id', unitId)
+    .single();
+  if (error || !data) {
+    console.error('[getUnitCodeById] Erro:', error);
+    return null;
+  }
+  return data.unit_code;
+}
+
+/**
+ * Busca profissionais por nome com filtro de conflito de horário
+ * @param unitId - ID da unidade
+ * @param searchTerm - Termo de busca (mínimo 2 caracteres)
+ * @param currentAppointment - Atendimento atual para verificar conflitos
+ * @param limit - Limite de resultados (padrão: 10)
+ * @returns Lista de profissionais disponíveis (sem conflitos)
+ */
+export const searchProfissionaisByName = async (
+  unitId: string,
+  searchTerm: string,
+  currentAppointment: {
+    data: string | null;
+    horario: string;
+    periodo: string | null;
+    atendimentoId?: string;
+  },
+  limit: number = 10
+): Promise<Profissional[]> => {
+  if (!searchTerm || searchTerm.trim().length < 2) {
+    return [];
+  }
+
+  // 1. Buscar profissionais ativas que correspondem ao termo
+  let query = supabase
+    .from('profissionais')
+    .select('id, nome, status, unit_id')
+    .eq('status', 'Ativa')
+    .ilike('nome', `%${searchTerm.trim()}%`)
+    .order('nome', { ascending: true })
+    .limit(50); // Buscar mais para filtrar depois
+
+  if (unitId && unitId !== 'ALL') {
+    query = query.eq('unit_id', unitId);
+  }
+
+  const { data: profissionais, error } = await query;
+
+  if (error || !profissionais) {
+    console.error('[searchProfissionaisByName] Erro:', error);
+    return [];
+  }
+
+  // 2. Se não há data/horário/período, retornar todas (sem filtro de conflito)
+  if (!currentAppointment.data || !currentAppointment.horario || !currentAppointment.periodo) {
+    return (profissionais as Profissional[]).slice(0, limit);
+  }
+
+  // 3. Buscar atendimentos do mesmo dia na unidade
+  const unitCode = await getUnitCodeById(unitId);
+  if (!unitCode) {
+    return (profissionais as Profissional[]).slice(0, limit);
+  }
+
+  const { data: appointments, error: apptError } = await supabase
+    .from('processed_data')
+    .select('PROFISSIONAL, HORARIO, "PERÍODO", ATENDIMENTO_ID')
+    .eq('unidade_code', unitCode)
+    .eq('DATA', currentAppointment.data)
+    .not('PROFISSIONAL', 'is', null);
+
+  if (apptError || !appointments) {
+    console.error('[searchProfissionaisByName] Erro ao buscar atendimentos:', apptError);
+    return (profissionais as Profissional[]).slice(0, limit);
+  }
+
+  // 4. Filtrar profissionais com conflito
+  const unavailableProfessionals = new Set<string>();
+
+  for (const appt of appointments) {
+    // Ignorar o atendimento atual
+    if (currentAppointment.atendimentoId && appt.ATENDIMENTO_ID === currentAppointment.atendimentoId) {
+      continue;
+    }
+
+    const profName = appt.PROFISSIONAL?.trim();
+    if (!profName) continue;
+
+    const periodo = (appt as any)['PERÍODO']?.trim();
+
+    // Regra 1: Período de 8h = dia inteiro ocupado
+    if (periodo === '8') {
+      unavailableProfessionals.add(profName);
+      continue;
+    }
+
+    // Regra 2: Verificar sobreposição de horários (4h ou 6h)
+    if (periodo === '4' || periodo === '6') {
+      const hasConflict = checkTimeConflict(
+        currentAppointment.horario,
+        parseInt(currentAppointment.periodo || '0'),
+        appt.HORARIO,
+        parseInt(periodo)
+      );
+
+      if (hasConflict) {
+        unavailableProfessionals.add(profName);
+      }
+    }
+  }
+
+  // 5. Filtrar profissionais disponíveis
+  const availableProfessionals = profissionais.filter(
+    prof => !unavailableProfessionals.has(prof.nome?.trim() || '')
+  );
+
+  return (availableProfessionals as Profissional[]).slice(0, limit);
+};
+
 // Histórico de atendimentos por profissional (em processed_data)
 export const fetchProfessionalHistory = async (
   unitCode: string,
