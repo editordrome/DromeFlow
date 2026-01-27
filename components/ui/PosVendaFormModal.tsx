@@ -53,7 +53,7 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
       const atendimento = await getAtendimentoById(atendimentoId);
       if (atendimento) {
         setSelectedAtendimento(atendimento);
-        setSearchTerm(`${atendimento.ORCAMENTO} - ${atendimento.CLIENTE}`);
+        setSearchTerm(`${(atendimento as any).ORCAMENTO} - ${atendimento.CLIENTE}`);
       }
     } catch (error) {
       console.error('Erro ao carregar atendimento:', error);
@@ -62,7 +62,7 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
 
   const handleSearchAtendimentos = async (value: string) => {
     setSearchTerm(value);
-    
+
     if (value.length < 2) {
       setSearchResults([]);
       setShowSearchResults(false);
@@ -70,7 +70,7 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
     }
 
     try {
-      const results = await searchAtendimentos(value, selectedUnit || undefined);
+      const results = await searchAtendimentos(value, typeof selectedUnit === 'string' ? selectedUnit : selectedUnit?.unit_code || undefined);
       setSearchResults(results);
       setShowSearchResults(true);
     } catch (error) {
@@ -80,7 +80,7 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
 
   const handleSelectAtendimento = (atendimento: AtendimentoSearchResult) => {
     setSelectedAtendimento(atendimento);
-    setSearchTerm(`${atendimento.ORCAMENTO} - ${atendimento.CLIENTE}`);
+    setSearchTerm(`${(atendimento as any).ORCAMENTO} - ${atendimento.CLIENTE}`);
     setShowSearchResults(false);
     setFormData(prev => ({
       ...prev,
@@ -100,18 +100,18 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
       } else {
         await createPosVenda(formData);
       }
-      
+
       // Registrar atividade de pós-vendas
       if (profile && selectedUnit) {
         const actionCode = record ? 'update_posvendas' : 'create_posvendas';
         const logMethod = record ? activityLogger.logPosVendasUpdate : activityLogger.logPosVendasCreate;
         logMethod(
-          profile.email || profile.name,
-          selectedUnit,
+          profile.email || (profile as any).full_name || (profile as any).name,
+          typeof selectedUnit === 'string' ? selectedUnit : selectedUnit?.unit_code || 'ALL',
           'success'
         );
       }
-      
+
       onClose();
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -126,15 +126,15 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header compacto com status */}
         <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-bold text-text-primary">
               {record ? 'Editar Pós-Venda' : 'Novo Pós-Venda'}
             </h2>
-            
+
             <div className="flex items-center gap-3">
               {/* Status ao lado do botão fechar */}
               <label className="flex flex-col gap-1.5 min-w-[140px]">
@@ -150,9 +150,9 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
                   <option value="finalizado">Finalizado</option>
                 </select>
               </label>
-              
-              <button 
-                onClick={onClose} 
+
+              <button
+                onClick={onClose}
                 type="button"
                 className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
                 aria-label="Fechar"
@@ -302,81 +302,80 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
                   Avaliação (1-5)
                 </span>
                 <div className="flex items-center gap-1 p-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => {
-                      if (formData.nota === star) {
-                        handleChange('nota', null);
-                      } else {
-                        handleChange('nota', star);
-                      }
-                    }}
-                    onMouseEnter={(e) => {
-                      const stars = e.currentTarget.parentElement?.querySelectorAll('button');
-                      stars?.forEach((btn, idx) => {
-                        const icon = btn.querySelector('svg');
-                        if (idx < star && icon) {
-                          icon.classList.add('text-yellow-400', 'fill-yellow-400');
-                          icon.classList.remove('text-gray-300');
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => {
+                        if (formData.nota === star) {
+                          handleChange('nota', null);
+                        } else {
+                          handleChange('nota', star);
                         }
-                      });
-                    }}
-                    onMouseLeave={(e) => {
-                      const stars = e.currentTarget.parentElement?.querySelectorAll('button');
-                      stars?.forEach((btn, idx) => {
-                        const icon = btn.querySelector('svg');
-                        if (icon) {
-                          if (formData.nota && idx < formData.nota) {
+                      }}
+                      onMouseEnter={(e) => {
+                        const stars = e.currentTarget.parentElement?.querySelectorAll('button');
+                        stars?.forEach((btn, idx) => {
+                          const icon = btn.querySelector('svg');
+                          if (idx < star && icon) {
                             icon.classList.add('text-yellow-400', 'fill-yellow-400');
                             icon.classList.remove('text-gray-300');
-                          } else {
-                            icon.classList.add('text-gray-300');
-                            icon.classList.remove('text-yellow-400', 'fill-yellow-400');
                           }
-                        }
-                      });
-                    }}
-                    className="transition-transform hover:scale-110 focus:outline-none"
-                    title={
-                      star === 1 ? 'Muito insatisfeito' :
-                      star === 2 ? 'Insatisfeito' :
-                      star === 3 ? 'Neutro' :
-                      star === 4 ? 'Satisfeito' :
-                      'Muito satisfeito'
-                    }
-                  >
-                    <Icon
-                      name="Star"
-                      className={`w-8 h-8 transition-colors ${
-                        formData.nota && star <= formData.nota
+                        });
+                      }}
+                      onMouseLeave={(e) => {
+                        const stars = e.currentTarget.parentElement?.querySelectorAll('button');
+                        stars?.forEach((btn, idx) => {
+                          const icon = btn.querySelector('svg');
+                          if (icon) {
+                            if (formData.nota && idx < formData.nota) {
+                              icon.classList.add('text-yellow-400', 'fill-yellow-400');
+                              icon.classList.remove('text-gray-300');
+                            } else {
+                              icon.classList.add('text-gray-300');
+                              icon.classList.remove('text-yellow-400', 'fill-yellow-400');
+                            }
+                          }
+                        });
+                      }}
+                      className="transition-transform hover:scale-110 focus:outline-none"
+                      title={
+                        star === 1 ? 'Muito insatisfeito' :
+                          star === 2 ? 'Insatisfeito' :
+                            star === 3 ? 'Neutro' :
+                              star === 4 ? 'Satisfeito' :
+                                'Muito satisfeito'
+                      }
+                    >
+                      <Icon
+                        name="Star"
+                        className={`w-8 h-8 transition-colors ${formData.nota && star <= formData.nota
                           ? 'text-yellow-400 fill-yellow-400'
                           : 'text-gray-300'
-                      }`}
-                    />
-                  </button>
-                ))}
+                          }`}
+                      />
+                    </button>
+                  ))}
+                  {formData.nota && (
+                    <button
+                      type="button"
+                      onClick={() => handleChange('nota', null)}
+                      className="ml-2 px-2 py-1 text-xs text-text-secondary hover:text-text-primary transition-colors"
+                      title="Remover avaliação"
+                    >
+                      <Icon name="X" className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
                 {formData.nota && (
-                  <button
-                    type="button"
-                    onClick={() => handleChange('nota', null)}
-                    className="ml-2 px-2 py-1 text-xs text-text-secondary hover:text-text-primary transition-colors"
-                    title="Remover avaliação"
-                  >
-                    <Icon name="X" className="w-4 h-4" />
-                  </button>
+                  <p className="text-xs text-text-secondary mt-1">
+                    {formData.nota === 1 && 'Muito insatisfeito'}
+                    {formData.nota === 2 && 'Insatisfeito'}
+                    {formData.nota === 3 && 'Neutro'}
+                    {formData.nota === 4 && 'Satisfeito'}
+                    {formData.nota === 5 && 'Muito satisfeito'}
+                  </p>
                 )}
-              </div>
-              {formData.nota && (
-                <p className="text-xs text-text-secondary mt-1">
-                  {formData.nota === 1 && 'Muito insatisfeito'}
-                  {formData.nota === 2 && 'Insatisfeito'}
-                  {formData.nota === 3 && 'Neutro'}
-                  {formData.nota === 4 && 'Satisfeito'}
-                  {formData.nota === 5 && 'Muito satisfeito'}
-                </p>
-              )}
               </div>
 
               {/* Reagendou */}

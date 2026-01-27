@@ -9,6 +9,7 @@ import { generateContratoHTML } from '../documents/utils/generateContratoHTML';
 import { generateDistratoHTML } from '../documents/utils/generateDistratoHTML';
 import { generateTermoHTML } from '../documents/utils/generateTermoHTML';
 import { generateNotificacaoHTML } from '../documents/utils/generateNotificacaoHTML';
+import { getDocumentTemplate } from '../documents/utils/templateHelpers';
 
 interface Props {
   isOpen: boolean;
@@ -76,6 +77,10 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const [documentName, setDocumentName] = useState<string>('Ficha');
+  const [previewHtml, setPreviewHtml] = useState<string>('');
+  // Document Editor Modal
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [editorTemplateName, setEditorTemplateName] = useState<'aditamento' | 'contrato' | 'termo'>('aditamento');
   // Auto-save de Status
   const [autoSavingStatus, setAutoSavingStatus] = useState(false);
   const [autoSaveStatusMsg, setAutoSaveStatusMsg] = useState<string | null>(null);
@@ -293,12 +298,10 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   const generateTemplateDocument = (templateHtml: string, filename: string) => {
     // Define o nome do documento para o download
     setDocumentName(filename);
-    // Abre o modal de pré-visualização e injeta o HTML
+    // Armazena o HTML completo no estado para o preview e para as funções de impressão/PDF
+    setPreviewHtml(templateHtml);
+    // Abre o modal de pré-visualização
     setPreviewOpen(true);
-    setTimeout(() => {
-      const el = previewRef.current;
-      if (el) el.innerHTML = templateHtml;
-    }, 0);
   };
 
   const generatePdf = () => {
@@ -961,17 +964,13 @@ const RecrutadoraCardModal: React.FC<Props> = ({
 
                 {/* Aditamento Contratual */}
                 <button
-                  onClick={() => {
-                    // Type guard para selectedUnit
+                  onClick={async () => {
                     if (!selectedUnit || selectedUnit.id === 'ALL') {
                       alert('Por favor, selecione uma unidade específica.');
                       return;
                     }
 
-                    // Type assertion após guard
                     const unit = selectedUnit as import('../../types').Unit;
-
-                    // Preparar dados do documento
                     const documentData = {
                       profissional: {
                         nome: nome || '',
@@ -994,6 +993,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         sitAtual: sitAtual || '',
                         motivoCadastro: motivoCadastro || '',
                         transporte: transporte || '',
+                        assinatura: assinatura || '',
                       },
                       unidade: {
                         razaoSocial: unit.razao_social || '',
@@ -1004,7 +1004,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         email: unit.email || '',
                         unitName: unit.unit_name || '',
                         unitCode: unit.unit_code || '',
-                        uniform_value: (unit as any).uniform_value,
+                        uniformValue: (unit as any).uniform_value,
                       },
                       contrato: {
                         dataAssinatura: new Date().toLocaleDateString('pt-BR'),
@@ -1012,9 +1012,14 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                       },
                     };
 
-                    // Gerar HTML do template
-                    const templateHtml = generateAditamentoHTML(documentData);
-                    generateTemplateDocument(templateHtml, `Aditamento_${nome || 'sem_nome'}.pdf`);
+                    try {
+                      const html = await getDocumentTemplate(unit.id, 'aditamento', documentData);
+                      generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
+                    } catch (error) {
+                      console.error('[Aditamento] Error loading template:', error);
+                      const html = generateAditamentoHTML(documentData);
+                      generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
+                    }
                   }}
                   className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                 >
@@ -1027,7 +1032,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
 
                 {/* Contrato de Agenciamento */}
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
                       alert('Por favor, selecione uma unidade específica para gerar o documento.');
                       return;
@@ -1047,14 +1052,20 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         cnpj: (selectedUnit as Unit).cnpj,
                         endereco: (selectedUnit as Unit).endereco,
                         unitName: (selectedUnit as Unit).unit_name,
-                        uniform_value: (selectedUnit as Unit).uniform_value,
+                        uniformValue: (selectedUnit as Unit).uniform_value,
                       },
                       contrato: {
                         percentualProfissional: 55,
                       },
                     };
-                    const html = generateContratoHTML(documentData);
-                    generateTemplateDocument(html, 'Contrato_Agenciamento');
+                    try {
+                      const html = await getDocumentTemplate((selectedUnit as Unit).id, 'contrato', documentData);
+                      generateTemplateDocument(html, 'Contrato_Agenciamento');
+                    } catch (error) {
+                      console.error('[Contrato] Error loading template:', error);
+                      const html = generateContratoHTML(documentData);
+                      generateTemplateDocument(html, 'Contrato_Agenciamento');
+                    }
                   }}
                   className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                 >
@@ -1067,7 +1078,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
 
                 {/* Termo de Confidencialidade */}
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
                       alert('Por favor, selecione uma unidade específica para gerar o documento.');
                       return;
@@ -1089,8 +1100,14 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         unitName: (selectedUnit as Unit).unit_name,
                       },
                     };
-                    const html = generateTermoHTML(documentData);
-                    generateTemplateDocument(html, 'Termo_Confidencialidade');
+                    try {
+                      const html = await getDocumentTemplate((selectedUnit as Unit).id, 'termo', documentData);
+                      generateTemplateDocument(html, 'Termo_Confidencialidade');
+                    } catch (error) {
+                      console.error('[Termo] Error loading template:', error);
+                      const html = generateTermoHTML(documentData);
+                      generateTemplateDocument(html, 'Termo_Confidencialidade');
+                    }
                   }}
                   className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                 >
@@ -1099,6 +1116,90 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                   </div>
                   <div className="text-sm font-medium text-text-primary text-center">Termo</div>
                   <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
+                </button>
+
+                {/* Notificação Extrajudicial */}
+                <button
+                  onClick={async () => {
+                    if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                      alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                      return;
+                    }
+                    const documentData = {
+                      profissional: {
+                        nome,
+                        cpf,
+                        rg,
+                        dataNascimento,
+                        estadoCivil,
+                        endereco,
+                        whatsapp,
+                      },
+                      unidade: {
+                        razaoSocial: (selectedUnit as Unit).razao_social,
+                        cnpj: (selectedUnit as Unit).cnpj,
+                        endereco: (selectedUnit as Unit).endereco,
+                        unitName: (selectedUnit as Unit).unit_name,
+                      },
+                    };
+                    try {
+                      const html = await getDocumentTemplate((selectedUnit as Unit).id, 'notificacao', documentData);
+                      generateTemplateDocument(html, 'Notificacao_Rescisao');
+                    } catch (error) {
+                      console.error('[Notificação] Error loading template:', error);
+                      const html = generateNotificacaoHTML(documentData);
+                      generateTemplateDocument(html, 'Notificacao_Rescisao');
+                    }
+                  }}
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                    <Icon name="FileText" className="w-6 h-6 text-orange-500" />
+                  </div>
+                  <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
+                  <div className="text-xs text-text-secondary text-center">Rescisão</div>
+                </button>
+
+                {/* Distrato */}
+                <button
+                  onClick={async () => {
+                    if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                      alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                      return;
+                    }
+                    const documentData = {
+                      profissional: {
+                        nome,
+                        cpf,
+                        rg,
+                        dataNascimento,
+                        estadoCivil,
+                        endereco,
+                        whatsapp,
+                      },
+                      unidade: {
+                        razaoSocial: (selectedUnit as Unit).razao_social,
+                        cnpj: (selectedUnit as Unit).cnpj,
+                        endereco: (selectedUnit as Unit).endereco,
+                        unitName: (selectedUnit as Unit).unit_name,
+                      },
+                    };
+                    try {
+                      const html = await getDocumentTemplate((selectedUnit as Unit).id, 'distrato', documentData);
+                      generateTemplateDocument(html, 'Distrato_Parceria');
+                    } catch (error) {
+                      console.error('[Distrato] Error loading template:', error);
+                      const html = generateDistratoHTML(documentData);
+                      generateTemplateDocument(html, 'Distrato_Parceria');
+                    }
+                  }}
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                    <Icon name="FileText" className="w-6 h-6 text-red-500" />
+                  </div>
+                  <div className="text-sm font-medium text-text-primary text-center">Distrato</div>
+                  <div className="text-xs text-text-secondary text-center">Parceria</div>
                 </button>
               </div>
             </div>
@@ -1154,15 +1255,45 @@ const RecrutadoraCardModal: React.FC<Props> = ({
             <div className="flex items-center justify-between px-3 py-2 border-b">
               <div className="font-semibold text-sm">Pré-visualização (A4)</div>
               <div className="flex items-center gap-2">
-                <button onClick={printPreview} className="p-2 rounded border hover:bg-gray-50" title="Imprimir"><Icon name="Printer" /></button>
-                <button onClick={downloadPreviewPdf} className="px-3 py-1.5 rounded border hover:bg-gray-50 text-sm" title="Baixar PDF">Baixar PDF</button>
-                <button onClick={() => setPreviewOpen(false)} className="p-2 rounded border hover:bg-gray-50" title="Fechar"><Icon name="close" /></button>
+                <button
+                  onClick={printPreview}
+                  className="p-2 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+                  title="Imprimir"
+                >
+                  <Icon name="Printer" className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={downloadPreviewPdf}
+                  className="px-3 py-1.5 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary text-sm font-medium transition-colors"
+                  title="Baixar PDF"
+                >
+                  Baixar PDF
+                </button>
+                <button
+                  onClick={() => setPreviewOpen(false)}
+                  className="p-2 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+                  title="Fechar"
+                >
+                  <Icon name="close" className="w-4 h-4" />
+                </button>
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-auto bg-gray-100">
               <div className="mx-auto my-4 bg-white shadow-sm" style={{ width: '210mm', minHeight: '297mm' }}>
                 {/* Conteúdo HTML injetado (A4) */}
-                <div ref={previewRef} />
+                <div
+                  ref={previewRef}
+                  dangerouslySetInnerHTML={{
+                    __html: (previewHtml && previewHtml.includes('<!doctype html>'))
+                      ? (() => {
+                        const bodyMatch = previewHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+                        const styleMatch = previewHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+                        const styles = styleMatch ? styleMatch.join('\n') : '';
+                        return styles + (bodyMatch ? bodyMatch[1] : previewHtml);
+                      })()
+                      : previewHtml
+                  }}
+                />
               </div>
             </div>
           </div>

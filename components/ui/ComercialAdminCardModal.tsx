@@ -192,8 +192,8 @@ const ComercialAdminCardModal: React.FC<Props> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-            <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+            <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="bg-gradient-to-r from-accent-primary/10 to-brand-cyan/5 border-b border-border-secondary px-5 py-4 shrink-0">
                     <div className="flex items-center justify-between">

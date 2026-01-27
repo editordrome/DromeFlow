@@ -2,6 +2,29 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-01-27] - Otimização do Sistema de Documentos e Correção de RLS
+
+### ✨ Novas Funcionalidades / Melhorias
+
+#### 1. Sincronização do Módulo Profissional
+- **Padronização**: Os modais `ProfissionalDetailModal` e `ProfissionalFormModal` foram sincronizados com o módulo Recrutadora.
+- **Preview Robusto**: Implementado renderizador de preview baseado em estado (`previewHtml`), garantindo que templates HTML/CSS complexos sejam exibidos corretamente.
+- **Dados Enriquecidos**: Normalização dos dados enviados para o motor de templates (camelCase -> snake_case) e inclusão de campos de contato da unidade e responsável.
+
+#### 2. Otimização de Performance (DocumentTemplatesService)
+- **Queries Únicas**: Refatorada a busca de templates para utilizar uma única query SQL com fallback inteligente (Prioridade Unidade > Global), reduzindo latência e carga no banco.
+
+### 🔧 Correções Técnicas
+
+#### 3. Fix RLS: Document Templates (Auth Customizado)
+- **Problema**: Políticas de RLS baseadas em `auth.uid()` estavam bloqueando o acesso pois o sistema utiliza autenticação customizada via tabelas.
+- **Solução**: Desabilitado RLS na tabela `document_templates` para restaurar o fluxo de carregamento de templates globais e customizados.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo todas as melhorias do sistema de documentos e correções de segurança.
+
+---
+
 ## [2026-01-27] - Relatórios de Clientes e Fix RLS Comercial Admin
 
 ### ✨ Novas Funcionalidades

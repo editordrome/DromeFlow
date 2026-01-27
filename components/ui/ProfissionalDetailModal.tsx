@@ -13,6 +13,7 @@ import { generateContratoHTML } from '../documents/utils/generateContratoHTML';
 import { generateDistratoHTML } from '../documents/utils/generateDistratoHTML';
 import { generateTermoHTML } from '../documents/utils/generateTermoHTML';
 import { generateNotificacaoHTML } from '../documents/utils/generateNotificacaoHTML';
+import { getDocumentTemplate } from '../documents/utils/templateHelpers';
 import { supabase } from '../../services/supabaseClient';
 import type { Unit } from '../../types';
 
@@ -78,6 +79,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
   const [autoSaveObsMsg, setAutoSaveObsMsg] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [documentName, setDocumentName] = useState('Documento');
+  const [previewHtml, setPreviewHtml] = useState<string>('');
   const previewRef = useRef<HTMLDivElement>(null);
 
   // Detecta mudanças
@@ -301,10 +303,8 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
   // Funções para geração de documentos (idênticas ao RecrutadoraCardModal)
   const generateTemplateDocument = (templateHtml: string, filename: string) => {
     setDocumentName(filename);
+    setPreviewHtml(templateHtml);
     setPreviewOpen(true);
-    setTimeout(() => {
-      if (previewRef.current) previewRef.current.innerHTML = templateHtml;
-    }, 0);
   };
 
   const printPreview = () => {
@@ -1009,69 +1009,42 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
               )
             )}
             {activeTab === 'documentos' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4 p-3 bg-bg-tertiary rounded-lg border border-border-secondary">
+              <div className="space-y-3">
+                {/* Linha com informação e campo de assinatura - Padronizado com Recrutadora */}
+                <div className="flex items-center justify-between gap-4">
                   <div className="text-sm text-text-secondary">
-                    Data de assinatura do contrato agenciamento:
+                    Selecione um documento para visualizar ou baixar em PDF
                   </div>
                   <div className="flex items-center gap-2">
+                    <label className="text-sm text-text-secondary whitespace-nowrap">Data Assinatura:</label>
                     <input
                       type="date"
                       value={editAssinatura}
                       onChange={(e) => setEditAssinatura(e.target.value)}
                       disabled={!isEditing}
-                      className="px-3 py-1.5 rounded bg-bg-secondary text-text-primary border border-border-secondary focus:outline-none text-sm disabled:opacity-50"
+                      className="px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none text-sm disabled:opacity-50"
                     />
                   </div>
                 </div>
 
+                {/* Grid de documentos - Flex Scroll */}
                 <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
 
-                  {/* Contrato de Agenciamento */}
+                  {/* Ficha - PDF existente */}
                   <button
-                    onClick={() => {
-                      if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
-                        alert('Por favor, selecione uma unidade específica.');
-                        return;
-                      }
-                      const unit = selectedUnit as Unit;
-                      const documentData = {
-                        profissional: {
-                          nome: editNome || profissional?.nome || '',
-                          cpf: editCpf || profissional?.cpf || '',
-                          rg: editRg || profissional?.rg || '',
-                          dataNascimento: editDataNasc || profissional?.data_nasc || '',
-                          estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
-                          endereco: editEndereco || profissional?.endereco || '',
-                          whatsapp: editWhatsapp || profissional?.whatsapp || '',
-                        },
-                        unidade: {
-                          razaoSocial: unit.razao_social || '',
-                          cnpj: unit.cnpj || '',
-                          endereco: unit.endereco || (unit as any).address || '',
-                          unitName: unit.unit_name || '',
-                          uniform_value: (unit as any).uniform_value,
-                        },
-                        contrato: {
-                          percentualProfissional: 55,
-                          dataAssinatura: editAssinatura ? new Date(editAssinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
-                        },
-                      };
-                      const html = generateContratoHTML(documentData);
-                      generateTemplateDocument(html, 'Contrato_Agenciamento');
-                    }}
+                    onClick={generatePdf}
                     className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                   >
-                    <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
-                      <Icon name="FileText" className="w-6 h-6 text-green-500" />
+                    <div className="w-12 h-12 rounded-lg bg-accent-primary/10 flex items-center justify-center group-hover:bg-accent-primary/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-accent-primary" />
                     </div>
-                    <div className="text-sm font-medium text-text-primary text-center">Contrato</div>
-                    <div className="text-xs text-text-secondary text-center">Agenciamento</div>
+                    <div className="text-sm font-medium text-text-primary text-center">Ficha</div>
+                    <div className="text-xs text-text-secondary text-center">Cadastro completo</div>
                   </button>
 
                   {/* Aditamento Contratual */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       // UPDATED: 2026-01-19 09:05 - Fixed assinatura field
                       console.log('[Aditamento] CÓDIGO ATUALIZADO - Timestamp: 2026-01-19 09:05');
 
@@ -1117,8 +1090,14 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                       console.log('[Aditamento] documentData:', documentData);
                       console.log('[Aditamento] documentData.profissional.assinatura:', documentData.profissional.assinatura);
 
-                      const html = generateAditamentoHTML(documentData);
-                      generateTemplateDocument(html, `Aditamento_${(editNome || profissional?.nome || 'sem_nome').replace(/\s+/g, '_')}`);
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'aditamento', documentData);
+                        generateTemplateDocument(html, `Aditamento_${(editNome || profissional?.nome || 'sem_nome').replace(/\s+/g, '_')}`);
+                      } catch (error) {
+                        console.error('[Aditamento] Error loading template:', error);
+                        const html = generateAditamentoHTML(documentData);
+                        generateTemplateDocument(html, `Aditamento_${(editNome || profissional?.nome || 'sem_nome').replace(/\s+/g, '_')}`);
+                      }
                     }}
                     className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                   >
@@ -1129,9 +1108,9 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                     <div className="text-xs text-text-secondary text-center">Contrato</div>
                   </button>
 
-                  {/* Termo de Confidencialidade */}
+                  {/* Contrato de Agenciamento */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
                         alert('Por favor, selecione uma unidade específica.');
                         return;
@@ -1146,16 +1125,81 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                           estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
                           endereco: editEndereco || profissional?.endereco || '',
                           whatsapp: editWhatsapp || profissional?.whatsapp || '',
+                          assinatura: editAssinatura || profissional?.assinatura || '',
                         },
                         unidade: {
                           razaoSocial: unit.razao_social || '',
                           cnpj: unit.cnpj || '',
                           endereco: unit.endereco || (unit as any).address || '',
                           unitName: unit.unit_name || '',
+                          unitCode: unit.unit_code || '',
+                          responsavel: unit.responsavel || '',
+                          contato: unit.contato || '',
+                          email: unit.email || '',
+                          uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                        },
+                        contrato: {
+                          percentualProfissional: 55,
+                          dataAssinatura: editAssinatura ? new Date(editAssinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
                         },
                       };
-                      const html = generateTermoHTML(documentData);
-                      generateTemplateDocument(html, 'Termo_Confidencialidade');
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'contrato', documentData);
+                        generateTemplateDocument(html, 'Contrato_Agenciamento');
+                      } catch (error) {
+                        console.error('[Contrato] Error loading template:', error);
+                        const html = generateContratoHTML(documentData);
+                        generateTemplateDocument(html, 'Contrato_Agenciamento');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-green-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Contrato</div>
+                    <div className="text-xs text-text-secondary text-center">Agenciamento</div>
+                  </button>
+
+                  {/* Termo de Confidencialidade */}
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica.');
+                        return;
+                      }
+                      const unit = selectedUnit as Unit;
+                      const documentData = {
+                        profissional: {
+                          nome: editNome || profissional?.nome || '',
+                          cpf: editCpf || profissional?.cpf || '',
+                          rg: editRg || profissional?.rg || '',
+                          dataNascimento: editDataNasc || profissional?.data_nasc || '',
+                          estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
+                          endereco: editEndereco || profissional?.endereco || '',
+                          whatsapp: editWhatsapp || profissional?.whatsapp || '',
+                          assinatura: editAssinatura || profissional?.assinatura || '',
+                        },
+                        unidade: {
+                          razaoSocial: unit.razao_social || '',
+                          cnpj: unit.cnpj || '',
+                          endereco: unit.endereco || (unit as any).address || '',
+                          unitName: unit.unit_name || '',
+                          unitCode: unit.unit_code || '',
+                          responsavel: unit.responsavel || '',
+                          contato: unit.contato || '',
+                          email: unit.email || '',
+                          uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                        },
+                      };
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'termo', documentData);
+                        generateTemplateDocument(html, 'Termo_Confidencialidade');
+                      } catch (error) {
+                        console.error('[Termo] Error loading template:', error);
+                        const html = generateTermoHTML(documentData);
+                        generateTemplateDocument(html, 'Termo_Confidencialidade');
+                      }
                     }}
                     className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                   >
@@ -1166,9 +1210,9 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                     <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
                   </button>
 
-                  {/* Notificação de Recisão */}
+                  {/* Notificação de Rescisão */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
                         alert('Por favor, selecione uma unidade específica.');
                         return;
@@ -1183,16 +1227,28 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                           estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
                           endereco: editEndereco || profissional?.endereco || '',
                           whatsapp: editWhatsapp || profissional?.whatsapp || '',
+                          assinatura: editAssinatura || profissional?.assinatura || '',
                         },
                         unidade: {
                           razaoSocial: unit.razao_social || '',
                           cnpj: unit.cnpj || '',
                           endereco: unit.endereco || (unit as any).address || '',
                           unitName: unit.unit_name || '',
+                          unitCode: unit.unit_code || '',
+                          responsavel: unit.responsavel || '',
+                          contato: unit.contato || '',
+                          email: unit.email || '',
+                          uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
                         },
                       };
-                      const html = generateNotificacaoHTML(documentData);
-                      generateTemplateDocument(html, 'Notificacao_Rescisao');
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'notificacao', documentData);
+                        generateTemplateDocument(html, 'Notificacao_Rescisao');
+                      } catch (error) {
+                        console.error('[Notificação] Error loading template:', error);
+                        const html = generateNotificacaoHTML(documentData);
+                        generateTemplateDocument(html, 'Notificacao_Rescisao');
+                      }
                     }}
                     className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                   >
@@ -1200,12 +1256,12 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                       <Icon name="FileText" className="w-6 h-6 text-orange-500" />
                     </div>
                     <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
-                    <div className="text-xs text-text-secondary text-center">Recisão</div>
+                    <div className="text-xs text-text-secondary text-center">Rescisão</div>
                   </button>
 
                   {/* Distrato */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
                         alert('Por favor, selecione uma unidade específica.');
                         return;
@@ -1231,8 +1287,14 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                           dataAssinatura: editAssinatura ? new Date(editAssinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
                         }
                       };
-                      const html = generateDistratoHTML(documentData);
-                      generateTemplateDocument(html, 'Distrato_Parceria');
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'distrato', documentData);
+                        generateTemplateDocument(html, 'Distrato_Parceria');
+                      } catch (error) {
+                        console.error('[Distrato] Error loading template:', error);
+                        const html = generateDistratoHTML(documentData);
+                        generateTemplateDocument(html, 'Distrato_Parceria');
+                      }
                     }}
                     className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
                   >
@@ -1282,34 +1344,48 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
             previewOpen && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4" onClick={() => setPreviewOpen(false)}>
                 <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-border-secondary bg-bg-tertiary">
-                    <h3 className="text-lg font-bold text-text-primary">Pré-visualização</h3>
+                  <div className="flex items-center justify-between px-3 py-2 border-b">
+                    <div className="font-semibold text-sm">Pré-visualização (A4)</div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={printPreview}
-                        className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-all flex items-center gap-2 text-sm font-medium"
+                        className="p-2 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+                        title="Imprimir"
                       >
                         <Icon name="Printer" className="w-4 h-4" />
-                        Imprimir
                       </button>
                       <button
                         onClick={downloadPreviewPdf}
-                        className="px-4 py-2 bg-brand-cyan text-white rounded-lg hover:bg-brand-cyan/90 transition-all flex items-center gap-2 text-sm font-medium"
+                        className="px-3 py-1.5 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary text-sm font-medium transition-colors"
+                        title="Baixar PDF"
                       >
-                        <Icon name="Download" className="w-4 h-4" />
                         Baixar PDF
                       </button>
                       <button
                         onClick={() => setPreviewOpen(false)}
-                        className="p-2 rounded-lg hover:bg-bg-secondary text-text-secondary transition-colors"
+                        className="p-2 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+                        title="Fechar"
                       >
-                        <Icon name="X" className="w-5 h-5" />
+                        <Icon name="close" className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                   <div className="flex-1 min-h-0 overflow-auto bg-gray-100 p-8">
                     <div className="mx-auto bg-white shadow-2xl" style={{ width: '210mm', minHeight: '297mm' }}>
-                      <div ref={previewRef} className="p-0" />
+                      <div
+                        ref={previewRef}
+                        className="p-0"
+                        dangerouslySetInnerHTML={{
+                          __html: (previewHtml && previewHtml.includes('<!doctype html>'))
+                            ? (() => {
+                              const bodyMatch = previewHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+                              const styleMatch = previewHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+                              const styles = styleMatch ? styleMatch.join('\n') : '';
+                              return styles + (bodyMatch ? bodyMatch[1] : previewHtml);
+                            })()
+                            : previewHtml
+                        }}
+                      />
                     </div>
                   </div>
                 </div>

@@ -6,6 +6,7 @@ import { getUnitServices, createUnitService, deleteUnitService, updateUnitServic
 import { Unit, UnitService } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import ManageUsersPage from './ManageUsersPage';
+import { DocumentsSettingsPage } from './DocumentsSettingsPage';
 
 const SERVICE_OPTIONS = [
     '2 horas', '3 horas', '4 horas', '5 horas', '6 horas',
@@ -16,7 +17,7 @@ const SERVICE_OPTIONS = [
 const ConfiguracoesPage: React.FC = () => {
     const { selectedUnit } = useAppContext();
     const { profile } = useAuth();
-    const [activeTab, setActiveTab] = useState<'company' | 'services' | 'users'>('company');
+    const [activeTab, setActiveTab] = useState<'company' | 'services' | 'users' | 'documents'>('company');
 
     // Form Data da Empresa
     const [formData, setFormData] = useState({
@@ -257,6 +258,18 @@ const ConfiguracoesPage: React.FC = () => {
                         )}
                     </button>
                 )}
+                <button
+                    className={`px-4 py-2 font-medium text-sm transition-colors relative ${activeTab === 'documents'
+                        ? 'text-accent-primary'
+                        : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                    onClick={() => setActiveTab('documents')}
+                >
+                    Documentos
+                    {activeTab === 'documents' && (
+                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-accent-primary"></div>
+                    )}
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -497,6 +510,8 @@ const ConfiguracoesPage: React.FC = () => {
                     )
                 ) : activeTab === 'users' ? (
                     <ManageUsersPage />
+                ) : activeTab === 'documents' ? (
+                    <DocumentsSettingsPage />
                 ) : null}
             </div>
         </div>

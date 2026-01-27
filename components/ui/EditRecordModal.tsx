@@ -58,7 +58,7 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm() || !record) return;
 
     setIsLoading(true);
@@ -76,7 +76,7 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
     } catch (err) {
       console.error('Erro ao salvar:', err);
       setError(err instanceof Error ? err.message : 'Erro ao salvar registro');
-      
+
       // Registrar erro ao salvar
       if (profile && selectedUnit && formData.ATENDIMENTO_ID) {
         const actionCode = record ? 'update_atend' : 'create_atend';
@@ -118,15 +118,15 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
   if (!isOpen || !record) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header compacto com status */}
         <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-bold text-text-primary">
               Editar Atendimento
             </h2>
-            
+
             <div className="flex items-center gap-3">
               {/* Status ao lado do botão fechar */}
               <label className="flex flex-col gap-1.5 min-w-[160px]">
@@ -144,9 +144,9 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
                   <option value="Esperar">Esperar</option>
                 </select>
               </label>
-              
-              <button 
-                onClick={onClose} 
+
+              <button
+                onClick={onClose}
                 className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
                 aria-label="Fechar"
               >
@@ -187,8 +187,8 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
                 <span className="text-xs font-medium text-text-secondary">Orçamento</span>
                 <input
                   type="text"
-                  value={formData.orcamento || ''}
-                  onChange={(e) => handleInputChange('orcamento', e.target.value)}
+                  value={(formData as any).orcamento || ''}
+                  onChange={(e) => handleInputChange('orcamento' as any, e.target.value)}
                   className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all font-mono"
                   placeholder="Número do orçamento"
                 />
