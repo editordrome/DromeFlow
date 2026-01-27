@@ -152,6 +152,18 @@ const RecrutadoraCardModal: React.FC<Props> = ({
     }
   }, [isOpen, initialCard, defaultStatus]);
 
+  // Auto-save debounced para observação
+  useEffect(() => {
+    if (!initialCard || !onUpdate || !isOpen) return;
+    if (observacao === prevObservacaoRef.current) return;
+
+    const timeoutId = setTimeout(() => {
+      handleAutoSaveObservacao();
+    }, 1200);
+
+    return () => clearTimeout(timeoutId);
+  }, [observacao, initialCard, onUpdate, isOpen]);
+
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
@@ -225,6 +237,8 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       await onUpdate(initialCard.id, { observacao });
       prevObservacaoRef.current = observacao;
       setAutoSaveObsMsg('Observação salva');
+      // Notifica o pai para atualizar o Kanban (que mostra a primeira linha da obs)
+      onSaved();
       setTimeout(() => setAutoSaveObsMsg(null), 2000);
     } catch (e) {
       // feedback discreto sem bloquear o usuário
@@ -894,21 +908,22 @@ const RecrutadoraCardModal: React.FC<Props> = ({
           )}
 
           {activeTab === 'observacao' && (
-            <div className="space-y-2.5">
-              <div>
-                <label className="block text-sm mb-1 text-text-secondary">Observação</label>
-                <textarea
-                  value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
-                  onBlur={handleAutoSaveObservacao}
-                  rows={4}
-                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"
-                  placeholder="Adicione observações relevantes..."
-                />
-                <div className="mt-1 h-5 text-xs text-text-secondary">
-                  {autoSavingObs ? 'Salvando…' : (autoSaveObsMsg || '')}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-text-secondary">Observações Gerais</label>
+                <div className="flex items-center gap-1.5 text-[10px] text-accent-primary/60 font-medium uppercase tracking-wider">
+                  <div className={`w-1.5 h-1.5 rounded-full ${autoSavingObs ? 'bg-accent-primary animate-pulse' : 'bg-green-500'}`}></div>
+                  {autoSavingObs ? 'Salvando...' : (autoSaveObsMsg || 'Salvo automaticamente')}
                 </div>
               </div>
+              <textarea
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                onBlur={handleAutoSaveObservacao}
+                rows={8}
+                className="w-full px-4 py-3 rounded-lg bg-bg-tertiary text-text-primary border border-border-secondary focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/10 transition-all outline-none resize-none text-sm leading-relaxed"
+                placeholder="Digite aqui as observações sobre esta candidata... O salvamento é automático."
+              />
             </div>
           )}
 

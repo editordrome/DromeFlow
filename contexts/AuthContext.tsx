@@ -126,6 +126,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: u.id,
           unit_name: u.unit_name,
           unit_code: u.unit_code,
+          slug: u.slug || '', // Inclui slug vindo do banco
           is_active: u.is_active,
           created_at: u.created_at
         }));

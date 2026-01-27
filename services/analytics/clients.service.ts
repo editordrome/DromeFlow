@@ -63,19 +63,19 @@ export const fetchClients = async ({
   const [currentRes, prevRes, prev2Res] = await Promise.all([
     supabase
       .from('processed_data')
-      .select('CLIENTE, TIPO, DATA, ACAO')
+      .select('CLIENTE, TIPO, DATA, ACAO, whatscliente')
       .eq('unidade_code', unitCode)
       .gte('DATA', startDate)
       .lte('DATA', endDate),
     supabase
       .from('processed_data')
-      .select('CLIENTE, TIPO, DATA, ACAO')
+      .select('CLIENTE, TIPO, DATA, ACAO, whatscliente')
       .eq('unidade_code', unitCode)
       .gte('DATA', prevStart)
       .lte('DATA', prevEnd),
     supabase
       .from('processed_data')
-      .select('CLIENTE, TIPO, DATA, ACAO')
+      .select('CLIENTE, TIPO, DATA, ACAO, whatscliente')
       .eq('unidade_code', unitCode)
       .gte('DATA', prev2Start)
       .lte('DATA', prev2End),
@@ -88,6 +88,7 @@ export const fetchClients = async ({
     TIPO?: string | null;
     DATA: string;
     ACAO?: string | null;
+    whatscliente?: string | null;
   }
 
   const currentRows = ((currentRes.data as Row[]) || []).filter(
@@ -133,7 +134,7 @@ export const fetchClients = async ({
       id: raw,
       nome: raw.trim() || raw,
       tipo: r.TIPO || null,
-      contato: contactInfo?.contato || null,
+      contato: contactInfo?.contato || r.whatscliente || null,
       is_verified: contactInfo?.is_verified || false,
       lastAttendance: r.DATA,
       categoria,
@@ -182,7 +183,7 @@ export const fetchClients = async ({
         id: c,
         nome: c.trim() || c,
         tipo: row?.TIPO || null,
-        contato: contactInfo?.contato || null,
+        contato: contactInfo?.contato || row?.whatscliente || null,
         is_verified: contactInfo?.is_verified || false,
         lastAttendance: row?.DATA || null,
         acao: row?.ACAO || null,
@@ -344,7 +345,7 @@ export const fetchAllUnitClientsWithHistory = async ({
     })(),
     supabase
       .from('processed_data')
-      .select('CLIENTE, DATA')
+      .select('CLIENTE, DATA, whatscliente')
       .eq('unidade_code', unitCode)
       .order('DATA', { ascending: false }),
   ]);
@@ -370,22 +371,29 @@ export const fetchAllUnitClientsWithHistory = async ({
   };
 
   const lastAttendanceMap = new Map<string, string>();
+  const fallbackContactMap = new Map<string, string>();
   ((historyRes.data as any[]) || []).forEach((row) => {
     const key = normalize(row.CLIENTE);
     if (!key) return;
     if (!lastAttendanceMap.has(key)) {
       lastAttendanceMap.set(key, row.DATA ?? null);
     }
+    if (!fallbackContactMap.has(key) && row.whatscliente) {
+      fallbackContactMap.set(key, row.whatscliente);
+    }
   });
 
-  const list = ((baseRes.data as any[]) || []).map((row) => ({
-    id: row.id,
-    nome: row.nome,
-    tipo: row.tipo ?? null,
-    contato: row.contato ?? null,
-    is_verified: row.is_verified ?? false,
-    lastAttendance: lastAttendanceMap.get(normalize(row.nome)) ?? null,
-  }));
+  const list = ((baseRes.data as any[]) || []).map((row) => {
+    const normalized = normalize(row.nome);
+    return {
+      id: row.id,
+      nome: row.nome,
+      tipo: row.tipo ?? null,
+      contato: row.contato || fallbackContactMap.get(normalized) || null,
+      is_verified: row.is_verified ?? false,
+      lastAttendance: lastAttendanceMap.get(normalized) ?? null,
+    };
+  });
 
   return list;
 };

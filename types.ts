@@ -20,6 +20,7 @@ export interface Unit {
   id: string;
   unit_name: string;
   unit_code: string;
+  slug: string; // Slug único para subdomínio (kebab-case)
 
   address?: string | null;
   is_active: boolean;
@@ -133,6 +134,7 @@ export type PageView =
   | 'dashboard_admin'
   | 'manage_plans'
   | 'financial'
+  | 'typebot'
   | 'configuracoes';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';

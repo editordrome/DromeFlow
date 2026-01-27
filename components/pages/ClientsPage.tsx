@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { fetchClients, fetchClientMetricsFromProcessed, fetchAllUnitClientsWithHistory, fetchLastAttendance, updateClientAction, fetchAvailableYears } from '../../services/analytics/clients.service';
 import { Icon } from '../ui/Icon';
 import ClientDetailModal from '../ui/ClientDetailModal';
+import { ExportButton } from '../ui/ExportButton';
+import { ExportOptions } from '../../services/utils/export.service';
 
 interface ClientRow {
   id: string;
@@ -121,6 +123,69 @@ const ClientsPage: React.FC = () => {
     }
     return base;
   }, [resolvedList, segmentFilter, activeFilter, statusFilter, computeStatus]);
+
+  const exportOptions = useMemo((): ExportOptions => {
+    const isAtencao = activeFilter === 'atencao';
+    const columns = [
+      { header: 'Nome', dataKey: 'nome' },
+      { header: 'Tipo', dataKey: 'tipo' },
+      { header: 'Contato', dataKey: 'contato' },
+    ];
+
+    if (isAtencao) {
+      // Adicionar meses dinâmicos
+      const sample = resolvedListWithSegment[0];
+      if (sample?.monthlyCounts) {
+        const keys = Object.keys(sample.monthlyCounts).sort().reverse();
+        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        keys.forEach(k => {
+          const [y, m] = k.split('-');
+          const idx = Math.max(1, Math.min(12, parseInt(m, 10))) - 1;
+          const header = `${months[idx]}/${y}`;
+          columns.push({ header, dataKey: `month_${k}` });
+        });
+      }
+      columns.push({ header: 'Ação', dataKey: 'acao' });
+    } else {
+      columns.push({ header: 'Último Atendimento', dataKey: 'lastAttendanceStr' });
+      if (activeFilter === 'total') {
+        columns.push({ header: 'Status', dataKey: 'calculatedStatus' });
+      }
+    }
+
+    const exportData = resolvedListWithSegment.map(c => {
+      const row: any = {
+        nome: c.nome,
+        tipo: c.tipo || '-',
+        contato: c.contato || '-'
+      };
+
+      if (isAtencao) {
+        if (c.monthlyCounts) {
+          Object.keys(c.monthlyCounts).forEach(k => {
+            row[`month_${k}`] = c.monthlyCounts![k];
+          });
+        }
+        row.acao = c.acao || 'Nenhuma';
+      } else {
+        const overrideKey = normalizeName(c.nome);
+        const chosen = c.lastAttendance ?? fallbackLastAttendance[overrideKey] ?? null;
+        row.lastAttendanceStr = chosen ? new Date(chosen + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
+        if (activeFilter === 'total') {
+          row.calculatedStatus = computeStatus(c);
+        }
+      }
+      return row;
+    });
+
+    const filename = `Relatorio_Clientes_${selectedUnit?.unit_name || 'Unidade'}_${activeFilter === 'atencao' ? 'Atencao' : activeFilter || 'Total'}_${period}`;
+
+    return {
+      filename,
+      columns,
+      data: exportData
+    };
+  }, [resolvedListWithSegment, activeFilter, period, selectedUnit, fallbackLastAttendance, computeStatus]);
 
   useEffect(() => {
     const load = async () => {
@@ -275,6 +340,10 @@ const ClientsPage: React.FC = () => {
             />
           </div>
           <PeriodDropdown value={period} onChange={setPeriod} availableYears={availableYears} />
+          {/* Botão de Exportação */}
+          {resolvedListWithSegment.length > 0 && (
+            <ExportButton options={exportOptions} />
+          )}
         </div>
       </div>
 

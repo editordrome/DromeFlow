@@ -18,6 +18,7 @@ Aplicação de gestão e análise construída em React (Vite + TypeScript) com S
 - ✅ **Sidebar Super Admin**: Novo modo de visualização (Sistema vs Unidades) com seletor de unidade.
 - ✅ **Toggle Sidebar Invisível**: Botão de recolher transparente na área da logo.
 - ✅ **Gestão de Usuários Unificada**: Movida para Settings → aba Usuários.
+- ✅ **Download de Relatórios (Clientes)**: Exportação dinâmica em PDF, Excel e CSV baseada em filtros e métricas.
 - ✅ **Correção de Erro 406**: Estabilização do salvamento de versões da aplicação.
 
 **Nota**: Sistema 100% Supabase - toda persistência de dados, storage e autenticação ocorrem no Supabase. Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).

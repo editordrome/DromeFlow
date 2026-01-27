@@ -2,6 +2,29 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-01-27] - Relatórios de Clientes e Fix RLS Comercial Admin
+
+### ✨ Novas Funcionalidades
+
+#### 1. Download de Relatórios no Módulo Clientes
+- **Funcionalidade**: Adicionado suporte para exportação de dados nos formatos PDF, XLSX, XLS e CSV UTF-8.
+- **Dinamicidade**: As colunas do relatório se adaptam automaticamente à métrica ativa (Atenção, Mês, Recorrentes ou Total). No modo "Atenção", inclui histórico dos últimos 3 meses e ações sugeridas.
+- **Service**: Criado `services/utils/export.service.ts` utilizando `jspdf-autotable` e `xlsx`.
+
+### 🔧 Correções Técnicas
+
+#### 2. Fix RLS: Criação de Leads no Comercial Admin
+- **Problema**: Usuários Super Admin não conseguiam criar leads devido a uma política de segurança restrita ao papel `anon`.
+- **Solução**: Atualizada a política RLS da tabela `comercial_admin` para permitir acesso total a usuários autenticados com o perfil de `super_admin`.
+
+#### 3. Correção de React Hooks (ClientsPage)
+- **Fix**: Resolvida a violação das regras do React onde um `useMemo` estava dentro de um bloco condicional, prevenindo crashes de renderização.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as novas funcionalidades de exportação e correções de segurança.
+
+---
+
 ## [2026-01-23] - Busca de Profissionais com Conflito e Pesquisa Clerk
 
 ### ✨ Novas Funcionalidades

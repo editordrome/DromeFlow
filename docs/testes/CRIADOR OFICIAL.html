@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurador Typebot + API Upload</title>
+    <style>
+        :root {
+            --primary: #0046c0;
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --text: #1f2937;
+            --border: #e5e7eb;
+            --success: #059669;
+            --api-color: #7c3aed;
+            /* Roxo para API */
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            background-color: var(--card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 900px;
+            border: 1px solid var(--border);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            color: var(--primary);
+            margin: 0 0 0.5rem 0;
+        }
+
+        .upload-section {
+            border: 2px dashed var(--border);
+            padding: 2rem;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upload-section:hover {
+            border-color: var(--primary);
+            background: #f9fafb;
+        }
+
+        .mode-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .mode-multi {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .mode-single {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .units-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .unit-card {
+            background: #f9fafb;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .unit-card h3 {
+            margin-top: 0;
+            color: var(--primary);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.8rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+            margin-top: 1rem;
+            color: #4b5563;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.7rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+
+        .actions-container {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn-action {
+            color: white;
+            border: none;
+            padding: 1rem;
+            width: 100%;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-download {
+            background-color: var(--success);
+        }
+
+        .btn-api {
+            background-color: var(--api-color);
+        }
+
+        .btn-action:hover {
+            opacity: 0.9;
+        }
+
+        .btn-action:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #apiStatus {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .status-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Configurador + Importador Typebot</h1>
+            <p>Gere o arquivo JSON ou envie diretamente para sua conta Typebot via API.</p>
+        </div>
+
+        <div class="upload-section" onclick="document.getElementById('jsonFile').click()">
+            <span style="font-size: 1.5rem;">📂</span><br>
+            <span id="uploadText">Clique para carregar o arquivo JSON (Base 2, 3 ou Single)</span>
+            <input type="file" id="jsonFile" accept=".json" style="display: none;" onchange="loadJson()">
+        </div>
+
+        <div id="statusArea" class="hidden" style="text-align: center; margin-bottom: 20px;">
+            <span id="modeBadge" class="mode-badge"></span>
+        </div>
+
+        <div id="formsContainer" class="units-grid"></div>
+
+        <div id="actionsArea" class="actions-container hidden">
+            <button id="btnDownload" class="btn-action btn-download" onclick="processAction('download')">
+                <span>💾</span> Baixar Arquivo
+            </button>
+            <button id="btnApi" class="btn-action btn-api" onclick="processAction('api')">
+                <span>🚀</span> Criar no Typebot (API)
+            </button>
+        </div>
+
+        <div id="apiStatus" class="hidden"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // ÁREA DE CONFIGURAÇÃO DA API
+        // ==========================================
+        const API_CONFIG = {
+            // Coloque a URL do seu Typebot (se usar a nuvem oficial, deixe como está)
+            baseUrl: "https://type.seucadastrodigital.com.br",
+
+            // Coloque seu Token de API aqui (Settings > API Tokens)
+            token: "p2YTRkTsun5gSVicuIa1BLLq",
+
+            // Coloque o ID do seu Workspace aqui (Settings > Workspace > ID)
+            workspaceId: "cmkomijmn0000pi1bds3bzfhs"
+        };
+        // ==========================================
+
+        const VAR_IDS = {
+            'unidade': 'jmopscci3oquo7m8430ne4wm',
+            'unit_id': 'vruw1oe91zewv56vljsf9mag5',
+            'color_card': 'vagoecflae99h2zujhewnxdpy',
+            'valor_4h': 'vfvvnkzyhkn0sbafj69s4efjr',
+            'valor_6h': 'vf6gchx73bboqxowpgfvmq1f2',
+            'valor_8h': 'vmrngnaxxz3xre4mf322vfiyq'
+        };
+        const MENU_BLOCK_ID = 'jligv1oxrjpag2e8bvu7rzgr';
+
+        let originalJson = null;
+        let appMode = '';
+        let detectedUnits = [];
+
+        function loadJson() {
+            const fileInput = document.getElementById('jsonFile');
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                try {
+                    originalJson = JSON.parse(e.target.result);
+                    document.getElementById('uploadText').innerText = fileInput.files[0].name;
+                    analyzeStructure();
+                    renderForms();
+                    document.getElementById('actionsArea').classList.remove('hidden');
+                    document.getElementById('statusArea').classList.remove('hidden');
+                    document.getElementById('apiStatus').classList.add('hidden');
+                } catch (err) {
+                    alert('Erro ao ler JSON. Verifique o arquivo.');
+                    console.error(err);
+                }
+            };
+            if (fileInput.files.length > 0) reader.readAsText(fileInput.files[0]);
+        }
+
+        function analyzeStructure() {
+            detectedUnits = [];
+            let menuBlock = null;
+
+            if (originalJson.groups) {
+                originalJson.groups.forEach(group => {
+                    if (group.blocks) {
+                        const found = group.blocks.find(b => b.id === MENU_BLOCK_ID);
+                        if (found) menuBlock = found;
+                    }
+                });
+            }
+
+            const badge = document.getElementById('modeBadge');
+            if (menuBlock && menuBlock.items && menuBlock.items.length > 0) {
+                appMode = 'multi';
+                badge.innerText = "Modo: Multi-Unidades";
+                badge.className = "mode-badge mode-multi";
+
+                menuBlock.items.forEach((item, index) => {
+                    const edgeId = item.outgoingEdgeId;
+                    const edge = originalJson.edges.find(e => e.id === edgeId);
+                    if (edge && edge.to && edge.to.groupId) {
+                        detectedUnits.push({
+                            index: index + 1,
+                            itemId: item.id,
+                            groupId: edge.to.groupId,
+                            currentLabel: item.content,
+                            defaults: extractValues(edge.to.groupId)
+                        });
+                    }
+                });
+            } else {
+                appMode = 'single';
+                badge.innerText = "Modo: Unidade Única";
+                badge.className = "mode-badge mode-single";
+                detectedUnits.push({
+                    index: 1,
+                    currentLabel: "Configuração Geral",
+                    defaults: extractValuesGlobal()
+                });
+            }
+        }
+
+        function extractValues(groupId) {
+            const group = originalJson.groups.find(g => g.id === groupId);
+            const values = {};
+            if (group && group.blocks) {
+                group.blocks.forEach(block => {
+                    if (block.type === 'Set variable' && block.options) {
+                        for (const [key, id] of Object.entries(VAR_IDS)) {
+                            if (block.options.variableId === id) values[key] = block.options.expressionToEvaluate;
+                        }
+                    }
+                });
+            }
+            return values;
+        }
+
+        function extractValuesGlobal() {
+            const values = {};
+            if (originalJson.groups) {
+                originalJson.groups.forEach(group => {
+                    if (group.blocks) {
+                        group.blocks.forEach(block => {
+                            if (block.type === 'Set variable' && block.options) {
+                                for (const [key, id] of Object.entries(VAR_IDS)) {
+                                    if (block.options.variableId === id && !values[key]) {
+                                        values[key] = block.options.expressionToEvaluate;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+            return values;
+        }
+
+        function renderForms() {
+            const container = document.getElementById('formsContainer');
+            container.innerHTML = '';
+
+            detectedUnits.forEach((unit, idx) => {
+                const d = unit.defaults || {};
+                const title = appMode === 'multi' ? `Botão ${unit.index}: ${unit.currentLabel}` : `Dados da Unidade`;
+
+                container.innerHTML += `
+                <div class="unit-card">
+                    <h3>${title}</h3>
+                    <label>Nome da Unidade</label>
+                    <input type="text" id="name_${idx}" value="${d.unidade || ''}" placeholder="Ex: MB LONDRINA">
+                    <label>Unit ID</label>
+                    <input type="text" id="uid_${idx}" value="${d.unit_id || ''}" placeholder="UUID">
+                    <label>Cor do Card</label>
+                    <input type="text" id="color_${idx}" value="${d.color_card || ''}">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                        <div><label>Valor 4h</label><input type="text" id="v4_${idx}" value="${d.valor_4h || ''}"></div>
+                        <div><label>Valor 6h</label><input type="text" id="v6_${idx}" value="${d.valor_6h || ''}"></div>
+                        <div><label>Valor 8h</label><input type="text" id="v8_${idx}" value="${d.valor_8h || ''}"></div>
+                    </div>
+                </div>
+            `;
+            });
+        }
+
+        async function processAction(actionType) {
+            // 1. Atualizar o objeto JSON original com os novos dados
+            const jsonToSend = JSON.parse(JSON.stringify(originalJson)); // Clone profundo
+
+            detectedUnits.forEach((unit, idx) => {
+                const newData = {
+                    'unidade': document.getElementById(`name_${idx}`).value,
+                    'unit_id': document.getElementById(`uid_${idx}`).value,
+                    'color_card': document.getElementById(`color_${idx}`).value,
+                    'valor_4h': document.getElementById(`v4_${idx}`).value,
+                    'valor_6h': document.getElementById(`v6_${idx}`).value,
+                    'valor_8h': document.getElementById(`v8_${idx}`).value
+                };
+
+                if (appMode === 'multi') {
+                    // Atualizar Botão do Menu
+                    jsonToSend.groups.forEach(g => {
+                        if (g.blocks) {
+                            const menu = g.blocks.find(b => b.id === MENU_BLOCK_ID);
+                            if (menu) {
+                                const item = menu.items.find(i => i.id === unit.itemId);
+                                if (item && newData.unidade) item.content = newData.unidade.toUpperCase();
+                            }
+                        }
+                    });
+                    // Atualizar Grupo Específico
+                    updateJsonVariables(jsonToSend, newData, unit.groupId);
+                } else {
+                    // Atualizar Global
+                    updateJsonVariables(jsonToSend, newData, null);
+                }
+            });
+
+            // Nome do fluxo
+            const suffix = appMode === 'multi' ? 'MULTI' : 'UNICO';
+            jsonToSend.name = `RECRUTADORA - ${suffix} (Via API)`;
+
+            // Remover ID para forçar criação de novo fluxo na importação
+            delete jsonToSend.id;
+
+            if (actionType === 'download') {
+                downloadFile(jsonToSend);
+            } else if (actionType === 'api') {
+                await uploadToApi(jsonToSend);
+            }
+        }
+
+        function updateJsonVariables(jsonObj, newData, targetGroupId) {
+            if (jsonObj.groups) {
+                jsonObj.groups.forEach(group => {
+                    // Se targetGroupId for null, atualiza todos. Se não, apenas o grupo alvo.
+                    if (targetGroupId && group.id !== targetGroupId) return;
+
+                    if (group.blocks) {
+                        group.blocks.forEach(block => {
+                            if (block.type === 'Set variable' && block.options) {
+                                for (const [key, varId] of Object.entries(VAR_IDS)) {
+                                    if (block.options.variableId === varId && newData[key]) {
+                                        block.options.expressionToEvaluate = newData[key];
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        function downloadFile(jsonObj) {
+            const blob = new Blob([JSON.stringify(jsonObj, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `typebot-${appMode}-editado.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        async function uploadToApi(jsonObj) {
+            const btn = document.getElementById('btnApi');
+            const statusDiv = document.getElementById('apiStatus');
+
+            // Validação básica
+            if (API_CONFIG.token === "SEU_TOKEN_AQUI" || API_CONFIG.workspaceId === "SEU_WORKSPACE_ID_AQUI") {
+                alert("Por favor, configure o Token e Workspace ID no código (linhas 130-140) antes de enviar.");
+                return;
+            }
+
+            // Estado de Loading
+            btn.disabled = true;
+            btn.innerHTML = `<div class="spinner"></div> Enviando...`;
+            statusDiv.classList.add('hidden');
+            statusDiv.className = '';
+
+            try {
+                const url = `${API_CONFIG.baseUrl}/api/v1/typebots/import?workspaceId=${API_CONFIG.workspaceId}`;
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_CONFIG.token}`
+                    },
+                    body: JSON.stringify(jsonObj)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusDiv.innerHTML = `✅ Sucesso! Typebot criado: <strong>${result.typebot.name}</strong>`;
+                    statusDiv.classList.add('status-success');
+                    // Opcional: abrir o link do typebot criado
+                    console.log("Typebot Created:", result);
+                } else {
+                    throw new Error(result.message || "Erro desconhecido na API");
+                }
+
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerHTML = `❌ Erro ao enviar: ${error.message}`;
+                statusDiv.classList.add('status-error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<span>🚀</span> Criar no Typebot (API)`;
+                statusDiv.classList.remove('hidden');
+            }
+        }
+    </script>
+
+</body>
+
+</html>
