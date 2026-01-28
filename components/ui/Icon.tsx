@@ -53,15 +53,20 @@ interface IconProps {
 }
 
 export const Icon: React.FC<IconProps> = ({ name, className }) => {
-  // Tenta componente pronto do lucide-react (PascalCase)
-  const LucideComp = (Lucide as any)[name] as any;
+  // Tenta componente pronto do lucide-react
+  // Tenta o nome exato primeiro, depois tenta capitalizar a primeira letra
+  let LucideComp = (Lucide as any)[name] as any;
+
+  if (!LucideComp && typeof name === 'string' && name.length > 0) {
+    const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
+    LucideComp = (Lucide as any)[capitalized] as any;
+  }
+
   if (LucideComp) {
-    // Garante que className sempre tenha precedência sobre o padrão
-    // Adiciona flex-shrink-0 para garantir que o ícone não seja redimensionado
     const finalClassName = className ? `flex-shrink-0 ${className}` : 'flex-shrink-0 w-5 h-5';
-    return React.createElement(LucideComp, { 
+    return React.createElement(LucideComp, {
       className: finalClassName,
-      strokeWidth: 2 // Padroniza a espessura do traço
+      strokeWidth: 2
     });
   }
 

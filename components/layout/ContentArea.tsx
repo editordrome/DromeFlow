@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
+
 import { fetchWebhookContent } from '../../services/content/content.service';
 
 // Lazy loading das páginas
@@ -26,6 +28,9 @@ const FinancialPage = lazy(() => import('../pages/FinancialPage'));
 const ConfiguracoesPage = lazy(() => import('../pages/ConfiguracoesPage'));
 const ManageVersionsPage = lazy(() => import('../pages/ManageVersionsPage'));
 const TypebotPage = lazy(() => import('../pages/TypebotPage'));
+const SistemaPage = lazy(() => import('../pages/SistemaPage'));
+const SistemaAdminPage = lazy(() => import('../pages/SistemaAdminPage'));
+
 
 // Loading component
 const PageLoader = () => (
@@ -130,6 +135,14 @@ const ContentArea: React.FC = () => {
     if (activeView === 'typebot') {
         return <Suspense fallback={<PageLoader />}><TypebotPage /></Suspense>;
     }
+    if (activeView === 'sistema') {
+        return (
+            <Suspense fallback={<PageLoader />}>
+                <SistemaPage />
+            </Suspense>
+        );
+    }
+
     // @ts-ignore - TypeScript não consegue inferir todos os valores possíveis de activeView
     if (activeView === 'manage_versions') {
         return <Suspense fallback={<PageLoader />}><ManageVersionsPage /></Suspense>;

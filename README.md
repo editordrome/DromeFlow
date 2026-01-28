@@ -4,7 +4,7 @@
 
 ## DromeFlow
 
-Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend (PostgreSQL + Realtime + Auth) e Tailwind para estilização. Inclui:
+Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend (PostgreSQL + Realtime + Custom Auth via tabelas) e Tailwind para estilização. Inclui:
 
 **Stack Tecnológica:**
 - **Frontend**: React 18 + TypeScript + Vite
@@ -21,7 +21,7 @@ Aplicação de gestão e análise construída em React (Vite + TypeScript) com S
 - ✅ **Download de Relatórios (Clientes)**: Exportação dinâmica em PDF, Excel e CSV baseada em filtros e métricas.
 - ✅ **Correção de Erro 406**: Estabilização do salvamento de versões da aplicação.
 
-**Nota**: Sistema 100% Supabase - toda persistência de dados, storage e autenticação ocorrem no Supabase. Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).
+**Nota**: Sistema 100% Supabase - toda persistência de dados e storage ocorrem no Supabase. A autenticação é customizada via tabelas PostgreSQL (em vez do supabase.auth). Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).
 
 ## Configuração por Unidade (Keys)
 

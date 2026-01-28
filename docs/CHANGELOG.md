@@ -2,6 +2,25 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-01-27] - Expansão do Módulo Sistema (Manuais e Layouts)
+
+### ✨ Novas Funcionalidades
+
+#### 1. Múltiplos Manuais por Módulo
+- **Sub-funções**: Agora é possível cadastrar múltiplos manuais dentro de um único módulo (ex: "Visualizar", "Editar", "Relatórios").
+- **Navegação**: O menu lateral do módulo Sistema exibe automaticamente a lista de funções quando houver mais de uma.
+- **Ordenação**: Controle total sobre a ordem de exibição dos tópicos.
+
+#### 2. Customização Visual de Documentação
+- **Posicionamento de Imagem**: Nova opção para definir a posição da imagem ilustrativa (Topo, Fundo, Esquerda, Direita).
+- **Tamanhos Flexíveis**: Controle de tamanho da imagem (Pequeno, Médio, Grande, Full) para melhor adaptação ao conteúdo.
+- **Layout Responsivo**: A interface se adapta automaticamente (colunas vs linhas) baseado na configuração escolhida pelo admin.
+
+### 🚀 Build
+- **dist**: Build de produção atualizado incluindo todas as alterações de frontend e migrações de banco de dados.
+
+---
+
 ## [2026-01-27] - Otimização do Sistema de Documentos e Correção de RLS
 
 ### ✨ Novas Funcionalidades / Melhorias

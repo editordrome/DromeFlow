@@ -135,6 +135,7 @@ export type PageView =
   | 'manage_plans'
   | 'financial'
   | 'typebot'
+  | 'sistema'
   | 'configuracoes';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
@@ -552,3 +553,20 @@ export interface N8NErrorLog {
   url_workflow: string | null;
   erro_message: string | null;
 }
+
+export interface SystemManual {
+  id: string;
+  module_id: string;
+  title: string;
+  content: string | null;
+  image_url: string | null;
+  image_position: 'top' | 'bottom' | 'left' | 'right';
+  image_size: 'small' | 'medium' | 'large' | 'full';
+  position: number;
+  created_at: string;
+  updated_at: string;
+  // Join fields
+  module_name?: string;
+  module_code?: string;
+}
+

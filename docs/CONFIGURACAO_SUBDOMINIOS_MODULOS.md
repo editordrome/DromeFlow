@@ -75,7 +75,7 @@ Este guia detalha como configurar o sistema DromeFlow para funcionar com:
 │                  Supabase (Backend)                         │
 │  - Tabela units: unit_code, unit_name, slug                │
 │  - Tabela modules: code, name, view_id                     │
-│  - RLS + Auth                                               │
+│  - RLS + Custom Auth (via profiles table)                                               │
 └─────────────────────────────────────────────────────────────┘
 ```
 

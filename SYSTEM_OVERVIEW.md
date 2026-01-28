@@ -41,9 +41,9 @@ Quando um arquivo XLSX é enviado, o sistema identifica atendimentos existentes 
 
 1.  **Login**: O usuário insere e-mail e senha na `LoginPage`.
 2.  **Verificação**: A função `login` do `AuthContext` realiza uma consulta direta na tabela `profiles` do Supabase para encontrar um usuário com o e-mail e a senha fornecidos. **Este é um fluxo de autenticação personalizado e não utiliza o `supabase.auth`** (migração futura planejada para `auth.users` + triggers e hash de senha).
-3.  **Sessão**: Se as credenciais forem válidas, o `AuthContext` armazena os dados do perfil do usuário no estado do React e em `sessionStorage` para persistir a sessão no navegador.
+3.  **Sessão**: Se as credenciais forem válidas, o `AuthContext` armazena os dados do perfil do usuário no estado do React e em `localStorage` para persistir a sessão no navegador.
 4.  **Gerenciamento**: O `App.tsx` verifica a existência do usuário no `AuthContext` para decidir se renderiza a `DashboardPage` ou a `LoginPage`.
-5.  **Persistência**: A sessão é mantida através do `sessionStorage` do navegador, permitindo que o usuário permaneça logado ao recarregar a página.
+5.  **Persistência**: A sessão é mantida através do `localStorage` do navegador, permitindo que o usuário permaneça logado ao recarregar a página.
 
 ## 3. Papéis de Usuário e Controle de Acesso
 
