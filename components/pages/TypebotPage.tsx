@@ -25,12 +25,52 @@ import { Icon } from '../ui/Icon';
 // CONFIGURAÇÃO DOS IDs DE VARIÁVEIS NO TYPEBOT
 // ==========================================
 const VAR_IDS = {
+    // Variáveis de Unidade
     'unidade': 'jmopscci3oquo7m8430ne4wm',
     'unit_id': 'vruw1oe91zewv56vljsf9mag5',
     'color_card': 'vagoecflae99h2zujhewnxdpy',
+
+    // Variáveis de Valores de Serviço
     'valor_4h': 'vfvvnkzyhkn0sbafj69s4efjr',
     'valor_6h': 'vf6gchx73bboqxowpgfvmq1f2',
-    'valor_8h': 'vmrngnaxxz3xre4mf322vfiyq'
+    'valor_8h': 'vmrngnaxxz3xre4mf322vfiyq',
+
+    // Variáveis de Dados Pessoais
+    'nome': 'vnome_completo_id_001',
+    'data_nasc': 'vdata_nascimento_id_002',
+    'whatsapp': 'vwhatsapp_id_003',
+    'rg': 'vrg_id_004',
+    'cpf': 'vcpf_id_005',
+    'endereco': 'vendereco_id_006',
+    'estado_civil': 'vestado_civil_id_007',
+
+    // Variáveis de Disponibilidade
+    'dias_livres': 'vdias_livres_id_008',
+    'dias_semana': 'vdias_semana_id_009',
+
+    // Variáveis de Preferências
+    'fumante': 'vfumante_id_010',
+    'rest_pet': 'vrest_pet_id_011',
+    'rest_pet_qual': 'vrest_pet_qual_id_012',
+
+    // Variáveis de Experiência
+    'exp_residencial': 'vexp_residencial_id_013',
+    'ref_residencial': 'vref_residencial_id_014',
+    'exp_comercial': 'vexp_comercial_id_015',
+    'ref_comercial': 'vref_comercial_id_016',
+
+    // Variáveis de Situação Atual
+    'sit_atual': 'vsit_atual_id_017',
+    'motivo_cadastro': 'vmotivo_cadastro_id_018',
+
+    // Variáveis de Família
+    'filhos': 'vfilhos_id_019',
+    'qto_filhos': 'vqto_filhos_id_020',
+    'rotina_filhos': 'vrotina_filhos_id_021',
+
+    // Variáveis de Transporte e Status
+    'transporte': 'vtransporte_id_022',
+    'status': 'vstatus_id_023'
 };
 
 const MENU_BLOCK_ID = 'jligv1oxrjpag2e8bvu7rzgr';
@@ -575,25 +615,25 @@ const TypebotPage: React.FC = () => {
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-w-7xl mx-auto">
                         {TYPEBOT_TEMPLATES.map((tmpl) => (
                             <button
                                 key={tmpl.id}
                                 onClick={() => handleTemplateSelect(tmpl.data)}
-                                className="group relative bg-bg-secondary p-8 rounded-2xl border border-border-primary shadow-sm hover:shadow-md hover:border-accent-primary transition-all duration-300 text-left flex flex-col h-full"
+                                className="group relative bg-bg-secondary p-6 rounded-xl border border-border-primary shadow-sm hover:shadow-md hover:border-accent-primary transition-all duration-300 text-left flex flex-col h-full"
                             >
-                                <div className="relative space-y-4 flex-1">
-                                    <div className="w-12 h-12 bg-bg-tertiary rounded-xl flex items-center justify-center text-accent-primary group-hover:bg-accent-primary group-hover:text-white transition-all duration-300 shadow-inner">
-                                        {tmpl.id === 'unico' ? <Activity className="w-6 h-6" /> : tmpl.id === 'multi-2-unidades' ? <Grid className="w-6 h-6" /> : <Layout className="w-6 h-6" />}
+                                <div className="relative space-y-3 flex-1">
+                                    <div className="w-10 h-10 bg-bg-tertiary rounded-lg flex items-center justify-center text-accent-primary group-hover:bg-accent-primary group-hover:text-white transition-all duration-300 shadow-inner">
+                                        {tmpl.id === 'unico' ? <Activity className="w-5 h-5" /> : tmpl.id === 'multi-2-unidades' ? <Grid className="w-5 h-5" /> : <Layout className="w-5 h-5" />}
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-bold text-text-primary mb-2 tracking-tight">{tmpl.name}</h3>
-                                        <p className="text-text-secondary text-sm leading-relaxed opacity-80">{tmpl.description}</p>
+                                        <h3 className="text-base font-bold text-text-primary mb-1 tracking-tight">{tmpl.name}</h3>
+                                        <p className="text-text-secondary text-xs leading-relaxed opacity-80">{tmpl.description}</p>
                                     </div>
                                 </div>
-                                <div className="mt-6 flex items-center gap-2 text-accent-primary font-bold text-xs uppercase tracking-widest">
-                                    Configurar Fluxo
-                                    <Rocket className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                <div className="mt-4 flex items-center gap-2 text-accent-primary font-bold text-[10px] uppercase tracking-widest">
+                                    Configurar
+                                    <Rocket className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </button>
                         ))}

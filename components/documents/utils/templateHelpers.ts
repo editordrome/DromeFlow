@@ -65,9 +65,10 @@ export function injectVariables(template: string, data: Record<string, any>): st
 export async function getDocumentTemplate(
     unitId: string,
     templateName: 'aditamento' | 'contrato' | 'termo' | 'notificacao' | 'distrato',
-    documentData: any
+    documentData: any,
+    moduleContext?: 'recrutadora' | 'profissional'  // NOVO: contexto do módulo
 ): Promise<string> {
-    console.log(`[getDocumentTemplate] Called with:`, { unitId, templateName });
+    console.log(`[getDocumentTemplate] Called with:`, { unitId, templateName, moduleContext });
 
     try {
         // Busca template (custom ou global)
@@ -75,11 +76,19 @@ export async function getDocumentTemplate(
 
         console.log(`[getDocumentTemplate] Template fetched:`, {
             found: !!template,
-            contentLength: template?.content?.length
+            contentLength: template?.content?.length,
+            availableIn: template?.available_in
         });
 
         if (!template) {
             throw new Error(`Template ${templateName} não encontrado`);
+        }
+
+        // NOVO: Verifica disponibilidade do template para o módulo atual
+        if (moduleContext && template.available_in) {
+            if (!template.available_in.includes(moduleContext)) {
+                throw new Error(`Template ${templateName} não está disponível para o módulo ${moduleContext}`);
+            }
         }
 
         // Prepara dados no formato que o template espera

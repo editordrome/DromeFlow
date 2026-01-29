@@ -26,7 +26,7 @@ export const fetchColumns = async (unitId: string): Promise<RecrutadoraColumn[]>
     .eq('unit_id', unitId)
     .eq('is_active', true)
     .order('position', { ascending: true });
-  
+
   if (error) {
     console.error('Erro ao buscar colunas customizadas:', error);
     // Em caso de erro, retorna apenas as padrão

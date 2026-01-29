@@ -113,7 +113,8 @@ const UnitFormModal: React.FC<{
   const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const numbersOnly = value.replace(/\D/g, '');
-    setFormData(prev => ({ ...prev, cnpj: numbersOnly }));
+    const formatted = formatCNPJ(numbersOnly);
+    setFormData(prev => ({ ...prev, cnpj: formatted }));
     if (error && error.includes('CNPJ')) setError('');
     if (numbersOnly.length === 14) handleCnpjLookup(numbersOnly);
   };
@@ -388,7 +389,7 @@ const UnitFormModal: React.FC<{
                   </div>
                   <div>
                     <label htmlFor="cnpj" className="block text-xs font-medium text-text-secondary mb-1">
-                      CNPJ (somente números)
+                      CNPJ
                       {cnpjLoading && <span className="ml-2 text-accent-primary">buscando...</span>}
                     </label>
                     <input
@@ -397,8 +398,8 @@ const UnitFormModal: React.FC<{
                       id="cnpj"
                       value={formData.cnpj}
                       onChange={handleCnpjChange}
-                      placeholder="00000000000000"
-                      maxLength={14}
+                      placeholder="00.000.000/0000-00"
+                      maxLength={18}
                       disabled={cnpjLoading}
                       className={`w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary ${cnpjLoading ? 'opacity-50 cursor-wait' : ''}`}
                     />

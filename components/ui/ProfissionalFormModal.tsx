@@ -79,6 +79,8 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
   const [previewHtml, setPreviewHtml] = useState<string>('');
   const [documentName, setDocumentName] = useState('Documento');
   const previewRef = useRef<HTMLDivElement>(null);
+  // Disponibilidade de documentos
+  const [availableDocuments, setAvailableDocuments] = useState<Set<string>>(new Set(['aditamento', 'contrato', 'termo', 'notificacao', 'distrato']));
 
   // Inicializa ou reseta o formulário
   useEffect(() => {
@@ -200,6 +202,44 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
       setAutoSavingObs(false);
     }
   };
+
+  // Carrega disponibilidade de documentos
+  useEffect(() => {
+    if (!isOpen || !selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') return;
+
+    const loadDocumentAvailability = async () => {
+      try {
+        const { documentTemplatesService } = await import('../../services/documentTemplates.service');
+        const templates = ['aditamento', 'contrato', 'termo', 'notificacao', 'distrato'] as const;
+        const available = new Set<string>();
+
+        for (const templateName of templates) {
+          try {
+            const template = await documentTemplatesService.getTemplate(selectedUnit.id, templateName);
+            // Verifica se o template está disponível para profissional
+            if (template && template.available_in && template.available_in.includes('profissional')) {
+              available.add(templateName);
+            } else if (template && !template.available_in) {
+              // Se não tem available_in, assume que está disponível (backward compatibility)
+              available.add(templateName);
+            }
+          } catch (error) {
+            // Se não encontrar template, assume que está disponível (usará fallback)
+            available.add(templateName);
+          }
+        }
+
+        setAvailableDocuments(available);
+        console.log('[ProfissionalFormModal] Available documents for profissional:', Array.from(available));
+      } catch (error) {
+        console.error('[ProfissionalFormModal] Error loading document availability:', error);
+        // Em caso de erro, mantém todos disponíveis
+        setAvailableDocuments(new Set(['aditamento', 'contrato', 'termo', 'notificacao', 'distrato']));
+      }
+    };
+
+    loadDocumentAvailability();
+  }, [isOpen, selectedUnit]);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -993,254 +1033,264 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
                 <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
 
                   {/* Contrato de Agenciamento */}
-                  <button
-                    onClick={async () => {
-                      if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
-                        alert('Por favor, selecione uma unidade específica.');
-                        return;
-                      }
-                      const unit = selectedUnit as Unit;
-                      const documentData = {
-                        profissional: {
-                          nome: formData.nome || '',
-                          cpf: formData.cpf || '',
-                          rg: formData.rg || '',
-                          dataNascimento: formData.data_nasc || '',
-                          estadoCivil: formData.estado_civil || '',
-                          endereco: formData.endereco || '',
-                          whatsapp: formData.whatsapp || '',
-                          assinatura: formData.assinatura || '',
-                        },
-                        unidade: {
-                          razaoSocial: unit.razao_social || '',
-                          cnpj: unit.cnpj || '',
-                          endereco: unit.endereco || (unit as any).address || '',
-                          unitName: unit.unit_name || '',
-                          unitCode: unit.unit_code || '',
-                          responsavel: unit.responsavel || '',
-                          contato: unit.contato || '',
-                          email: unit.email || '',
-                          uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
-                        },
-                        contrato: {
-                          percentualProfissional: 55,
-                          dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
-                        },
-                      };
-                      try {
-                        const html = await getDocumentTemplate(unit.id, 'contrato', documentData);
-                        generateTemplateDocument(html, 'Contrato_Agenciamento');
-                      } catch (error) {
-                        console.error('[Contrato] Error loading template:', error);
-                        const html = generateContratoHTML(documentData);
-                        generateTemplateDocument(html, 'Contrato_Agenciamento');
-                      }
-                    }}
-                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                  >
-                    <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
-                      <Icon name="FileText" className="w-6 h-6 text-green-500" />
-                    </div>
-                    <div className="text-sm font-medium text-text-primary text-center">Contrato</div>
-                    <div className="text-xs text-text-secondary text-center">Agenciamento</div>
-                  </button>
+                  {availableDocuments.has('contrato') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                            assinatura: formData.assinatura || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                            unitCode: unit.unit_code || '',
+                            responsavel: unit.responsavel || '',
+                            contato: unit.contato || '',
+                            email: unit.email || '',
+                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                          },
+                          contrato: {
+                            percentualProfissional: 55,
+                            dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+                          },
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'contrato', documentData, 'profissional');
+                          generateTemplateDocument(html, 'Contrato_Agenciamento');
+                        } catch (error) {
+                          console.error('[Contrato] Error loading template:', error);
+                          const html = generateContratoHTML(documentData);
+                          generateTemplateDocument(html, 'Contrato_Agenciamento');
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-green-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Contrato</div>
+                      <div className="text-xs text-text-secondary text-center">Agenciamento</div>
+                    </button>
+                  )}
 
                   {/* Aditamento Contratual */}
-                  <button
-                    onClick={async () => {
-                      if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
-                        alert('Por favor, selecione uma unidade específica.');
-                        return;
-                      }
-                      const unit = selectedUnit as Unit;
-                      const documentData = {
-                        profissional: {
-                          nome: formData.nome || '',
-                          cpf: formData.cpf || '',
-                          rg: formData.rg || '',
-                          dataNascimento: formData.data_nasc || '',
-                          estadoCivil: formData.estado_civil || '',
-                          endereco: formData.endereco || '',
-                          whatsapp: formData.whatsapp || '',
-                          assinatura: formData.assinatura || '',
-                        },
-                        unidade: {
-                          razaoSocial: unit.razao_social || '',
-                          cnpj: unit.cnpj || '',
-                          endereco: unit.endereco || (unit as any).address || '',
-                          unitName: unit.unit_name || '',
-                          unitCode: unit.unit_code || '',
-                          responsavel: unit.responsavel || '',
-                          contato: unit.contato || '',
-                          email: unit.email || '',
-                          uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
-                        },
-                        contrato: {
-                          percentualProfissional: 55,
-                          dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
-                        },
-                      };
-                      try {
-                        const html = await getDocumentTemplate(unit.id, 'aditamento', documentData);
-                        generateTemplateDocument(html, `Aditamento_${(formData.nome || 'sem_nome').replace(/\s+/g, '_')}`);
-                      } catch (error) {
-                        console.error('[Aditamento] Error loading template:', error);
-                        const html = generateAditamentoHTML(documentData);
-                        generateTemplateDocument(html, `Aditamento_${(formData.nome || 'sem_nome').replace(/\s+/g, '_')}`);
-                      }
-                    }}
-                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                  >
-                    <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                      <Icon name="FileText" className="w-6 h-6 text-blue-500" />
-                    </div>
-                    <div className="text-sm font-medium text-text-primary text-center">Aditamento</div>
-                    <div className="text-xs text-text-secondary text-center">Contrato</div>
-                  </button>
+                  {availableDocuments.has('aditamento') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                            assinatura: formData.assinatura || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                            unitCode: unit.unit_code || '',
+                            responsavel: unit.responsavel || '',
+                            contato: unit.contato || '',
+                            email: unit.email || '',
+                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                          },
+                          contrato: {
+                            percentualProfissional: 55,
+                            dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+                          },
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'aditamento', documentData, 'profissional');
+                          generateTemplateDocument(html, `Aditamento_${(formData.nome || 'sem_nome').replace(/\s+/g, '_')}`);
+                        } catch (error) {
+                          console.error('[Aditamento] Error loading template:', error);
+                          const html = generateAditamentoHTML(documentData);
+                          generateTemplateDocument(html, `Aditamento_${(formData.nome || 'sem_nome').replace(/\s+/g, '_')}`);
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-blue-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Aditamento</div>
+                      <div className="text-xs text-text-secondary text-center">Contrato</div>
+                    </button>
+                  )}
 
                   {/* Termo de Confidencialidade */}
-                  <button
-                    onClick={async () => {
-                      if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
-                        alert('Por favor, selecione uma unidade específica.');
-                        return;
-                      }
-                      const unit = selectedUnit as Unit;
-                      const documentData = {
-                        profissional: {
-                          nome: formData.nome || '',
-                          cpf: formData.cpf || '',
-                          rg: formData.rg || '',
-                          dataNascimento: formData.data_nasc || '',
-                          estadoCivil: formData.estado_civil || '',
-                          endereco: formData.endereco || '',
-                          whatsapp: formData.whatsapp || '',
-                          assinatura: formData.assinatura || '',
-                        },
-                        unidade: {
-                          razaoSocial: unit.razao_social || '',
-                          cnpj: unit.cnpj || '',
-                          endereco: unit.endereco || (unit as any).address || '',
-                          unitName: unit.unit_name || '',
-                          unitCode: unit.unit_code || '',
-                          responsavel: unit.responsavel || '',
-                          contato: unit.contato || '',
-                          email: unit.email || '',
-                          uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
-                        },
-                      };
-                      try {
-                        const html = await getDocumentTemplate(unit.id, 'termo', documentData);
-                        generateTemplateDocument(html, 'Termo_Confidencialidade');
-                      } catch (error) {
-                        console.error('[Termo] Error loading template:', error);
-                        const html = generateTermoHTML(documentData);
-                        generateTemplateDocument(html, 'Termo_Confidencialidade');
-                      }
-                    }}
-                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                  >
-                    <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
-                      <Icon name="FileText" className="w-6 h-6 text-purple-500" />
-                    </div>
-                    <div className="text-sm font-medium text-text-primary text-center">Termo</div>
-                    <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
-                  </button>
+                  {availableDocuments.has('termo') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                            assinatura: formData.assinatura || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                            unitCode: unit.unit_code || '',
+                            responsavel: unit.responsavel || '',
+                            contato: unit.contato || '',
+                            email: unit.email || '',
+                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                          },
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'termo', documentData, 'profissional');
+                          generateTemplateDocument(html, 'Termo_Confidencialidade');
+                        } catch (error) {
+                          console.error('[Termo] Error loading template:', error);
+                          const html = generateTermoHTML(documentData);
+                          generateTemplateDocument(html, 'Termo_Confidencialidade');
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-purple-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Termo</div>
+                      <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
+                    </button>
+                  )}
 
                   {/* Notificação de Recisão */}
-                  <button
-                    onClick={async () => {
-                      if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
-                        alert('Por favor, selecione uma unidade específica.');
-                        return;
-                      }
-                      const unit = selectedUnit as Unit;
-                      const documentData = {
-                        profissional: {
-                          nome: formData.nome || '',
-                          cpf: formData.cpf || '',
-                          rg: formData.rg || '',
-                          dataNascimento: formData.data_nasc || '',
-                          estadoCivil: formData.estado_civil || '',
-                          endereco: formData.endereco || '',
-                          whatsapp: formData.whatsapp || '',
-                          assinatura: formData.assinatura || '',
-                        },
-                        unidade: {
-                          razaoSocial: unit.razao_social || '',
-                          cnpj: unit.cnpj || '',
-                          endereco: unit.endereco || (unit as any).address || '',
-                          unitName: unit.unit_name || '',
-                          unitCode: unit.unit_code || '',
-                          responsavel: unit.responsavel || '',
-                          contato: unit.contato || '',
-                          email: unit.email || '',
-                          uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
-                        },
-                      };
-                      try {
-                        const html = await getDocumentTemplate(unit.id, 'notificacao', documentData);
-                        generateTemplateDocument(html, 'Notificacao_Rescisao');
-                      } catch (error) {
-                        console.error('[Notificação] Error loading template:', error);
-                        const html = generateNotificacaoHTML(documentData);
-                        generateTemplateDocument(html, 'Notificacao_Rescisao');
-                      }
-                    }}
-                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                  >
-                    <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
-                      <Icon name="FileText" className="w-6 h-6 text-orange-500" />
-                    </div>
-                    <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
-                    <div className="text-xs text-text-secondary text-center">Rescisão</div>
-                  </button>
+                  {availableDocuments.has('notificacao') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                            assinatura: formData.assinatura || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                            unitCode: unit.unit_code || '',
+                            responsavel: unit.responsavel || '',
+                            contato: unit.contato || '',
+                            email: unit.email || '',
+                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                          },
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'notificacao', documentData, 'profissional');
+                          generateTemplateDocument(html, 'Notificacao_Rescisao');
+                        } catch (error) {
+                          console.error('[Notificação] Error loading template:', error);
+                          const html = generateNotificacaoHTML(documentData);
+                          generateTemplateDocument(html, 'Notificacao_Rescisao');
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-orange-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
+                      <div className="text-xs text-text-secondary text-center">Rescisão</div>
+                    </button>
+                  )}
 
                   {/* Distrato */}
-                  <button
-                    onClick={async () => {
-                      if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
-                        alert('Por favor, selecione uma unidade específica.');
-                        return;
-                      }
-                      const unit = selectedUnit as Unit;
-                      const documentData = {
-                        profissional: {
-                          nome: formData.nome || '',
-                          cpf: formData.cpf || '',
-                          rg: formData.rg || '',
-                          dataNascimento: formData.data_nasc || '',
-                          estadoCivil: formData.estado_civil || '',
-                          endereco: formData.endereco || '',
-                          whatsapp: formData.whatsapp || '',
-                        },
-                        unidade: {
-                          razaoSocial: unit.razao_social || '',
-                          cnpj: unit.cnpj || '',
-                          endereco: unit.endereco || (unit as any).address || '',
-                          unitName: unit.unit_name || '',
-                        },
-                        contrato: {
-                          dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+                  {availableDocuments.has('distrato') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
                         }
-                      };
-                      try {
-                        const html = await getDocumentTemplate(unit.id, 'distrato', documentData);
-                        generateTemplateDocument(html, 'Distrato_Parceria');
-                      } catch (error) {
-                        console.error('[Distrato] Error loading template:', error);
-                        const html = generateDistratoHTML(documentData);
-                        generateTemplateDocument(html, 'Distrato_Parceria');
-                      }
-                    }}
-                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                  >
-                    <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
-                      <Icon name="FileText" className="w-6 h-6 text-red-500" />
-                    </div>
-                    <div className="text-sm font-medium text-text-primary text-center">Distrato</div>
-                    <div className="text-xs text-text-secondary text-center">Parceria</div>
-                  </button>
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                          },
+                          contrato: {
+                            dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+                          }
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'distrato', documentData, 'profissional');
+                          generateTemplateDocument(html, 'Distrato_Parceria');
+                        } catch (error) {
+                          console.error('[Distrato] Error loading template:', error);
+                          const html = generateDistratoHTML(documentData);
+                          generateTemplateDocument(html, 'Distrato_Parceria');
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-red-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Distrato</div>
+                      <div className="text-xs text-text-secondary text-center">Parceria</div>
+                    </button>
+                  )}
                 </div>
               </div>
             )}

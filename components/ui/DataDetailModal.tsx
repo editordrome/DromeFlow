@@ -505,21 +505,37 @@ Obrigada e tenha um ótimo atendimento😊`
                             )}
 
                             {/* Profissional - ocupa espaço disponível */}
-                            <ProfessionalAutocomplete
-                                unitId={(selectedUnit as any)?.id || ''}
-                                value={profissionalSel}
-                                onChange={(nome) => {
-                                    setProfissionalSel(nome);
-                                    handleAutoSave('PROFISSIONAL', nome);
-                                }}
-                                className="flex-1 max-w-[200px]"
-                                appointmentData={{
-                                    data: record.DATA,
-                                    horario: record.HORARIO,
-                                    periodo: (record as any)['PERÍODO'],
-                                    atendimentoId: record.ATENDIMENTO_ID
-                                }}
-                            />
+                            <div className="flex items-center gap-1 flex-1 max-w-[200px]">
+                                <ProfessionalAutocomplete
+                                    unitId={(selectedUnit as any)?.id || ''}
+                                    value={profissionalSel}
+                                    onChange={(nome) => {
+                                        setProfissionalSel(nome);
+                                        handleAutoSave('PROFISSIONAL', nome);
+                                    }}
+                                    className="flex-1"
+                                    appointmentData={{
+                                        data: record.DATA,
+                                        horario: record.HORARIO,
+                                        periodo: (record as any)['PERÍODO'],
+                                        atendimentoId: record.ATENDIMENTO_ID
+                                    }}
+                                />
+                                {profissionalSel && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setProfissionalSel('');
+                                            handleAutoSave('PROFISSIONAL', '');
+                                        }}
+                                        className="p-1.5 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-md transition-colors flex-shrink-0"
+                                        title="Remover profissional"
+                                        aria-label="Remover profissional"
+                                    >
+                                        <Icon name="close" className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
 
                             {/* Status */}
                             <select

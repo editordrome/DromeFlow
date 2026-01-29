@@ -82,7 +82,7 @@ const RecrutadoraPage: React.FC = () => {
             .eq('unit_id', selectedUnit.id)
             .eq('is_active', true)
             .limit(1)
-            .single();
+            .maybeSingle();
 
           setRecrutadoraUrl(unitKeyData?.recrutadora || null);
         } else {

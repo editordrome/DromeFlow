@@ -33,7 +33,7 @@ export const createUnitService = async (service: Omit<UnitService, 'id' | 'creat
         p_user_id: profile.id,
         p_unit_id: service.unit_id,
         p_name: service.name,
-        p_repasse_value: service.repasse_value
+        p_repasse_value: parseFloat(service.repasse_value.replace(',', '.'))
     });
 
     if (error) {

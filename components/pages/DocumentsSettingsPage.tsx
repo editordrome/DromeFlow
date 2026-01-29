@@ -44,6 +44,7 @@ export const DocumentsSettingsPage: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [isCustom, setIsCustom] = useState(false);
+    const [availableIn, setAvailableIn] = useState<('recrutadora' | 'profissional')[]>(['recrutadora', 'profissional']);
     const [showDropdown, setShowDropdown] = useState(false);
     const editorRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -53,6 +54,31 @@ export const DocumentsSettingsPage: React.FC = () => {
             loadTemplate();
         }
     }, [selectedUnit, selectedTemplate]);
+
+    // Injeta estilos globais para variáveis protegidas (performance)
+    useEffect(() => {
+        const styleId = 'template-variable-styles';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                .template-variable {
+                    background-color: #ffffff;
+                    color: #92400e;
+                    font-weight: 500;
+                    user-select: none;
+                    cursor: not-allowed;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        return () => {
+            const existingStyle = document.getElementById(styleId);
+            if (existingStyle) {
+                existingStyle.remove();
+            }
+        };
+    }, []);
 
     // Fecha dropdown ao clicar fora
     useEffect(() => {
@@ -106,8 +132,14 @@ export const DocumentsSettingsPage: React.FC = () => {
             }
 
             setTemplate(tmpl);
-            setContent(tmpl.content);
+
+            // Protege variáveis envolvendo-as em spans não-editáveis
+            const protectedContent = protectVariables(tmpl.content);
+            setContent(protectedContent);
             setIsCustom(tmpl.unit_id === selectedUnit.id);
+
+            // Sincroniza disponibilidade
+            setAvailableIn(tmpl.available_in || ['recrutadora', 'profissional']);
 
             console.log('[DocumentsSettingsPage] Template loaded successfully');
         } catch (err) {
@@ -118,6 +150,28 @@ export const DocumentsSettingsPage: React.FC = () => {
         }
     };
 
+    /**
+     * Protege variáveis {{...}} envolvendo-as em spans não-editáveis com destaque visual
+     */
+    const protectVariables = (html: string): string => {
+        // Regex para encontrar todas as variáveis {{...}}
+        const variableRegex = /\{\{([^}]+)\}\}/g;
+
+        return html.replace(variableRegex, (match, varName) => {
+            // Usa classe CSS em vez de inline styles (muito mais rápido)
+            return `<span contenteditable="false" class="template-variable">{{${varName}}}</span>`;
+        });
+    };
+
+    /**
+     * Remove a proteção das variáveis antes de salvar
+     */
+    const unprotectVariables = (html: string): string => {
+        // Remove os spans de proteção, mantendo apenas o conteúdo {{...}}
+        const spanRegex = /<span[^>]*class="template-variable"[^>]*>(.*?)<\/span>/g;
+        return html.replace(spanRegex, '$1');
+    };
+
     const handleSave = async () => {
         if (!selectedUnit || selectedUnit.id === 'ALL' || !editorRef.current) return;
 
@@ -126,6 +180,9 @@ export const DocumentsSettingsPage: React.FC = () => {
             setError('');
 
             let updatedContent = editorRef.current.innerHTML;
+
+            // Remove a proteção das variáveis antes de salvar
+            updatedContent = unprotectVariables(updatedContent);
 
             // Se o template original tinha estrutura HTML completa (DOCTYPE, head, etc),
             // tentamos preservar isso ao salvar a versão customizada.
@@ -157,9 +214,14 @@ export const DocumentsSettingsPage: React.FC = () => {
                 }
             }
 
-            await documentTemplatesService.saveCustomTemplate(selectedUnit.id, selectedTemplate, updatedContent);
+            await documentTemplatesService.saveCustomTemplate(
+                selectedUnit.id,
+                selectedTemplate,
+                updatedContent,
+                availableIn
+            );
 
-            setContent(updatedContent);
+            setContent(protectVariables(updatedContent));
             setIsCustom(true);
 
             // Feedback visual
@@ -221,6 +283,50 @@ export const DocumentsSettingsPage: React.FC = () => {
             setError('Erro ao restaurar template');
         } finally {
             setSaving(false);
+        }
+    };
+
+    /**
+     * Auto-save quando disponibilidade é alterada
+     * Nota: Alterar disponibilidade NÃO marca o documento como customizado
+     */
+    const handleAvailabilityChange = async (newAvailableIn: ('recrutadora' | 'profissional')[]) => {
+        if (!selectedUnit || selectedUnit.id === 'ALL' || !editorRef.current) return;
+
+        try {
+            setAvailableIn(newAvailableIn);
+
+            // Salva apenas a disponibilidade, mantendo o conteúdo atual
+            let currentContent = editorRef.current.innerHTML;
+            currentContent = unprotectVariables(currentContent);
+
+            // Preserva estrutura HTML completa se existir
+            if (template?.content) {
+                const originalHtml = template.content;
+                if (originalHtml.includes('<!DOCTYPE') || originalHtml.includes('<html')) {
+                    const headMatch = originalHtml.match(/^([\s\S]*?<body[^>]*>)([\s\S]*?)(<\/body>[\s\S]*?)$/i);
+                    if (headMatch) {
+                        const [___, headPart, ____, footerPart] = headMatch;
+                        currentContent = `${headPart}${currentContent}${footerPart}`;
+                    }
+                }
+            }
+
+            await documentTemplatesService.saveCustomTemplate(
+                selectedUnit.id,
+                selectedTemplate,
+                currentContent,
+                newAvailableIn
+            );
+
+            // NÃO marca como customizado - apenas edição de conteúdo faz isso
+            // setIsCustom permanece com seu valor atual
+
+            console.log('[DocumentsSettingsPage] Availability auto-saved:', newAvailableIn);
+        } catch (err) {
+            console.error('[DocumentsSettingsPage] Error auto-saving availability:', err);
+            // Reverte em caso de erro
+            setAvailableIn(template?.available_in || ['recrutadora', 'profissional']);
         }
     };
 
@@ -298,14 +404,39 @@ export const DocumentsSettingsPage: React.FC = () => {
                         )}
                     </div>
 
-                    {isCustom && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary/10 rounded-md">
-                            <Icon name="Star" className="w-3.5 h-3.5 text-accent-primary" />
-                            <span className="text-xs font-semibold text-accent-primary uppercase tracking-wide">
-                                Customizado
-                            </span>
-                        </div>
-                    )}
+                    {/* Controle de Disponibilidade */}
+                    <div className="flex items-center gap-3 px-3 py-2 bg-bg-primary border border-border-secondary rounded-lg">
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={availableIn.includes('recrutadora')}
+                                onChange={(e) => {
+                                    const newValue = e.target.checked
+                                        ? [...availableIn, 'recrutadora']
+                                        : availableIn.filter(v => v !== 'recrutadora');
+                                    handleAvailabilityChange(newValue);
+                                }}
+                                className="w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20"
+                            />
+                            <span className="text-sm text-text-primary">Recrutadora</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={availableIn.includes('profissional')}
+                                onChange={(e) => {
+                                    const newValue = e.target.checked
+                                        ? [...availableIn, 'profissional']
+                                        : availableIn.filter(v => v !== 'profissional');
+                                    handleAvailabilityChange(newValue);
+                                }}
+                                className="w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20"
+                            />
+                            <span className="text-sm text-text-primary">Profissional</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -313,28 +444,23 @@ export const DocumentsSettingsPage: React.FC = () => {
                         <button
                             onClick={handleRestore}
                             disabled={saving}
-                            className="px-4 py-2 rounded-lg border border-border-secondary text-text-secondary hover:bg-bg-primary hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            title="Restaurar Original"
+                            className="p-2.5 rounded-lg border border-border-secondary text-text-secondary hover:bg-bg-primary hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Icon name="RotateCcw" className="w-4 h-4" />
-                            <span>Restaurar Original</span>
                         </button>
                     )}
 
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-5 py-2 rounded-lg bg-accent-primary text-white hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-accent-primary/20"
+                        title={saving ? "Salvando..." : "Salvar"}
+                        className="p-2.5 rounded-lg bg-accent-primary text-white hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
                     >
                         {saving ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                <span className="font-medium">Salvando...</span>
-                            </>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
-                            <>
-                                <Icon name="Save" className="w-4 h-4" />
-                                <span className="font-medium">Salvar</span>
-                            </>
+                            <Icon name="Save" className="w-4 h-4" />
                         )}
                     </button>
                 </div>
@@ -374,31 +500,6 @@ export const DocumentsSettingsPage: React.FC = () => {
                                     lineHeight: '1.6',
                                     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                                     color: '#111827'
-                                }}
-                                onInput={(e) => {
-                                    // Previne edição de variáveis {{}}
-                                    const selection = window.getSelection();
-                                    if (selection && selection.rangeCount > 0) {
-                                        const range = selection.getRangeAt(0);
-                                        const container = range.commonAncestorContainer;
-                                        const text = container.textContent || '';
-
-                                        // Se está tentando editar dentro de {{}}
-                                        if (text.includes('{{') || text.includes('}}')) {
-                                            const cursorPos = range.startOffset;
-                                            const beforeCursor = text.substring(0, cursorPos);
-
-                                            // Verifica se cursor está dentro de variável
-                                            const openBrackets = (beforeCursor.match(/\{\{/g) || []).length;
-                                            const closeBrackets = (beforeCursor.match(/\}\}/g) || []).length;
-
-                                            if (openBrackets > closeBrackets) {
-                                                // Está dentro de variável, cancela edição
-                                                e.preventDefault();
-                                                return;
-                                            }
-                                        }
-                                    }
                                 }}
                                 onKeyDown={(e) => {
                                     // Previne deletar imagens

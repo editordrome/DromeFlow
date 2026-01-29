@@ -84,6 +84,8 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   // Auto-save de Status
   const [autoSavingStatus, setAutoSavingStatus] = useState(false);
   const [autoSaveStatusMsg, setAutoSaveStatusMsg] = useState<string | null>(null);
+  // Disponibilidade de documentos
+  const [availableDocuments, setAvailableDocuments] = useState<Set<string>>(new Set(['aditamento', 'contrato', 'termo', 'notificacao', 'distrato']));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -168,6 +170,44 @@ const RecrutadoraCardModal: React.FC<Props> = ({
 
     return () => clearTimeout(timeoutId);
   }, [observacao, initialCard, onUpdate, isOpen]);
+
+  // Carrega disponibilidade de documentos
+  useEffect(() => {
+    if (!isOpen || !selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') return;
+
+    const loadDocumentAvailability = async () => {
+      try {
+        const { documentTemplatesService } = await import('../../services/documentTemplates.service');
+        const templates = ['aditamento', 'contrato', 'termo', 'notificacao', 'distrato'] as const;
+        const available = new Set<string>();
+
+        for (const templateName of templates) {
+          try {
+            const template = await documentTemplatesService.getTemplate(selectedUnit.id, templateName);
+            // Verifica se o template está disponível para recrutadora
+            if (template && template.available_in && template.available_in.includes('recrutadora')) {
+              available.add(templateName);
+            } else if (template && !template.available_in) {
+              // Se não tem available_in, assume que está disponível (backward compatibility)
+              available.add(templateName);
+            }
+          } catch (error) {
+            // Se não encontrar template, assume que está disponível (usará fallback)
+            available.add(templateName);
+          }
+        }
+
+        setAvailableDocuments(available);
+        console.log('[RecrutadoraCardModal] Available documents for recrutadora:', Array.from(available));
+      } catch (error) {
+        console.error('[RecrutadoraCardModal] Error loading document availability:', error);
+        // Em caso de erro, mantém todos disponíveis
+        setAvailableDocuments(new Set(['aditamento', 'contrato', 'termo', 'notificacao', 'distrato']));
+      }
+    };
+
+    loadDocumentAvailability();
+  }, [isOpen, selectedUnit]);
 
   const handleSave = async () => {
     if (saving) return;
@@ -963,244 +1003,254 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                 </button>
 
                 {/* Aditamento Contratual */}
-                <button
-                  onClick={async () => {
-                    if (!selectedUnit || selectedUnit.id === 'ALL') {
-                      alert('Por favor, selecione uma unidade específica.');
-                      return;
-                    }
+                {availableDocuments.has('aditamento') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica.');
+                        return;
+                      }
 
-                    const unit = selectedUnit as import('../../types').Unit;
-                    const documentData = {
-                      profissional: {
-                        nome: nome || '',
-                        cpf: cpf || '',
-                        rg: rg || '',
-                        dataNascimento: dataNascimento || '',
-                        estadoCivil: estadoCivil || '',
-                        endereco: endereco || '',
-                        whatsapp: whatsapp || '',
-                        fumante: fumante || false,
-                        filhos: filhos || false,
-                        qtosFilhos: qtosFilhos ? parseInt(String(qtosFilhos)) : 0,
-                        rotinaFilhos: rotinaFilhos || '',
-                        diasLivres: diasLivres || '',
-                        diasSemana: diasSemana || '',
-                        expResidencial: expResidencial || '',
-                        refResidencial: refResidencial || '',
-                        expComercial: expComercial || '',
-                        refComercial: refComercial || '',
-                        sitAtual: sitAtual || '',
-                        motivoCadastro: motivoCadastro || '',
-                        transporte: transporte || '',
-                        assinatura: assinatura || '',
-                      },
-                      unidade: {
-                        razaoSocial: unit.razao_social || '',
-                        cnpj: unit.cnpj || '',
-                        endereco: unit.endereco || unit.address || '',
-                        responsavel: unit.responsavel || '',
-                        contato: unit.contato || '',
-                        email: unit.email || '',
-                        unitName: unit.unit_name || '',
-                        unitCode: unit.unit_code || '',
-                        uniformValue: (unit as any).uniform_value,
-                      },
-                      contrato: {
-                        dataAssinatura: new Date().toLocaleDateString('pt-BR'),
-                        percentualProfissional: 55,
-                      },
-                    };
+                      const unit = selectedUnit as import('../../types').Unit;
+                      const documentData = {
+                        profissional: {
+                          nome: nome || '',
+                          cpf: cpf || '',
+                          rg: rg || '',
+                          dataNascimento: dataNascimento || '',
+                          estadoCivil: estadoCivil || '',
+                          endereco: endereco || '',
+                          whatsapp: whatsapp || '',
+                          fumante: fumante || false,
+                          filhos: filhos || false,
+                          qtosFilhos: qtosFilhos ? parseInt(String(qtosFilhos)) : 0,
+                          rotinaFilhos: rotinaFilhos || '',
+                          diasLivres: diasLivres || '',
+                          diasSemana: diasSemana || '',
+                          expResidencial: expResidencial || '',
+                          refResidencial: refResidencial || '',
+                          expComercial: expComercial || '',
+                          refComercial: refComercial || '',
+                          sitAtual: sitAtual || '',
+                          motivoCadastro: motivoCadastro || '',
+                          transporte: transporte || '',
+                          assinatura: assinatura || '',
+                        },
+                        unidade: {
+                          razaoSocial: unit.razao_social || '',
+                          cnpj: unit.cnpj || '',
+                          endereco: unit.endereco || unit.address || '',
+                          responsavel: unit.responsavel || '',
+                          contato: unit.contato || '',
+                          email: unit.email || '',
+                          unitName: unit.unit_name || '',
+                          unitCode: unit.unit_code || '',
+                          uniformValue: (unit as any).uniform_value,
+                        },
+                        contrato: {
+                          dataAssinatura: new Date().toLocaleDateString('pt-BR'),
+                          percentualProfissional: 55,
+                        },
+                      };
 
-                    try {
-                      const html = await getDocumentTemplate(unit.id, 'aditamento', documentData);
-                      generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
-                    } catch (error) {
-                      console.error('[Aditamento] Error loading template:', error);
-                      const html = generateAditamentoHTML(documentData);
-                      generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
-                    }
-                  }}
-                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                    <Icon name="FileText" className="w-6 h-6 text-blue-500" />
-                  </div>
-                  <div className="text-sm font-medium text-text-primary text-center">Aditamento</div>
-                  <div className="text-xs text-text-secondary text-center">Contrato</div>
-                </button>
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'aditamento', documentData, 'recrutadora');
+                        generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
+                      } catch (error) {
+                        console.error('[Aditamento] Error loading template:', error);
+                        const html = generateAditamentoHTML(documentData);
+                        generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-blue-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Aditamento</div>
+                    <div className="text-xs text-text-secondary text-center">Contrato</div>
+                  </button>
+                )}
 
                 {/* Contrato de Agenciamento */}
-                <button
-                  onClick={async () => {
-                    if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
-                      alert('Por favor, selecione uma unidade específica para gerar o documento.');
-                      return;
-                    }
-                    const documentData = {
-                      profissional: {
-                        nome,
-                        cpf,
-                        rg,
-                        dataNascimento,
-                        estadoCivil,
-                        endereco,
-                        whatsapp,
-                      },
-                      unidade: {
-                        razaoSocial: (selectedUnit as Unit).razao_social,
-                        cnpj: (selectedUnit as Unit).cnpj,
-                        endereco: (selectedUnit as Unit).endereco,
-                        unitName: (selectedUnit as Unit).unit_name,
-                        uniformValue: (selectedUnit as Unit).uniform_value,
-                      },
-                      contrato: {
-                        percentualProfissional: 55,
-                      },
-                    };
-                    try {
-                      const html = await getDocumentTemplate((selectedUnit as Unit).id, 'contrato', documentData);
-                      generateTemplateDocument(html, 'Contrato_Agenciamento');
-                    } catch (error) {
-                      console.error('[Contrato] Error loading template:', error);
-                      const html = generateContratoHTML(documentData);
-                      generateTemplateDocument(html, 'Contrato_Agenciamento');
-                    }
-                  }}
-                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
-                    <Icon name="FileText" className="w-6 h-6 text-green-500" />
-                  </div>
-                  <div className="text-sm font-medium text-text-primary text-center">Contrato</div>
-                  <div className="text-xs text-text-secondary text-center">Agenciamento</div>
-                </button>
+                {availableDocuments.has('contrato') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                        return;
+                      }
+                      const documentData = {
+                        profissional: {
+                          nome,
+                          cpf,
+                          rg,
+                          dataNascimento,
+                          estadoCivil,
+                          endereco,
+                          whatsapp,
+                        },
+                        unidade: {
+                          razaoSocial: (selectedUnit as Unit).razao_social,
+                          cnpj: (selectedUnit as Unit).cnpj,
+                          endereco: (selectedUnit as Unit).endereco,
+                          unitName: (selectedUnit as Unit).unit_name,
+                          uniformValue: (selectedUnit as Unit).uniform_value,
+                        },
+                        contrato: {
+                          percentualProfissional: 55,
+                        },
+                      };
+                      try {
+                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'contrato', documentData, 'recrutadora');
+                        generateTemplateDocument(html, 'Contrato_Agenciamento');
+                      } catch (error) {
+                        console.error('[Contrato] Error loading template:', error);
+                        const html = generateContratoHTML(documentData);
+                        generateTemplateDocument(html, 'Contrato_Agenciamento');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-green-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Contrato</div>
+                    <div className="text-xs text-text-secondary text-center">Agenciamento</div>
+                  </button>
+                )}
 
                 {/* Termo de Confidencialidade */}
-                <button
-                  onClick={async () => {
-                    if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
-                      alert('Por favor, selecione uma unidade específica para gerar o documento.');
-                      return;
-                    }
-                    const documentData = {
-                      profissional: {
-                        nome,
-                        cpf,
-                        rg,
-                        dataNascimento,
-                        estadoCivil,
-                        endereco,
-                        whatsapp,
-                      },
-                      unidade: {
-                        razaoSocial: (selectedUnit as Unit).razao_social,
-                        cnpj: (selectedUnit as Unit).cnpj,
-                        endereco: (selectedUnit as Unit).endereco,
-                        unitName: (selectedUnit as Unit).unit_name,
-                      },
-                    };
-                    try {
-                      const html = await getDocumentTemplate((selectedUnit as Unit).id, 'termo', documentData);
-                      generateTemplateDocument(html, 'Termo_Confidencialidade');
-                    } catch (error) {
-                      console.error('[Termo] Error loading template:', error);
-                      const html = generateTermoHTML(documentData);
-                      generateTemplateDocument(html, 'Termo_Confidencialidade');
-                    }
-                  }}
-                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
-                    <Icon name="FileText" className="w-6 h-6 text-purple-500" />
-                  </div>
-                  <div className="text-sm font-medium text-text-primary text-center">Termo</div>
-                  <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
-                </button>
+                {availableDocuments.has('termo') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                        return;
+                      }
+                      const documentData = {
+                        profissional: {
+                          nome,
+                          cpf,
+                          rg,
+                          dataNascimento,
+                          estadoCivil,
+                          endereco,
+                          whatsapp,
+                        },
+                        unidade: {
+                          razaoSocial: (selectedUnit as Unit).razao_social,
+                          cnpj: (selectedUnit as Unit).cnpj,
+                          endereco: (selectedUnit as Unit).endereco,
+                          unitName: (selectedUnit as Unit).unit_name,
+                        },
+                      };
+                      try {
+                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'termo', documentData, 'recrutadora');
+                        generateTemplateDocument(html, 'Termo_Confidencialidade');
+                      } catch (error) {
+                        console.error('[Termo] Error loading template:', error);
+                        const html = generateTermoHTML(documentData);
+                        generateTemplateDocument(html, 'Termo_Confidencialidade');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-purple-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Termo</div>
+                    <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
+                  </button>
+                )}
 
                 {/* Notificação Extrajudicial */}
-                <button
-                  onClick={async () => {
-                    if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
-                      alert('Por favor, selecione uma unidade específica para gerar o documento.');
-                      return;
-                    }
-                    const documentData = {
-                      profissional: {
-                        nome,
-                        cpf,
-                        rg,
-                        dataNascimento,
-                        estadoCivil,
-                        endereco,
-                        whatsapp,
-                      },
-                      unidade: {
-                        razaoSocial: (selectedUnit as Unit).razao_social,
-                        cnpj: (selectedUnit as Unit).cnpj,
-                        endereco: (selectedUnit as Unit).endereco,
-                        unitName: (selectedUnit as Unit).unit_name,
-                      },
-                    };
-                    try {
-                      const html = await getDocumentTemplate((selectedUnit as Unit).id, 'notificacao', documentData);
-                      generateTemplateDocument(html, 'Notificacao_Rescisao');
-                    } catch (error) {
-                      console.error('[Notificação] Error loading template:', error);
-                      const html = generateNotificacaoHTML(documentData);
-                      generateTemplateDocument(html, 'Notificacao_Rescisao');
-                    }
-                  }}
-                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
-                    <Icon name="FileText" className="w-6 h-6 text-orange-500" />
-                  </div>
-                  <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
-                  <div className="text-xs text-text-secondary text-center">Rescisão</div>
-                </button>
+                {availableDocuments.has('notificacao') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                        return;
+                      }
+                      const documentData = {
+                        profissional: {
+                          nome,
+                          cpf,
+                          rg,
+                          dataNascimento,
+                          estadoCivil,
+                          endereco,
+                          whatsapp,
+                        },
+                        unidade: {
+                          razaoSocial: (selectedUnit as Unit).razao_social,
+                          cnpj: (selectedUnit as Unit).cnpj,
+                          endereco: (selectedUnit as Unit).endereco,
+                          unitName: (selectedUnit as Unit).unit_name,
+                        },
+                      };
+                      try {
+                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'notificacao', documentData, 'recrutadora');
+                        generateTemplateDocument(html, 'Notificacao_Rescisao');
+                      } catch (error) {
+                        console.error('[Notificação] Error loading template:', error);
+                        const html = generateNotificacaoHTML(documentData);
+                        generateTemplateDocument(html, 'Notificacao_Rescisao');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-orange-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
+                    <div className="text-xs text-text-secondary text-center">Rescisão</div>
+                  </button>
+                )}
 
                 {/* Distrato */}
-                <button
-                  onClick={async () => {
-                    if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
-                      alert('Por favor, selecione uma unidade específica para gerar o documento.');
-                      return;
-                    }
-                    const documentData = {
-                      profissional: {
-                        nome,
-                        cpf,
-                        rg,
-                        dataNascimento,
-                        estadoCivil,
-                        endereco,
-                        whatsapp,
-                      },
-                      unidade: {
-                        razaoSocial: (selectedUnit as Unit).razao_social,
-                        cnpj: (selectedUnit as Unit).cnpj,
-                        endereco: (selectedUnit as Unit).endereco,
-                        unitName: (selectedUnit as Unit).unit_name,
-                      },
-                    };
-                    try {
-                      const html = await getDocumentTemplate((selectedUnit as Unit).id, 'distrato', documentData);
-                      generateTemplateDocument(html, 'Distrato_Parceria');
-                    } catch (error) {
-                      console.error('[Distrato] Error loading template:', error);
-                      const html = generateDistratoHTML(documentData);
-                      generateTemplateDocument(html, 'Distrato_Parceria');
-                    }
-                  }}
-                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
-                    <Icon name="FileText" className="w-6 h-6 text-red-500" />
-                  </div>
-                  <div className="text-sm font-medium text-text-primary text-center">Distrato</div>
-                  <div className="text-xs text-text-secondary text-center">Parceria</div>
-                </button>
+                {availableDocuments.has('distrato') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                        return;
+                      }
+                      const documentData = {
+                        profissional: {
+                          nome,
+                          cpf,
+                          rg,
+                          dataNascimento,
+                          estadoCivil,
+                          endereco,
+                          whatsapp,
+                        },
+                        unidade: {
+                          razaoSocial: (selectedUnit as Unit).razao_social,
+                          cnpj: (selectedUnit as Unit).cnpj,
+                          endereco: (selectedUnit as Unit).endereco,
+                          unitName: (selectedUnit as Unit).unit_name,
+                        },
+                      };
+                      try {
+                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'distrato', documentData, 'recrutadora');
+                        generateTemplateDocument(html, 'Distrato_Parceria');
+                      } catch (error) {
+                        console.error('[Distrato] Error loading template:', error);
+                        const html = generateDistratoHTML(documentData);
+                        generateTemplateDocument(html, 'Distrato_Parceria');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Distrato</div>
+                    <div className="text-xs text-text-secondary text-center">Parceria</div>
+                  </button>
+                )}
               </div>
             </div>
           )}

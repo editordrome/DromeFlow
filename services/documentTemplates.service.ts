@@ -5,9 +5,10 @@ import { supabase } from './supabaseClient';
  */
 export interface DocumentTemplate {
     id: string;
-    name: string;  // 'aditamento' | 'contrato' | 'termo'
+    name: string;  // 'aditamento' | 'contrato' | 'termo' | 'notificacao' | 'distrato'
     content: string;
     unit_id: string | null;
+    available_in: ('recrutadora' | 'profissional')[];
     created_at: string;
     updated_at: string;
 }
@@ -69,16 +70,24 @@ export const documentTemplatesService = {
     async saveCustomTemplate(
         unitId: string,
         templateName: string,
-        content: string
+        content: string,
+        availableIn?: ('recrutadora' | 'profissional')[]
     ): Promise<DocumentTemplate> {
+        const payload: any = {
+            name: templateName,
+            content: content,
+            unit_id: unitId,
+            updated_at: new Date().toISOString()
+        };
+
+        // Add available_in if provided
+        if (availableIn !== undefined) {
+            payload.available_in = availableIn;
+        }
+
         const { data, error } = await supabase
             .from('document_templates')
-            .upsert({
-                name: templateName,
-                content: content,
-                unit_id: unitId,
-                updated_at: new Date().toISOString()
-            }, {
+            .upsert(payload, {
                 onConflict: 'name,unit_id'
             })
             .select()

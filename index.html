@@ -11,6 +11,16 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Content Security Policy para permitir recursos necessários -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; 
+                 img-src 'self' data: blob: https:; 
+                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; 
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+                 font-src 'self' https://fonts.gstatic.com;
+                 connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.paineldromedario.top https://brasilapi.com.br;">
+
   <title>DromeFlow</title>
 
   <!-- Tailwind CSS via CDN -->
@@ -92,6 +102,7 @@
         transform: translateY(100%);
         opacity: 0;
       }
+
       to {
         transform: translateY(0);
         opacity: 1;

@@ -42,6 +42,7 @@ const ConfiguracoesPage: React.FC = () => {
     // States de UI
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [cnpjLoading, setCnpjLoading] = useState(false);
     const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     // Carregar dados da unidade e serviços
@@ -89,6 +90,48 @@ const ConfiguracoesPage: React.FC = () => {
         setSaveMessage(null);
     };
 
+    const toTitleCase = (str: string | null | undefined): string => {
+        if (!str) return '';
+        return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+
+    const handleCnpjLookup = async (cnpj: string) => {
+        const cleanCnpj = cnpj.replace(/\D/g, '');
+        if (cleanCnpj.length !== 14) return;
+
+        setCnpjLoading(true);
+        setSaveMessage(null);
+
+        try {
+            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+            if (!response.ok) throw new Error('CNPJ não encontrado');
+
+            const data = await response.json();
+            const enderecoPartes = [
+                toTitleCase(data.descricao_tipo_de_logradouro),
+                toTitleCase(data.logradouro),
+                data.numero,
+                toTitleCase(data.complemento),
+                toTitleCase(data.bairro),
+                toTitleCase(data.municipio),
+                data.uf?.toUpperCase(),
+                data.cep
+            ].filter(Boolean);
+            const endereco = enderecoPartes.join(', ');
+
+            setFormData(prev => ({
+                ...prev,
+                razao_social: toTitleCase(data.razao_social) || prev.razao_social,
+                endereco: endereco || prev.endereco,
+            }));
+        } catch (err) {
+            console.error('Erro ao buscar CNPJ:', err);
+            // Non-blocking error
+        } finally {
+            setCnpjLoading(false);
+        }
+    };
+
     const formatCNPJ = (value: string): string => {
         const numbers = value.replace(/\D/g, '');
         if (numbers.length <= 14) {
@@ -102,8 +145,13 @@ const ConfiguracoesPage: React.FC = () => {
     };
 
     const handleCNPJChange = (value: string) => {
+        const numbersOnly = value.replace(/\D/g, '');
         const formatted = formatCNPJ(value);
         handleChange('cnpj', formatted);
+
+        if (numbersOnly.length === 14) {
+            handleCnpjLookup(numbersOnly);
+        }
     };
 
     // Salvar Dados da Empresa
@@ -339,15 +387,22 @@ const ConfiguracoesPage: React.FC = () => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-text-primary mb-1">
-                                            CNPJ
+                                        <label className="block text-sm font-medium text-text-primary mb-1 flex items-center justify-between">
+                                            <span>CNPJ</span>
+                                            {cnpjLoading && (
+                                                <span className="text-[10px] text-accent-primary animate-pulse font-bold flex items-center gap-1">
+                                                    <div className="w-2 h-2 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+                                                    BUSCANDO...
+                                                </span>
+                                            )}
                                         </label>
                                         <input
                                             type="text"
                                             value={formData.cnpj || ''}
                                             onChange={(e) => handleCNPJChange(e.target.value)}
                                             maxLength={18}
-                                            className="w-full px-3 py-2 bg-bg-primary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                                            disabled={cnpjLoading}
+                                            className={`w-full px-3 py-2 bg-bg-primary border border-border-secondary rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary ${cnpjLoading ? 'opacity-50 cursor-wait' : ''}`}
                                             placeholder="00.000.000/0000-00"
                                         />
                                     </div>
