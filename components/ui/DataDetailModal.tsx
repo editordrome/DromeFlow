@@ -504,8 +504,8 @@ Obrigada e tenha um ótimo atendimento😊`
                                 </span>
                             )}
 
-                            {/* Profissional - ocupa espaço disponível */}
-                            <div className="flex items-center gap-1 flex-1 max-w-[200px]">
+                            {/* Profissional - ocupa espaço disponível com tamanho fixo controlado */}
+                            <div className="flex items-center gap-1 flex-1 max-w-[240px]">
                                 <ProfessionalAutocomplete
                                     unitId={(selectedUnit as any)?.id || ''}
                                     value={profissionalSel}
@@ -521,20 +521,6 @@ Obrigada e tenha um ótimo atendimento😊`
                                         atendimentoId: record.ATENDIMENTO_ID
                                     }}
                                 />
-                                {profissionalSel && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setProfissionalSel('');
-                                            handleAutoSave('PROFISSIONAL', '');
-                                        }}
-                                        className="p-1.5 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-md transition-colors flex-shrink-0"
-                                        title="Remover profissional"
-                                        aria-label="Remover profissional"
-                                    >
-                                        <Icon name="close" className="w-4 h-4" />
-                                    </button>
-                                )}
                             </div>
 
                             {/* Status */}

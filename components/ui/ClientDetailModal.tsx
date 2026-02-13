@@ -5,6 +5,7 @@ import { getUnitClientByName, updateUnitClient, updateClientNameInAppointments }
 import DataDetailModal from './DataDetailModal';
 import { fetchDataRecordById } from '../../services/data/dataTable.service';
 import { fetchClientHistory } from '../../services/analytics/clients.service';
+import { getClientPlans } from '../../services/loyalty/loyaltyClients.service';
 
 export const ClientDetailModal: React.FC<{
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const ClientDetailModal: React.FC<{
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>(currentPeriod);
+  const [loyaltyBalance, setLoyaltyBalance] = useState<number | null>(null);
 
   // Estados para edição
   const [isEditMode, setIsEditMode] = useState(false);
@@ -43,6 +45,21 @@ export const ClientDetailModal: React.FC<{
         ]);
         setUnitClient(uc);
         setHistory(hist || []);
+
+        // Buscar saldo de fidelidade se o cliente for encontrado
+        if (uc) {
+          try {
+            const plans = await getClientPlans(uc.id);
+            if (plans && plans.length > 0) {
+              setLoyaltyBalance(plans[0].current_balance);
+            } else {
+              setLoyaltyBalance(null);
+            }
+          } catch (err) {
+            console.error('Erro ao buscar saldo de fidelidade:', err);
+            setLoyaltyBalance(null);
+          }
+        }
         // Inicializa estados de edição
         setEditNome(uc?.nome || '');
         setEditContato(uc?.contato || '');
@@ -159,8 +176,13 @@ export const ClientDetailModal: React.FC<{
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               {unitClient?.is_verified && <Icon name="CheckCircle" className="w-5 h-5 text-blue-500 flex-shrink-0" />}
-              <h2 className="text-lg font-bold text-text-primary truncate" title={clientName}>
+              <h2 className="text-lg font-bold text-text-primary truncate flex items-center gap-3" title={clientName}>
                 {clientName}
+                {loyaltyBalance !== null && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-success/10 text-success text-sm font-bold border border-success/20">
+                    R$ {loyaltyBalance.toFixed(2)}
+                  </span>
+                )}
               </h2>
               <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                 <Icon name="User" className="w-3.5 h-3.5" />

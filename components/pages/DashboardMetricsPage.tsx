@@ -573,8 +573,11 @@ const DashboardMetricsPage: React.FC = () => {
         try {
             const records = await fetchServiceAnalysisData(selectedUnit.unit_code, selectedPeriod);
 
+            // Filtrar registros de divisão
+            const originalRecords = records.filter(r => r.IS_DIVISAO !== 'SIM');
+
             const uniqueAppointments = Array.from(
-                new Map(records.map(record => [record.ATENDIMENTO_ID, record])).values()
+                new Map(originalRecords.map(record => [record.ATENDIMENTO_ID, record])).values()
             );
 
             const periodStartDate = new Date(`${selectedPeriod}-01T12:00:00Z`);
@@ -589,6 +592,7 @@ const DashboardMetricsPage: React.FC = () => {
                     }
                 }
             });
+
 
             const dailyCounts: { [date: string]: number } = {};
             records.forEach(r => {
@@ -742,7 +746,7 @@ const DashboardMetricsPage: React.FC = () => {
             const clientTypeMap: { [clientKey: string]: { [tipo: string]: number } } = {};
 
             currentData.clientDetails.forEach((detail) => {
-                const clientKey = `${detail.CLIENTE || 'sem-nome'}_${detail.CADASTRO || 'sem-cadastro'}`;
+                const clientKey = `${detail.CLIENTE || 'sem-nome'}`;
                 const tipo = detail.TIPO?.trim() || 'Não especificado';
 
                 if (!clientTypeMap[clientKey]) {
@@ -955,9 +959,9 @@ const DashboardMetricsPage: React.FC = () => {
         // Determinar qual campo usar baseado na métrica selecionada e submétricas
         let fieldToUse = metric;
         if (metric === 'totalRevenue') {
-            if (selectedRevenueSubMetric === 'averageTicket') fieldToUse = 'averageTicket';
-            else if (selectedRevenueSubMetric === 'margin') fieldToUse = 'margin';
-            else if (selectedRevenueSubMetric === 'marginPerService') fieldToUse = 'marginPerService';
+            if (selectedRevenueSubMetric === 'averageTicket') fieldToUse = 'averageTicket' as any;
+            else if (selectedRevenueSubMetric === 'margin') fieldToUse = 'margin' as any;
+            else if (selectedRevenueSubMetric === 'marginPerService') fieldToUse = 'marginPerService' as any;
         } else if (metric === 'totalServices') {
             if (selectedServicesSubMetric === 'startOfMonth') {
                 const s = servicesMonthlyData;
@@ -2222,7 +2226,7 @@ const DashboardMetricsPage: React.FC = () => {
                                     const avgPeriods: { [period: string]: string } = {};
                                     sortedPeriods.forEach(period => {
                                         const total = Object.values(monthlyPeriods).reduce((sum, periodCounts) => sum + (periodCounts[period] || 0), 0);
-                                        avgPeriods[period] = (total / totalMonths).toFixed(1);
+                                        avgPeriods[period] = (Number(total) / totalMonths).toFixed(1);
                                     });
 
                                     return (

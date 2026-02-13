@@ -66,8 +66,8 @@ const ComercialAdminPage: React.FC = () => {
         try {
             const [cols, cardList, m] = await Promise.all([
                 fetchComercialAdminColumns(null), // Global columns
-                fetchComercialAdminCards(MB_DROME_UNIT_ID),
-                fetchComercialAdminMetrics(MB_DROME_UNIT_ID),
+                fetchComercialAdminCards('ALL'), // Buscar TODOS os cards (incluindo todas unidades em teste)
+                fetchComercialAdminMetrics('ALL'), // Métricas globais
             ]);
             setColumns(cols.filter(c => c.is_active));
             setCards(cardList);
@@ -123,6 +123,27 @@ const ComercialAdminPage: React.FC = () => {
         return map;
     }, [visibleCards]);
 
+    // Expiration Status Calculator
+    const getExpirationStatus = (card: ComercialAdminCard): { borderClass: string; isExpired: boolean; isWarning: boolean } => {
+        if (!card.data_fim_teste) return { borderClass: '', isExpired: false, isWarning: false };
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const endDate = new Date(card.data_fim_teste);
+        endDate.setHours(0, 0, 0, 0);
+
+        const diffTime = endDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            return { borderClass: 'border-danger border-2', isExpired: true, isWarning: false };
+        } else if (diffDays <= 3) {
+            return { borderClass: 'border-yellow-500 border-2', isExpired: false, isWarning: true };
+        }
+
+        return { borderClass: '', isExpired: false, isWarning: false };
+    };
+
     // Handlers
     const handleOpenModal = (status: string, card?: ComercialAdminCard) => {
         setModalStatus(card?.status || status);
@@ -149,10 +170,10 @@ const ComercialAdminPage: React.FC = () => {
 
         // Optimistic Update
         const newCards = Array.from(cards);
-        const movingCardIndex = newCards.findIndex(c => c.id === draggableId);
+        const movingCardIndex = newCards.findIndex((c: ComercialAdminCard) => c.id === draggableId);
         if (movingCardIndex === -1) return;
 
-        const movingCard = { ...newCards[movingCardIndex] };
+        const movingCard: ComercialAdminCard = { ...(newCards[movingCardIndex] as ComercialAdminCard) };
         const oldStatus = movingCard.status;
         const newStatus = destination.droppableId;
 
@@ -259,8 +280,8 @@ const ComercialAdminPage: React.FC = () => {
                                 key={m.key}
                                 onClick={() => setActivePeriod(prev => prev === m.key ? 'all' : m.key)}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${activePeriod === m.key
-                                        ? 'bg-accent-primary text-text-on-accent border-accent-primary'
-                                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:bg-bg-secondary'
+                                    ? 'bg-accent-primary text-text-on-accent border-accent-primary'
+                                    : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:bg-bg-secondary'
                                     }`}
                             >
                                 <span>{m.label}</span>
@@ -311,8 +332,9 @@ const ComercialAdminPage: React.FC = () => {
                                                 >
                                                     {columnCards.map((card, index) => {
                                                         const trialStatus = getTrialStatus(card);
+                                                        const expirationStatus = getExpirationStatus(card);
                                                         return (
-                                                            <Draggable key={card.id} draggableId={card.id} index={index}>
+                                                            <Draggable draggableId={card.id} index={index}>
                                                                 {(dragProvided, dragSnapshot) => (
                                                                     <div
                                                                         ref={dragProvided.innerRef}
@@ -320,8 +342,9 @@ const ComercialAdminPage: React.FC = () => {
                                                                         {...dragProvided.dragHandleProps}
                                                                         onClick={() => handleOpenModal(column.code, card)}
                                                                         className={`
-                                      group relative p-3 rounded-lg border border-border-secondary bg-bg-secondary shadow-sm cursor-pointer
+                                      group relative p-3 rounded-lg bg-bg-secondary shadow-sm cursor-pointer
                                       transition-all hover:shadow-md hover:border-accent-primary/30
+                                      ${expirationStatus.borderClass || 'border border-border-secondary'}
                                       ${dragSnapshot.isDragging ? 'shadow-xl ring-2 ring-accent-primary rotate-1 scale-105 z-50' : ''}
                                     `}
                                                                     >
@@ -382,7 +405,6 @@ const ComercialAdminPage: React.FC = () => {
                     onClose={() => setModalOpen(false)}
                     onSaved={loadData}
                     defaultStatus={modalStatus}
-                    unitId={MB_DROME_UNIT_ID}
                     initialCard={editingCard}
                     onCreate={handleCreateCard}
                     onUpdate={handleUpdateCard}

@@ -2,6 +2,55 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-02-03] - Integração de Unidades em Teste e Melhorias no Comercial Admin
+
+### ✨ Novas Funcionalidades
+
+#### 1. Sistema de Unidades em Teste (Espelhamento Comercial)
+- **Modo Teste**: Nova funcionalidade que permite marcar unidades como "em teste" e espelhá-las automaticamente no módulo Comercial Admin.
+- **Sincronização Bidirecional**: Trigger SQL (`sync_unit_to_comercial_admin`) que mantém os dados sincronizados entre as tabelas `units` e `comercial_admin`.
+- **Controles Visuais**: 
+  - Badge "TESTE" na lista de unidades
+  - Toggle rápido no painel de detalhes da unidade
+  - Card premium no modal do Comercial Admin mostrando a conexão com a unidade
+- **Auto-fechamento**: Ao desativar o modo teste pelo Kanban, o modal fecha automaticamente após sincronizar.
+
+#### 2. Alertas de Expiração de Teste
+- **Bordas Coloridas**: Sistema visual de alertas baseado na `data_fim_teste`:
+  - 🔴 **Borda Vermelha (2px)**: Teste expirado
+  - 🟡 **Borda Amarela (2px)**: Expira em 3 dias ou menos
+  - ⚪ **Borda Normal**: Mais de 3 dias restantes
+- **Cálculo Automático**: Função `getExpirationStatus` que processa datas e aplica classes CSS dinamicamente.
+
+#### 3. Campo "Origem" com Autocomplete
+- **Input Dinâmico**: Substituído select fixo por input de texto com sugestões inteligentes.
+- **Filtragem em Tempo Real**: Opções são filtradas conforme o usuário digita.
+- **Flexibilidade**: Aceita valores personalizados além das sugestões pré-definidas (Whatsapp, Ligação, E-mail, Indicação, Site, Outros).
+- **UX Aprimorada**: Dropdown interativo com hover states e transições suaves.
+
+### 🔧 Correções Técnicas
+
+#### 4. Correções de TypeScript no ComercialAdminPage
+- **Type Assertions**: Adicionadas type assertions para `ComercialAdminCard` em operações de array (findIndex, spread operator).
+- **Draggable Key**: Removida prop `key` inválida do componente `Draggable` da biblioteca `@hello-pangea/dnd`.
+- **Build Limpo**: Todos os erros de lint resolvidos, compilação sem warnings.
+
+#### 5. Filtro Global de Cards
+- **Busca Unificada**: Modificada a query do Comercial Admin para buscar TODOS os cards de unidades em teste, não apenas de uma unidade específica.
+- **Métricas Globais**: KPIs agora consideram todos os cards do sistema.
+
+### 🗄️ Banco de Dados
+
+#### 6. Migrações SQL
+- **Nova Coluna**: `teste` (boolean) adicionada à tabela `units`.
+- **Trigger**: `trigger_sync_unit_to_comercial` para sincronização automática.
+- **Função**: `sync_unit_to_comercial_admin()` com lógica de UPSERT e DELETE baseada no status de teste.
+
+### 🚀 Build
+- **dist**: Build de produção atualizado via `npm run build` incluindo todas as alterações de frontend, correções de tipo e novas funcionalidades do Comercial Admin.
+
+---
+
 ## [2026-01-27] - Expansão do Módulo Sistema (Manuais e Layouts)
 
 ### ✨ Novas Funcionalidades

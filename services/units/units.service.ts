@@ -22,6 +22,7 @@ export const createUnit = async (unitData: Partial<Unit>) => {
 		responsavel: unitData.responsavel?.trim() || null,
 		contato: unitData.contato?.trim() || null,
 		email: unitData.email?.trim() || null,
+		teste: unitData.teste || false,
 	};
 	if (!payload.unit_name || !payload.unit_code) {
 		throw new Error('Nome e código da unidade são obrigatórios.');
@@ -46,6 +47,7 @@ export const updateUnit = async (unitId: string, unitData: Partial<Unit>) => {
 		responsavel: unitData.responsavel?.trim() || null,
 		contato: unitData.contato?.trim() || null,
 		email: unitData.email?.trim() || null,
+		teste: unitData.teste,
 	} as Partial<Unit>;
 	if (!payload.unit_name || !payload.unit_code) {
 		throw new Error('Nome e código da unidade são obrigatórios.');
@@ -74,6 +76,18 @@ export const toggleUnitStatus = async (unitId: string, isActive: boolean) => {
 	if (error) {
 		console.error('Erro ao atualizar status da unidade:', error);
 		throw new Error(`Falha ao atualizar status: ${error.message}`);
+	}
+};
+
+export const patchUnitTesteStatus = async (unitId: string, isTeste: boolean) => {
+	const { error } = await supabase
+		.from('units')
+		.update({ teste: isTeste })
+		.eq('id', unitId);
+
+	if (error) {
+		console.error('Erro ao atualizar modo teste da unidade:', error);
+		throw new Error(`Falha ao atualizar modo teste: ${error.message}`);
 	}
 };
 

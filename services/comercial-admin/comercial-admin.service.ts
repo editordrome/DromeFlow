@@ -44,14 +44,19 @@ export const fetchComercialAdminColumns = async (unitId: string | null): Promise
 };
 
 export const fetchComercialAdminCards = async (unitId: string): Promise<ComercialAdminCard[]> => {
-    const { data, error } = await supabase
+    let query = supabase
         .from('comercial_admin')
         .select(COMERCIAL_ADMIN_SELECT)
-        .eq('unit_id', unitId)
         .order('status', { ascending: true })
         .order('position', { ascending: true })
         .order('created_at', { ascending: false });
 
+    if (unitId && unitId !== 'ALL') {
+        // Inclui leads da unidade específica OU leads globais/externos
+        query = query.or(`unit_id.eq.${unitId},unit_id.is.null`);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return (data as any[]) || [];
 };
@@ -113,11 +118,16 @@ export const fetchComercialAdminMetrics = async (unitId: string): Promise<Comerc
     const [todayStart, weekStart, monthStart] = [startOfTodayISO(), startOfWeekISO(), startOfMonthISO()];
 
     const getCount = async (date: string) => {
-        const { count, error } = await supabase
+        let query = supabase
             .from('comercial_admin')
             .select('id', { head: true, count: 'exact' })
-            .eq('unit_id', unitId)
             .gte('created_at', date);
+
+        if (unitId && unitId !== 'ALL') {
+            query = query.or(`unit_id.eq.${unitId},unit_id.is.null`);
+        }
+
+        const { count, error } = await query;
         if (error) throw error;
         return count || 0;
     };

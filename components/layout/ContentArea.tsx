@@ -30,6 +30,8 @@ const ManageVersionsPage = lazy(() => import('../pages/ManageVersionsPage'));
 const TypebotPage = lazy(() => import('../pages/TypebotPage'));
 const SistemaPage = lazy(() => import('../pages/SistemaPage'));
 const SistemaAdminPage = lazy(() => import('../pages/SistemaAdminPage'));
+const LoyaltyPage = lazy(() => import('../pages/LoyaltyPage'));
+
 
 
 // Loading component
@@ -147,6 +149,10 @@ const ContentArea: React.FC = () => {
     if (activeView === 'manage_versions') {
         return <Suspense fallback={<PageLoader />}><ManageVersionsPage /></Suspense>;
     }
+    if (activeView === 'loyalty') {
+        return <Suspense fallback={<PageLoader />}><LoyaltyPage /></Suspense>;
+    }
+
 
     // Default to module view
     return (

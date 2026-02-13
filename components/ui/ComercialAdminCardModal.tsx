@@ -5,6 +5,7 @@ import { activityLogger } from '../../services/utils/activityLogger.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from './Icon';
+import { patchUnitTesteStatus } from '../../services/units/units.service';
 
 interface Props {
     isOpen: boolean;
@@ -59,6 +60,10 @@ const ComercialAdminCardModal: React.FC<Props> = ({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
+    const [isUnitTeste, setIsUnitTeste] = useState(false);
+    const [unitName, setUnitName] = useState<string | null>(null);
+    const [showOrigemSuggestions, setShowOrigemSuggestions] = useState(false);
+    const [filteredOrigemOptions, setFilteredOrigemOptions] = useState<string[]>(ORIGEM_OPTIONS);
 
     // Load Plans
     useEffect(() => {
@@ -89,8 +94,23 @@ const ComercialAdminCardModal: React.FC<Props> = ({
             setPlanoId(initialCard.plano_id || '');
             setDataInicioTeste(initialCard.data_inicio_teste || '');
             setDataFimTeste(initialCard.data_fim_teste || '');
+
+            // Load unit test status and name
+            if (initialCard.unit_id) {
+                supabase.from('units').select('unit_name, teste').eq('id', initialCard.unit_id).single()
+                    .then(({ data }) => {
+                        if (data) {
+                            setIsUnitTeste(!!data.teste);
+                            setUnitName(data.unit_name);
+                        }
+                    });
+            } else {
+                setIsUnitTeste(false);
+                setUnitName(null);
+            }
         } else {
             resetForm();
+            setIsUnitTeste(false);
         }
     }, [isOpen, initialCard, defaultStatus]);
 
@@ -114,6 +134,23 @@ const ComercialAdminCardModal: React.FC<Props> = ({
             } catch (e: any) {
                 console.error(`Falha ao salvar ${field}:`, e);
             }
+        }
+    };
+
+    const handleToggleUnitTeste = async (newVal: boolean) => {
+        if (!initialCard?.unit_id) return;
+        setSaving(true);
+        try {
+            await patchUnitTesteStatus(initialCard.unit_id, newVal);
+            setIsUnitTeste(newVal);
+            if (!newVal) {
+                onSaved();
+                onClose();
+            }
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -150,8 +187,7 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                 await onUpdate(initialCard.id, payload);
                 setIsEditing(false);
             } else if (!initialCard && onCreate) {
-                if (!unitId) throw new Error('Unit ID missing');
-                payload.unit_id = unitId;
+                payload.unit_id = unitId || null;
                 await onCreate(payload);
 
                 // Log creation
@@ -230,6 +266,33 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                         </div>
                     )}
 
+                    {initialCard?.unit_id && (
+                        <div className={`p-4 rounded-xl flex items-center justify-between border-2 transition-all ${isUnitTeste ? 'bg-accent-primary/10 border-accent-primary/30 shadow-sm' : 'bg-bg-tertiary border-border-secondary'}`}>
+                            <div className="flex items-center gap-4">
+                                <div className={`p-2.5 rounded-xl shadow-sm ${isUnitTeste ? 'bg-accent-primary text-white' : 'bg-bg-secondary text-text-tertiary'}`}>
+                                    <Icon name="Activity" className="w-5 h-5" />
+                                </div>
+                                <div className="space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-xs font-black uppercase tracking-wider text-text-primary">Unidade de Teste</p>
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-bg-secondary text-text-tertiary border border-border-secondary">
+                                            {unitName || 'ID: ' + initialCard.unit_id.slice(0, 8)}
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-text-tertiary font-medium">Espelhamento ativo. Desativar remove este card.</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => handleToggleUnitTeste(!isUnitTeste)}
+                                disabled={saving}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 focus:outline-none ${isUnitTeste ? 'bg-accent-primary shadow-[0_0_10px_rgba(var(--accent-rgb),0.3)]' : 'bg-border-secondary'}`}
+                            >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${isUnitTeste ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+                    )}
+
                     {/* Dados Principais */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2">
@@ -266,18 +329,53 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                         <div>
                             <label className="block text-xs font-medium text-text-secondary mb-1">Origem</label>
                             <div className="relative">
-                                <select
+                                <input
+                                    type="text"
                                     value={origem}
                                     onChange={e => {
-                                        setOrigem(e.target.value);
-                                        if (!isEditing) handleAutoSave('origem', e.target.value);
+                                        const value = e.target.value;
+                                        setOrigem(value);
+
+                                        // Filter suggestions
+                                        const filtered = ORIGEM_OPTIONS.filter(opt =>
+                                            opt.toLowerCase().includes(value.toLowerCase())
+                                        );
+                                        setFilteredOrigemOptions(filtered);
+                                        setShowOrigemSuggestions(true);
+
+                                        if (!isEditing) handleAutoSave('origem', value);
                                     }}
-                                    className="w-full appearance-none rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
-                                >
-                                    <option value="">Selecione...</option>
-                                    {ORIGEM_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                </select>
-                                <Icon name="ChevronDown" className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+                                    onFocus={() => {
+                                        setFilteredOrigemOptions(ORIGEM_OPTIONS);
+                                        setShowOrigemSuggestions(true);
+                                    }}
+                                    onBlur={() => {
+                                        // Delay to allow click on suggestion
+                                        setTimeout(() => setShowOrigemSuggestions(false), 200);
+                                    }}
+                                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
+                                    placeholder="Digite ou selecione a origem"
+                                />
+
+                                {/* Suggestions Dropdown */}
+                                {showOrigemSuggestions && filteredOrigemOptions.length > 0 && (
+                                    <div className="absolute z-50 w-full mt-1 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                        {filteredOrigemOptions.map(opt => (
+                                            <button
+                                                key={opt}
+                                                type="button"
+                                                onClick={() => {
+                                                    setOrigem(opt);
+                                                    setShowOrigemSuggestions(false);
+                                                    if (!isEditing) handleAutoSave('origem', opt);
+                                                }}
+                                                className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-accent-primary/10 transition-colors"
+                                            >
+                                                {opt}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -402,7 +500,7 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

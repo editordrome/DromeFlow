@@ -113,18 +113,19 @@ export const searchProfissionaisByName = async (
   },
   limit: number = 10
 ): Promise<Profissional[]> => {
-  if (!searchTerm || searchTerm.trim().length < 2) {
-    return [];
-  }
+  const trimmedSearch = (searchTerm || '').trim();
 
-  // 1. Buscar profissionais ativas que correspondem ao termo
+  // 1. Buscar profissionais ativas
   let query = supabase
     .from('profissionais')
     .select('id, nome, status, unit_id')
-    .eq('status', 'Ativa')
-    .ilike('nome', `%${searchTerm.trim()}%`)
+    .in('status', ['Ativa', 'Ativo', 'ativo', 'TRUE'])
     .order('nome', { ascending: true })
-    .limit(50); // Buscar mais para filtrar depois
+    .limit(limit || 50);
+
+  if (trimmedSearch.length > 0) {
+    query = query.ilike('nome', `%${trimmedSearch}%`);
+  }
 
   if (unitId && unitId !== 'ALL') {
     query = query.eq('unit_id', unitId);

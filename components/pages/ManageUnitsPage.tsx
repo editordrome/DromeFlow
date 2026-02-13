@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { fetchAllUnits, createUnit, updateUnit, deleteUnit, toggleUnitStatus } from '../../services/units/units.service';
+import { fetchAllUnits, createUnit, updateUnit, deleteUnit, toggleUnitStatus, patchUnitTesteStatus } from '../../services/units/units.service';
 import { fetchUsersForUnit, updateUser, createUser } from '../../services/auth/users.service';
 import { activityLogger } from '../../services/utils/activityLogger.service';
 import { Unit, UnitKey, Module } from '../../types';
@@ -36,6 +36,7 @@ const UnitFormModal: React.FC<{
     responsavel: '',
     contato: '',
     email: '',
+    teste: false,
   });
   const [error, setError] = useState('');
   const [usersLoading, setUsersLoading] = useState(false);
@@ -178,6 +179,7 @@ const UnitFormModal: React.FC<{
         responsavel: unit.responsavel || '',
         contato: unit.contato || '',
         email: unit.email || '',
+        teste: unit.teste || false,
       });
     } else {
       setFormData({
@@ -189,6 +191,7 @@ const UnitFormModal: React.FC<{
         responsavel: '',
         contato: '',
         email: '',
+        teste: false,
       });
     }
     setError('');
@@ -375,6 +378,20 @@ const UnitFormModal: React.FC<{
                   <div>
                     <label htmlFor="unit_code" className="block text-xs font-medium text-text-secondary mb-1">Código da Unidade *</label>
                     <input type="text" name="unit_code" id="unit_code" value={formData.unit_code} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-bg-tertiary border-border-secondary text-sm focus:ring-2 focus:ring-accent-primary/20 focus:border-accent-primary" />
+                  </div>
+                  <div className="col-span-2 flex items-center gap-3 bg-accent-primary/5 p-3 rounded-lg border border-accent-primary/10">
+                    <input
+                      type="checkbox"
+                      id="teste"
+                      name="teste"
+                      checked={formData.teste}
+                      onChange={(e) => setFormData(prev => ({ ...prev, teste: e.target.checked }))}
+                      className="w-4 h-4 rounded border-border-secondary text-accent-primary focus:ring-2 focus:ring-accent-primary/20"
+                    />
+                    <div>
+                      <label htmlFor="teste" className="block text-sm font-semibold text-text-primary cursor-pointer">Unidade em Teste (Espelhar no Comercial)</label>
+                      <p className="text-[10px] text-text-tertiary">Quando ativo, esta unidade aparecerá como um card no Kanban do Gerencial Comercial.</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1839,7 +1856,12 @@ const ManageUnitsPage: React.FC = () => {
                         : 'hover:bg-bg-tertiary border-l-4 border-l-transparent hover:border-l-brand-purple/30'
                         }`}
                     >
-                      <p className="text-sm">{unit.unit_name}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm">{unit.unit_name}</p>
+                        {unit.teste && (
+                          <span className="text-[10px] bg-accent-primary/20 text-accent-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Teste</span>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
@@ -1973,23 +1995,54 @@ const ManageUnitsPage: React.FC = () => {
                           <Icon name="Info" className="w-3.5 h-3.5 text-accent-primary" />
                           Dados da Unidade
                         </h3>
-                        {/* Toggle Ativar/Inativar */}
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-medium ${selectedUnit.is_active ? 'text-success' : 'text-text-tertiary'}`}>
-                            {selectedUnit.is_active ? 'Ativa' : 'Inativa'}
-                          </span>
-                          <button
-                            onClick={() => handleToggleUnitStatus(selectedUnit.id, selectedUnit.is_active)}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 ${selectedUnit.is_active ? 'bg-success' : 'bg-border-secondary'
-                              }`}
-                            role="switch"
-                            aria-checked={selectedUnit.is_active}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${selectedUnit.is_active ? 'translate-x-5' : 'translate-x-0.5'
+                        <div className="flex items-center gap-4">
+                          {/* Toggle Ativar/Inativar */}
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] uppercase font-bold ${selectedUnit.is_active ? 'text-success' : 'text-text-tertiary'}`}>
+                              {selectedUnit.is_active ? 'Ativa' : 'Inativa'}
+                            </span>
+                            <button
+                              onClick={() => handleToggleUnitStatus(selectedUnit.id, selectedUnit.is_active)}
+                              className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none ${selectedUnit.is_active ? 'bg-success' : 'bg-border-secondary'
                                 }`}
-                            />
-                          </button>
+                              role="switch"
+                              aria-checked={selectedUnit.is_active}
+                            >
+                              <span
+                                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${selectedUnit.is_active ? 'translate-x-4.5' : 'translate-x-0.5'
+                                  }`}
+                              />
+                            </button>
+                          </div>
+
+                          {/* Toggle Modo Teste */}
+                          <div className="flex items-center gap-2 border-l border-border-secondary pl-4">
+                            <span className={`text-[10px] uppercase font-bold ${selectedUnit.teste ? 'text-accent-primary' : 'text-text-tertiary'}`}>
+                              Teste
+                            </span>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const newVal = !selectedUnit.teste;
+                                  await patchUnitTesteStatus(selectedUnit.id, newVal);
+                                  setSelectedUnit({ ...selectedUnit, teste: newVal });
+                                  setUnits(prev => prev.map(u => u.id === selectedUnit.id ? { ...u, teste: newVal } : u));
+                                } catch (err) {
+                                  console.error('Erro ao alternar modo teste:', err);
+                                  alert('Falha ao alterar modo teste.');
+                                }
+                              }}
+                              className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none ${selectedUnit.teste ? 'bg-accent-primary' : 'bg-border-secondary'
+                                }`}
+                              role="switch"
+                              aria-checked={selectedUnit.teste}
+                            >
+                              <span
+                                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${selectedUnit.teste ? 'translate-x-4.5' : 'translate-x-0.5'
+                                  }`}
+                              />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <div className="p-4">
