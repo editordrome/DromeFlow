@@ -53,8 +53,6 @@ interface IconProps {
 }
 
 export const Icon: React.FC<IconProps> = ({ name, className }) => {
-  // Tenta componente pronto do lucide-react
-  // Tenta o nome exato primeiro, depois tenta capitalizar a primeira letra
   let LucideComp = (Lucide as any)[name] as any;
 
   if (!LucideComp && typeof name === 'string' && name.length > 0) {
@@ -62,10 +60,25 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
     LucideComp = (Lucide as any)[capitalized] as any;
   }
 
+  const finalClassName = className ? `flex-shrink-0 ${className}` : 'flex-shrink-0 w-5 h-5';
+  
+  // Extrai o tamanho em pixels a partir da classe do Tailwind (w-*) para garantir 
+  // que o ícone mantenha a proporção mesmo se o CSS vindo do CDN não carregar logo.
+  let extractedSize = 24; // default (w-6)
+  if (finalClassName.match(/\bw-3\b/)) extractedSize = 12;
+  else if (finalClassName.match(/\bw-4\b/)) extractedSize = 16;
+  else if (finalClassName.match(/\bw-5\b/)) extractedSize = 20;
+  else if (finalClassName.match(/\bw-6\b/)) extractedSize = 24;
+  else if (finalClassName.match(/\bw-7\b/)) extractedSize = 28;
+  else if (finalClassName.match(/\bw-8\b/)) extractedSize = 32;
+  else if (finalClassName.match(/\bw-10\b/)) extractedSize = 40;
+  else if (finalClassName.match(/\bw-12\b/)) extractedSize = 48;
+  else if (finalClassName.match(/\bw-16\b/)) extractedSize = 64;
+
   if (LucideComp) {
-    const finalClassName = className ? `flex-shrink-0 ${className}` : 'flex-shrink-0 w-5 h-5';
     return React.createElement(LucideComp, {
       className: finalClassName,
+      size: extractedSize,
       strokeWidth: 2
     });
   }
@@ -75,7 +88,9 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
   if (iconPath) {
     return (
       <svg
-        className={`flex-shrink-0 ${className || 'w-5 h-5'}`}
+        className={finalClassName}
+        width={extractedSize}
+        height={extractedSize}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -89,7 +104,9 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
   // Último recurso: placeholder
   return (
     <svg
-      className={`flex-shrink-0 ${className || 'w-5 h-5'}`}
+      className={finalClassName}
+      width={extractedSize}
+      height={extractedSize}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"

@@ -6,6 +6,7 @@ import { activityLogger } from '../../services/utils/activityLogger.service';
 import { Unit, Module, PageView } from '../../types';
 import { Icon } from '../ui/Icon';
 import ProfileModal from '../ui/ProfileModal';
+import WhatsAppConnectionsModal from '../ui/WhatsAppConnectionsModal';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -20,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   // Isso garante que a opção 'Todos' (ALL) agregue dinamicamente todos os unit_code disponíveis
   // sem necessidade de estado duplicado ou múltiplos fetches locais.
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('2.0.0');
 
@@ -517,6 +519,20 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
                   )}
 
 
+                  {/* WhatsApp Cloud - Ocultado temporariamente */}
+                  {/*
+                  <button
+                    onClick={() => {
+                      setIsWhatsAppModalOpen(true);
+                      setIsUserMenuOpen(false);
+                      setSidebarOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-text-primary hover:bg-white/10 transition-colors"
+                  >
+                    <Icon name="MessageSquare" className="w-4 h-4" />
+                    <span>WhatsApp Cloud</span>
+                  </button>
+                  */}
 
                   {/* Perfil */}
                   <button
@@ -558,6 +574,11 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         onSave={handleProfileUpdate}
         user={user}
         fullNameInitial={(profile as any)?.full_name}
+      />
+      <WhatsAppConnectionsModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        selectedUnit={selectedUnit}
       />
     </>
   );

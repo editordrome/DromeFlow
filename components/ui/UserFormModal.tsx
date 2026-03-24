@@ -233,10 +233,10 @@ export const UserFormModal: React.FC<{
 
     setModulesByUnit(prev => {
       const newMap = new Map(prev);
-      const currentUnitModules = newMap.get(selectedUnitForModules) || new Set();
+      const currentUnitModules = (newMap.get(selectedUnitForModules) as Set<string>) || new Set<string>();
 
       // Cria um NOVO Set (não modifica o existente)
-      const updatedUnitModules = new Set(currentUnitModules);
+      const updatedUnitModules = new Set<string>(currentUnitModules);
 
       if (updatedUnitModules.has(moduleId)) {
         console.log('[handleModuleToggle] Removendo módulo:', moduleId);

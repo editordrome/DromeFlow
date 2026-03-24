@@ -15,7 +15,6 @@ export interface Profile {
   full_name: string;
   role: UserRole;
 }
-
 export interface Unit {
   id: string;
   unit_name: string;
@@ -65,6 +64,7 @@ export interface UnitKey {
   pos_vendas: string | null;
   conexao: string | null;
   id_recruta: string | null;
+  main_email?: string | null;
 }
 
 export interface Plan {
@@ -138,6 +138,7 @@ export type PageView =
   | 'typebot'
   | 'sistema'
   | 'configuracoes'
+  | 'agenda'
   | 'loyalty';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
@@ -534,6 +535,38 @@ export interface ActivityStats {
 }
 
 // ============================================================================
+// Agenda 
+// ============================================================================
+
+export interface AgendaSettings {
+  id: string;
+  unit_id: string;
+  dias_liberados: number[]; // ex: [1, 2, 3, 4, 5] para segunda a sexta
+  periodos_cadastrados: string[]; // ex: ['Manhã', 'Tarde', 'Integral']
+  is_link_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AgendaDisponibilidade {
+  id: string;
+  unit_id: string;
+  profissional_id: string;
+  data: string; // ISO Date YYYY-MM-DD
+  periodos: string[]; // ex: ['Manhã', 'Tarde']
+  conflito: boolean;
+  created_at?: string;
+  updated_at?: string;
+  
+  // Joins (para UI)
+  profissional?: {
+    id: string;
+    nome: string;
+    whatsapp: string;
+  };
+}
+
+// ============================================================================
 // Legacy Types (Data Drome - Deprecated após consolidação)
 // ============================================================================
 // @deprecated Use ActivityLog ao invés disso
@@ -673,3 +706,26 @@ export interface LoyaltyTransaction {
     codigo?: string; // Código do cliente
   };
 }
+
+// ============================================================================
+// WhatsApp Cloud (Meta API) Coexistence Types
+// ============================================================================
+
+export type WhatsAppConnectionType = 'comercial' | 'profissionais';
+export type WhatsAppConnectionStatus = 'connected' | 'disconnected' | 'error';
+
+export interface WhatsAppConnection {
+  id: string;
+  unit_id: string;
+  connection_type: WhatsAppConnectionType;
+  user_id?: string | null;
+  waba_id: string;
+  phone_number_id: string;
+  phone_number?: string | null;
+  access_token: string;
+  status: WhatsAppConnectionStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================

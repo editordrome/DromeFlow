@@ -1,5 +1,5 @@
 ---
-trigger: model_decision
+trigger: always_on
 description: dromeflow-rules
 ---
 
@@ -192,5 +192,3 @@ Estrutura esperada:
 ```
 
 📌 `ARCHITECTURE.md` deve ser lido **uma vez por sessão**.
-
-

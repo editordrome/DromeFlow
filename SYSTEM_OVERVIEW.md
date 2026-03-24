@@ -189,6 +189,22 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
 - Clientes: Visualização multi-unidade ainda não implementada; a página informa explicitamente essa limitação quando "Todos" é selecionado.
 - Recrutadora: Semântica ALL específica (vide acima), com DnD restrito e colunas globais.
 
+- **Agenda (Gestão e App Profissional)**:
+  - **Interface Administrativa (`AgendaPage.tsx`)**:
+    - Layout de 3 colunas (Grid 2:1:1):
+      - Coluna Esquerda (50%): Calendário (40% altura) e Quadro de Médricas Semanais (60% altura), ambos flexíveis.
+      - Coluna Meio (25%): Profissionais Livres (Drag & Drop).
+      - Coluna Direita (25%): Atendimentos do Dia (Drag & Drop).
+    - Header simplificado com botão de configurações ao lado do título.
+  - **Configuração (`agenda_settings`)**: Permite que administradores selecionem datas disponíveis (`dias_liberados`) para que profissionais informem sua agenda. 
+    - **Versionamento Automático**: Cada "Salvar" inativa versões anteriores (`is_link_active: false`) e gera um novo registro. Isso mantém um histórico íntegro sem afetar registros de sistema (`is_system`).
+  - **App Profissional (Mobile)**: Interface simplificada isolada via subdomínio/rota pública.
+    - **Login Universal**: Busca por WhatsApp resiliente a máscaras e DDI.
+    - **Cache-Busting**: Após o envio, o app limpa automaticamente `localStorage`, `caches` e desregistra `Service Workers`, forçando a busca da configuração ativa no próximo acesso.
+  - **Disponibilidade (`agenda_disponibilidade`)**: Armazena respostas vinculadas à Unidade e Data. 
+    - **Persistência Multi-versão**: A busca de respostas ignora o `settings_id` rígido, permitindo que a profissional veja seu progresso mesmo se o administrador atualizar a configuração durante a semana.
+  - **Sincronização**: Realtime no dashboard administrativo reflete as respostas instantaneamente.
+
 ## 6. Sincronização entre `auth.users` e `profiles`
 
 Para viabilizar rapidamente o MVP com autenticação customizada (consulta direta à tabela `profiles`) e, ao mesmo tempo, preparar o terreno para futura migração para o Supabase Auth completo, foram adotadas as seguintes decisões temporárias:

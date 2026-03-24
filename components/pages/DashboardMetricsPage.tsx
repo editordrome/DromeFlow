@@ -339,6 +339,7 @@ const DashboardMetricsPage: React.FC = () => {
     const [selectedServicesSubMetric, setSelectedServicesSubMetric] = useState<ServicesSubMetric>('none');
     const [selectedClientsSubMetric, setSelectedClientsSubMetric] = useState<ClientsSubMetric>('none');
     const [selectedRepasseSubMetric, setSelectedRepasseSubMetric] = useState<RepasseSubMetric>('none');
+    const [chartRange, setChartRange] = useState<'year' | 'last12'>('year');
 
     const getPreviousPeriod = (period: string): string => {
         const [year, month] = period.split('-').map(Number);
@@ -444,53 +445,91 @@ const DashboardMetricsPage: React.FC = () => {
         const startTime = performance.now();
         try {
             const currentYear = parseInt(selectedPeriod.split('-')[0], 10);
+            const currentMonthIndex = parseInt(selectedPeriod.split('-')[1], 10);
 
-            if (selectedUnit.unit_code === 'ALL') {
-                const aggregated: { [month: string]: MonthlyChartData } = {};
-                for (const code of multiUnits) {
-                    const result = await fetchMonthlyChartData(code, currentYear);
-                    result.forEach(r => {
-                        if (!aggregated[r.month]) aggregated[r.month] = { ...r };
-                        else {
-                            aggregated[r.month].totalRevenue += r.totalRevenue;
-                            aggregated[r.month].totalServices += r.totalServices;
-                            aggregated[r.month].uniqueClients += r.uniqueClients;
-                            aggregated[r.month].totalRepasse += r.totalRepasse;
-                        }
-                    });
+            // Função auxiliar local para carregar dados de um ano específico
+            const fetchYearData = async (y: number) => {
+                let mData: MonthlyChartData[] = [];
+                let sData: ServiceMonthlySubmetrics[] = [];
+                let cData: ClientMonthlySubmetrics[] = [];
+                let rData: RepasseMonthlySubmetrics[] = [];
+
+                if (selectedUnit.unit_code === 'ALL') {
+                    const aggregated: { [month: string]: MonthlyChartData } = {};
+                    for (const code of multiUnits) {
+                        const result = await fetchMonthlyChartData(code, y);
+                        result.forEach(r => {
+                            if (!aggregated[r.month]) aggregated[r.month] = { ...r };
+                            else {
+                                aggregated[r.month].totalRevenue += r.totalRevenue;
+                                aggregated[r.month].totalServices += r.totalServices;
+                                aggregated[r.month].uniqueClients += r.uniqueClients;
+                                aggregated[r.month].totalRepasse += r.totalRepasse;
+                            }
+                        });
+                    }
+                    mData = Object.values(aggregated).map(m => ({
+                        ...m,
+                        averageTicket: m.totalServices > 0 ? m.totalRevenue / m.totalServices : 0
+                    })).sort((a, b) => a.month.localeCompare(b.month));
+                    rData = await fetchRepasseMonthlySubmetricsMulti(multiUnits, y);
+                    sData = await fetchServiceMonthlySubmetricsMulti(multiUnits, y);
+                    cData = await fetchClientMonthlySubmetricsMulti(multiUnits, y);
+                } else {
+                    mData = await fetchMonthlyChartData(selectedUnit.unit_code, y);
+                    rData = await fetchRepasseMonthlySubmetrics(selectedUnit.unit_code, y);
+                    sData = await fetchServiceMonthlySubmetrics(selectedUnit.unit_code, y);
+                    cData = await fetchClientMonthlySubmetrics(selectedUnit.unit_code, y);
                 }
-                const finalArray = Object.values(aggregated).map(m => ({
-                    ...m,
-                    averageTicket: m.totalServices > 0 ? m.totalRevenue / m.totalServices : 0
-                })).sort((a, b) => a.month.localeCompare(b.month));
-                setMonthlyData(finalArray);
 
-                // Buscar submétricas de repasse usando serviço (mesmo padrão de Services/Clients)
-                const repasseMonthly = await fetchRepasseMonthlySubmetricsMulti(multiUnits, currentYear);
-                setRepasseMonthlyData(repasseMonthly);
+                // Anexa o ano para cruzar nos últimos 12 meses
+                return {
+                    mData: mData.map(d => ({ ...d, year: y })),
+                    sData: sData.map(d => ({ ...d, year: y })),
+                    cData: cData.map(d => ({ ...d, year: y })),
+                    rData: rData.map(d => ({ ...d, year: y }))
+                };
+            };
+
+            if (chartRange === 'year') {
+                const { mData, sData, cData, rData } = await fetchYearData(currentYear);
+                setMonthlyData(mData);
+                setServicesMonthlyData(sData);
+                setClientsMonthlyData(cData);
+                setRepasseMonthlyData(rData);
             } else {
-                const result = await fetchMonthlyChartData(selectedUnit.unit_code, currentYear);
-                setMonthlyData(result);
+                // Modo últimos 12 meses: busca do ano atual e do anterior
+                const [currentYearData, previousYearData] = await Promise.all([
+                    fetchYearData(currentYear),
+                    fetchYearData(currentYear - 1)
+                ]);
 
-                // Buscar submétricas de repasse usando serviço
-                const repasseMonthly = await fetchRepasseMonthlySubmetrics(selectedUnit.unit_code, currentYear);
-                setRepasseMonthlyData(repasseMonthly);
-            }
-            // também carregar submétricas de atendimentos para o ano
-            if (selectedUnit.unit_code === 'ALL') {
-                const sub = await fetchServiceMonthlySubmetricsMulti(multiUnits, currentYear);
-                setServicesMonthlyData(sub);
-                const csub = await fetchClientMonthlySubmetricsMulti(multiUnits, currentYear);
-                setClientsMonthlyData(csub);
-            } else {
-                const sub = await fetchServiceMonthlySubmetrics(selectedUnit.unit_code, currentYear);
-                setServicesMonthlyData(sub);
-                const csub = await fetchClientMonthlySubmetrics(selectedUnit.unit_code, currentYear);
-                setClientsMonthlyData(csub);
+                const combinedMData = [...previousYearData.mData, ...currentYearData.mData];
+                const combinedSData = [...previousYearData.sData, ...currentYearData.sData];
+                const combinedCData = [...previousYearData.cData, ...currentYearData.cData];
+                const combinedRData = [...previousYearData.rData, ...currentYearData.rData];
+
+                // Filtra os últimos 12 meses terminando em currentMonthIndex
+                // Exemplo: se estamos em Fev (2) de 2026, queremos de Mar/2025 (ind 2) até Fev/2026 (ind 13)
+                // O array terá 24 elementos (índices 0 a 23). Mês 12 do arr 1 é indice 11. Mês 1 do arr 2 é índice 12.
+                // Índices: prevYear = 0..11, currentYear = 12..23
+                const endIndex = 11 + currentMonthIndex; // Índice incluso
+                const startIndex = endIndex - 11; // 12 meses totais
+
+                const slicedMData = combinedMData.slice(startIndex, endIndex + 1).map(d => ({
+                    ...d,
+                    monthName: `${d.monthName}/${String(d.year).slice(-2)}` // Adapta nome do mês p/ exibir ano
+                }));
+                const slicedSData = combinedSData.slice(startIndex, endIndex + 1);
+                const slicedCData = combinedCData.slice(startIndex, endIndex + 1);
+                const slicedRData = combinedRData.slice(startIndex, endIndex + 1);
+
+                setMonthlyData(slicedMData);
+                setServicesMonthlyData(slicedSData);
+                setClientsMonthlyData(slicedCData);
+                setRepasseMonthlyData(slicedRData);
             }
 
-            // ✅ OTIMIZAÇÃO FASE 1: Lazy loading de períodos (não carrega automaticamente)
-            // Períodos serão carregados apenas quando usuário visualizar análise de serviços
             console.log('[Dashboard Optimization] Lazy loading habilitado - períodos carregados sob demanda');
             setMonthlyPeriods({});
         } catch (err: any) {
@@ -506,7 +545,7 @@ const DashboardMetricsPage: React.FC = () => {
             const duration = ((endTime - startTime) / 1000).toFixed(2);
             console.log(`[Dashboard Optimization] ✅ Dados mensais carregados em ${duration}s`);
         }
-    }, [selectedUnit, multiUnits, selectedPeriod]);
+    }, [selectedUnit, multiUnits, selectedPeriod, chartRange]);
 
     // ✅ OTIMIZAÇÃO FASE 1: Lazy loading de períodos mensais (carrega sob demanda)
     const loadMonthlyPeriods = useCallback(async () => {
@@ -943,9 +982,12 @@ const DashboardMetricsPage: React.FC = () => {
     const getMinMaxStats = (data: MonthlyChartData[], metric: MetricType) => {
         if (!data || data.length === 0) return null;
 
-        // Filtrar apenas meses até o atual
+        // Se estivemos em modo 'year', calculamos minMax do ano corrente apenas (mensal limit max = mês atual).
+        // Se 12 meses, não tem limitação do mês atual do ano vigente, calcula min/max de tudo.
         const currentMonth = new Date().getMonth() + 1;
-        const filteredData = data.filter(item => parseInt(item.month) <= currentMonth);
+        const filteredData = chartRange === 'year'
+            ? data.filter(item => parseInt(item.month) <= currentMonth)
+            : data;
 
         if (filteredData.length === 0) return null;
 
@@ -1078,13 +1120,18 @@ const DashboardMetricsPage: React.FC = () => {
         <div className="space-y-6">
             {/* Cabeçalho Principal */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-                <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-                <PeriodDropdown
-                    value={selectedPeriod}
-                    onChange={setSelectedPeriod}
-                    disabled={isLoading}
-                    availableYears={availableYears}
-                />
+                <div>
+                    <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+                    <p className="text-sm text-text-secondary mt-1">Análise detalhada de faturamento, atendimentos e clientes</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <PeriodDropdown
+                        value={selectedPeriod}
+                        onChange={setSelectedPeriod}
+                        disabled={isLoading}
+                        availableYears={availableYears}
+                    />
+                </div>
             </div>
 
             {isLoading ? (
@@ -1684,9 +1731,25 @@ const DashboardMetricsPage: React.FC = () => {
                                 aria-expanded={isChartVisible}
                             >
                                 <div className="flex items-center gap-6">
-                                    <h3 className="text-lg font-semibold text-text-primary">
-                                        {getMetricConfig(selectedMetric).title}
-                                    </h3>
+                                    <div className="flex items-center gap-4">
+                                        <h3 className="text-lg font-semibold text-text-primary">
+                                            {getMetricConfig(selectedMetric).title}
+                                        </h3>
+                                        <div className="flex bg-bg-tertiary border border-border-secondary rounded-md p-1 ml-4 shadow-inner">
+                                            <button
+                                                className={`px-3 py-1 text-xs font-medium rounded-sm transition-all duration-200 ${chartRange === 'year' ? 'bg-white text-text-primary shadow-sm ring-1 ring-border-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                                                onClick={(e) => { e.stopPropagation(); setChartRange('year'); }}
+                                            >
+                                                Ano
+                                            </button>
+                                            <button
+                                                className={`px-3 py-1 text-xs font-medium rounded-sm transition-all duration-200 ${chartRange === 'last12' ? 'bg-white text-text-primary shadow-sm ring-1 ring-border-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                                                onClick={(e) => { e.stopPropagation(); setChartRange('last12'); }}
+                                            >
+                                                Últ. 12 Meses
+                                            </button>
+                                        </div>
+                                    </div>
                                     {/* Comparação Mês Anterior */}
                                     {(() => {
                                         if (!previousMonthMetrics) {
@@ -1776,7 +1839,7 @@ const DashboardMetricsPage: React.FC = () => {
                                         data={
                                             selectedMetric === 'totalServices' && selectedServicesSubMetric !== 'none'
                                                 ? monthlyData.map((m) => {
-                                                    const s = servicesMonthlyData.find(x => x.month === m.month);
+                                                    const s = servicesMonthlyData.find(x => x.month === m.month && (!m.year || x.year === m.year));
                                                     return {
                                                         ...m,
                                                         totalServices:
@@ -1787,7 +1850,7 @@ const DashboardMetricsPage: React.FC = () => {
                                                 })
                                                 : selectedMetric === 'uniqueClients' && selectedClientsSubMetric !== 'none'
                                                     ? monthlyData.map((m) => {
-                                                        const c = clientsMonthlyData.find(x => x.month === m.month);
+                                                        const c = clientsMonthlyData.find(x => x.month === m.month && (!m.year || x.year === m.year));
                                                         return {
                                                             ...m,
                                                             uniqueClients:
@@ -1798,11 +1861,8 @@ const DashboardMetricsPage: React.FC = () => {
                                                     })
                                                     : selectedMetric === 'totalRepasse' && selectedRepasseSubMetric !== 'none'
                                                         ? (() => {
-                                                            console.log('[Chart Data] repasseMonthlyData:', repasseMonthlyData);
-                                                            console.log('[Chart Data] selectedRepasseSubMetric:', selectedRepasseSubMetric);
                                                             const mappedData = monthlyData.map((m) => {
-                                                                const r = repasseMonthlyData.find(x => x.month === m.month);
-                                                                console.log(`[Chart Data] Month ${m.month}: found=${!!r}, value=${selectedRepasseSubMetric === 'averagePerService' ? (r?.averagePerService || 0) : selectedRepasseSubMetric === 'averagePerWeek' ? (r?.averagePerWeek || 0) : (r?.averagePerProfessional || 0)}`);
+                                                                const r = repasseMonthlyData.find(x => x.month === m.month && (!m.year || x.year === m.year));
                                                                 return {
                                                                     ...m,
                                                                     totalRepasse:
@@ -1811,7 +1871,6 @@ const DashboardMetricsPage: React.FC = () => {
                                                                                 : (r?.averagePerProfessional || 0),
                                                                 } as MonthlyChartData;
                                                             });
-                                                            console.log('[Chart Data] Final mapped data:', mappedData);
                                                             return mappedData;
                                                         })()
                                                         : monthlyData
@@ -1823,6 +1882,7 @@ const DashboardMetricsPage: React.FC = () => {
                                         }
                                         isLoading={isChartLoading}
                                         invertColors={selectedMetric === 'uniqueClients' && selectedClientsSubMetric === 'churnRate'}
+                                        chartRange={chartRange}
                                     />
                                 </div>
                             </div>
@@ -2267,9 +2327,10 @@ const DashboardMetricsPage: React.FC = () => {
                                                             </thead>
                                                             <tbody className="divide-y divide-border-primary">
                                                                 {monthlyData.map((monthData) => {
-                                                                    const serviceData = servicesMonthlyData.find(s => s.month === monthData.month);
-                                                                    const currentYear = selectedPeriod.split('-')[0];
-                                                                    const monthKey = `${currentYear}-${monthData.month}`;
+                                                                    const serviceData = servicesMonthlyData.find(s => s.month === monthData.month && (!monthData.year || s.year === monthData.year));
+                                                                    const currentYear = parseInt(selectedPeriod.split('-')[0], 10);
+                                                                    const dataYear = chartRange === 'year' ? currentYear : (monthData.year || currentYear);
+                                                                    const monthKey = `${dataYear}-${monthData.month}`;
                                                                     const monthPeriods = monthlyPeriods[monthKey] || {};
 
                                                                     return (

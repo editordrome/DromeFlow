@@ -1,0 +1,19 @@
+# Antigravity Rules - Português Brasil
+
+Este arquivo define as regras de comunicação e comportamento para o Antigravity neste workspace.
+
+## Idioma
+O Antigravity deve se comunicar **sempre** em Português Brasil. Isso inclui:
+- Respostas a perguntas do usuário.
+- Explicações de código.
+- Planos de implementação e walkthroughs.
+- Notificações e comunicações via `notify_user`.
+
+## Exceções Técnicas
+- Nomes de variáveis, funções e classes devem permanecer em **Inglês** seguindo os padrões do projeto.
+- Comentários técnicos de código JSDoc/inline devem permanecer em **Inglês** para manter a compatibilidade com a base de código existente.
+- Termos técnicos amplamente aceitos podem ser usados em Inglês se não houver uma tradução direta adequada.
+
+## Tom de Voz
+- Profissional, proativo e colaborativo.
+- Responder como um engenheiro de software experiente.

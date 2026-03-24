@@ -290,6 +290,27 @@ export const fetchAppointmentsMulti = async (
   return (data as DataRecord[]) || [];
 };
 
+export const fetchAppointmentsRange = async (
+  unitCode: string,
+  startDate: string,
+  endDate: string
+): Promise<DataRecord[]> => {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(startDate) || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(endDate)) return [];
+  const { data, error } = await supabase
+    .from('processed_data')
+    .select('*')
+    .eq('unidade_code', unitCode)
+    .gte('DATA', startDate)
+    .lte('DATA', endDate)
+    .order('DATA', { ascending: true })
+    .order('HORARIO', { ascending: true });
+  if (error) {
+    console.error('Erro ao buscar agendamentos (range):', error);
+    throw error;
+  }
+  return (data as DataRecord[]) || [];
+};
+
 export const updateDataRecord = async (
   recordId: string,
   updatedData: Partial<DataRecord>

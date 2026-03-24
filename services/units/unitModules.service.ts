@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../supabaseClient';
+import { initializeUnitAgenda } from '../agenda/agenda.service';
 import type { Module } from '../../types';
 
 export interface UnitModule {
@@ -64,6 +65,11 @@ export async function assignModulesToUnit(
       console.error('Erro ao atribuir módulos à unidade:', error);
       throw error;
     }
+
+    // Se o módulo de Agenda estiver entre os atribuídos, inicializa configurações padrão
+    if (moduleIds.includes('1c6c781c-cd56-44f7-8c24-7126fc6ec9a3')) {
+      await initializeUnitAgenda(unitId);
+    }
   } catch (err) {
     console.error('Erro na chamada assignModulesToUnit:', err);
     throw err;
@@ -90,6 +96,11 @@ export async function assignModuleToUnit(
     if (error) {
       console.error('Erro ao adicionar módulo à unidade:', error);
       throw error;
+    }
+
+    // Se for o módulo de Agenda, inicializa configurações padrão
+    if (moduleId === '1c6c781c-cd56-44f7-8c24-7126fc6ec9a3') {
+      await initializeUnitAgenda(unitId);
     }
   } catch (err) {
     console.error('Erro na chamada assignModuleToUnit:', err);
@@ -241,6 +252,11 @@ export async function updateUnitModules(
       if (insertError) {
         console.error('Erro ao adicionar módulos:', insertError);
         throw insertError;
+      }
+
+      // Se o módulo de Agenda estiver entre os novos, inicializa
+      if (modulesToAdd.includes('1c6c781c-cd56-44f7-8c24-7126fc6ec9a3')) {
+        await initializeUnitAgenda(unitId);
       }
     }
   } catch (err) {

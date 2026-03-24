@@ -12,6 +12,7 @@ const ManageUnitsPage = lazy(() => import('../pages/ManageUnitsPage'));
 const ManageAccessPage = lazy(() => import('../pages/ManageAccessPage'));
 const DataPage = lazy(() => import('../pages/DataPage'));
 const DashboardMetricsPage = lazy(() => import('../pages/DashboardMetricsPage'));
+const AgendaPage = lazy(() => import('../pages/AgendaPage'));
 const AppointmentsPage = lazy(() => import('../pages/AppointmentsPage'));
 const ClientsPage = lazy(() => import('../pages/ClientsPage'));
 const ClientsBasePage = lazy(() => import('../pages/ClientsBasePage'));
@@ -31,10 +32,6 @@ const TypebotPage = lazy(() => import('../pages/TypebotPage'));
 const SistemaPage = lazy(() => import('../pages/SistemaPage'));
 const SistemaAdminPage = lazy(() => import('../pages/SistemaAdminPage'));
 const LoyaltyPage = lazy(() => import('../pages/LoyaltyPage'));
-
-
-
-// Loading component
 const PageLoader = () => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
@@ -92,7 +89,10 @@ const ContentArea: React.FC = () => {
     if (activeView === 'data') {
         return <Suspense fallback={<PageLoader />}><DataPage /></Suspense>;
     }
-    if (activeView === 'appointments' || activeView === 'agenda') {
+    if (activeView === 'agenda') {
+        return <Suspense fallback={<PageLoader />}><AgendaPage /></Suspense>;
+    }
+    if (activeView === 'appointments') {
         return <Suspense fallback={<PageLoader />}><AppointmentsPage /></Suspense>;
     }
     if (activeView === 'clients') {
@@ -153,8 +153,6 @@ const ContentArea: React.FC = () => {
         return <Suspense fallback={<PageLoader />}><LoyaltyPage /></Suspense>;
     }
 
-
-    // Default to module view
     return (
         <div className="h-full w-full bg-bg-secondary rounded-lg shadow-md overflow-hidden flex flex-col">
             {!activeModule && (
