@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DromeFlow - Dashboard Educacional</title>
+    <style>
+        /* ========================================
+           VARIÁVEIS CSS - TEMA DROMEFLOW
+           ======================================== */
+        :root {
+            /* Cores principais do tema */
+            --accent-primary: #0D8ABC;
+            --brand-dark-blue: #010d32;
+            --brand-cyan: #00d5ff;
+            --brand-snow-white: #fffafa;
+            
+            /* Backgrounds */
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            
+            /* Textos */
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-on-accent: #ffffff;
+            
+            /* Bordas */
+            --border-primary: #e2e8f0;
+            --border-secondary: #cbd5e1;
+            
+            /* Cores semânticas */
+            --success-color: #70e000;
+            --warning-color: #f88f0b;
+            --danger-color: #ef476f;
+            --info-color: #00d5ff;
+            
+            /* Sombras */
+            --shadow-sm: 0 1px 3px rgba(30, 41, 59, 0.05);
+            --shadow-md: 0 2px 8px rgba(30, 41, 59, 0.08);
+            --shadow-lg: 0 4px 16px rgba(30, 41, 59, 0.12);
+        }
+
+        /* ========================================
+           RESET E ESTILOS BASE
+           ======================================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ========================================
+           LAYOUT PRINCIPAL
+           Layout flexbox para sidebar + conteúdo
+           ======================================== */
+        .dashboard-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ========================================
+           SIDEBAR - Barra lateral de navegação
+           ======================================== */
+        .sidebar {
+            background-color: var(--brand-dark-blue);
+            color: var(--brand-snow-white);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease;
+            width: 256px; /* 64 * 4 = 16rem */
+            position: relative;
+            z-index: 30;
+        }
+
+        /* Sidebar colapsada (modo compacto) */
+        .sidebar.collapsed {
+            width: 80px; /* 20 * 4 = 5rem */
+        }
+
+        /* Header da sidebar com logo e botão de colapsar */
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            min-height: 64px;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .sidebar-logo img {
+            width: 32px;
+            height: 32px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-logo span {
+            font-size: 1.25rem;
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: opacity 0.2s;
+        }
+
+        .sidebar.collapsed .sidebar-logo span {
+            opacity: 0;
+            width: 0;
+        }
+
+        .collapse-btn {
+            background: none;
+            border: none;
+            color: var(--brand-snow-white);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 9999px;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .collapse-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .collapse-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .sidebar.collapsed .collapse-btn svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        /* ========================================
+           SELETOR DE UNIDADE
+           ======================================== */
+        .sidebar-content {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .unit-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .unit-selector label {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        .sidebar.collapsed .unit-selector label {
+            opacity: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        .unit-selector select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .unit-selector select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(13, 138, 188, 0.2);
+        }
+
+        .sidebar.collapsed .unit-selector select {
+            opacity: 0;
+            height: 0;
+            padding: 0;
+            border: none;
+        }
+
+        /* ========================================
+           MENU DE NAVEGAÇÃO
+           ======================================== */
+        .nav-menu {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding-top: 0.5rem;
+        }
+
+        .nav-item {
+            width: 100%;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            width: 100%;
+            padding: 0.625rem 1rem;
+            border-radius: 0.5rem;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+            text-align: left;
+            text-decoration: none;
+        }
+
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--brand-snow-white);
+        }
+
+        .nav-link.active {
+            background-color: var(--accent-primary);
+            color: var(--text-on-accent);
+        }
+
+        .nav-link svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .sidebar.collapsed .nav-link {
+            justify-content: center;
+            padding: 0.625rem;
+        }
+
+        .sidebar.collapsed .nav-link svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-link span {
+            transition: opacity 0.2s;
+        }
+
+        .sidebar.collapsed .nav-link span {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+
+        /* ========================================
+           ÁREA DE PERFIL DO USUÁRIO
+           ======================================== */
+        .sidebar-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .user-profile-collapsed {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 9999px;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .user-avatar:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .sidebar.collapsed .user-avatar {
+            width: 36px;
+            height: 36px;
+        }
+
+        .user-info {
+            flex: 1;
+            min-width: 0;
+            transition: opacity 0.2s;
+        }
+
+        .sidebar.collapsed .user-info {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        .user-name {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--brand-snow-white);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-email {
+            font-size: 0.625rem;
+            color: rgba(255, 255, 255, 0.6);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .logout-btn {
+            background-color: rgba(239, 71, 111, 0.8);
+            border: none;
+            color: var(--brand-snow-white);
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .logout-btn:hover {
+            background-color: var(--danger-color);
+        }
+
+        .logout-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .sidebar.collapsed .logout-btn {
+            width: 48px;
+            height: 48px;
+        }
+
+        .sidebar.collapsed .logout-btn svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        /* ========================================
+           CONTEÚDO PRINCIPAL
+           ======================================== */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        /* Header mobile (oculto no desktop) */
+        .mobile-header {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-primary);
+            position: relative;
+            z-index: 10;
+        }
+
+        .mobile-header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .mobile-menu-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .mobile-menu-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .mobile-menu-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Área de conteúdo principal */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.5rem;
+        }
+
+        /* ========================================
+           CARDS E MÉTRICAS
+           Exemplos visuais de componentes
+           ======================================== */
+        .page-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .page-description {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* Grid de cards de métricas */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .metric-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .metric-card.active {
+            background-color: var(--accent-primary);
+            color: var(--text-on-accent);
+            border-color: transparent;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .metric-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .metric-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .metric-icon.blue {
+            background-color: rgba(13, 138, 188, 0.1);
+            color: var(--accent-primary);
+        }
+
+        .metric-icon.green {
+            background-color: rgba(112, 224, 0, 0.1);
+            color: var(--success-color);
+        }
+
+        .metric-icon.orange {
+            background-color: rgba(248, 143, 11, 0.1);
+            color: var(--warning-color);
+        }
+
+        .metric-icon.cyan {
+            background-color: rgba(0, 213, 255, 0.1);
+            color: var(--brand-cyan);
+        }
+
+        .metric-card.active .metric-icon {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: var(--text-on-accent);
+        }
+
+        .metric-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .metric-card.active .metric-title {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .metric-value {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .metric-card.active .metric-value {
+            color: var(--text-on-accent);
+        }
+
+        /* Card de conteúdo genérico */
+        .content-card {
+            background-color: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1.5rem;
+        }
+
+        .content-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .content-card p {
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Placeholder de gráfico */
+        .chart-placeholder {
+            background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+            border: 2px dashed var(--border-secondary);
+            border-radius: 0.75rem;
+            padding: 3rem;
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 1rem;
+        }
+
+        .chart-placeholder svg {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 1rem;
+            opacity: 0.5;
+        }
+
+        /* ========================================
+           OVERLAY MOBILE (backdrop escuro)
+           ======================================== */
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 20;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .mobile-overlay.active {
+            opacity: 1;
+        }
+
+        /* ========================================
+           RESPONSIVIDADE MOBILE
+           ======================================== */
+        @media (max-width: 1024px) {
+            /* Ocultar sidebar desktop no mobile */
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 40;
+                width: 256px !important; /* Força largura completa no mobile */
+            }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .sidebar.collapsed {
+                width: 256px !important; /* No mobile, sempre expandida quando aberta */
+            }
+
+            /* Mostrar header mobile */
+            .mobile-header {
+                display: flex;
+            }
+
+            /* Mostrar overlay quando sidebar aberta */
+            .mobile-overlay {
+                display: block;
+            }
+
+            /* Ajustar grid de métricas */
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .content-area {
+                padding: 1rem;
+            }
+        }
+
+        /* ========================================
+           UTILITÁRIOS
+           ======================================== */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Animação de carregamento */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            border: 4px solid var(--border-primary);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- ========================================
+         CONTAINER PRINCIPAL DO DASHBOARD
+         ======================================== -->
+    <div class="dashboard-container">
+        
+        <!-- ========================================
+             SIDEBAR - Barra Lateral de Navegação
+             Contém: Logo, Seletor de Unidade, Menu e Perfil
+             ======================================== -->
+        <aside id="sidebar" class="sidebar">
+            <!-- Header com logo e botão de colapsar -->
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="https://iili.io/3RBGZox.png" alt="DromeFlow Logo">
+                    <span>DromeFlow</span>
+                </div>
+                <button class="collapse-btn" id="collapseBtn" aria-label="Colapsar sidebar">
+                    <!-- Ícone de menu (3 linhas horizontais) -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Conteúdo da sidebar -->
+            <div class="sidebar-content">
+                <!-- Seletor de Unidade -->
+                <div class="unit-selector">
+                    <label for="unitSelect">Unidade</label>
+                    <select id="unitSelect">
+                        <option value="all">Todas as Unidades</option>
+                        <option value="unit1" selected>Unidade São Paulo</option>
+                        <option value="unit2">Unidade Rio de Janeiro</option>
+                        <option value="unit3">Unidade Belo Horizonte</option>
+                    </select>
+                </div>
+
+                <!-- Menu de Navegação -->
+                <nav>
+                    <ul class="nav-menu">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-view="dashboard" title="Dashboard">
+                                <!-- Ícone de Dashboard (gráfico de barras) -->
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                                </svg>
+                                <span>Dashboard</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="appointments" title="Agendamentos">
+                                <!-- Ícone de Calendário -->
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                </svg>
+                                <span>Agendamentos</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="clients" title="Clientes">
+                                <!-- Ícone de Usuários -->
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                                <span>Clientes</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="professionals" title="Profissionais">
+                                <!-- Ícone de Equipe -->
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="8.5" cy="7" r="4"></circle>
+                                    <line x1="23" y1="21" x2="23" y2="17"></line>
+                                    <line x1="21" y1="19" x2="25" y2="19"></line>
+                                </svg>
+                                <span>Profissionais</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="commercial" title="Comercial">
+                                <!-- Ícone de Dólar -->
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                </svg>
+                                <span>Comercial</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="data" title="Dados">
+                                <!-- Ícone de Banco de Dados -->
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                                </svg>
+                                <span>Dados</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="settings" title="Configurações">
+                                <!-- Ícone de Engrenagem -->
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M12 1v6m0 6v6m6-12l-6 6m6 6l-6-6M1 12h6m6 0h6"></path>
+                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                </svg>
+                                <span>Configurações</span>
+                            </button>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+
+            <!-- Footer com perfil do usuário -->
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfileExpanded">
+                    <img 
+                        class="user-avatar" 
+                        src="https://ui-avatars.com/api/?name=Usuario+Demo&background=0D8ABC&color=fff" 
+                        alt="Avatar do Usuário"
+                        title="Perfil do Usuário"
+                    >
+                    <div class="user-info">
+                        <div class="user-name">Usuário Demo</div>
+                        <div class="user-email">usuario@dromeflow.com</div>
+                    </div>
+                    <button class="logout-btn" aria-label="Sair" title="Sair">
+                        <!-- Ícone de Logout -->
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </button>
+                </div>
+                <!-- Perfil colapsado (aparece quando sidebar está recolhida) -->
+                <div class="user-profile-collapsed hidden" id="userProfileCollapsed">
+                    <img 
+                        class="user-avatar" 
+                        src="https://ui-avatars.com/api/?name=Usuario+Demo&background=0D8ABC&color=fff" 
+                        alt="Avatar do Usuário"
+                        title="Usuário Demo"
+                    >
+                    <button class="logout-btn" aria-label="Sair" title="Sair">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ========================================
+             ÁREA PRINCIPAL (Main Content)
+             Contém: Header Mobile + Content Area
+             ======================================== -->
+        <main class="main-content">
+            <!-- Header Mobile (visível apenas em telas pequenas) -->
+            <header class="mobile-header">
+                <h1>Painel</h1>
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Abrir menu">
+                    <!-- Ícone de Menu Mobile -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="11" y2="18"></line>
+                    </svg>
+                </button>
+            </header>
+
+            <!-- Área de Conteúdo Principal -->
+            <div class="content-area" id="contentArea">
+                <!-- ========================================
+                     EXEMPLO: PÁGINA DE DASHBOARD
+                     Esta seção demonstra cards de métricas e visualizações
+                     ======================================== -->
+                <div id="dashboardView">
+                    <!-- Header da Página -->
+                    <div class="page-header">
+                        <h2 class="page-title">Dashboard de Métricas</h2>
+                        <p class="page-description">
+                            Visão geral das principais métricas e indicadores de desempenho da unidade selecionada.
+                        </p>
+                    </div>
+
+                    <!-- Grid de Cards de Métricas -->
+                    <div class="metrics-grid">
+                        <!-- Métrica 1: Total de Serviços -->
+                        <div class="metric-card active">
+                            <div class="metric-header">
+                                <div class="metric-icon blue">
+                                    <!-- Ícone de Briefcase (maleta) -->
+                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Total de Serviços</span>
+                            </div>
+                            <div class="metric-value">1,234</div>
+                        </div>
+
+                        <!-- Métrica 2: Receita -->
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <div class="metric-icon green">
+                                    <!-- Ícone de Dinheiro -->
+                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Receita Total</span>
+                            </div>
+                            <div class="metric-value">R$ 58.420</div>
+                        </div>
+
+                        <!-- Métrica 3: Clientes Ativos -->
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <div class="metric-icon orange">
+                                    <!-- Ícone de Usuários -->
+                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Clientes Ativos</span>
+                            </div>
+                            <div class="metric-value">456</div>
+                        </div>
+
+                        <!-- Métrica 4: Taxa de Conversão -->
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <div class="metric-icon cyan">
+                                    <!-- Ícone de Trend Up (gráfico crescente) -->
+                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                                        <polyline points="17 6 23 6 23 12"></polyline>
+                                    </svg>
+                                </div>
+                                <span class="metric-title">Taxa de Conversão</span>
+                            </div>
+                            <div class="metric-value">78%</div>
+                        </div>
+                    </div>
+
+                    <!-- Card com Gráfico de Exemplo -->
+                    <div class="content-card">
+                        <h3>Análise Mensal de Serviços</h3>
+                        <p>
+                            Este gráfico demonstraria a evolução mensal dos serviços realizados. 
+                            No sistema real, aqui seria renderizado um gráfico interativo usando bibliotecas como Recharts ou Chart.js.
+                        </p>
+                        <div class="chart-placeholder">
+                            <!-- Ícone de Gráfico -->
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="20" x2="12" y2="10"></line>
+                                <line x1="18" y1="20" x2="18" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="16"></line>
+                            </svg>
+                            <p><strong>Gráfico de Exemplo</strong></p>
+                            <p>Aqui seria exibido um gráfico de barras ou linha mostrando tendências ao longo do tempo</p>
+                        </div>
+                    </div>
+
+                    <!-- Card Informativo -->
+                    <div class="content-card">
+                        <h3>Sobre este Dashboard Educacional</h3>
+                        <p>
+                            Esta é uma réplica educacional em HTML puro do sistema DromeFlow. 
+                            O objetivo é demonstrar visualmente como o layout e os componentes funcionam sem dependências de frameworks JavaScript.
+                        </p>
+                        <p style="margin-top: 1rem;">
+                            <strong>Funcionalidades interativas:</strong>
+                        </p>
+                        <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: var(--text-secondary);">
+                            <li>Clique no botão de menu no header da sidebar para colapsar/expandir a barra lateral</li>
+                            <li>Em dispositivos móveis, use o botão de menu no topo para abrir o menu lateral</li>
+                            <li>Clique nos itens do menu para simular a navegação entre módulos</li>
+                            <li>Os cards de métricas são clicáveis e mudam de cor ao serem selecionados</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Outras views (ocultas por padrão) -->
+                <div id="appointmentsView" class="hidden">
+                    <div class="page-header">
+                        <h2 class="page-title">Agendamentos</h2>
+                        <p class="page-description">Gerencie os agendamentos de serviços da unidade.</p>
+                    </div>
+                    <div class="content-card">
+                        <h3>Calendário de Agendamentos</h3>
+                        <p>Nesta seção seriam exibidos os agendamentos em formato de calendário ou lista.</p>
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div id="clientsView" class="hidden">
+                    <div class="page-header">
+                        <h2 class="page-title">Clientes</h2>
+                        <p class="page-description">Base de clientes cadastrados no sistema.</p>
+                    </div>
+                    <div class="content-card">
+                        <h3>Lista de Clientes</h3>
+                        <p>Aqui seria exibida uma tabela com a lista de clientes, incluindo filtros e busca.</p>
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div id="professionalsView" class="hidden">
+                    <div class="page-header">
+                        <h2 class="page-title">Profissionais</h2>
+                        <p class="page-description">Gestão de profissionais cadastrados.</p>
+                    </div>
+                    <div class="content-card">
+                        <h3>Equipe de Profissionais</h3>
+                        <p>Lista e gerenciamento dos profissionais vinculados à unidade.</p>
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div id="commercialView" class="hidden">
+                    <div class="page-header">
+                        <h2 class="page-title">Comercial</h2>
+                        <p class="page-description">Oportunidades comerciais e vendas.</p>
+                    </div>
+                    <div class="content-card">
+                        <h3>Pipeline Comercial</h3>
+                        <p>Gerenciamento do funil de vendas e oportunidades comerciais.</p>
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div id="dataView" class="hidden">
+                    <div class="page-header">
+                        <h2 class="page-title">Dados</h2>
+                        <p class="page-description">Upload e gerenciamento de dados do sistema.</p>
+                    </div>
+                    <div class="content-card">
+                        <h3>Importação de Dados</h3>
+                        <p>Interface para upload de planilhas e gestão de dados processados.</p>
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div id="settingsView" class="hidden">
+                    <div class="page-header">
+                        <h2 class="page-title">Configurações</h2>
+                        <p class="page-description">Configurações do sistema e preferências.</p>
+                    </div>
+                    <div class="content-card">
+                        <h3>Preferências do Sistema</h3>
+                        <p>Ajuste as configurações de acordo com suas preferências.</p>
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Overlay para mobile (fundo escuro quando sidebar aberta) -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <!-- ========================================
+         JAVASCRIPT - FUNCIONALIDADES INTERATIVAS
+         ======================================== -->
+    <script>
+        /**
+         * GERENCIAMENTO DA SIDEBAR
+         * Funções para colapsar/expandir a sidebar no desktop
+         */
+        const sidebar = document.getElementById('sidebar');
+        const collapseBtn = document.getElementById('collapseBtn');
+        const userProfileExpanded = document.getElementById('userProfileExpanded');
+        const userProfileCollapsed = document.getElementById('userProfileCollapsed');
+
+        // Toggle da sidebar (colapsar/expandir)
+        collapseBtn.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            
+            // Alterna entre perfil expandido e colapsado
+            if (sidebar.classList.contains('collapsed')) {
+                userProfileExpanded.classList.add('hidden');
+                userProfileCollapsed.classList.remove('hidden');
+            } else {
+                userProfileExpanded.classList.remove('hidden');
+                userProfileCollapsed.classList.add('hidden');
+            }
+        });
+
+        /**
+         * GERENCIAMENTO DO MENU MOBILE
+         * Abre/fecha a sidebar em dispositivos móveis
+         */
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+
+        // Abrir menu mobile
+        mobileMenuBtn.addEventListener('click', function() {
+            sidebar.classList.add('mobile-open');
+            mobileOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Previne scroll do body
+        });
+
+        // Fechar menu mobile ao clicar no overlay
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('mobile-open');
+            mobileOverlay.classList.remove('active');
+            document.body.style.overflow = ''; // Restaura scroll
+        });
+
+        /**
+         * NAVEGAÇÃO ENTRE MÓDULOS
+         * Simula a troca de conteúdo ao clicar nos itens do menu
+         */
+        const navLinks = document.querySelectorAll('.nav-link');
+        const views = {
+            'dashboard': document.getElementById('dashboardView'),
+            'appointments': document.getElementById('appointmentsView'),
+            'clients': document.getElementById('clientsView'),
+            'professionals': document.getElementById('professionalsView'),
+            'commercial': document.getElementById('commercialView'),
+            'data': document.getElementById('dataView'),
+            'settings': document.getElementById('settingsView')
+        };
+
+        // Função para mostrar uma view específica
+        function showView(viewName) {
+            // Esconde todas as views
+            Object.values(views).forEach(view => {
+                if (view) view.classList.add('hidden');
+            });
+
+            // Mostra a view selecionada
+            if (views[viewName]) {
+                views[viewName].classList.remove('hidden');
+            }
+
+            // Atualiza estado ativo dos links
+            navLinks.forEach(link => {
+                if (link.dataset.view === viewName) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+
+            // Fecha menu mobile se estiver aberto
+            if (sidebar.classList.contains('mobile-open')) {
+                sidebar.classList.remove('mobile-open');
+                mobileOverlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Adiciona event listeners aos links de navegação
+        navLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                const viewName = this.dataset.view;
+                showView(viewName);
+            });
+        });
+
+        /**
+         * INTERATIVIDADE DOS CARDS DE MÉTRICAS
+         * Cards mudam de estado ao serem clicados
+         */
+        const metricCards = document.querySelectorAll('.metric-card');
+        
+        metricCards.forEach(card => {
+            card.addEventListener('click', function() {
+                // Remove classe active de todos os cards
+                metricCards.forEach(c => c.classList.remove('active'));
+                // Adiciona classe active ao card clicado
+                this.classList.add('active');
+            });
+        });
+
+        /**
+         * INICIALIZAÇÃO
+         * Garante que a view correta seja exibida ao carregar a página
+         */
+        document.addEventListener('DOMContentLoaded', function() {
+            // Exibe o dashboard por padrão
+            showView('dashboard');
+            
+            console.log('%c DromeFlow Dashboard Educacional ', 'background: #0D8ABC; color: white; font-size: 16px; padding: 8px;');
+            console.log('Este é um exemplo educacional em HTML puro do sistema DromeFlow.');
+            console.log('Explore as funcionalidades clicando nos itens do menu!');
+        });
+
+        /**
+         * FUNÇÃO DE LOGOUT (simulada)
+         * Em um sistema real, faria logout do usuário
+         */
+        const logoutBtns = document.querySelectorAll('.logout-btn');
+        logoutBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (confirm('Deseja realmente sair do sistema?')) {
+                    alert('Logout realizado com sucesso!\n\n(Em um sistema real, você seria redirecionado para a página de login)');
+                    // Em produção: window.location.href = '/login';
+                }
+            });
+        });
+
+        /**
+         * RESPONSIVIDADE ADAPTATIVA
+         * Ajusta comportamento baseado no tamanho da tela
+         */
+        function handleResize() {
+            const isMobile = window.innerWidth < 1024;
+            
+            if (!isMobile) {
+                // Em desktop, remove estado mobile
+                sidebar.classList.remove('mobile-open');
+                mobileOverlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Listener para redimensionamento da janela
+        window.addEventListener('resize', handleResize);
+        
+        // Executa na carga inicial
+        handleResize();
+    </script>
+</body>
+</html>
