@@ -2,6 +2,51 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-03-28] - Refatoração do Comercial Admin: Gestão de Produção e Webhook Umbler 🚀
+
+### ✨ Novas Funcionalidades / Melhorias
+
+#### 1. Módulo Comercial Admin (Fluxo de Produção)
+- **Novo Foco**: O módulo agora atua como um hub de gestão de implantação/produção para novos clientes.
+- **Checklist de Produção**: Implementado checklist interativo com 4 categorias (Cadastro Unidade, Status Pagamento, Recrutadora, Umbler) com persistência automática no `handleAutoSave`.
+- **Badges de Produção**: Cards no Kanban agora exibem badges visuais coloridos com o status da produção para facilitar o acompanhamento da fila de implantação.
+- **Limpeza de UI**: Removidos campos legados (endereço, início/fim de teste) que não fazem mais parte do escopo administrativo atual.
+
+#### 2. Integração Webhook Umbler (`umbler-org`)
+- **Action Rocket 🚀**: Adicionado botão de disparo manual para o webhook de provisionamento Umbler, visível apenas para leads com status "Ganhos".
+- **Busca Dinâmica**: A URL do webhook é consumida em tempo real da tabela `public.access_credentials`.
+- **Feedback Visual**: Implementados estados de loading, sucesso e erro para a ação do webhook.
+
+### 🔧 Correções Técnicas
+
+#### 3. Resolvida Ambiguidade de Relacional (`Units`)
+- **Correção SQL**: Atualizada a query de busca em `comercial-admin.service.ts` para resolver conflito de múltiplas chaves estrangeiras com a tabela `units`, utilizando a relação explícita `linked_unit_id`.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as mudanças de arquitetura e novas funcionalidades do módulo de produção.
+
+---
+
+## [2026-03-27] - Correções de Inicialização (startsWith) e Sincronização SQL (TIPO)
+
+### 🔧 Correções Técnicas
+
+#### 1. Fix 'startsWith' na Inicialização
+- **Problema**: Erro `null is not an object (evaluating 'e.startsWith')` ocorrendo durante o refresh da página.
+- **Causa**: Chamada de `.startsWith()` em URLs de webhooks nulas durante a hidratação do estado do módulo ativo.
+- **Solução**: Adicionadas verificações defensivas em `content.service.ts` e `ContentArea.tsx`.
+
+#### 2. Fix 'TIPO' Casing: Sincronização `processed_data` -> `pos_vendas`
+- **Problema**: Upload falhando com erro `record "new" has no field "tipo"`.
+- **Causa**: A tabela `processed_data` possui a coluna `TIPO` (maiúsculo), mas o gatilho tentava acessar `NEW.tipo`.
+- **Solução**: Atualizada a função SQL para referenciar corretamente `NEW."TIPO"`.
+- **Melhoria**: Atualizada a cláusula `ON CONFLICT` para realizar `UPDATE` nos dados (UPSERT), garantindo sincronização total.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as correções de frontend e backend.
+
+---
+
 ## [2026-02-03] - Integração de Unidades em Teste e Melhorias no Comercial Admin
 
 ### ✨ Novas Funcionalidades

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import type { ComercialAdminCard, Plan } from '../../types';
+import type { ComercialAdminCard, Plan, Unit } from '../../types';
 import { supabase } from '../../services/supabaseClient';
 import { activityLogger } from '../../services/utils/activityLogger.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from './Icon';
-import { patchUnitTesteStatus } from '../../services/units/units.service';
+import { triggerUmblerOrgWebhook } from '../../services/comercial-admin/comercial-admin.service';
 
 interface Props {
     isOpen: boolean;
@@ -28,6 +28,8 @@ const STATUS_OPTIONS = [
 
 const ORIGEM_OPTIONS = ['Whatsapp', 'Ligação', 'E-mail', 'Indicação', 'Site', 'Outros'];
 
+const PRODUCAO_STATUS_OPTIONS = ['Pendente', 'Em Produção', 'Aguardando Cliente', 'Finalizado', 'Entregue'];
+
 const ComercialAdminCardModal: React.FC<Props> = ({
     isOpen,
     onClose,
@@ -44,38 +46,45 @@ const ComercialAdminCardModal: React.FC<Props> = ({
 
     // Form State
     const [nome, setNome] = useState('');
-    const [endereco, setEndereco] = useState('');
     const [contato, setContato] = useState('');
     const [origem, setOrigem] = useState('');
     const [status, setStatus] = useState(defaultStatus);
     const [observacao, setObservacao] = useState('');
+    const [unidadePrincipal, setUnidadePrincipal] = useState('Cliente B2B');
 
-    // New Admin Fields
+    // Admin Fields
     const [planoId, setPlanoId] = useState<string>('');
-    const [dataInicioTeste, setDataInicioTeste] = useState('');
-    const [dataFimTeste, setDataFimTeste] = useState('');
+    const [linkedUnitId, setLinkedUnitId] = useState<string>('');
+
+    // Checklist & Production
+    const [checkCadastroUnidade, setCheckCadastroUnidade] = useState(false);
+    const [checkStatusPagamento, setCheckStatusPagamento] = useState(false);
+    const [checkRecrutadora, setCheckRecrutadora] = useState(false);
+    const [checkUmbler, setCheckUmbler] = useState(false);
+    const [producaoStatus, setProducaoStatus] = useState('Pendente');
 
     // Data State
     const [plans, setPlans] = useState<Plan[]>([]);
+    const [allUnits, setAllUnits] = useState<Unit[]>([]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
-    const [isUnitTeste, setIsUnitTeste] = useState(false);
-    const [unitName, setUnitName] = useState<string | null>(null);
+    const [isTriggering, setIsTriggering] = useState(false);
     const [showOrigemSuggestions, setShowOrigemSuggestions] = useState(false);
     const [filteredOrigemOptions, setFilteredOrigemOptions] = useState<string[]>(ORIGEM_OPTIONS);
 
-    // Load Plans
+    // Load Plans and Units
     useEffect(() => {
-        const fetchPlans = async () => {
-            const { data } = await supabase
-                .from('plans')
-                .select('*')
-                .eq('status', true)
-                .order('value', { ascending: true });
-            if (data) setPlans(data as Plan[]);
+        const fetchData = async () => {
+            const [plansRes, unitsRes] = await Promise.all([
+                supabase.from('plans').select('*').eq('status', true).order('value', { ascending: true }),
+                supabase.from('units').select('id, unit_name').eq('is_active', true).order('unit_name', { ascending: true })
+            ]);
+            
+            if (plansRes.data) setPlans(plansRes.data as Plan[]);
+            if (unitsRes.data) setAllUnits(unitsRes.data as Unit[]);
         };
-        if (isOpen) fetchPlans();
+        if (isOpen) fetchData();
     }, [isOpen]);
 
     useEffect(() => {
@@ -86,44 +95,57 @@ const ComercialAdminCardModal: React.FC<Props> = ({
 
         if (initialCard) {
             setNome(initialCard.nome || '');
-            setEndereco(initialCard.endereco || '');
             setContato(initialCard.contato || '');
             setOrigem(initialCard.origem || '');
             setStatus(initialCard.status || defaultStatus);
-            setObservacao(initialCard.observacao || '');
             setPlanoId(initialCard.plano_id || '');
-            setDataInicioTeste(initialCard.data_inicio_teste || '');
-            setDataFimTeste(initialCard.data_fim_teste || '');
+            setLinkedUnitId(initialCard.linked_unit_id || '');
+            
+            // Production State
+            setCheckCadastroUnidade(initialCard.check_cadastro_unidade || false);
+            setCheckStatusPagamento(initialCard.check_status_pagamento || false);
+            setCheckRecrutadora(initialCard.check_recrutadora || false);
+            setCheckUmbler(initialCard.check_umbler || false);
+            setProducaoStatus(initialCard.producao_status || 'Pendente');
 
-            // Load unit test status and name
-            if (initialCard.unit_id) {
-                supabase.from('units').select('unit_name, teste').eq('id', initialCard.unit_id).single()
-                    .then(({ data }) => {
-                        if (data) {
-                            setIsUnitTeste(!!data.teste);
-                            setUnitName(data.unit_name);
-                        }
-                    });
-            } else {
-                setIsUnitTeste(false);
-                setUnitName(null);
+            let initialObs = initialCard.observacao || '';
+            let parsedTitle = 'Cliente B2B';
+
+            if (initialCard.nome_unidade) {
+                const parts = initialCard.nome_unidade.split(',').map(s => s.trim()).filter(Boolean);
+                if (parts.length > 0) {
+                    parsedTitle = parts[0];
+                }
+                if (parts.length > 1) {
+                    const extras = parts.slice(1).join(', ');
+                    const extrasMsg = `Outras unidades: ${extras}`;
+                    if (!initialObs.includes(extrasMsg)) {
+                        initialObs = initialObs ? `${initialObs}\n\n${extrasMsg}` : extrasMsg;
+                    }
+                }
             }
+            
+            setObservacao(initialObs);
+            setUnidadePrincipal(parsedTitle);
         } else {
             resetForm();
-            setIsUnitTeste(false);
         }
     }, [isOpen, initialCard, defaultStatus]);
 
     const resetForm = () => {
         setNome('');
-        setEndereco('');
         setContato('');
         setOrigem('');
         setStatus(defaultStatus);
         setObservacao('');
+        setUnidadePrincipal('Cliente B2B');
         setPlanoId('');
-        setDataInicioTeste('');
-        setDataFimTeste('');
+        setLinkedUnitId('');
+        setCheckCadastroUnidade(false);
+        setCheckStatusPagamento(false);
+        setCheckRecrutadora(false);
+        setCheckUmbler(false);
+        setProducaoStatus('Pendente');
     };
 
     // Auto-save handlers
@@ -137,32 +159,9 @@ const ComercialAdminCardModal: React.FC<Props> = ({
         }
     };
 
-    const handleToggleUnitTeste = async (newVal: boolean) => {
-        if (!initialCard?.unit_id) return;
-        setSaving(true);
-        try {
-            await patchUnitTesteStatus(initialCard.unit_id, newVal);
-            setIsUnitTeste(newVal);
-            if (!newVal) {
-                onSaved();
-                onClose();
-            }
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setSaving(false);
-        }
-    };
-
     const handleSave = async () => {
         if (!nome.trim()) {
             setError('Informe o nome do cliente.');
-            return;
-        }
-
-        // Validate dates
-        if (dataInicioTeste && dataFimTeste && dataFimTeste < dataInicioTeste) {
-            setError('A data final do teste deve ser maior ou igual à data inicial.');
             return;
         }
 
@@ -173,14 +172,17 @@ const ComercialAdminCardModal: React.FC<Props> = ({
         try {
             const payload: Partial<ComercialAdminCard> = {
                 nome: nome.trim(),
-                endereco: endereco.trim() || null,
                 contato: contato.trim() || null,
                 origem: origem.trim() || null,
                 status,
                 observacao: observacao.trim() || null,
                 plano_id: planoId || null,
-                data_inicio_teste: dataInicioTeste || null,
-                data_fim_teste: dataFimTeste || null,
+                linked_unit_id: linkedUnitId || null,
+                check_cadastro_unidade: checkCadastroUnidade,
+                check_status_pagamento: checkStatusPagamento,
+                check_recrutadora: checkRecrutadora,
+                check_umbler: checkUmbler,
+                producao_status: producaoStatus,
             };
 
             if (initialCard && onUpdate) {
@@ -206,6 +208,36 @@ const ComercialAdminCardModal: React.FC<Props> = ({
             setError(e.message || 'Falha ao salvar.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleTriggerWebhook = async () => {
+        if (!initialCard) return;
+        if (isTriggering) return;
+
+        setIsTriggering(true);
+        setError(null);
+
+        try {
+            await triggerUmblerOrgWebhook({
+                ...initialCard,
+                nome,
+                contato,
+                origem,
+                status,
+                plano_id: planoId,
+                linked_unit_id: linkedUnitId,
+                check_cadastro_unidade: checkCadastroUnidade,
+                check_status_pagamento: checkStatusPagamento,
+                check_recrutadora: checkRecrutadora,
+                check_umbler: checkUmbler,
+                producao_status: producaoStatus
+            });
+            alert('Dados enviados para Umbler com sucesso!');
+        } catch (e: any) {
+            setError(`Erro ao enviar para Umbler: ${e.message}`);
+        } finally {
+            setIsTriggering(false);
         }
     };
 
@@ -235,7 +267,7 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
                             <Icon name="Building2" className="w-5 h-5 text-accent-primary" />
-                            {initialCard ? 'Cliente B2B' : 'Novo Cliente B2B'}
+                            {initialCard ? unidadePrincipal : 'Novo Cliente B2B'}
                         </h2>
                         <div className="flex items-center gap-3">
                             <select
@@ -263,33 +295,6 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                         <div className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger flex items-center gap-2">
                             <Icon name="alert" className="w-4 h-4" />
                             {error}
-                        </div>
-                    )}
-
-                    {initialCard?.unit_id && (
-                        <div className={`p-4 rounded-xl flex items-center justify-between border-2 transition-all ${isUnitTeste ? 'bg-accent-primary/10 border-accent-primary/30 shadow-sm' : 'bg-bg-tertiary border-border-secondary'}`}>
-                            <div className="flex items-center gap-4">
-                                <div className={`p-2.5 rounded-xl shadow-sm ${isUnitTeste ? 'bg-accent-primary text-white' : 'bg-bg-secondary text-text-tertiary'}`}>
-                                    <Icon name="Activity" className="w-5 h-5" />
-                                </div>
-                                <div className="space-y-0.5">
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-xs font-black uppercase tracking-wider text-text-primary">Unidade de Teste</p>
-                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-bg-secondary text-text-tertiary border border-border-secondary">
-                                            {unitName || 'ID: ' + initialCard.unit_id.slice(0, 8)}
-                                        </span>
-                                    </div>
-                                    <p className="text-[10px] text-text-tertiary font-medium">Espelhamento ativo. Desativar remove este card.</p>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => handleToggleUnitTeste(!isUnitTeste)}
-                                disabled={saving}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 focus:outline-none ${isUnitTeste ? 'bg-accent-primary shadow-[0_0_10px_rgba(var(--accent-rgb),0.3)]' : 'bg-border-secondary'}`}
-                            >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${isUnitTeste ? 'translate-x-6' : 'translate-x-1'}`} />
-                            </button>
                         </div>
                     )}
 
@@ -335,14 +340,11 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                                     onChange={e => {
                                         const value = e.target.value;
                                         setOrigem(value);
-
-                                        // Filter suggestions
                                         const filtered = ORIGEM_OPTIONS.filter(opt =>
                                             opt.toLowerCase().includes(value.toLowerCase())
                                         );
                                         setFilteredOrigemOptions(filtered);
                                         setShowOrigemSuggestions(true);
-
                                         if (!isEditing) handleAutoSave('origem', value);
                                     }}
                                     onFocus={() => {
@@ -350,14 +352,11 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                                         setShowOrigemSuggestions(true);
                                     }}
                                     onBlur={() => {
-                                        // Delay to allow click on suggestion
                                         setTimeout(() => setShowOrigemSuggestions(false), 200);
                                     }}
                                     className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
                                     placeholder="Digite ou selecione a origem"
                                 />
-
-                                {/* Suggestions Dropdown */}
                                 {showOrigemSuggestions && filteredOrigemOptions.length > 0 && (
                                     <div className="absolute z-50 w-full mt-1 bg-bg-secondary border border-border-secondary rounded-lg shadow-lg max-h-48 overflow-y-auto">
                                         {filteredOrigemOptions.map(opt => (
@@ -378,74 +377,143 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                                 )}
                             </div>
                         </div>
+                    </div>
 
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-medium text-text-secondary mb-1">Endereço</label>
-                            {isEditing ? (
-                                <input
-                                    value={endereco}
-                                    onChange={e => setEndereco(e.target.value)}
-                                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
-                                    placeholder="Endereço completo"
-                                />
-                            ) : (
-                                <p className="text-sm text-text-primary">{endereco || '-'}</p>
+                    <div className="h-px bg-border-secondary" />
+
+                    {/* Controle de Produção */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Icon name="Settings" className="w-4 h-4 text-accent-primary" />
+                                Controle de Produção
+                            </div>
+
+                            {status === 'ganhos' && initialCard && (
+                                <button
+                                    onClick={handleTriggerWebhook}
+                                    disabled={isTriggering}
+                                    className={`
+                                        flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all
+                                        ${isTriggering 
+                                            ? 'bg-bg-tertiary text-text-tertiary cursor-wait' 
+                                            : 'bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan hover:text-bg-primary border border-brand-cyan/20'}
+                                    `}
+                                >
+                                    {isTriggering ? (
+                                        <div className="w-3 h-3 border-2 border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin" />
+                                    ) : (
+                                        <Icon name="Rocket" className="w-3 h-3" />
+                                    )}
+                                    <span>{isTriggering ? 'Enviando...' : 'Enviar p/ Umbler'}</span>
+                                </button>
                             )}
+                        </h3>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-bg-tertiary/50 p-4 rounded-xl border border-border-secondary/50">
+                            {/* Checklist */}
+                            <div className="space-y-3">
+                                <label className="block text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">Checklist de Implantação</label>
+                                {[
+                                    { label: 'Cadastro Unidade', state: checkCadastroUnidade, set: setCheckCadastroUnidade, key: 'check_cadastro_unidade' },
+                                    { label: 'Status Pagamento', state: checkStatusPagamento, set: setCheckStatusPagamento, key: 'check_status_pagamento' },
+                                    { label: 'Recrutadora', state: checkRecrutadora, set: setCheckRecrutadora, key: 'check_recrutadora' },
+                                    { label: 'Umbler', state: checkUmbler, set: setCheckUmbler, key: 'check_umbler' },
+                                ].map((item) => (
+                                    <label key={item.key} className="flex items-center gap-3 cursor-pointer group">
+                                        <div 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                const newVal = !item.state;
+                                                item.set(newVal);
+                                                if (!isEditing) handleAutoSave(item.key as any, newVal);
+                                            }}
+                                            className={`
+                                                w-5 h-5 rounded border transition-all flex items-center justify-center
+                                                ${item.state 
+                                                    ? 'bg-brand-cyan border-brand-cyan shadow-sm shadow-brand-cyan/20' 
+                                                    : 'bg-bg-tertiary border-border-secondary group-hover:border-text-tertiary'}
+                                            `}
+                                        >
+                                            {item.state && <Icon name="Check" className="w-3.5 h-3.5 text-bg-primary" />}
+                                        </div>
+                                        <span className={`text-sm transition-colors ${item.state ? 'text-text-primary font-medium' : 'text-text-secondary group-hover:text-text-primary'}`}>
+                                            {item.label}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+
+                            {/* Status de Produção */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">Status da Produção</label>
+                                    <div className="relative">
+                                        <select
+                                            value={producaoStatus}
+                                            onChange={e => {
+                                                setProducaoStatus(e.target.value);
+                                                if (!isEditing) handleAutoSave('producao_status' as any, e.target.value);
+                                            }}
+                                            className="w-full appearance-none rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
+                                        >
+                                            {PRODUCAO_STATUS_OPTIONS.map(st => (
+                                                <option key={st} value={st}>{st}</option>
+                                            ))}
+                                        </select>
+                                        <Icon name="ChevronDown" className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">Plano Selecionado</label>
+                                    <div className="relative">
+                                        <select
+                                            value={planoId}
+                                            onChange={e => {
+                                                setPlanoId(e.target.value);
+                                                if (!isEditing) handleAutoSave('plano_id', e.target.value || null);
+                                            }}
+                                            className="w-full appearance-none rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
+                                        >
+                                            <option value="">Sem plano selecionado</option>
+                                            {plans.map(plan => (
+                                                <option key={plan.id} value={plan.id}>
+                                                    {plan.name} - R$ {plan.value}/{plan.cycle === 'monthly' ? 'mês' : 'ano'}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <Icon name="ChevronDown" className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div className="h-px bg-border-secondary" />
 
-                    {/* Dados Comerciais (Plano & Teste) */}
+                    {/* Vínculo de Unidade */}
                     <div>
-                        <h3 className="text-sm font-semibold text-text-primary mb-3">Plano & Teste</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2">
-                                <label className="block text-xs font-medium text-text-secondary mb-1">Plano Selecionado</label>
-                                <div className="relative">
-                                    <select
-                                        value={planoId}
-                                        onChange={e => {
-                                            setPlanoId(e.target.value);
-                                            if (!isEditing) handleAutoSave('plano_id', e.target.value || null);
-                                        }}
-                                        className="w-full appearance-none rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
-                                    >
-                                        <option value="">Sem plano selecionado</option>
-                                        {plans.map(plan => (
-                                            <option key={plan.id} value={plan.id}>
-                                                {plan.name} - R$ {plan.value}/{plan.cycle === 'monthly' ? 'mês' : 'ano'}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <Icon name="ChevronDown" className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-text-secondary mb-1">Início do Teste</label>
-                                <input
-                                    type="date"
-                                    value={dataInicioTeste}
+                        <h3 className="text-sm font-semibold text-text-primary mb-4">Vínculo com Unidade</h3>
+                        <div>
+                            <label className="block text-xs font-medium text-text-secondary mb-1">Unidade Responsável</label>
+                            <div className="relative">
+                                <select
+                                    value={linkedUnitId}
                                     onChange={e => {
-                                        setDataInicioTeste(e.target.value);
-                                        if (!isEditing) handleAutoSave('data_inicio_teste', e.target.value || null);
+                                        setLinkedUnitId(e.target.value);
+                                        if (!isEditing) handleAutoSave('linked_unit_id', e.target.value || null);
                                     }}
-                                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-text-secondary mb-1">Fim do Teste</label>
-                                <input
-                                    type="date"
-                                    value={dataFimTeste}
-                                    onChange={e => {
-                                        setDataFimTeste(e.target.value);
-                                        if (!isEditing) handleAutoSave('data_fim_teste', e.target.value || null);
-                                    }}
-                                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
-                                />
+                                    className="w-full appearance-none rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
+                                >
+                                    <option value="">Nenhuma unidade vinculada</option>
+                                    {allUnits.map(unit => (
+                                        <option key={unit.id} value={unit.id}>
+                                            {unit.unit_name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Icon name="ChevronDown" className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
                             </div>
                         </div>
                     </div>
@@ -500,7 +568,7 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                     </button>
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 

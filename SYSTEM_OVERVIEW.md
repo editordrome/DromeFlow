@@ -113,6 +113,15 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Métricas Rápidas: Chips inline no cabeçalho com contagens de Hoje, Semana e Mês (baseadas em `created_at >= início do período`). Serviços: `services/recrutadora/recrutadora.service.ts` com utilitários de data em `services/utils/dates.ts`.
   -   Visualização "Todos" (ALL): A coluna "Qualificadas" é duplicada por unidade; as demais colunas agregam cards de todas as unidades. DnD permanece restrito por unidade.
 
+- Comercial Admin (Gestão de Produção):
+  - Fonte de Dados: Tabela `comercial_admin`.
+  - Controle de Produção: Seção dedicada para leads com status "Ganhos".
+    - Checklist Interativo: Cadastro Unidade, Status Pagamento, Recrutadora, Umbler (booleans persistidos em tempo real).
+    - Status de Produção: Campo de texto para acompanhamento do progresso.
+    - Integração Umbler: Botão de disparo de webhook (`umbler-org`) condicionado ao status "Ganhos" para provisionamento automatizado.
+  - Kanban: Cards exibem badges coloridos com o status de produção para visualização rápida da fila de implantação.
+  - Sincronização: Vinculação de cards a unidades reais via `linked_unit_id`, resolvendo ambiguidades de relacionamento no Supabase.
+
 -   Comercial:
   -   Fonte de Dados: Tabelas `comercial` (cards) e `comercial_columns` (metadados de colunas).
   -   Colunas/Status: `leads`, `andamento`, `ganhos`, `perdidos`, `aguardando`. Badge com contagem por coluna; header opcional com imagem.

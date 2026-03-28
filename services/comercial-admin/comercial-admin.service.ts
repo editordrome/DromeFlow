@@ -9,10 +9,12 @@ import { startOfTodayISO, startOfWeekISO, startOfMonthISO } from '../utils/dates
 export type ComercialAdminPeriodMetrics = { today: number; week: number; month: number };
 
 const COMERCIAL_ADMIN_SELECT = `
-  id, unit_id, nome, endereco, contato, origem, 
-  status, observacao, plano_id, data_inicio_teste, data_fim_teste,
+  id, unit_id, linked_unit_id, nome, email, cnpj, quantidade_unidades, nome_unidade, 
+  contato, origem, status, observacao, plano_id, 
+  check_cadastro_unidade, check_status_pagamento, check_recrutadora, check_umbler, producao_status,
   created_at, updated_at, position,
-  plano:plans(id, name, value, cycle)
+  plano:plans(id, name, value, cycle),
+  linked_unit:units!linked_unit_id(id, unit_name)
 `;
 
 export const fetchComercialAdminColumns = async (unitId: string | null): Promise<ComercialAdminColumn[]> => {
@@ -139,4 +141,30 @@ export const fetchComercialAdminMetrics = async (unitId: string): Promise<Comerc
     ]);
 
     return { today, week, month };
+};
+
+export const triggerUmblerOrgWebhook = async (card: ComercialAdminCard) => {
+    // 1. Buscar a URL do webhook nas credenciais de acesso
+    const { data: credential, error: fetchError } = await supabase
+        .from('access_credentials')
+        .select('value')
+        .eq('name', 'umbler-org')
+        .maybeSingle();
+
+    if (fetchError) throw new Error(`Falha ao buscar credencial umbler-org: ${fetchError.message}`);
+    if (!credential?.value) throw new Error('URL do webhook "umbler-org" não encontrada nas credenciais.');
+
+    // 2. Disparar o webhook (POST)
+    const response = await fetch(credential.value, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(card),
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Webhook Falhou (${response.status}): ${errText || 'Erro desconhecido'}`);
+    }
+
+    return await response.json();
 };

@@ -1,28 +1,24 @@
 # DromeFlow - Estrutura do Repositório
 
-**Data:** 2025-11-17  
-**Versão:** 1.0.0  
-**Build Status:** ✅ Atualizado
+**Data:** 2026-03-28  
+**Versão:** 1.2.0  
+**Build Status:** ✅ Estável (Março 2026)
 
 ---
 
 ## 📊 Estatísticas do Projeto
 
-### Resumo de Arquivos
+### Resumo de Arquivos (Ativo)
 ```
-Total de componentes:        34 arquivos (.tsx)
-  - Páginas:                 19 arquivos
-  - Modais/UI:               15 arquivos
+Total de componentes:        67 arquivos (.tsx)
+  - Páginas:                 36 arquivos (Dashboard, Admin, Onboarding, etc.)
+  - Modais/UI:               31 arquivos (Modais complexos, Gráficos, Pickers)
   
-Total de serviços:           26 arquivos (.ts)
-  - Analytics:               6 serviços
-  - Units:                   5 serviços
-  - Data:                    3 serviços
-  - Utils:                   6 serviços
-  - Outros:                  6 serviços
-
-Scripts SQL:                 39 arquivos (.sql)
-Documentação:                12 arquivos (.md)
+Total de serviços:           45 arquivos (.ts)
+  - Analytics & Data:        15 serviços
+  - Units & Auth:            12 serviços
+  - Business Operations:     10 serviços (CRM, Pós-Venda, Admin)
+  - Utils & Core:            8 serviços
 ```
 
 ### Tamanho do Build (Produção)
@@ -48,24 +44,29 @@ sidebar-drome-6/
 │   │   ├── ContentArea.tsx        # Área de conteúdo principal
 │   │   └── Sidebar.tsx            # Navegação lateral (com logging)
 │   │
-│   ├── pages/                     # Páginas completas (19 arquivos)
+│   ├── pages/                     # Páginas completas (36 arquivos)
+│   │   ├── AnnouncementsPage.tsx
 │   │   ├── AppointmentsPage.tsx
 │   │   ├── ClientsBasePage.tsx
 │   │   ├── ClientsPage.tsx
+│   │   ├── ComercialAdminPage.tsx  # ⭐ NOVO (Produção Hub)
 │   │   ├── ComercialPage.tsx
 │   │   ├── DashboardMetricsPage.tsx
 │   │   ├── DashboardPage.tsx
 │   │   ├── DashboardSistemaPage.tsx
 │   │   ├── DataPage.tsx
+│   │   ├── FinancialPage.tsx
 │   │   ├── LoginPage.tsx
 │   │   ├── ManageAccessPage.tsx
 │   │   ├── ManageModulesPage.tsx
 │   │   ├── ManageUnitsPage.tsx
 │   │   ├── ManageUsersPage.tsx
+│   │   ├── OnboardingPage.tsx      # ⭐ NOVO (External Wizards)
 │   │   ├── PosVendasPage.tsx
 │   │   ├── PrestadorasPage.tsx
 │   │   ├── ProfissionaisPage.tsx
 │   │   ├── RecrutadoraPage.tsx
+│   │   ├── TypebotPage.tsx
 │   │   ├── UnitKeysPage.tsx
 │   │   └── WelcomePage.tsx
 │   │
@@ -219,13 +220,21 @@ sidebar-drome-6/
 │   │   ├── unitModules.service.ts
 │   │   └── units.service.ts
 │   │
-│   ├── utils/                     # Utilitários (6 serviços)
-│   │   ├── activityLogger.service.ts   # ⭐ MODIFICADO (logModuleAccess)
+│   ├── comercial-admin/           # Gestão de Produção (Março 2026)
+│   │   └── comercial-admin.service.ts
+│   │
+│   ├── infinitepay/               # Gateway de Pagamento
+│   │   └── infinitepay.service.ts
+│   │
+│   ├── utils/                     # Utilitários (8 serviços)
+│   │   ├── activityLogger.service.ts
 │   │   ├── batch.service.ts
 │   │   ├── dates.ts
 │   │   ├── errors.ts
+│   │   ├── export.service.ts
 │   │   ├── log.ts
-│   │   └── records.ts
+│   │   ├── records.ts
+│   │   └── urlUtils.ts            # ⭐ NOVO (Subdomínios/Slugs)
 │   │
 │   ├── index.ts                   # Barrel export (temporário)
 │   ├── mockApi.ts                 # Compatibilidade (temporário)

@@ -14,6 +14,8 @@ Aplicação de gestão e análise construída em React (Vite + TypeScript) com S
 - **PWA**: Instalável com Service Worker e cache estratégico
 - **Deploy**: Hostinger + Cloudflare (CDN/DNS apenas)
 
+- ✅ **Comercial Admin (Produção Hub)**: Novo fluxo de gestão de implantação com checklist, status de produção e automação Umbler.
+- ✅ **Onboarding Wizard**: Fluxo externo de captura de leads com integração direta InfinitePay.
 - ✅ **N8N API Integration**: Visualização real de execuções, status e duração via API.
 - ✅ **Sidebar Super Admin**: Novo modo de visualização (Sistema vs Unidades) com seletor de unidade.
 - ✅ **Toggle Sidebar Invisível**: Botão de recolher transparente na área da logo.
@@ -21,7 +23,7 @@ Aplicação de gestão e análise construída em React (Vite + TypeScript) com S
 - ✅ **Download de Relatórios (Clientes)**: Exportação dinâmica em PDF, Excel e CSV baseada em filtros e métricas.
 - ✅ **Correção de Erro 406**: Estabilização do salvamento de versões da aplicação.
 
-**Nota**: Sistema 100% Supabase - toda persistência de dados e storage ocorrem no Supabase. A autenticação é customizada via tabelas PostgreSQL (em vez do supabase.auth). Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).
+**Nota**: Sistema 100% Supabase - toda persistência de dados e storage ocorrem no Supabase. A autenticação é customizada via tabelas PostgreSQL (em vez do supabase.auth). Cloudflare é usado apenas como CDN/DNS/Proxy.
 
 ## Configuração por Unidade (Keys)
 
@@ -56,12 +58,13 @@ Requisitos de backend:
 ### Realtime
 Os seguintes módulos implementam atualizações em tempo real via Supabase Realtime. Mudanças feitas por qualquer usuário são refletidas instantaneamente para todos os visualizadores:
 
+- ✅ **Comercial Admin**: Completo - gestão de implantação com webhook `umbler-org`.
 - ✅ **Pós-Vendas**: Completo - sincronização bidirecional com `processed_data`
 - ✅ **Agendamentos**: Completo - atualização automática da tabela de agendamentos
 - ✅ **Dashboard/Métricas**: Completo - recalculo automático de métricas
 - ✅ **Dashboard Sistema**: Completo - logs de atividade em tempo real
 
-**Status**: ✅ Implementado e funcionando. Para detalhes técnicos, consulte [`docs/REALTIME_STATUS.md`](docs/REALTIME_STATUS.md).
+**Status**: ✅ Implementado e funcionando (Março 2026). Para detalhes técnicos, consulte [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md).
 
 ### Campos Mapeados
 | pos_vendas | ← | processed_data |
@@ -108,6 +111,28 @@ O sistema registra automaticamente cada vez que um usuário acessa um módulo, c
 ```
 
 **Visualização**: Dashboard Sistema → Aba "Dados" → "Atividades em Tempo Real"
+
+---
+
+## Comercial Admin (Gestão de Produção)
+
+Módulo especializado para transformar leads ganhos em unidades operacionais.
+
+- **Checklist de Produção**: Controle granular de Cadastro, Pagamento, Recrutadora e Umbler.
+- **Integração Umbler**: Botão de disparo 🚀 para provisionamento automatizado via webhook (`umbler-org`).
+- **Cards Dinâmicos**: Badges de status de produção integrados ao Kanban Administrativo.
+- **Sincronização**: Vinculação direta com unidades via `linked_unit_id`.
+
+---
+
+## Onboarding Wizard & InfinitePay
+
+Fluxo externo de captura de leads (`cadastro.dromeflow.com`) altamente otimizado para conversão.
+
+- **Wizard de 4 Etapas**: Seleção de Plano → Dados da Unidade (com busca CNPJ) → Perfil do Admin → Revisão e Pagamento.
+- **InfinitePay Integration**: Geração inteligente de links de cobrança e redirecionamento para o SDK de pagamento seguro.
+- **Notificação em Tempo Real**: Disparo de webhook `onboarding_completed` para o ecossistema N8N assim que o lead é criado.
+- **Segurança**: Persistência imediata no Supabase antes de qualquer redirecionamento externo.
 
 ---
 
