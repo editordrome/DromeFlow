@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { fetchDataTable, fetchDataTableMulti, updateDataRecord, deleteDataRecord, deleteDataRecords, fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
 import { useAuth } from '../../contexts/AuthContext';
@@ -189,9 +189,20 @@ const DataPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
+  // ✅ Otimização: Filtro server-side p/ reduzir carga
+  const realtimeFilterQuery = useMemo(() => {
+    if (!selectedUnit) return undefined;
+    if (selectedUnit.unit_code === 'ALL') {
+      if (multiUnits.length === 0) return undefined;
+      return `unidade_code=in.(${multiUnits.join(',')})`;
+    }
+    return `unidade_code=eq.${selectedUnit.unit_code}`;
+  }, [selectedUnit, multiUnits]);
+
   // Realtime Subscription para processed_data (DataPage)
   useRealtimeSubscription<DataRecord>({
     table: 'processed_data',
+    filterQuery: realtimeFilterQuery,
     filter: (record) => {
       // Filtrar por unidade(s)
       if (selectedUnit && selectedUnit.unit_code !== 'ALL') {
@@ -575,7 +586,7 @@ const DataPage: React.FC = () => {
           isOpen={isUploadModalOpen}
           onClose={() => setIsUploadModalOpen(false)}
           onUploadSuccess={handleUploadSuccess}
-          unit={selectedUnit}
+          unit={selectedUnit?.unit_code === 'ALL' ? null : selectedUnit as any}
         />
       )}
 

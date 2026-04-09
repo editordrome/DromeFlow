@@ -21,6 +21,8 @@ interface Props {
   onDelete?: (id: number) => Promise<void>;
   onCreate?: (payload: Partial<RecrutadoraCard>) => Promise<void>;
   onUpdate?: (id: number, payload: Partial<RecrutadoraCard>) => Promise<void>;
+  onSendWebhook?: (card: RecrutadoraCard) => Promise<void>;
+  isSendingWebhook?: boolean;
 }
 
 const RecrutadoraCardModal: React.FC<Props> = ({
@@ -33,6 +35,8 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   onDelete,
   onCreate,
   onUpdate,
+  onSendWebhook,
+  isSendingWebhook,
 }) => {
   const isEditing = !!initialCard;
   const { selectedUnit } = useAppContext();
@@ -703,6 +707,28 @@ const RecrutadoraCardModal: React.FC<Props> = ({
             >
               Documentos
             </button>
+
+            {isEditing && onSendWebhook && statusLabel === 'qualificadas' && (
+              <div className="ml-auto flex items-center pr-2">
+                <button
+                  type="button"
+                  onClick={() => initialCard && onSendWebhook(initialCard)}
+                  disabled={isSendingWebhook || saving}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed border ${isSendingWebhook
+                      ? 'bg-bg-tertiary text-text-secondary border-border-secondary'
+                      : 'bg-accent-primary/10 text-accent-primary border-accent-primary/30 hover:bg-accent-primary hover:text-white'
+                    }`}
+                  title="Enviar para Webhook"
+                >
+                  {isSendingWebhook ? (
+                    <div className="w-3.5 h-3.5 border-2 border-t-transparent border-current rounded-full animate-spin" />
+                  ) : (
+                    <Icon name="Send" className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isSendingWebhook ? 'Enviando...' : 'Enviar Mensagem'}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1276,6 +1302,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                 <Icon name="delete" className="w-5 h-5" />
               </button>
             )}
+
             <button
               type="button"
               onClick={() => {

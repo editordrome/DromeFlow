@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Icon } from '../../ui/Icon';
 import { formatLocalISO, matchDate, matchName } from '../helpers';
-import { STATUS_OPTIONS, STATUS_LABELS, PERIODOS_MANHA, PERIODOS_TARDE, PERIODOS_NAO } from '../constants';
+import { STATUS_OPTIONS, STATUS_LABELS, PERIODOS_MANHA, PERIODOS_TARDE, PERIODOS_NAO, MOBILE_STATUS_OPTIONS, StatusOption } from '../constants';
 
 interface AgendaConfiguracoesViewProps {
    config: any;
@@ -288,15 +288,15 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                               {(() => {
                                  const weekDates = weekDatesMap.map(wd => wd.iso);
                                  const formatStatus = (val: string) => {
-                                    if (!val) return null;
-                                    const lower = val.toLowerCase();
-                                    if (lower.includes('8 horas')) return '8 horas';
-                                    if (lower.includes('6 horas')) return '6 horas';
-                                    if (lower.includes('manhã')) return '4h Manhã';
-                                    if (lower.includes('tarde')) return '4h Tarde';
-                                    if (lower.includes('não')) return 'NÃO';
-                                    return val.length > 7 ? val.slice(0, 6) + '.' : val;
-                                 };
+                                     if (!val) return null;
+                                     const v = val.toUpperCase();
+                                     if (v.includes('8 HORAS')) return '8 HORAS';
+                                     if (v.includes('6 HORAS')) return '6 HORAS';
+                                     if (v.includes('MANHÃ')) return '4H MANHÃ';
+                                     if (v.includes('TARDE')) return '4H TARDE';
+                                     if (v.includes('NÃO') || v.includes('NAO')) return 'NÃO DISPONÍVEL';
+                                     return val;
+                                  };
 
                                  const professionalMap: Record<string, any> = {};
                                  (todasDisponibilidades || []).forEach(d => {
@@ -315,7 +315,11 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                           last_created: d.created_at
                                        };
                                     }
-                                    const originalData = (d.periodos && d.periodos.length > 0) ? d.periodos.join(', ') : (d.status_manha || d.status_tarde || '—');
+                                    const originalData = d.selecao_real || 
+                                                         ((d.periodos && d.periodos.length > 0) ? d.periodos.join(', ') : 
+                                                         (d.status_manha && d.status_tarde && d.status_manha !== d.status_tarde 
+                                                            ? `${d.status_manha} / ${d.status_tarde}` 
+                                                            : (d.status_manha || d.status_tarde || '—')));
                                     professionalMap[d.profissional_id].envios[entryDate] = originalData;
                                     if (new Date(d.created_at || 0) > new Date(professionalMap[d.profissional_id].last_created || 0)) {
                                        professionalMap[d.profissional_id].last_created = d.created_at;
@@ -346,7 +350,13 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                              return (
                                                 <div key={date} className={`flex-1 flex items-center justify-center p-1 border-r border-border-secondary/40 ${isToday ? 'bg-accent-primary/5' : ''}`}>
                                                    {status ? (
-                                                      <span className={`w-full h-full flex items-center justify-center rounded-lg text-[9.5px] font-black uppercase tracking-tighter transition-all group-hover:scale-[1.02] px-1 text-center leading-none ${status === 'NÃO' ? 'bg-[#1A1A1A] text-white shadow-sm' : status === '8 horas' ? 'bg-[#15803D] text-white shadow-sm' : status === '6 horas' ? 'bg-[#93C5FD] text-white shadow-sm' : status.includes('4h') ? 'bg-[#4ADE80] text-black shadow-sm' : 'bg-accent-primary text-white shadow-sm'}`}>{status}</span>
+                                                      <span className={`w-full h-full flex items-center justify-center rounded-lg text-[8px] font-black uppercase tracking-tighter transition-all group-hover:scale-[1.02] px-1 text-center leading-none 
+                                                         ${status === 'NÃO DISPONÍVEL' || status.includes('NÃO') ? 'bg-[#1A1A1A] text-white shadow-sm' : 
+                                                           status === '8 HORAS' ? 'bg-[#15803D] text-white shadow-sm' : 
+                                                           status === '6 HORAS' || status.includes('LIVRE') ? 'bg-[#4ADE80] text-black shadow-sm' : 
+                                                           'bg-accent-primary text-white shadow-sm'}`}>
+                                                         {status}
+                                                      </span>
                                                    ) : <span className="text-text-tertiary opacity-10 text-[11px]">—</span>}
                                                 </div>
                                              );
@@ -532,12 +542,25 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                                    return atStH < endH && (atStH + dur) > startH;
                                                 });
 
-                                                if (overlapAt) return { label: 'CLIENTE', color: (parseFloat(overlapAt['PERÍODO'] || '0') === 8 ? 'bg-[#1E3A8A]' : 'bg-[#3B82F6]') + ' text-white shadow-sm' };
+                                                if (overlapAt) return { 
+                                                   label: 'CLIENTE', 
+                                                   color: (parseFloat(overlapAt['PERÍODO'] || '0') === 8 ? 'bg-[#1E3A8A]' : 'bg-[#3B82F6]') + ' text-white shadow-sm',
+                                                   tooltip: `${overlapAt.HORARIO} - ${overlapAt.CLIENTE || 'Cliente'} (${overlapAt['SERVIÇO'] || 'Serviço'})`
+                                                };
 
                                                 if (manualStatus) {
-                                                   if (['8 horas', '6 horas', '4 horas manhã', '4 horas tarde'].includes(manualStatus)) return { label: 'LIVRE', color: 'bg-[#4ADE80] text-black shadow-sm' };
+                                                   // Cores de Disponibilidade (LIVRE)
+                                                   if (manualStatus === '8 horas') {
+                                                      return { label: 'LIVRE', color: 'bg-[#15803D] text-white shadow-sm' };
+                                                   }
+                                                   if (['6 horas', '4 horas manhã', '4 horas tarde', 'LIVRE'].includes(manualStatus)) {
+                                                      return { label: 'LIVRE', color: 'bg-[#4ADE80] text-black shadow-sm' };
+                                                   }
+
+                                                   // Status Manuais
                                                    let color = 'bg-[#F97316] text-black shadow-sm';
                                                    if (manualStatus === 'FALTOU') color = 'bg-[#EF4444] text-white shadow-sm';
+                                                   else if (manualStatus === 'CANCELOU') color = 'bg-[#F97316] text-white shadow-sm';
                                                    else if (manualStatus === 'RESERVA') color = 'bg-[#FACC15] text-black shadow-sm';
                                                    else if (manualStatus === 'NÃO') color = 'bg-[#1A1A1A] text-white shadow-sm';
                                                    return { label: manualStatus, color };
@@ -556,6 +579,7 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                                       <div
                                                          onClick={() => setStatusMenu(statusMenu?.profId === prof.id && statusMenu?.period === 'M' && statusMenu?.dateStr === wd.iso ? null : { profId: prof.id, period: 'M', dateStr: wd.iso })}
                                                          className={`flex-1 flex items-center justify-center text-[9px] font-bold uppercase cursor-pointer transition-all hover:brightness-110 ${mStatus.color}`}
+                                                         title={mStatus.tooltip || tStatus.tooltip}
                                                       >
                                                          {mStatus.label}
                                                       </div>
@@ -564,24 +588,42 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                                          <div
                                                             onClick={() => setStatusMenu(statusMenu?.profId === prof.id && statusMenu?.period === 'M' && statusMenu?.dateStr === wd.iso ? null : { profId: prof.id, period: 'M', dateStr: wd.iso })}
                                                             className={`flex-1 flex items-center justify-center text-[9px] font-bold uppercase cursor-pointer border-r border-border-secondary/20 transition-all hover:brightness-110 ${mStatus.color}`}
+                                                            title={mStatus.tooltip}
                                                          >{mStatus.label}</div>
                                                          <div
                                                             onClick={() => setStatusMenu(statusMenu?.profId === prof.id && statusMenu?.period === 'T' && statusMenu?.dateStr === wd.iso ? null : { profId: prof.id, period: 'T', dateStr: wd.iso })}
                                                             className={`flex-1 flex items-center justify-center text-[9px] font-bold uppercase cursor-pointer transition-all hover:brightness-110 ${tStatus.color}`}
+                                                            title={tStatus.tooltip}
                                                          >{tStatus.label}</div>
                                                       </>
                                                    )}
 
-                                                   {/* MENU DE STATUS */}
+                                                   {/* MENU DE STATUS (CONDICIONAL: CARGA HORÁRIA vs STATUS MANUAIS) */}
                                                    {statusMenu?.profId === prof.id && statusMenu?.dateStr === wd.iso && (
                                                       <div data-menu className="absolute top-full left-0 mt-1 z-[100] bg-bg-secondary border border-border-secondary rounded-md shadow-lg py-1 min-w-[170px]">
-                                                         {STATUS_OPTIONS.map(s => (
-                                                            <button
-                                                               key={s}
-                                                               onClick={(ev) => { ev.stopPropagation(); handleStatusUpdate(prof.id, s, statusMenu.period, wd.iso); setStatusMenu(null); }}
-                                                               className="w-full px-4 py-2 text-left text-[11px] font-bold uppercase hover:bg-bg-tertiary"
-                                                            >{STATUS_LABELS[s].label}</button>
-                                                         ))}
+                                                         {(() => {
+                                                            // Se ambos os períodos estão vazios, mostramos "Carga Horária" (8h, 6h, etc.)
+                                                            // Se já tem carga horária, mostramos os "Status" (RESERVA, cancelou, etc.)
+                                                            const isInitialSetup = mStatus.label === '—' && tStatus.label === '—';
+                                                            const optionsToDisplay = isInitialSetup ? MOBILE_STATUS_OPTIONS : STATUS_OPTIONS;
+
+                                                            return optionsToDisplay.map(s => {
+                                                               const label = STATUS_LABELS[s as StatusOption]?.label || (s === 'NÃO DISPONIVEL' ? 'NÃO DISPONÍVEL' : s);
+                                                               return (
+                                                                  <button
+                                                                     key={s}
+                                                                     onClick={(ev) => {
+                                                                        ev.stopPropagation();
+                                                                        handleStatusUpdate(prof.id, s, statusMenu.period, wd.iso);
+                                                                        setStatusMenu(null);
+                                                                     }}
+                                                                     className="w-full px-4 py-2 text-left text-[11px] font-bold uppercase hover:bg-bg-tertiary border-b border-border-secondary/20 last:border-0 transition-colors"
+                                                                  >
+                                                                     {label}
+                                                                  </button>
+                                                               );
+                                                            });
+                                                         })()}
                                                       </div>
                                                    )}
                                                 </div>

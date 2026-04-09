@@ -270,7 +270,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     const filteredForRedundancy = sorted.filter(m =>
       m.code !== 'configuracoes' &&
       m.code !== 'manage_users' &&
-      m.code !== 'sistema'
+      m.code !== 'tutoriais'
     );
 
     const parents = filteredForRedundancy.filter(m => !m.parent_id);
@@ -458,21 +458,25 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
             </ul>
           </nav>
 
-          {/* Item de Sistema Fixo - Respeita permissões para Admin/User, sempre visível para Super Admin */}
-          {(profile?.role === 'super_admin' || filteredModules.some(m => m.code === 'sistema')) && (
-            <div className="mt-2 pt-2 border-t border-gray-700">
-              <button
-                onClick={() => { setView('sistema'); setSidebarOpen(false); }}
-                className={`flex items-center w-full px-3 py-2 rounded-lg transition-all duration-200 group ${activeView === 'sistema' ? 'bg-accent-primary text-white shadow-md' : 'text-gray-400 hover:bg-bg-tertiary hover:text-white'}`}
-                title="Manual e Histórico"
-              >
-                <div className={`transition-transform duration-200 ${!isCollapsed ? 'mr-3' : 'mx-auto'} group-hover:scale-110`}>
-                  <Icon name="Info" className={`w-5 h-5 ${activeView === 'sistema' ? 'text-white' : 'text-gray-400 group-hover:text-accent-primary'}`} />
-                </div>
-                {!isCollapsed && <span className="text-sm font-medium truncate">Sistema</span>}
-              </button>
-            </div>
-          )}
+          {(() => {
+            const moduleInfo = filteredModules.find(m => m.code === 'tutoriais');
+            if (!moduleInfo && profile?.role !== 'super_admin') return null;
+
+            return (
+              <div className="mt-2 pt-2 border-t border-gray-700">
+                <button
+                  onClick={() => { setView('sistema'); setSidebarOpen(false); }}
+                  className={`flex items-center w-full px-3 py-2 rounded-lg transition-all duration-200 group ${activeView === 'sistema' ? 'bg-accent-primary text-white shadow-md' : 'text-gray-400 hover:bg-bg-tertiary hover:text-white'}`}
+                  title={moduleInfo?.name || "Tutoriais"}
+                >
+                  <div className={`transition-transform duration-200 ${!isCollapsed ? 'mr-3' : 'mx-auto'} group-hover:scale-110`}>
+                    <Icon name={moduleInfo?.icon || "Info"} className={`w-5 h-5 ${activeView === 'sistema' ? 'text-white' : 'text-gray-400 group-hover:text-accent-primary'}`} />
+                  </div>
+                  {!isCollapsed && <span className="text-sm font-medium truncate">{moduleInfo?.name || "Tutoriais"}</span>}
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         <div className="border-t border-gray-700 p-3 relative" data-user-menu>

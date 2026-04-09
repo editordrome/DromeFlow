@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import viteCompression from 'vite-plugin-compression';
 import { VitePWA } from 'vite-plugin-pwa';
 // Fix: Import fileURLToPath to resolve __dirname in an ES module context.
@@ -15,6 +16,7 @@ export default defineConfig(({ mode }) => {
       base: './',
       plugins: [
         react(),
+        tailwindcss(),
         // PWA with Service Worker
         VitePWA({
           registerType: 'autoUpdate',

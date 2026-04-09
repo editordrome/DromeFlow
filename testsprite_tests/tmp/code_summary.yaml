@@ -1,0 +1,27 @@
+version: "2"
+type: backend
+tech_stack:
+  - TypeScript
+  - React (Frontend Rendering)
+  - Supabase (Backend Service)
+  - Vite (Build Tool)
+features:
+  - name: Agenda Manager
+    description: Frontend for managing professional schedules and appointments.
+    files:
+      - components/agenda/AgendaProfissionais.tsx
+    endpoints:
+      - method: GET
+        path: /agenda
+        description: View professional schedules
+        auth_required: false
+  - name: Financial Dashboard
+    description: Financial reporting and plan management.
+    files:
+      - components/pages/financial/FinancialPage.tsx
+    endpoints:
+      - method: GET
+        path: /financeiro
+        description: View financial dashboards
+        auth_required: false
+known_limitations: []

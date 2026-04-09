@@ -61,7 +61,7 @@ export const sistemaService = {
                 image_size: manual.image_size || 'full',
                 position: manual.position || 0,
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'module_id, title' })
+            })
             .select()
             .single();
 
@@ -85,6 +85,28 @@ export const sistemaService = {
         if (error) {
             console.error('[SistemaService] Erro ao deletar manual:', error);
             throw error;
+        }
+    },
+
+    /**
+     * Atualiza a ordem dos manuais em lote
+     */
+    async updateManualsOrder(orderedManuals: { id: string, position: number }[]): Promise<void> {
+        const { batchUpdatePositions } = await import('../utils/batch.service');
+        
+        try {
+            const result = await batchUpdatePositions('system_manuals', orderedManuals);
+            if (!result.success) throw new Error(result.error || 'Falha ao atualizar ordem dos manuais');
+        } catch (error: any) {
+            console.warn('[sistemaService] Fallback: Atualizando manuais um por um devido a erro na RPC:', error.message);
+            
+            const promises = orderedManuals.map(m => 
+                supabase.from('system_manuals').update({ position: m.position }).eq('id', m.id)
+            );
+            
+            const results = await Promise.all(promises);
+            const firstError = results.find(r => r.error)?.error;
+            if (firstError) throw firstError;
         }
     },
 

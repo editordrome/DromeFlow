@@ -36,7 +36,7 @@ export interface BatchUpdateResult {
 /**
  * Tabelas suportadas para batch update
  */
-export type BatchUpdateTable = 'recrutadora' | 'comercial' | 'comercial_columns' | 'modules' | 'comercial_admin' | 'comercial_admin_columns';
+export type BatchUpdateTable = 'recrutadora' | 'comercial' | 'comercial_columns' | 'modules' | 'comercial_admin' | 'comercial_admin_columns' | 'system_manuals';
 
 /**
  * Atualiza múltiplos registros (position) em uma única transação

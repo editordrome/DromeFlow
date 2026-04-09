@@ -59,7 +59,7 @@ const AppointmentsPage: React.FC = () => {
 
   const recordKey = (r: DataRecord) => String((r as any).id ?? r.ATENDIMENTO_ID);
 
-  // Localiza webhook do módulo de agendamentos (heurística: nome contém 'agend' ou view_id === 'appointments')
+  // Localiza webhook do módulo de atendimentos (heurística: nome contém 'atend' ou view_id === 'appointments')
   const appointmentsWebhook = useMemo(() => {
     const module = userModules.find(m =>
       (m.view_id && m.view_id.toLowerCase() === 'agenda') || // prioridade: view_id agenda
@@ -177,7 +177,7 @@ const AppointmentsPage: React.FC = () => {
         if (err.message.includes('Failed to fetch')) msg = 'Falha de rede/DNS ao contatar webhook.';
         else msg = err.message;
       }
-      console.error('Erro ao enviar webhook (POST/GET) de agendamentos:', err);
+      console.error('Erro ao enviar webhook (POST/GET) de atendimentos:', err);
       setSendFeedback({ type: 'error', message: msg });
     } finally {
       setIsSending(false);
@@ -310,7 +310,7 @@ const AppointmentsPage: React.FC = () => {
       }
       setAppointments(data);
     } catch (e: any) {
-      setError(e.message || 'Falha ao buscar agendamentos.');
+      setError(e.message || 'Falha ao buscar atendimentos.');
       setAppointments([]);
     } finally {
       setIsLoading(false);
@@ -340,18 +340,15 @@ const AppointmentsPage: React.FC = () => {
   useRealtimeSubscription({
     table: 'processed_data',
     enabled: !!activeDate && !!selectedUnit,
+    // Filtro server-side: Reduz drasticamente o volume de mensagens (previne TIMEOUT)
+    filterQuery: selectedUnit?.unit_code === 'ALL'
+      ? `unidade_code=in.(${(userUnits || []).map(u => u.unit_code).join(',')})`
+      : `unidade_code=eq.${selectedUnit?.unit_code}`,
     filter: (record: any) => {
-      // Filtra apenas registros da data ativa
+      // Filtro client-side adicional (apenas para a data ativa)
       if (!activeDate) return false;
       const recordDate = record.DATA?.split('T')[0] || record.DATA;
-      if (recordDate !== activeDate) return false;
-
-      // Filtra por unidade
-      if (selectedUnit?.unit_code === 'ALL') {
-        const unitCodes = (userUnits || []).map(u => u.unit_code);
-        return unitCodes.includes(record.unidade_code);
-      }
-      return record.unidade_code === selectedUnit?.unit_code;
+      return recordDate === activeDate;
     },
     callbacks: {
       onInsert: (newRecord: any) => {
@@ -491,17 +488,17 @@ const AppointmentsPage: React.FC = () => {
   if (!selectedUnit) {
     return (
       <div className="p-6 bg-bg-secondary rounded-lg shadow-md h-full flex items-center justify-center">
-        <p className="text-text-secondary">Selecione uma unidade para ver os agendamentos.</p>
+        <p className="text-text-secondary">Selecione uma unidade para ver os atendimentos.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="flex flex-col h-full gap-4 overflow-hidden">
       {/* Cabeçalho Principal */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-text-primary flex items-center flex-wrap gap-x-2">
-          <span>Agendamentos</span>
+          <span>Atendimentos</span>
           {activeDateInfo && (
             <span className="text-base font-normal text-text-secondary">
               {activeDateInfo.formatted} - {activeDateInfo.weekday}
@@ -512,7 +509,7 @@ const AppointmentsPage: React.FC = () => {
           {/* Campo de busca */}
           <div className="relative">
             <label htmlFor="appointments-search" className="sr-only">
-              Buscar agendamentos
+              Buscar atendimentos
             </label>
             <input
               id="appointments-search"
@@ -624,7 +621,7 @@ const AppointmentsPage: React.FC = () => {
       </div>
 
       {/* Área de Tabela */}
-      <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
+      <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Barra de abas de dias - FIXA */}
         <div className="p-4 border-b border-border-secondary bg-bg-tertiary">
           <div className="flex w-full gap-2">
@@ -712,7 +709,7 @@ const AppointmentsPage: React.FC = () => {
         </div>
 
         {/* Área de scroll - apenas tabela */}
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+        <div className="overflow-x-auto flex-1 min-h-0 overflow-y-auto bg-bg-secondary">
           <table className="w-full text-sm table-fixed" style={{ minWidth: '1000px' }}>
             <colgroup>
               <col className="w-[10%]" />
@@ -785,7 +782,9 @@ const AppointmentsPage: React.FC = () => {
                     <td className="px-4 py-2 text-text-primary truncate" title={rec.CLIENTE}>
                       <div className="flex items-center gap-1">
                         {verifiedClients.has(rec.CLIENTE) && (
-                          <Icon name="BadgeCheck" className="w-4 h-4 text-brand-cyan flex-shrink-0" title="Cliente verificado" />
+                          <div title="Cliente verificado">
+                            <Icon name="BadgeCheck" className="w-4 h-4 text-brand-cyan flex-shrink-0" />
+                          </div>
                         )}
                         <span>{rec.CLIENTE}</span>
                       </div>

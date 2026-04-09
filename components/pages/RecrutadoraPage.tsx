@@ -33,11 +33,44 @@ const RecrutadoraPage: React.FC = () => {
   const [recrutadoraUrl, setRecrutadoraUrl] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [viewMode, setViewMode] = useState<'kanban' | 'dashboard'>('kanban');
+  const [recrutadoraWebhook, setRecrutadoraWebhook] = useState<string | null>(null);
+  const [sendingWebhook, setSendingWebhook] = useState<Set<number>>(new Set());
+  const [webhookFeedback, setWebhookFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm.trim().toLowerCase()), 350);
     return () => clearTimeout(t);
   }, [searchTerm]);
+
+  // Limpa feedback de webhook após alguns segundos
+  useEffect(() => {
+    if (webhookFeedback) {
+      const t = setTimeout(() => setWebhookFeedback(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [webhookFeedback]);
+
+  // Busca webhook do módulo recrutadora quando a unidade mudar
+  const { getModulesForUnit } = useAuth();
+  useEffect(() => {
+    const loadWebhook = async () => {
+      // Usamos getModulesForUnit com a unidade selecionada ou null para ALL
+      // Quando ALL, o webhook é buscado do módulo base do usuário
+      const unitId = (selectedUnit as any)?.id === 'ALL' ? null : (selectedUnit as any)?.id;
+      try {
+        const modules = await getModulesForUnit(unitId);
+        const module = modules.find(m => 
+          m.view_id === 'recrutadora' || 
+          m.name.toLowerCase().includes('recrutadora')
+        );
+        setRecrutadoraWebhook(module?.webhook_url || null);
+      } catch (error) {
+        console.error('[RecrutadoraPage] Erro ao carregar webhook:', error);
+        setRecrutadoraWebhook(null);
+      }
+    };
+    loadWebhook();
+  }, [selectedUnit, getModulesForUnit]);
 
   // Escolhe cor de texto com bom contraste sobre o fundo fornecido (hex)
   const getTextContrastClass = (bg?: string | null) => {
@@ -287,6 +320,84 @@ const RecrutadoraPage: React.FC = () => {
     setDragIndicator(null);
   };
 
+  const handleSendWebhook = async (card: RecrutadoraCard) => {
+    if (!recrutadoraWebhook) {
+      setWebhookFeedback({ type: 'error', message: 'Webhook não configurado para este módulo' });
+      return;
+    }
+
+    if (!card.nome || !card.whatsapp) {
+      setWebhookFeedback({ type: 'error', message: 'Nome e WhatsApp são obrigatórios para o envio' });
+      return;
+    }
+
+    setSendingWebhook(prev => new Set(prev).add(card.id));
+
+    try {
+      // Identifica o unit_code da unidade do card
+      let unitCode = '';
+      if (isAllUnits) {
+        const unit = userUnits?.find(u => u.id === card.unit_id);
+        unitCode = unit?.unit_code || '';
+      } else {
+        unitCode = (selectedUnit as any)?.unit_code || '';
+      }
+
+      const payload = {
+        action: 'recrutadora_envio',
+        nome: card.nome,
+        whatsapp: card.whatsapp,
+        unit_code: unitCode,
+        timestamp: new Date().toISOString(),
+        usuario_email: profile?.email || null
+      };
+
+      let usedFallback = false;
+      try {
+        const resp = await fetch(recrutadoraWebhook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          throw new Error(`Falha HTTP ${resp.status}${text ? ' - ' + text.slice(0, 140) : ''}`);
+        }
+        setWebhookFeedback({ type: 'success', message: 'Dados enviados com sucesso!' });
+      } catch (primaryErr: any) {
+        const msg = primaryErr?.message || '';
+        if (msg.includes('Failed to fetch') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('TypeError')) {
+          usedFallback = true;
+        } else {
+          throw primaryErr;
+        }
+      }
+
+      if (usedFallback) {
+        const url = new URL(recrutadoraWebhook);
+        url.searchParams.set('action', 'recrutadora_envio');
+        url.searchParams.set('nome', payload.nome);
+        url.searchParams.set('whatsapp', payload.whatsapp);
+        url.searchParams.set('uc', payload.unit_code);
+        url.searchParams.set('ts', payload.timestamp);
+        if (profile?.email) url.searchParams.set('ue', profile.email);
+        
+        const r = await fetch(url.toString(), { method: 'GET' });
+        if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
+        setWebhookFeedback({ type: 'success', message: 'Dados enviados via fallback (GET)!' });
+      }
+    } catch (err: any) {
+      console.error('Erro ao enviar webhook recrutadora:', err);
+      setWebhookFeedback({ type: 'error', message: err?.message || 'Erro ao enviar dados para o webhook' });
+    } finally {
+      setSendingWebhook(prev => {
+        const next = new Set(prev);
+        next.delete(card.id);
+        return next;
+      });
+    }
+  };
+
   const onDragUpdate = (update: DragUpdate) => {
     if (update.destination) {
       setDragIndicator({ droppableId: update.destination.droppableId, index: update.destination.index });
@@ -430,6 +541,19 @@ const RecrutadoraPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Feedback de Webhook */}
+      {webhookFeedback && (
+        <div className={`flex items-center gap-3 p-4 rounded-lg border shadow-sm animate-in fade-in slide-in-from-top-4 duration-300 ${
+          webhookFeedback.type === 'success' ? 'bg-brand-green/10 border-brand-green/30 text-brand-green' : 'bg-danger/10 border-danger/30 text-danger'
+        }`}>
+          <Icon name={webhookFeedback.type === 'success' ? 'check' : 'alert'} className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm font-medium">{webhookFeedback.message}</span>
+          <button onClick={() => setWebhookFeedback(null)} className="ml-auto hover:opacity-70 transition-opacity">
+            <Icon name="close" className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Dashboard ou Kanban */}
       {viewMode === 'dashboard' ? (
@@ -593,6 +717,8 @@ const RecrutadoraPage: React.FC = () => {
         onDelete={async (id) => {
           await deleteCard(id);
         }}
+        onSendWebhook={handleSendWebhook}
+        isSendingWebhook={editingCard ? sendingWebhook.has(editingCard.id) : false}
       />
     </div>
   );

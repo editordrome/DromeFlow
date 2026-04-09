@@ -1,12 +1,13 @@
 {
-  "name": "dromeflow-web-com-sidebar-dinâmico",
+  "name": "dromeflow-web-sidebar-dinamico",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "node --env-file=.env.local scripts/deploy.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.932.0",
@@ -14,6 +15,7 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@supabase/supabase-js": "2",
     "apexcharts": "^5.6.0",
+    "framer-motion": "^12.38.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^5.0.7",
@@ -23,11 +25,15 @@
     "react-apexcharts": "^2.0.1",
     "react-calendar": "^6.0.0",
     "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.6.0",
+    "remark-gfm": "^4.0.1",
+    "sonner": "^2.0.7",
     "uuid": "^13.0.0",
     "xlsx": "latest"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^22.14.0",
     "@types/react-calendar": "^3.9.0",
     "@types/uuid": "^10.0.0",
@@ -35,6 +41,7 @@
     "autoprefixer": "^10.4.22",
     "baseline-browser-mapping": "^2.9.18",
     "postcss": "^8.5.6",
+    "ssh2-sftp-client": "^12.1.1",
     "tailwindcss": "^4.1.17",
     "terser": "^5.44.0",
     "typescript": "~5.8.2",

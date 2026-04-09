@@ -32,6 +32,7 @@ const TypebotPage = lazy(() => import('../pages/TypebotPage'));
 const SistemaPage = lazy(() => import('../pages/SistemaPage'));
 const SistemaAdminPage = lazy(() => import('../pages/SistemaAdminPage'));
 const LoyaltyPage = lazy(() => import('../pages/LoyaltyPage'));
+const UmblerPage = lazy(() => import('../pages/UmblerPage'));
 const PageLoader = () => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
@@ -152,6 +153,10 @@ const ContentArea: React.FC = () => {
     if (activeView === 'loyalty') {
         return <Suspense fallback={<PageLoader />}><LoyaltyPage /></Suspense>;
     }
+    // @ts-ignore
+    if (activeView === 'umbler') {
+        return <Suspense fallback={<PageLoader />}><UmblerPage /></Suspense>;
+    }
 
     return (
         <div className="h-full w-full bg-bg-secondary rounded-lg shadow-md overflow-hidden flex flex-col">
@@ -173,10 +178,31 @@ const ContentArea: React.FC = () => {
 
             {activeModule && !isLoading && !error && (
                 <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-                    <div
-                        className="prose max-w-none break-words"
-                        dangerouslySetInnerHTML={{ __html: activeModule?.webhook_url?.startsWith('internal://') ? content : '<p>Conteúdo externo bloqueado por segurança.</p>' }}
-                    />
+                    {/* Fallback para módulos que deveriam ser views internas mas caíram aqui */}
+                    {(() => {
+                        const viewIdNorm = (activeModule.view_id || '').toLowerCase().replace(/-/g, '_');
+                        if (viewIdNorm && viewIdNorm !== 'module') {
+                            console.warn(`[ContentArea] Módulo ${activeModule.name} caiu na renderização genérica. Redirecionando para view: ${viewIdNorm}`);
+                            // O ideal é que o AppContext já tenha resolvido isso, mas aqui serve como proteção
+                        }
+                        
+                        const isInternal = (activeModule?.webhook_url || '').startsWith('internal://');
+                        
+                        return (
+                            <div
+                                className="prose max-w-none break-words"
+                                dangerouslySetInnerHTML={{ 
+                                    __html: isInternal 
+                                        ? content 
+                                        : `<div class="p-8 text-center bg-bg-tertiary rounded-xl border border-dashed border-border-primary">
+                                            <h3 class="text-lg font-semibold text-text-primary mb-2">Módulo: ${activeModule.name}</h3>
+                                            <p class="text-text-secondary text-sm">Conteúdo externo bloqueado por segurança ou não configurado.</p>
+                                            <p class="text-[10px] mt-4 text-text-tertiary">URL: ${activeModule.webhook_url || 'Nenhuma'}</p>
+                                           </div>` 
+                                }}
+                            />
+                        );
+                    })()}
                 </div>
             )}
         </div>

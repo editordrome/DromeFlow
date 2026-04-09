@@ -25,14 +25,14 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
     chat_id: record?.chat_id || null,
     nome: record?.nome || null,
     contato: record?.contato || null,
-    unit_id: record?.unit_id || selectedUnit || null,
+    unit_id: record?.unit_id || (typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.id || null),
     data: record?.data || new Date().toISOString().split('T')[0],
     status: record?.status || 'pendente',
     nota: record?.nota || null,
     reagendou: record?.reagendou || false,
     feedback: record?.feedback || null,
-    data_agendamento: record?.data_agendamento || null,
-    horario_agendamento: record?.horario_agendamento || null
+    horario_agendamento: record?.horario_agendamento || null,
+    profissional: record?.profissional || null
   });
 
   const [loading, setLoading] = useState(false);
@@ -86,7 +86,8 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
       ...prev,
       ATENDIMENTO_ID: atendimento.ATENDIMENTO_ID,
       nome: prev.nome || atendimento.CLIENTE,
-      contato: prev.contato
+      contato: prev.contato,
+      profissional: (atendimento as any).PROFISSIONAL || null
     }));
   };
 

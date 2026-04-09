@@ -366,15 +366,22 @@ export interface ComercialAdminColumn {
 export interface ComercialAdminCard {
   id: string;
   unit_id: string | null;
+  linked_unit_id: string | null;
   nome: string;
-  endereco: string | null;
+  email: string | null;
+  cnpj: string | null;
+  quantidade_unidades: number | null;
+  nome_unidade: string | null;
   contato: string | null;
   origem: string | null;
   status: string;
   observacao: string | null;
   plano_id: string | null;
-  data_inicio_teste: string | null; // ISO date (YYYY-MM-DD)
-  data_fim_teste: string | null; // ISO date (YYYY-MM-DD)
+  check_cadastro_unidade: boolean;
+  check_status_pagamento: boolean;
+  check_recrutadora: boolean;
+  check_umbler: boolean;
+  producao_status: string;
   position: number;
   created_at: string;
   updated_at: string;
@@ -385,6 +392,10 @@ export interface ComercialAdminCard {
     name: string;
     value: number;
     cycle: 'monthly' | 'annual';
+  };
+  linked_unit?: {
+    id: string;
+    unit_name: string;
   };
 }
 
@@ -403,6 +414,8 @@ export interface PosVenda {
   feedback: string | null;
   data_agendamento: string | null; // Data programada para envio (YYYY-MM-DD)
   horario_agendamento: string | null; // Horário programado para envio (HH:MM:SS)
+  data_finalizacao?: string | null; // Data em que o pós-venda foi concluído
+  profissional?: string | null; // Profissional que executou o serviço
   created_at: string;
   updated_at: string;
 }
@@ -420,6 +433,9 @@ export interface PosVendaFormData {
   feedback?: string | null;
   data_agendamento?: string | null; // Data programada para envio
   horario_agendamento?: string | null; // Horário programado para envio
+  profissional?: string | null;
+  data_finalizacao?: string | null;
+  PROFISSIONAL?: string | null;
 }
 
 // Unit Plans & Payments
@@ -554,6 +570,7 @@ export interface AgendaDisponibilidade {
   profissional_id: string;
   data: string; // ISO Date YYYY-MM-DD
   periodos: string[]; // ex: ['Manhã', 'Tarde']
+  selecao_real: string | null;
   conflito: boolean;
   created_at?: string;
   updated_at?: string;

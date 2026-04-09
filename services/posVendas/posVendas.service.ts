@@ -10,98 +10,36 @@ export const fetchPendenteWithProfissional = async (filters?: {
   unit_id?: string;
   startDate?: string;
   endDate?: string;
-}): Promise<Array<PosVenda & { PROFISSIONAL: string | null }>> => {
-  // Calcular data limite: dia anterior (ontem)
-  const hoje = new Date();
-  const ontem = new Date(hoje);
-  ontem.setDate(ontem.getDate() - 1);
-  const dataLimite = ontem.toISOString().split('T')[0]; // Formato: YYYY-MM-DD
-
-  // Busca o unit_code correspondente ao unit_id (se fornecido)
-  let unitCode: string | null = null;
-  if (filters?.unit_id) {
-    const { data: unitData } = await supabase
-      .from('units')
-      .select('unit_code, id')
-      .eq('id', filters.unit_id)
-      .single();
-    
-    unitCode = unitData?.unit_code || null;
-  }
-
-  // Busca diretamente de processed_data onde "pos vendas" é NULL ou 'pendente'
+}): Promise<Array<PosVenda>> => {
   let query = supabase
-    .from('processed_data')
-    .select('*, unit_id')
-    .order('DATA', { ascending: false });
+    .from('pos_vendas')
+    .select('*')
+    .eq('status', 'pendente')
+    .order('data', { ascending: false });
 
-  // Filtro por status pendente (coluna "pos vendas" NULL ou 'pendente')
-  query = query.or('"pos vendas".is.null,"pos vendas".eq.pendente');
-
-  // Filtro por unidade (usando unidade_code)
-  if (unitCode) {
-    query = query.eq('unidade_code', unitCode);
+  if (filters?.unit_id) {
+    query = query.eq('unit_id', filters.unit_id);
   }
 
-  // Filtro de data: do início do mês até ontem (dia anterior)
   if (filters?.startDate) {
-    query = query.gte('DATA', filters.startDate);
+    query = query.gte('data', filters.startDate);
   }
   
-  // Sempre limita até ontem, mas respeita endDate se for anterior a ontem
-  const dataFinal = filters?.endDate && filters.endDate < dataLimite 
-    ? filters.endDate 
-    : dataLimite;
-  query = query.lte('DATA', dataFinal);
+  if (filters?.endDate) {
+    query = query.lte('data', filters.endDate);
+  }
 
   const { data, error } = await query;
 
   if (error) {
-    console.error('Erro ao buscar pendentes de processed_data:', error);
+    console.error('Erro ao buscar pendentes de pos_vendas:', error);
     throw error;
   }
 
-  // Busca agendamentos de pos_vendas para mesclar
-  const atendimentoIds = (data || []).map((row: any) => row.ATENDIMENTO_ID).filter(Boolean);
-  let posVendasMap = new Map<string, any>();
-  
-  if (atendimentoIds.length > 0) {
-    const { data: posVendasData } = await supabase
-      .from('pos_vendas')
-      .select('ATENDIMENTO_ID, data_agendamento, horario_agendamento')
-      .in('ATENDIMENTO_ID', atendimentoIds);
-    
-    if (posVendasData) {
-      posVendasData.forEach((pv: any) => {
-        posVendasMap.set(pv.ATENDIMENTO_ID, pv);
-      });
-    }
-  }
-
-  // Mapeia para o formato PosVenda e mescla com dados de agendamento
-  return (data || []).map((row: any) => {
-    const posVendaData = posVendasMap.get(row.ATENDIMENTO_ID);
-    
-    return {
-      id: row.ATENDIMENTO_ID || `temp-${Date.now()}-${Math.random()}`,
-      ATENDIMENTO_ID: row.ATENDIMENTO_ID,
-      chat_id: null,
-      nome: row.CLIENTE,
-      contato: row.whatscliente || null,
-      unit_id: row.unit_id || filters?.unit_id || null,
-      data: row.DATA,
-      status: (row['pos vendas'] as 'pendente' | 'contatado' | 'finalizado' | null) || 'pendente',
-      nota: null,
-      reagendou: false,
-      feedback: null,
-      data_agendamento: posVendaData?.data_agendamento || null,
-      horario_agendamento: posVendaData?.horario_agendamento || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      PROFISSIONAL: row.PROFISSIONAL
-    };
-  });
+  return data || [];
 };
+
+// Removida lógica de mesclagem manual com processed_data
 
 /**
  * Busca registros de pós-vendas com filtros opcionais
@@ -112,7 +50,7 @@ export const fetchPosVendas = async (filters?: {
   status?: string;
   startDate?: string;
   endDate?: string;
-}): Promise<Array<PosVenda & { PROFISSIONAL?: string | null; CLIENTE?: string | null }>> => {
+}): Promise<Array<PosVenda>> => {
   let query = supabase
     .from('pos_vendas')
     .select('*')
@@ -141,59 +79,7 @@ export const fetchPosVendas = async (filters?: {
     throw error;
   }
 
-  if (!data || data.length === 0) {
-    return [];
-  }
-
-  // Buscar dados complementares de processed_data (PROFISSIONAL e CLIENTE)
-  const atendimentoIds = data
-    .map(record => record.ATENDIMENTO_ID)
-    .filter(id => id !== null && id !== undefined);
-
-  if (atendimentoIds.length === 0) {
-    return data.map(record => ({
-      ...record,
-      PROFISSIONAL: null,
-      CLIENTE: record.nome || null,
-    }));
-  }
-
-  // Buscar profissionais e clientes dos atendimentos
-  const { data: processedData, error: processedError } = await supabase
-    .from('processed_data')
-    .select('ATENDIMENTO_ID, PROFISSIONAL, CLIENTE')
-    .in('ATENDIMENTO_ID', atendimentoIds);
-
-  if (processedError) {
-    console.error('Erro ao buscar dados complementares:', processedError);
-    // Retorna os dados sem PROFISSIONAL/CLIENTE em caso de erro
-    return data.map(record => ({
-      ...record,
-      PROFISSIONAL: null,
-      CLIENTE: record.nome || null,
-    }));
-  }
-
-  // Criar mapa de atendimento -> dados complementares
-  const complementMap = new Map<string, { PROFISSIONAL: string | null; CLIENTE: string | null }>();
-  (processedData || []).forEach((item: any) => {
-    if (item.ATENDIMENTO_ID) {
-      complementMap.set(item.ATENDIMENTO_ID, {
-        PROFISSIONAL: item.PROFISSIONAL,
-        CLIENTE: item.CLIENTE,
-      });
-    }
-  });
-
-  // Combinar dados
-  return data.map(record => {
-    const complement = record.ATENDIMENTO_ID ? complementMap.get(record.ATENDIMENTO_ID) : null;
-    return {
-      ...record,
-      PROFISSIONAL: complement?.PROFISSIONAL || null,
-      CLIENTE: complement?.CLIENTE || record.nome || null,
-    };
-  });
+  return data || [];
 };
 
 /**
@@ -240,7 +126,7 @@ export const searchAtendimentos = async (
     throw error;
   }
 
-  return (data || []).map(item => ({
+  return (data || []).map((item: any) => ({
     ATENDIMENTO_ID: item.ATENDIMENTO_ID,
     CLIENTE: item.CLIENTE,
     DATA: item.DATA,
@@ -266,12 +152,13 @@ export const getAtendimentoById = async (atendimentoId: string): Promise<Atendim
 
   if (!data) return null;
 
+  const row = data as any;
   return {
-    ATENDIMENTO_ID: data.ATENDIMENTO_ID,
-    CLIENTE: data.CLIENTE,
-    DATA: data.DATA,
-    SERVICO: data['SERVIÇO'],
-    ENDERECO: data['ENDEREÇO']
+    ATENDIMENTO_ID: row.ATENDIMENTO_ID,
+    CLIENTE: row.CLIENTE,
+    DATA: row.DATA,
+    SERVICO: row['SERVIÇO'],
+    ENDERECO: row['ENDEREÇO']
   };
 };
 

@@ -2,6 +2,19 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from '../ui/Icon';
+import { 
+  PieChart, 
+  Pie, 
+  Cell, 
+  ResponsiveContainer, 
+  BarChart as RechartsBarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  Legend 
+} from 'recharts';
 import type { PosVenda } from '../../types';
 import {
   fetchPosVendas,
@@ -105,7 +118,7 @@ const PosVendasPage: React.FC = () => {
   const [contatadosRecords, setContatadosRecords] = useState<PosVenda[]>([]);
   const [finalizadosRecords, setFinalizadosRecords] = useState<PosVenda[]>([]);
   const [agendadosRecords, setAgendadosRecords] = useState<PosVenda[]>([]);
-  const [pendentesProfissional, setPendentesProfissional] = useState<Array<PosVenda & { PROFISSIONAL: string | null }>>([]);
+  const [pendentesProfissional, setPendentesProfissional] = useState<Array<PosVenda>>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PosVenda | null>(null);
@@ -116,7 +129,7 @@ const PosVendasPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [specificDate, setSpecificDate] = useState<string>(''); // Filtro de data específica
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [schedulingRecord, setSchedulingRecord] = useState<(PosVenda & { PROFISSIONAL: string | null }) | null>(null);
+  const [schedulingRecord, setSchedulingRecord] = useState<PosVenda | null>(null);
   const [posVendasWebhook, setPosVendasWebhook] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 25;
 
@@ -226,12 +239,25 @@ const PosVendasPage: React.FC = () => {
 
       // Filtrar pelo mês/ano selecionado
       const [year, month] = selectedPeriod.split('-');
-      const startDate = `${year}-${month}-01`;
+      const paddedMonth = month.padStart(2, '0');
+      const startDate = `${year}-${paddedMonth}-01`;
       const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-      const endDate = `${year}-${month}-${lastDay}`;
+      const paddedLastDay = String(lastDay).padStart(2, '0');
+      const endDate = `${year}-${paddedMonth}-${paddedLastDay}`;
 
       filters.startDate = startDate;
       filters.endDate = endDate;
+
+      // Filtro específico para pendentes: até hoje (se for o mês atual) ou fim do mês
+      const hoje = new Date();
+      const hojeIso = hoje.toISOString().split('T')[0];
+      const selectedMonthStr = `${year}-${month}`;
+      const currentMonthStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+      
+      const pendenteFilters = { 
+        ...filters, 
+        endDate: selectedMonthStr === currentMonthStr && hojeIso < endDate ? hojeIso : endDate 
+      };
 
       // Buscar contatados, finalizados e agendados do mês (baseado na data do atendimento)
       const contatadosFilters = { ...filters, status: 'contatado' };
@@ -241,7 +267,7 @@ const PosVendasPage: React.FC = () => {
       const [data, metricsData, pendenteData, contatadosData, finalizadosData, agendadosData] = await Promise.all([
         fetchPosVendas(filters),
         getMetrics(filters),
-        fetchPendenteWithProfissional(filters), // Já vem filtrado do início do mês até ontem
+        fetchPendenteWithProfissional(pendenteFilters), // Filtrado do início do mês até o dia ativo
         fetchPosVendas(contatadosFilters),
         fetchPosVendas(finalizadosFilters),
         fetchPosVendas(agendadosFilters)
@@ -272,9 +298,16 @@ const PosVendasPage: React.FC = () => {
     }
   }, [selectedUnit, selectedPeriod, specificDate, profile]);
 
+  // ✅ Otimização: Filtro server-side p/ reduzir carga
+  const realtimeFilterQuery = useMemo(() => {
+    if (!selectedUnit || selectedUnit.id === 'ALL') return undefined;
+    return `unit_id=eq.${selectedUnit.id}`;
+  }, [selectedUnit]);
+
   // Realtime Subscription para pos_vendas
   useRealtimeSubscription<PosVenda>({
     table: 'pos_vendas',
+    filterQuery: realtimeFilterQuery,
     filter: (record) => {
       // Filtrar por unidade (se não for super_admin sem unidade)
       if (selectedUnit && selectedUnit.id !== 'ALL' && record.unit_id !== selectedUnit.id) {
@@ -357,28 +390,27 @@ const PosVendasPage: React.FC = () => {
   // Filtrar pendentes apenas até o dia anterior (ontem) E dentro do mês selecionado
   const getPendentesFiltrados = (): PosVenda[] => {
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Zera as horas para comparar apenas a data
+    const hojeIso = hoje.toISOString().split('T')[0];
     
-    // Extrair ano e mês do período selecionado
     const [year, month] = selectedPeriod.split('-');
-    const startOfMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
-    startOfMonth.setHours(0, 0, 0, 0);
-    
-    const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
-    endOfMonth.setHours(23, 59, 59, 999);
+    const startDateStr = `${year}-${month.padStart(2, '0')}-01`;
+    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+    const endDateStr = `${year}-${month.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     
     return getRecordsByStatus('pendente').filter(record => {
       if (!record.data) return false;
-      // Criar data sem conversão de timezone
-      const recordDate = new Date(record.data + 'T00:00:00');
-      recordDate.setHours(0, 0, 0, 0);
+      const recordDateStr = record.data; // Formato YYYY-MM-DD
       
-      // Retorna apenas registros:
-      // 1. Dentro do mês selecionado
-      // 2. Com data anterior a hoje
-      return recordDate >= startOfMonth && 
-             recordDate <= endOfMonth && 
-             recordDate < hoje;
+      const currentMonthStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+      const isCurrentMonth = selectedPeriod === currentMonthStr;
+      
+      if (isCurrentMonth) {
+        // No mês atual, limitar até hoje
+        return recordDateStr >= startDateStr && recordDateStr <= hojeIso;
+      }
+      
+      // Meses anteriores: estritamente dentro do mês selecionado
+      return recordDateStr >= startDateStr && recordDateStr <= endDateStr;
     });
   };
 
@@ -396,7 +428,7 @@ const PosVendasPage: React.FC = () => {
     return pendentesProfissional.filter(record => 
       (record.nome?.toLowerCase() || '').includes(term) ||
       (record.ATENDIMENTO_ID?.toLowerCase() || '').includes(term) ||
-      (record.PROFISSIONAL?.toLowerCase() || '').includes(term)
+      (record.profissional?.toLowerCase() || '').includes(term)
     );
   }, [pendentesProfissional, searchTerm]);
 
@@ -446,7 +478,7 @@ const PosVendasPage: React.FC = () => {
     setEditingRecord(null);
   };
 
-  const handleSendWebhook = async (record: PosVenda & { PROFISSIONAL: string | null }) => {
+  const handleSendWebhook = async (record: PosVenda) => {
     if (!posVendasWebhook) {
       setWebhookFeedback({ type: 'error', message: 'Webhook não configurado para este módulo' });
       return;
@@ -526,7 +558,7 @@ const PosVendasPage: React.FC = () => {
     }
   };
 
-  const handleOpenScheduleModal = (record: PosVenda & { PROFISSIONAL: string | null }) => {
+  const handleOpenScheduleModal = (record: PosVenda) => {
     setSchedulingRecord(record);
     setIsScheduleModalOpen(true);
   };
@@ -542,18 +574,16 @@ const PosVendasPage: React.FC = () => {
     try {
       const { updatePosVenda, createPosVenda, getPosVendasByAtendimento } = await import('../../services/posVendas/posVendas.service');
       
-      // Verifica se o registro já existe na tabela pos_vendas
+      // 1. Persistir no Banco de Dados
       const existingRecords = await getPosVendasByAtendimento(schedulingRecord.ATENDIMENTO_ID || '');
       
       if (existingRecords && existingRecords.length > 0) {
-        // Atualiza registro existente com status "agendado"
         await updatePosVenda(existingRecords[0].id, {
           data_agendamento: dataAgendamento,
           horario_agendamento: horarioAgendamento,
           status: 'agendado'
         });
       } else {
-        // Cria novo registro com agendamento e status "agendado"
         await createPosVenda({
           ATENDIMENTO_ID: schedulingRecord.ATENDIMENTO_ID,
           chat_id: schedulingRecord.chat_id,
@@ -570,9 +600,55 @@ const PosVendasPage: React.FC = () => {
         });
       }
 
+      // 2. Disparar Webhook (se configurado)
+      if (posVendasWebhook) {
+        try {
+          const { fetchConexao } = await import('../../services/units/unitKeys.service');
+          const conexao = selectedUnit && (selectedUnit as any).id !== 'ALL' ? await fetchConexao((selectedUnit as any).id) : null;
+          
+          const payload = {
+            action: 'agendado',
+            ATENDIMENTO_ID: schedulingRecord.ATENDIMENTO_ID,
+            unit_code: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
+            conexao,
+            data_agendamento: dataAgendamento,
+            horario_agendamento: horarioAgendamento,
+            usuario_email: profile?.email || null,
+            timestamp: new Date().toISOString()
+          };
+
+          // Tentar POST robusto
+          let usedFallback = false;
+          try {
+            const resp = await fetch(posVendasWebhook, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          } catch (e) {
+            usedFallback = true;
+          }
+
+          // Fallback GET se POST falhar (comum em n8n sem CORS configurado)
+          if (usedFallback) {
+            const url = new URL(posVendasWebhook);
+            url.searchParams.set('action', 'agendado');
+            url.searchParams.set('aid', schedulingRecord.ATENDIMENTO_ID || '');
+            url.searchParams.set('uc', typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL');
+            url.searchParams.set('dag', dataAgendamento);
+            url.searchParams.set('hag', horarioAgendamento);
+            url.searchParams.set('cx', conexao || '');
+            await fetch(url.toString(), { method: 'GET' }).catch(err => console.error('Fallback GET failed:', err));
+          }
+        } catch (webhookErr) {
+          console.error('Erro ao notificar webhook de agendamento:', webhookErr);
+        }
+      }
+
       setWebhookFeedback({ 
         type: 'success', 
-        message: `Agendamento salvo: ${new Date(dataAgendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às ${horarioAgendamento}` 
+        message: `Agendamento salvo e enviado para automação: ${new Date(dataAgendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às ${horarioAgendamento}` 
       });
       
       handleCloseScheduleModal();
@@ -583,7 +659,7 @@ const PosVendasPage: React.FC = () => {
     }
   };
 
-  const handleRemoveSchedule = async (record: PosVenda & { PROFISSIONAL: string | null }) => {
+  const handleRemoveSchedule = async (record: PosVenda) => {
     if (!confirm('Deseja remover o agendamento deste pós-venda?')) return;
 
     try {
@@ -774,7 +850,7 @@ const PosVendasPage: React.FC = () => {
                   <p className="font-medium">{(record as any).CLIENTE || record.nome || '-'}</p>
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
-                  {(record as any).PROFISSIONAL || '-'}
+                  {(record as any).profissional || '-'}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {renderStars(record.nota)}
@@ -856,7 +932,7 @@ const PosVendasPage: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
-                  {(record as any).PROFISSIONAL || '-'}
+                  {(record as any).profissional || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
                   {record.contato || '-'}
@@ -1088,100 +1164,42 @@ const PosVendasPage: React.FC = () => {
               <div className="bg-bg-tertiary rounded-lg border border-border-primary p-6">
                 <h3 className="text-lg font-semibold text-text-primary mb-6">Status de Avaliações</h3>
                 <div className="flex flex-col items-center">
-                  {/* Pizza Chart SVG */}
-                  <div className="flex-shrink-0">
-                    <svg viewBox="0 0 200 200" className="w-52 h-52">
-                      {(() => {
-                        const totalPendentes = pendentes.length;
-                        const totalAgendados = agendados.length;
-                        const totalContatados = metrics.totalContatados;
-                        const totalFinalizados = metrics.totalFinalizados;
-                        const total = totalPendentes + totalAgendados + totalContatados + totalFinalizados;
-                        
-                        if (total === 0) {
-                          return (
-                            <circle cx="100" cy="100" r="80" fill="#e5e7eb" />
-                          );
-                        }
-                        
-                        const pendentesPercent = (totalPendentes / total) * 100;
-                        const agendadosPercent = (totalAgendados / total) * 100;
-                        const contatadosPercent = (totalContatados / total) * 100;
-                        const finalizadosPercent = (totalFinalizados / total) * 100;
-                        
-                        // Calcular ângulos acumulados
-                        let currentAngle = 0;
-                        const pendentesAngle = currentAngle + (pendentesPercent / 100) * 360;
-                        currentAngle = pendentesAngle;
-                        const agendadosAngle = currentAngle + (agendadosPercent / 100) * 360;
-                        currentAngle = agendadosAngle;
-                        const contatadosAngle = currentAngle + (contatadosPercent / 100) * 360;
-                        currentAngle = contatadosAngle;
-                        const finalizadosAngle = 360; // Última fatia vai até 360
-                        
-                        // Função para calcular coordenadas do arco
-                        const getArcPath = (startAngle: number, endAngle: number) => {
-                          const start = (startAngle - 90) * (Math.PI / 180);
-                          const end = (endAngle - 90) * (Math.PI / 180);
-                          const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-                          
-                          const x1 = 100 + 80 * Math.cos(start);
-                          const y1 = 100 + 80 * Math.sin(start);
-                          const x2 = 100 + 80 * Math.cos(end);
-                          const y2 = 100 + 80 * Math.sin(end);
-                          
-                          return `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                        };
-                        
-                        return (
-                          <>
-                            {/* Fatia Pendentes (amarelo) */}
-                            {totalPendentes > 0 && (
-                              <path
-                                d={getArcPath(0, pendentesAngle)}
-                                fill="#f59e0b"
-                                className="transition-all hover:opacity-80"
-                              />
-                            )}
-                            {/* Fatia Agendados (roxo) */}
-                            {totalAgendados > 0 && (
-                              <path
-                                d={getArcPath(pendentesAngle, agendadosAngle)}
-                                fill="#a855f7"
-                                className="transition-all hover:opacity-80"
-                              />
-                            )}
-                            {/* Fatia Contatados (cyan) */}
-                            {totalContatados > 0 && (
-                              <path
-                                d={getArcPath(agendadosAngle, contatadosAngle)}
-                                fill="#06b6d4"
-                                className="transition-all hover:opacity-80"
-                              />
-                            )}
-                            {/* Fatia Finalizados (verde) */}
-                            {totalFinalizados > 0 && (
-                              <path
-                                d={getArcPath(contatadosAngle, finalizadosAngle)}
-                                fill="#10b981"
-                                className="transition-all hover:opacity-80"
-                              />
-                            )}
-                            
-                            {/* Gráfico de pizza menor no centro (hole) */}
-                            <circle cx="100" cy="100" r="50" fill="currentColor" className="fill-bg-tertiary" />
-                            
-                            {/* Texto central com total */}
-                            <text x="100" y="95" textAnchor="middle" className="fill-text-primary font-bold text-2xl">
-                              {total}
-                            </text>
-                            <text x="100" y="115" textAnchor="middle" className="fill-text-secondary text-xs">
-                              Total
-                            </text>
-                          </>
-                        );
-                      })()}
-                    </svg>
+                  <div className="w-full h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Pendentes', value: pendentes.length, color: '#f59e0b' },
+                            { name: 'Agendados', value: agendados.length, color: '#a855f7' },
+                            { name: 'Contatados', value: metrics.totalContatados, color: '#06b6d4' },
+                            { name: 'Finalizados', value: metrics.totalFinalizados, color: '#10b981' }
+                          ].filter(d => d.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {[
+                            { name: 'Pendentes', value: pendentes.length, color: '#f59e0b' },
+                            { name: 'Agendados', value: agendados.length, color: '#a855f7' },
+                            { name: 'Contatados', value: metrics.totalContatados, color: '#06b6d4' },
+                            { name: 'Finalizados', value: metrics.totalFinalizados, color: '#10b981' }
+                          ].filter(d => d.value > 0).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'var(--bg-secondary)', 
+                            borderColor: 'var(--border-primary)',
+                            borderRadius: '8px',
+                            color: 'var(--text-primary)'
+                          }}
+                          itemStyle={{ color: 'var(--text-primary)' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
                   
                   {/* Legenda - Linha horizontal compacta */}
@@ -1192,11 +1210,6 @@ const PosVendasPage: React.FC = () => {
                         <span className="text-xs font-medium text-text-secondary">Pendentes</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-bold text-text-primary">{pendentes.length}</span>
-                          <span className="text-[10px] text-text-secondary">
-                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
-                              ? Math.round((pendentes.length / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                              : 0}%)
-                          </span>
                         </div>
                       </div>
                     </div>
@@ -1207,11 +1220,6 @@ const PosVendasPage: React.FC = () => {
                         <span className="text-xs font-medium text-text-secondary">Agendados</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-bold text-text-primary">{agendados.length}</span>
-                          <span className="text-[10px] text-text-secondary">
-                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
-                              ? Math.round((agendados.length / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                              : 0}%)
-                          </span>
                         </div>
                       </div>
                     </div>
@@ -1222,11 +1230,6 @@ const PosVendasPage: React.FC = () => {
                         <span className="text-xs font-medium text-text-secondary">Contatados</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-bold text-text-primary">{metrics.totalContatados}</span>
-                          <span className="text-[10px] text-text-secondary">
-                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
-                              ? Math.round((metrics.totalContatados / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                              : 0}%)
-                          </span>
                         </div>
                       </div>
                     </div>
@@ -1237,11 +1240,6 @@ const PosVendasPage: React.FC = () => {
                         <span className="text-xs font-medium text-text-secondary">Finalizados</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-bold text-text-primary">{metrics.totalFinalizados}</span>
-                          <span className="text-[10px] text-text-secondary">
-                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
-                              ? Math.round((metrics.totalFinalizados / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                              : 0}%)
-                          </span>
                         </div>
                       </div>
                     </div>
@@ -1259,48 +1257,51 @@ const PosVendasPage: React.FC = () => {
                       {(() => {
                         const somaNotas = metrics.distribuicaoNotas.reduce((acc, { nota, count }) => acc + (nota * count), 0);
                         const totalRespostas = metrics.distribuicaoNotas.reduce((acc, { count }) => acc + count, 0);
-                        const media = totalRespostas > 0 ? (somaNotas / totalRespostas).toFixed(1) : '0.0';
-                        return media;
+                        return totalRespostas > 0 ? (somaNotas / totalRespostas).toFixed(1) : '0.0';
                       })()}
                     </span>
                     <Icon name="Star" className="w-5 h-5 text-yellow-400 fill-yellow-400" />
                   </div>
                 </div>
-                <div className="h-64 flex items-end justify-around gap-2 px-4">
-                  {[...metrics.distribuicaoNotas].reverse().map(({ nota, count }) => {
-                    const total = metrics.totalContatos;
-                    const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-                    const heightPercent = total > 0 ? (count / Math.max(...metrics.distribuicaoNotas.map(d => d.count))) * 100 : 0;
-                    
-                    return (
-                      <div key={nota} className="flex-1 flex flex-col items-center gap-2">
-                        {/* Barra */}
-                        <div className="w-full bg-bg-primary rounded-t-lg relative group" style={{ height: '200px' }}>
-                          <div 
-                            className="absolute bottom-0 w-full bg-gradient-to-t from-accent-primary to-brand-cyan rounded-t-lg transition-all duration-300 hover:opacity-80"
-                            style={{ height: `${heightPercent}%` }}
-                          >
-                            {/* Valor no topo da barra */}
-                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-center">
-                              <span className="text-sm font-bold text-text-primary">{percentage}%</span>
-                              <span className="block text-xs text-text-secondary">({count})</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Label com estrelas */}
-                        <div className="flex gap-0.5">
-                          {[1, 2, 3, 4, 5].map(star => (
-                            <Icon
-                              key={star}
-                              name="Star"
-                              className={`w-3 h-3 ${star <= nota ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsBarChart 
+                      data={[...metrics.distribuicaoNotas].sort((a, b) => a.nota - b.nota)}
+                      margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-primary)" />
+                      <XAxis 
+                        dataKey="nota" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                        label={{ value: 'Estrelas', position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 10 }}
+                      />
+                      <YAxis hide />
+                      <RechartsTooltip 
+                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                        contentStyle={{ 
+                          backgroundColor: 'var(--bg-secondary)', 
+                          borderColor: 'var(--border-primary)',
+                          borderRadius: '8px',
+                          color: 'var(--text-primary)'
+                        }}
+                      />
+                      <Bar 
+                        dataKey="count" 
+                        fill="var(--accent-primary)" 
+                        radius={[4, 4, 0, 0]}
+                        name="Quantidade"
+                      >
+                        {[...metrics.distribuicaoNotas].sort((a, b) => a.nota - b.nota).map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.nota >= 4 ? '#10b981' : entry.nota >= 3 ? '#f59e0b' : '#ef4444'} 
+                          />
+                        ))}
+                      </Bar>
+                    </RechartsBarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
@@ -1364,7 +1365,7 @@ const PosVendasPage: React.FC = () => {
                             {(record as any).CLIENTE || record.nome || '-'}
                           </td>
                           <td className="px-3 py-2 text-sm text-text-primary">
-                            {(record as any).PROFISSIONAL || '-'}
+                            {(record as any).profissional || '-'}
                           </td>
                           <td className="px-3 py-2 text-center">
                             {record.nota ? (
@@ -1468,7 +1469,7 @@ const PosVendasPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-3 py-2 text-sm text-text-primary">
-                        {record.PROFISSIONAL || '-'}
+                        {record.profissional || '-'}
                       </td>
                       <td className="px-3 py-2">
                         {record.data_agendamento && record.horario_agendamento ? (
@@ -1571,7 +1572,7 @@ const PosVendasPage: React.FC = () => {
                       </div>
                       <div>
                         <span className="text-text-secondary">Profissional:</span>
-                        <p className="text-text-primary font-medium">{record.PROFISSIONAL || '-'}</p>
+                        <p className="text-text-primary font-medium">{record.profissional || '-'}</p>
                       </div>
                     </div>
                     
@@ -1734,7 +1735,7 @@ const PosVendasPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-3 py-2 text-sm text-text-primary">
-                          {record.PROFISSIONAL || '-'}
+                          {record.profissional || '-'}
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col items-center gap-1">
@@ -1806,7 +1807,7 @@ const PosVendasPage: React.FC = () => {
                       </div>
                       <div>
                         <span className="text-text-secondary">Profissional:</span>
-                        <p className="text-text-primary font-medium">{record.PROFISSIONAL || '-'}</p>
+                        <p className="text-text-primary font-medium">{record.profissional || '-'}</p>
                       </div>
                     </div>
                     
@@ -1868,7 +1869,7 @@ const PosVendasPage: React.FC = () => {
 
 // Componente Modal de Agendamento
 const ScheduleModal: React.FC<{
-  record: PosVenda & { PROFISSIONAL: string | null };
+  record: PosVenda;
   onClose: () => void;
   onSave: (dataAgendamento: string, horarioAgendamento: string) => void;
 }> = ({ record, onClose, onSave }) => {
@@ -1918,8 +1919,8 @@ const ScheduleModal: React.FC<{
             <div className="bg-bg-tertiary/50 rounded-lg p-3 border border-border-secondary/50">
               <p className="text-sm font-medium text-text-primary">{record.nome || '-'}</p>
               <p className="text-xs text-text-secondary mt-1">ID: {record.ATENDIMENTO_ID || '-'}</p>
-              {record.PROFISSIONAL && (
-                <p className="text-xs text-text-secondary">Profissional: {record.PROFISSIONAL}</p>
+              {record.profissional && (
+                <p className="text-xs text-text-secondary">Profissional: {record.profissional}</p>
               )}
             </div>
 

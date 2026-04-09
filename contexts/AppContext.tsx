@@ -21,6 +21,19 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
   const [activeView, setActiveView] = useState<PageView>('welcome');
   const [activeModule, setActiveModule] = useState<Module | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
+  
+  // Resolve qual view deve ser exibida para um determinado módulo
+  const resolveTargetView = (module: Module): { view: PageView, mod: Module | null } => {
+    const viewIdNorm = (module.view_id || '').toLowerCase().replace(/-/g, '_');
+    const url = (module.webhook_url || '').toLowerCase();
+    const internalView = url.startsWith('internal://') ? url.slice('internal://'.length).replace(/-/g, '_') : '';
+    const target = viewIdNorm || internalView;
+
+    if (target) {
+      return { view: target as PageView, mod: null };
+    }
+    return { view: 'module', mod: module };
+  };
 
 
   // Persiste seleção de unidade
@@ -140,8 +153,9 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
           if (urlModuleCode) {
             const foundModule = activeModulesForUnit.find(m => m.code === urlModuleCode);
             if (foundModule) {
-              setActiveView('module');
-              setActiveModule(foundModule);
+              const { view, mod } = resolveTargetView(foundModule);
+              setActiveView(view);
+              setActiveModule(mod);
               setHasInitialized(true);
               return;
             } else {
@@ -162,8 +176,9 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
           if (storedView === 'module' && storedModuleId) {
             const foundModule = activeModulesForUnit.find(m => m.id === storedModuleId);
             if (foundModule) {
-              setActiveView('module');
-              setActiveModule(foundModule);
+              const { view, mod } = resolveTargetView(foundModule);
+              setActiveView(view);
+              setActiveModule(mod);
               setHasInitialized(true);
               return;
             }
@@ -178,20 +193,11 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
 
           // Caso contrário, carrega o PRIMEIRO módulo ativo da unidade
           const firstModule = activeModulesForUnit[0];
-          console.log('[AppContext] Carregando primeiro módulo para unidade:', selectedUnit, firstModule.name);
+          console.log('[AppContext] Restaurando primeiro módulo (fallback):', selectedUnit, firstModule.name);
 
-          // Se o módulo tem view_id, usa diretamente
-          const viewIdNorm = (firstModule.view_id || '').toLowerCase().replace(/-/g, '_');
-          const url = (firstModule.webhook_url || '').toLowerCase();
-          const internalView = url.startsWith('internal://') ? url.slice('internal://'.length).replace(/-/g, '_') : '';
-          const target = viewIdNorm || internalView;
-
-          if (target) {
-            setView(target as PageView, null);
-          } else {
-            setActiveView('module');
-            setActiveModule(firstModule);
-          }
+          const { view, mod } = resolveTargetView(firstModule);
+          setActiveView(view);
+          setActiveModule(mod);
           setHasInitialized(true);
         } else {
           // Se não há módulos ativos na unidade, vai para welcome
@@ -224,18 +230,9 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
           const firstModule = activeModulesForUnit[0];
           console.log('[AppContext] Mudança de unidade - carregando primeiro módulo:', firstModule.name);
 
-          // Se o módulo tem view_id, usa diretamente
-          const viewIdNorm = (firstModule.view_id || '').toLowerCase().replace(/-/g, '_');
-          const url = (firstModule.webhook_url || '').toLowerCase();
-          const internalView = url.startsWith('internal://') ? url.slice('internal://'.length).replace(/-/g, '_') : '';
-          const target = viewIdNorm || internalView;
-
-          if (target) {
-            setView(target as PageView, null);
-          } else {
-            setActiveView('module');
-            setActiveModule(firstModule);
-          }
+          const { view, mod } = resolveTargetView(firstModule);
+          setActiveView(view);
+          setActiveModule(mod);
         } else {
           console.log('[AppContext] Unidade sem módulos ativos');
           setView('welcome');

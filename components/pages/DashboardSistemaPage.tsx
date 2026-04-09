@@ -492,7 +492,7 @@ const DashboardSistemaPage: React.FC = () => {
     const isError = statusLower === 'error' || statusLower === 'erro';
 
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded ${isSuccess ? 'bg-green-100 text-green-800' :
+      <span className={`px-2 py-1 text-sm font-medium rounded ${isSuccess ? 'bg-green-100 text-green-800' :
         isError ? 'bg-red-100 text-red-800' :
           'bg-gray-100 text-gray-800'
         }`}>
@@ -596,11 +596,11 @@ const DashboardSistemaPage: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="Activity" className="w-5 h-5 text-blue-600" />
-                    <span className="text-sm font-medium text-text-secondary">Total Execuções</span>
-                    <span className="ml-auto text-lg font-bold text-text-primary">{stats.total}</span>
+                    <span className="text-base font-semibold text-text-secondary">Total Execuções</span>
+                    <span className="ml-auto text-xl font-bold text-text-primary">{stats.total}</span>
                     <Icon
                       name={showExecutionChart ? "ChevronUp" : "ChevronDown"}
-                      className="w-4 h-4 text-text-secondary"
+                      className="w-5 h-5 text-text-secondary"
                     />
                   </div>
                 </button>
@@ -610,8 +610,8 @@ const DashboardSistemaPage: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="CheckCircle" className="w-5 h-5 text-green-600" />
-                    <span className="text-sm font-medium text-text-secondary">Sucesso</span>
-                    <span className="ml-auto text-lg font-bold text-green-600">{stats.successCount}</span>
+                    <span className="text-base font-semibold text-text-secondary">Sucesso</span>
+                    <span className="ml-auto text-xl font-bold text-green-600">{stats.successCount}</span>
                   </div>
                 </button>
                 <button
@@ -622,11 +622,11 @@ const DashboardSistemaPage: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="XCircle" className="w-5 h-5 text-red-600" />
-                    <span className="text-sm font-medium text-text-secondary">Erros</span>
-                    <span className="ml-auto text-lg font-bold text-red-600">{stats.errorCount}</span>
+                    <span className="text-base font-semibold text-text-secondary">Erros</span>
+                    <span className="ml-auto text-xl font-bold text-red-600">{stats.errorCount}</span>
                     <Icon
                       name={showErrorLogs ? "ChevronUp" : "ChevronDown"}
-                      className="w-4 h-4 text-text-secondary"
+                      className="w-5 h-5 text-text-secondary"
                     />
                   </div>
                 </button>
@@ -636,8 +636,8 @@ const DashboardSistemaPage: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="Zap" className="w-5 h-5 text-purple-600" />
-                    <span className="text-sm font-medium text-text-secondary">Taxa Sucesso</span>
-                    <span className="ml-auto text-lg font-bold text-purple-600">
+                    <span className="text-base font-semibold text-text-secondary">Taxa Sucesso</span>
+                    <span className="ml-auto text-xl font-bold text-purple-600">
                       {stats.total > 0 ? Math.round((stats.successCount / stats.total) * 100) : 0}%
                     </span>
                   </div>
@@ -651,7 +651,7 @@ const DashboardSistemaPage: React.FC = () => {
                   <div className="flex w-full gap-2">
                     <button
                       onClick={() => setSelectedPeriod('today')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'today'
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'today'
                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
@@ -660,7 +660,7 @@ const DashboardSistemaPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('yesterday')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'yesterday'
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'yesterday'
                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
@@ -669,7 +669,7 @@ const DashboardSistemaPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('last7days')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'last7days'
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'last7days'
                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
@@ -678,7 +678,7 @@ const DashboardSistemaPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('lastWeek')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'lastWeek'
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'lastWeek'
                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
@@ -687,7 +687,7 @@ const DashboardSistemaPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('lastMonth')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'lastMonth'
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'lastMonth'
                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
@@ -696,7 +696,7 @@ const DashboardSistemaPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('last30days')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${selectedPeriod === 'last30days'
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'last30days'
                         ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                         : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                         }`}
@@ -908,12 +908,12 @@ const DashboardSistemaPage: React.FC = () => {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
                                     <Icon name="AlertCircle" className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
-                                    <span className="font-semibold text-xs text-red-900 truncate">{err.workflow}</span>
+                                    <span className="font-semibold text-sm text-red-900 truncate">{err.workflow}</span>
                                     <span className="px-1.5 py-0.5 text-[10px] bg-red-200 text-red-900 rounded-full flex-shrink-0">
                                       {err.count}x
                                     </span>
                                   </div>
-                                  <p className="text-xs text-red-800 truncate">{err.lastError}</p>
+                                  <p className="text-sm text-red-800 truncate">{err.lastError}</p>
                                 </div>
                                 <span className="text-[10px] text-red-700 whitespace-nowrap">
                                   {formatDateTime(err.lastOccurrence)}
@@ -934,10 +934,10 @@ const DashboardSistemaPage: React.FC = () => {
                         <table className="w-full">
                           <thead className="bg-bg-tertiary sticky top-0">
                             <tr>
-                              <th className="px-3 py-2 text-left text-[10px] font-medium text-text-secondary">Data/Hora</th>
-                              <th className="px-3 py-2 text-left text-[10px] font-medium text-text-secondary">Workflow</th>
-                              <th className="px-3 py-2 text-left text-[10px] font-medium text-text-secondary">Mensagem de Erro</th>
-                              <th className="px-3 py-2 text-left text-[10px] font-medium text-text-secondary">URL</th>
+                              <th className="px-3 py-2 text-left text-sm font-medium text-text-secondary">Data/Hora</th>
+                              <th className="px-3 py-2 text-left text-sm font-medium text-text-secondary">Workflow</th>
+                              <th className="px-3 py-2 text-left text-sm font-medium text-text-secondary">Mensagem de Erro</th>
+                              <th className="px-3 py-2 text-left text-sm font-medium text-text-secondary">URL</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border-secondary">
@@ -946,25 +946,25 @@ const DashboardSistemaPage: React.FC = () => {
                                 <td colSpan={4} className="px-3 py-6 text-center text-text-secondary">
                                   <div className="flex flex-col items-center gap-2">
                                     <Icon name="CheckCircle" className="w-6 h-6 text-green-500" />
-                                    <p className="text-xs">Nenhum erro registrado!</p>
+                                    <p className="text-sm">Nenhum erro registrado!</p>
                                   </div>
                                 </td>
                               </tr>
                             ) : (
                               errorLogs.map((log) => (
                                 <tr key={log.id} className="hover:bg-bg-tertiary transition-colors">
-                                  <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                  <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">
                                     {formatDateTime(log.created_at)}
                                   </td>
-                                  <td className="px-3 py-2 text-xs text-text-primary font-medium">
+                                  <td className="px-3 py-2 text-sm text-text-primary font-medium">
                                     {log.workflow || 'N/A'}
                                   </td>
-                                  <td className="px-3 py-2 text-xs text-red-600">
+                                  <td className="px-3 py-2 text-sm text-red-600">
                                     <div className="max-w-md truncate" title={log.erro_message || 'N/A'}>
                                       {log.erro_message || 'N/A'}
                                     </div>
                                   </td>
-                                  <td className="px-3 py-2 text-xs">
+                                  <td className="px-3 py-2 text-sm">
                                     {log.url_workflow ? (
                                       <a
                                         href={log.url_workflow}
@@ -993,8 +993,8 @@ const DashboardSistemaPage: React.FC = () => {
                   <table className="w-full">
                     <thead className="bg-bg-primary border-y border-border-secondary">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Data/Hora</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">Data/Hora</th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
                           <div className="flex items-center gap-2 relative">
                             <span>Workflow</span>
                             <button
@@ -1045,17 +1045,17 @@ const DashboardSistemaPage: React.FC = () => {
                             )}
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
                           {n8nExecutions.length > 0 ? 'ID Execução' : 'Unidade'}
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
                           {n8nExecutions.length > 0 ? 'Modo' : 'Usuário'}
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
                           {n8nExecutions.length > 0 ? 'Duração' : 'Ação'}
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">Status</th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
                           {n8nExecutions.length > 0 ? 'Link' : 'Atend. ID'}
                         </th>
                       </tr>
@@ -1174,7 +1174,7 @@ const DashboardSistemaPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveCard(activeCard === 'atividades' ? null : 'atividades')}
-                    className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'atividades'
+                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition text-center border ${activeCard === 'atividades'
                       ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                       : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                       }`}
@@ -1189,7 +1189,7 @@ const DashboardSistemaPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveCard(activeCard === 'indexScans' ? null : 'indexScans')}
-                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'indexScans'
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition text-center border ${activeCard === 'indexScans'
                     ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                     : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                     }`}
@@ -1203,7 +1203,7 @@ const DashboardSistemaPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveCard(activeCard === 'operacoes' ? null : 'operacoes')}
-                  className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${activeCard === 'operacoes'
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition text-center border ${activeCard === 'operacoes'
                     ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
                     : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
                     }`}
@@ -1273,12 +1273,12 @@ const DashboardSistemaPage: React.FC = () => {
                         <table className="w-full">
                           <thead className="bg-bg-tertiary sticky top-0 border-b border-border-secondary">
                             <tr>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Data</th>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Hora</th>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Usuário</th>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Workflow</th>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Unidade</th>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Status</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Data</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Hora</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Usuário</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Workflow</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Unidade</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border-secondary">
@@ -1302,13 +1302,13 @@ const DashboardSistemaPage: React.FC = () => {
                                     className={`hover:bg-bg-tertiary transition-colors ${isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
                                       }`}
                                   >
-                                    <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                    <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">
                                       {isRecent && (
                                         <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
                                       )}
                                       {dateStr}
                                     </td>
-                                    <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                    <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">
                                       {timeStr}
                                     </td>
                                     <td className="px-3 py-2 text-sm font-medium text-text-primary">
@@ -1321,7 +1321,7 @@ const DashboardSistemaPage: React.FC = () => {
                                       {getUnitName(log.unit_code)}
                                     </td>
                                     <td className="px-3 py-2">
-                                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${log.status?.toLowerCase() === 'success'
+                                      <span className={`px-2 py-0.5 text-sm font-medium rounded ${log.status?.toLowerCase() === 'success'
                                         ? 'bg-green-100 text-green-800'
                                         : log.status?.toLowerCase() === 'error'
                                           ? 'bg-red-100 text-red-800'

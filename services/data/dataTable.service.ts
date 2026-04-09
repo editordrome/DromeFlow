@@ -315,18 +315,46 @@ export const updateDataRecord = async (
   recordId: string,
   updatedData: Partial<DataRecord>
 ): Promise<DataRecord> => {
-  const updatePayload: { [key: string]: any } = {
-    DATA: updatedData.DATA,
-    CLIENTE: updatedData.CLIENTE,
-    VALOR: updatedData.VALOR,
-    STATUS: (updatedData as any).STATUS ?? updatedData.status,
-    ATENDIMENTO_ID: updatedData.ATENDIMENTO_ID,
-    // Campos de texto livres
-    observacao: updatedData.observacao,
-    comentario: updatedData.comentario,
-    // Profissional (texto)
-    PROFISSIONAL: (updatedData as any)['PROFISSIONAL'],
+  // Mapeamento de chaves do frontend para colunas do banco (mantendo compatibilidade com maiúsculas/acentos)
+  const mapping: { [key: string]: string } = {
+    'DATA': 'DATA',
+    'CLIENTE': 'CLIENTE',
+    'VALOR': 'VALOR',
+    'HORARIO': 'HORARIO',
+    'HORÁRIO': 'HORARIO',
+    'TIPO': 'TIPO',
+    'PROFISSIONAL': 'PROFISSIONAL',
+    'ENDEREÇO': 'ENDEREÇO',
+    'DIA': 'DIA',
+    'REPASSE': 'REPASSE',
+    'ATENDIMENTO_ID': 'ATENDIMENTO_ID',
+    'observacao': 'observacao',
+    'comentario': 'comentario',
+    'status': 'STATUS',
+    'STATUS': 'STATUS',
+    'PERÍODO': 'PERÍODO',
+    'PERIODO': 'PERÍODO',
+    'MOMENTO': 'MOMENTO',
+    'SERVIÇO': 'SERVIÇO',
+    'SERVICO': 'SERVIÇO',
+    'pos vendas': 'pos vendas',
+    'reagendou': 'reagendou'
   };
+
+  const updatePayload: { [key: string]: any } = {};
+
+  // Inclui apenas campos que foram explicitamente passados (não undefined)
+  Object.keys(updatedData).forEach(key => {
+    const value = (updatedData as any)[key];
+    if (value !== undefined) {
+      const dbKey = mapping[key] || key;
+      updatePayload[dbKey] = value;
+    }
+  });
+
+  if (Object.keys(updatePayload).length === 0) {
+    throw new Error('Nenhum dado fornecido para atualização.');
+  }
 
   const { data, error } = await supabase
     .from('processed_data')

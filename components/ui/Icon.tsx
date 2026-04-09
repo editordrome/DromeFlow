@@ -56,8 +56,18 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
   let LucideComp = (Lucide as any)[name] as any;
 
   if (!LucideComp && typeof name === 'string' && name.length > 0) {
+    // Tenta converter camelCase ou PascalCase simples
     const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
     LucideComp = (Lucide as any)[capitalized] as any;
+
+    // Se ainda não encontrou, tenta converter kebab-case (ex: book-open) para PascalCase (BookOpen)
+    if (!LucideComp && name.includes('-')) {
+      const pascalCase = name
+        .split('-')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join('');
+      LucideComp = (Lucide as any)[pascalCase] as any;
+    }
   }
 
   const finalClassName = className ? `flex-shrink-0 ${className}` : 'flex-shrink-0 w-5 h-5';

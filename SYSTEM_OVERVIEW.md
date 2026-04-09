@@ -115,12 +115,11 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
 
 - Comercial Admin (Gestão de Produção):
   - Fonte de Dados: Tabela `comercial_admin`.
-  - Controle de Produção: Seção dedicada para leads com status "Ganhos".
-    - Checklist Interativo: Cadastro Unidade, Status Pagamento, Recrutadora, Umbler (booleans persistidos em tempo real).
-    - Status de Produção: Campo de texto para acompanhamento do progresso.
-    - Integração Umbler: Botão de disparo de webhook (`umbler-org`) condicionado ao status "Ganhos" para provisionamento automatizado.
-  - Kanban: Cards exibem badges coloridos com o status de produção para visualização rápida da fila de implantação.
-  - Sincronização: Vinculação de cards a unidades reais via `linked_unit_id`, resolvendo ambiguidades de relacionamento no Supabase.
+  - Colunas Dinâmicas: Os status são carregados da tabela `comercial_admin_columns`, permitindo personalização total das etapas do Kanban.
+  - Gestão de Status: A troca de coluna foi movida para o modal de detalhes do card, utilizando um seletor premium animado com `framer-motion` para evitar poluição visual no dashboard.
+  - Integração WhatsApp: Atalho direto no campo de contato (modal) que limpa o número e abre o link `wa.me` automaticamente.
+  - Controle de Produção: Seção dedicada para leads ganhos com checklist interativo (Cadastro, Pagamento, Recrutadora, Umbler) e status de progresso textual.
+  - Sincronização: Vinculação a unidades reais via `linked_unit_id` e atualização de estado em tempo real no dashboard quando editado via modal.
 
 -   Comercial:
   -   Fonte de Dados: Tabelas `comercial` (cards) e `comercial_columns` (metadados de colunas).
@@ -200,19 +199,23 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
 
 - **Agenda (Gestão e App Profissional)**:
   - **Interface Administrativa (`AgendaPage.tsx`)**:
-    - Layout de 3 colunas (Grid 2:1:1):
-      - Coluna Esquerda (50%): Calendário (40% altura) e Quadro de Médricas Semanais (60% altura), ambos flexíveis.
-      - Coluna Meio (25%): Profissionais Livres (Drag & Drop).
-      - Coluna Direita (25%): Atendimentos do Dia (Drag & Drop).
-    - Header simplificado com botão de configurações ao lado do título.
+    - Layout de 3 colunas (Grid 2:1:1) otimizado para visualização semanal.
+    - **Configurações**: Aba centralizada com calendário de dias liberados e botões de ação (Limpar/Salvar) em linha inferior.
+    - **Priorização de Status**: O sistema prioriza agendamentos reais (**CLIENTE**) sobre qualquer marcação manual na tabela de disponibilidades (ex: RESERVA, NÃO).
+    - **Unificação de Períodos**: Status de dia inteiro (RESERVA, CLIENTE, LIVRE 8h, etc.) são exibidos como um único bloco centralizado na tabela, eliminando divisões visuais desnecessárias entre manhã e tarde.
+    - **Identidade Visual**:
+      - `8 horas`: Verde Escuro (`#15803D`)
+      - `6 / 4 horas`: Verde Claro (`#4ADE80`)
+      - `RESERVA`: Amarelo (`#FACC15`)
+      - `Conflito`: Vermelho de Alerta (`#EF4444`) para quando há agendamento em horário marcado como "NÃO DISPONÍVEL".
   - **Configuração (`agenda_settings`)**: Permite que administradores selecionem datas disponíveis (`dias_liberados`) para que profissionais informem sua agenda. 
-    - **Versionamento Automático**: Cada "Salvar" inativa versões anteriores (`is_link_active: false`) e gera um novo registro. Isso mantém um histórico íntegro sem afetar registros de sistema (`is_system`).
+    - **Versionamento Automático**: Cada "Salvar" inativa versões anteriores (`is_link_active: false`) e gera um novo registro.
+  - **Limpeza de Status**: A funcionalidade "Limpar" realiza uma limpeza profunda, removendo tanto o status temporário quanto a própria jornada de trabalho (coluna `periodos`), permitindo que a profissional seja reconfigurada do zero (estado `"—"`).
   - **App Profissional (Mobile)**: Interface simplificada isolada via subdomínio/rota pública.
     - **Login Universal**: Busca por WhatsApp resiliente a máscaras e DDI.
-    - **Cache-Busting**: Após o envio, o app limpa automaticamente `localStorage`, `caches` e desregistra `Service Workers`, forçando a busca da configuração ativa no próximo acesso.
+    - **Cache-Busting**: Limpeza de cache pós-envio para garantir sincronização da próxima configuração ativa.
   - **Disponibilidade (`agenda_disponibilidade`)**: Armazena respostas vinculadas à Unidade e Data. 
-    - **Persistência Multi-versão**: A busca de respostas ignora o `settings_id` rígido, permitindo que a profissional veja seu progresso mesmo se o administrador atualizar a configuração durante a semana.
-  - **Sincronização**: Realtime no dashboard administrativo reflete as respostas instantaneamente.
+    - **Sincronização**: Realtime reflete as respostas instantaneamente no dashboard administrativo.
 
 ## 6. Sincronização entre `auth.users` e `profiles`
 
@@ -294,6 +297,8 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 | Segurança de Conteúdo | Restrições no ContentArea | Injeção de HTML apenas de URLs que iniciem com `internal://`. |
 | Ingestão CSV (MB Londrina) | Loader RAW → Recrutadora | Script SQL em `docs/sql/mblondrina_load_from_raw_csv.sql` usa `unit_id` fixo, normaliza status/telefones, deduplica e calcula posições. |
 | Dashboard – Submétricas | Cliques alternam o gráfico anual | Estados de submétrica em `DashboardMetricsPage.tsx`; serviços mensais single/multi em `serviceAnalysis.service.ts`; gráfico `MonthlyComparisonChart.tsx` calcula margem e alterna Line/Bar. |
+| Comercial Admin | Kanban Dinâmico | Status carregados de `comercial_admin_columns`; seletor movido para o modal; inclusão de atalho para WhatsApp. |
+| DB Comercial Admin | Remoção de Constraint | Removida `comercial_admin_status_check` para suportar status Customizados via colunas dinâmicas. |
 
 ---
 ## 8. Convenções Atuais de Dados
@@ -364,4 +369,4 @@ _Documento ampliado para refletir estado operacional atualizado (02/10/2025)._
 ---
 ### Referência: Subdomínios e URLs por Módulo
 
-Para publicar cada unidade em seu subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeboard.com.br/<module>`), consulte `docs/SUBDOMINIOS_E_URLS.md`.
+Para publicar cada unidade em seu subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeflow.com/<module>`), consulte `docs/SUBDOMINIOS_E_URLS.md`.

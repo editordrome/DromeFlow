@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import type { ComercialAdminCard, Plan, Unit } from '../../types';
+import { motion, AnimatePresence } from 'framer-motion';
+import type { ComercialAdminCard, ComercialAdminColumn, Plan, Unit } from '../../types';
 import { supabase } from '../../services/supabaseClient';
 import { activityLogger } from '../../services/utils/activityLogger.service';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,17 +15,11 @@ interface Props {
     defaultStatus: string;
     unitId?: string;
     initialCard?: ComercialAdminCard | null;
+    columns?: ComercialAdminColumn[];
     onDelete?: (id: string) => Promise<void>;
     onCreate?: (payload: Partial<ComercialAdminCard>) => Promise<void>;
     onUpdate?: (id: string, payload: Partial<ComercialAdminCard>) => Promise<void>;
 }
-
-const STATUS_OPTIONS = [
-    { value: 'leads', label: 'Leads' },
-    { value: 'andamento', label: 'Em Andamento' },
-    { value: 'ganhos', label: 'Ganhos' },
-    { value: 'perdidos', label: 'Perdidos' },
-];
 
 const ORIGEM_OPTIONS = ['Whatsapp', 'Ligação', 'E-mail', 'Indicação', 'Site', 'Outros'];
 
@@ -37,6 +32,7 @@ const ComercialAdminCardModal: React.FC<Props> = ({
     defaultStatus,
     unitId,
     initialCard,
+    columns = [],
     onDelete,
     onCreate,
     onUpdate,
@@ -71,6 +67,7 @@ const ComercialAdminCardModal: React.FC<Props> = ({
     const [isEditing, setIsEditing] = useState(false);
     const [isTriggering, setIsTriggering] = useState(false);
     const [showOrigemSuggestions, setShowOrigemSuggestions] = useState(false);
+    const [statusMenuOpen, setStatusMenuOpen] = useState(false);
     const [filteredOrigemOptions, setFilteredOrigemOptions] = useState<string[]>(ORIGEM_OPTIONS);
 
     // Load Plans and Units
@@ -93,11 +90,15 @@ const ComercialAdminCardModal: React.FC<Props> = ({
         setSaving(false);
         setIsEditing(!initialCard);
 
+        // Só inicializa o formulário se for um novo card ou se o modal acabou de abrir
         if (initialCard) {
             setNome(initialCard.nome || '');
             setContato(initialCard.contato || '');
             setOrigem(initialCard.origem || '');
+            
+            // Status é atualizado localmente pelo seletor
             setStatus(initialCard.status || defaultStatus);
+            
             setPlanoId(initialCard.plano_id || '');
             setLinkedUnitId(initialCard.linked_unit_id || '');
             
@@ -116,21 +117,14 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                 if (parts.length > 0) {
                     parsedTitle = parts[0];
                 }
-                if (parts.length > 1) {
-                    const extras = parts.slice(1).join(', ');
-                    const extrasMsg = `Outras unidades: ${extras}`;
-                    if (!initialObs.includes(extrasMsg)) {
-                        initialObs = initialObs ? `${initialObs}\n\n${extrasMsg}` : extrasMsg;
-                    }
-                }
             }
             
-            setObservacao(initialObs);
             setUnidadePrincipal(parsedTitle);
+            setObservacao(initialCard.observacao || '');
         } else {
             resetForm();
         }
-    }, [isOpen, initialCard, defaultStatus]);
+    }, [isOpen, initialCard?.id]); // Depender do ID evita reset no auto-save do mesmo card
 
     const resetForm = () => {
         setNome('');
@@ -270,18 +264,70 @@ const ComercialAdminCardModal: React.FC<Props> = ({
                             {initialCard ? unidadePrincipal : 'Novo Cliente B2B'}
                         </h2>
                         <div className="flex items-center gap-3">
-                            <select
-                                value={status}
-                                onChange={e => {
-                                    setStatus(e.target.value);
-                                    handleAutoSave('status', e.target.value);
-                                }}
-                                className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
-                            >
-                                {STATUS_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                            </select>
+                            {/* Custom Status Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setStatusMenuOpen(!statusMenuOpen)}
+                                    className={`
+                                        flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold uppercase transition-all
+                                        ${statusMenuOpen 
+                                            ? 'bg-bg-tertiary border-accent-primary text-accent-primary shadow-lg shadow-accent-primary/10' 
+                                            : 'bg-bg-tertiary border-border-secondary text-text-primary hover:border-text-tertiary shadow-sm'}
+                                    `}
+                                >
+                                    <div 
+                                        className="w-2 h-2 rounded-full" 
+                                        style={{ backgroundColor: columns.find(c => c.code === status)?.color || '#3b82f6' }} 
+                                    />
+                                    <span>{columns.find(c => c.code === status)?.name || status}</span>
+                                    <Icon name="ChevronDown" className={`w-4 h-4 transition-transform duration-200 ${statusMenuOpen ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                <AnimatePresence>
+                                    {statusMenuOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="absolute right-0 mt-2 w-52 bg-bg-tertiary border border-border-secondary rounded-xl shadow-2xl z-[70] overflow-hidden backdrop-blur-md"
+                                        >
+                                            <div className="p-3 border-b border-border-secondary bg-bg-secondary/50">
+                                                <span className="text-[10px] font-bold uppercase text-text-tertiary tracking-widest">Alterar Status</span>
+                                            </div>
+                                            <div className="max-h-64 overflow-y-auto py-1">
+                                                {columns.map(col => (
+                                                    <button
+                                                        key={col.id}
+                                                        onClick={() => {
+                                                            setStatus(col.code);
+                                                            handleAutoSave('status', col.code);
+                                                            setStatusMenuOpen(false);
+                                                        }}
+                                                        className={`
+                                                            w-full flex items-center justify-between px-4 py-2.5 text-xs transition-all
+                                                            ${status === col.code 
+                                                                ? 'bg-accent-primary/10 text-accent-primary font-bold' 
+                                                                : 'text-text-secondary hover:bg-bg-secondary hover:text-text-primary'}
+                                                        `}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: col.color || '#3b82f6' }} />
+                                                            <span>{col.name}</span>
+                                                        </div>
+                                                        {status === col.code && <Icon name="Check" className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                                
+                                {statusMenuOpen && (
+                                    <div className="fixed inset-0 z-[65]" onClick={() => setStatusMenuOpen(false)} />
+                                )}
+                            </div>
+
                             <button onClick={onClose} className="text-text-secondary hover:text-text-primary p-1">
                                 <Icon name="close" className="w-5 h-5" />
                             </button>
@@ -319,16 +365,31 @@ const ComercialAdminCardModal: React.FC<Props> = ({
 
                         <div>
                             <label className="block text-xs font-medium text-text-secondary mb-1">Contato</label>
-                            {isEditing ? (
-                                <input
-                                    value={contato}
-                                    onChange={e => setContato(e.target.value)}
-                                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
-                                    placeholder="Telefone / Whatsapp"
-                                />
-                            ) : (
-                                <p className="text-sm text-text-primary">{contato || '-'}</p>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {isEditing ? (
+                                    <input
+                                        value={contato}
+                                        onChange={e => setContato(e.target.value)}
+                                        className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
+                                        placeholder="Telefone / Whatsapp"
+                                    />
+                                ) : (
+                                    <p className="text-sm text-text-primary">{contato || '-'}</p>
+                                )}
+                                {contato && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            const cleanPhone = contato.replace(/\D/g, '');
+                                            window.open(`https://wa.me/${cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone}`, '_blank');
+                                        }}
+                                        className="p-1.5 rounded-md bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors"
+                                        title="Abrir no Whatsapp"
+                                    >
+                                        <Icon name="MessageCircle" className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         <div>

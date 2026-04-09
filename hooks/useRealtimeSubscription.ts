@@ -13,6 +13,7 @@ export interface UseRealtimeSubscriptionOptions<T = any> {
   filter?: (record: T) => boolean;
   callbacks: RealtimeCallbacks<T>;
   enabled?: boolean; // Permite desabilitar subscription temporariamente
+  filterQuery?: string; // Query de filtro server-side (ex: 'unidade_code=eq.CODE')
 }
 
 /**
@@ -32,7 +33,7 @@ export interface UseRealtimeSubscriptionOptions<T = any> {
 export function useRealtimeSubscription<T = any>(
   options: UseRealtimeSubscriptionOptions<T>
 ) {
-  const { table, filter, callbacks, enabled = true } = options;
+  const { table, filter, callbacks, enabled = true, filterQuery } = options;
   const channelRef = useRef<RealtimeChannel | null>(null);
   
   // Usar refs para callbacks e filter para evitar re-subscription
@@ -53,8 +54,11 @@ export function useRealtimeSubscription<T = any>(
 
     console.log(`[Realtime] Iniciando subscription na tabela: ${table}`);
 
-    // Criar canal único baseado no nome da tabela
-    const channelName = `realtime:${table}`;
+    // Criar canal único baseado na tabela e no filtro para evitar conflitos
+    const channelName = filterQuery 
+      ? `realtime:${table}:${filterQuery}` 
+      : `realtime:${table}:all`;
+
     const channel = supabase
       .channel(channelName)
       .on(
@@ -62,7 +66,8 @@ export function useRealtimeSubscription<T = any>(
         {
           event: 'INSERT',
           schema: 'public',
-          table: table
+          table: table,
+          filter: filterQuery
         },
         (payload) => {
           const newRecord = payload.new as T;
@@ -82,7 +87,8 @@ export function useRealtimeSubscription<T = any>(
         {
           event: 'UPDATE',
           schema: 'public',
-          table: table
+          table: table,
+          filter: filterQuery
         },
         (payload) => {
           const updatedRecord = payload.new as T;
@@ -102,7 +108,8 @@ export function useRealtimeSubscription<T = any>(
         {
           event: 'DELETE',
           schema: 'public',
-          table: table
+          table: table,
+          filter: filterQuery
         },
         (payload) => {
           const deletedRecord = payload.old as T;
@@ -136,7 +143,7 @@ export function useRealtimeSubscription<T = any>(
         channelRef.current = null;
       }
     };
-  }, [table, enabled]);
+  }, [table, enabled, filterQuery]);
 
   return {
     isConnected: channelRef.current?.state === 'joined'

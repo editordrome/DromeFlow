@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable, type DropResult, type DragUpdate } from '@hello-pangea/dnd';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAppContext } from '../../contexts/AppContext';
 import {
     createComercialAdminCard,
     deleteComercialAdminCard,
@@ -31,6 +33,71 @@ const STATUS_BADGE_BG: Record<string, string> = {
     perdidos: 'bg-danger/80',
 };
 
+// Produção Status Helpers
+const getProductionStatusBadge = (status: string) => {
+    switch (status) {
+        case 'Entregue': return 'bg-brand-green/20 text-brand-green border-brand-green/30';
+        case 'Finalizado': return 'bg-brand-cyan/20 text-brand-cyan border-brand-cyan/30';
+        case 'Em Produção': return 'bg-accent-primary/20 text-accent-primary border-accent-primary/30';
+        case 'Aguardando Cliente': return 'bg-orange-500/20 text-orange-500 border-orange-500/30';
+        default: return 'bg-text-tertiary/10 text-text-tertiary border-text-tertiary/20';
+    }
+};
+
+// Sub-componente para o Card do Kanban
+const KanbanCard: React.FC<{
+    card: ComercialAdminCard;
+    index: number;
+    onOpenModal: (card: ComercialAdminCard) => void;
+}> = ({ card, index, onOpenModal }) => {
+    // Card click is handled by the parent container
+    return (
+        <Draggable draggableId={card.id.toString()} index={index}>
+            {(dragProvided, dragSnapshot) => (
+                <div
+                    ref={dragProvided.innerRef}
+                    {...dragProvided.draggableProps}
+                    {...dragProvided.dragHandleProps}
+                    onClick={() => onOpenModal(card)}
+                    className={`
+                        group relative p-3 rounded-lg bg-bg-secondary shadow-sm cursor-pointer
+                        transition-all hover:shadow-md hover:border-accent-primary/30
+                        border border-border-secondary
+                        ${dragSnapshot.isDragging ? 'shadow-xl ring-2 ring-accent-primary rotate-1 scale-105 z-50' : ''}
+                    `}
+                >
+                    <h4 className="font-semibold text-text-primary mb-1 truncate">{card.nome}</h4>
+
+                    <div className="space-y-1.5 text-xs text-text-secondary">
+                        {/* Plan Badge */}
+                        {card.plano && (
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-cyan/10 text-brand-cyan font-medium border border-brand-cyan/20">
+                                <Icon name="CreditCard" className="w-3 h-3" />
+                                <span>{card.plano.name}</span>
+                                <span className="opacity-70 text-[10px] ml-1">R${card.plano.value}</span>
+                            </div>
+                        )}
+
+                        {/* Production Status Badge */}
+                        {card.status === 'ganhos' && (
+                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold border ${getProductionStatusBadge(card.producao_status)}`}>
+                                <Icon name="Settings" className="w-3 h-3" />
+                                <span className="text-[10px] uppercase tracking-tighter">{card.producao_status}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-3 flex items-center justify-between text-[10px] text-text-tertiary pt-2 border-t border-border-secondary/50">
+                        <span>{new Date(card.created_at).toLocaleDateString()}</span>
+                        {card.origem && <span className="uppercase tracking-wider">{card.origem}</span>}
+                    </div>
+                </div>
+            )}
+        </Draggable>
+    );
+};
+
 const ComercialAdminPage: React.FC = () => {
     const { profile } = useAuth();
 
@@ -52,7 +119,7 @@ const ComercialAdminPage: React.FC = () => {
     const [dragIndicator, setDragIndicator] = useState<{ droppableId: string; index: number } | null>(null);
 
     // Constants
-    const MB_DROME_UNIT_ID = 'af4dd770-31c2-4780-90b4-83cca8416ab6';
+    const MB_DROME_UNIT_ID = process.env.NEXT_PUBLIC_DEFAULT_UNIT_ID || 'af4dd770-31c2-4780-90b4-83cca8416ab6';
 
     // Load Data
     const loadData = useCallback(async () => {
@@ -123,26 +190,9 @@ const ComercialAdminPage: React.FC = () => {
         return map;
     }, [visibleCards]);
 
-    // Expiration Status Calculator
-    const getExpirationStatus = (card: ComercialAdminCard): { borderClass: string; isExpired: boolean; isWarning: boolean } => {
-        if (!card.data_fim_teste) return { borderClass: '', isExpired: false, isWarning: false };
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const endDate = new Date(card.data_fim_teste);
-        endDate.setHours(0, 0, 0, 0);
 
-        const diffTime = endDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays < 0) {
-            return { borderClass: 'border-danger border-2', isExpired: true, isWarning: false };
-        } else if (diffDays <= 3) {
-            return { borderClass: 'border-yellow-500 border-2', isExpired: false, isWarning: true };
-        }
-
-        return { borderClass: '', isExpired: false, isWarning: false };
-    };
+    const { selectedUnit } = useAppContext();
 
     // Handlers
     const handleOpenModal = (status: string, card?: ComercialAdminCard) => {
@@ -154,12 +204,29 @@ const ComercialAdminPage: React.FC = () => {
     const handleCreateCard = async (payload: Partial<ComercialAdminCard>) => {
         const targetStatus = payload.status || modalStatus;
         const countInStatus = cards.filter(c => c.status === targetStatus).length;
-        await createComercialAdminCard({ ...payload, position: countInStatus + 1 });
+        
+        // Determina a unidade: Usa a selecionada se não for 'ALL', senão usa a Sede (fallback seguro)
+        const unitIdToUse = (selectedUnit && selectedUnit.id !== 'ALL') 
+            ? selectedUnit.id 
+            : MB_DROME_UNIT_ID;
+
+        await createComercialAdminCard({ 
+            ...payload, 
+            unit_id: unitIdToUse, 
+            position: countInStatus + 1 
+        });
     };
 
     const handleUpdateCard = async (id: string, payload: Partial<ComercialAdminCard>) => {
         await updateComercialAdminCard(id, payload);
+
+        // Atualiza a lista de cards
         setCards(prev => prev.map(c => c.id === id ? { ...c, ...payload } : c));
+
+        // Sincroniza o card que está sendo editado no modal
+        if (editingCard?.id === id) {
+            setEditingCard(prev => prev ? { ...prev, ...payload } : null);
+        }
     };
 
     const handleDragEnd = async (result: DropResult) => {
@@ -168,50 +235,33 @@ const ComercialAdminPage: React.FC = () => {
 
         if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
-        // Optimistic Update
-        const newCards = Array.from(cards);
-        const movingCardIndex = newCards.findIndex((c: ComercialAdminCard) => c.id === draggableId);
-        if (movingCardIndex === -1) return;
-
-        const movingCard: ComercialAdminCard = { ...(newCards[movingCardIndex] as ComercialAdminCard) };
-        const oldStatus = movingCard.status;
         const newStatus = destination.droppableId;
 
-        movingCard.status = newStatus;
+        // Otimistic Update Seguro (Refatorado)
+        setCards(prev => {
+            const list = [...prev];
+            const movingIdx = list.findIndex(c => c.id === draggableId);
+            if (movingIdx === -1) return prev;
 
-        // Remove from old pos
-        // Calculate new position logic...
-        // For simplicity, we'll reload or use complex local logic. 
-        // Given the complexity, let's update local state to reflect change and trigger persistence.
+            const [movedCard] = list.splice(movingIdx, 1);
+            movedCard.status = newStatus;
 
-        // Re-sort local array is tricky without dedicated lists.
-        // Simplest approach: Update status locally, reload data or implement full local reorder logic.
-        // Implementing basic local reorder for UI responsiveness:
+            // Adicionamos no final da lista manipulada statefully, a carga real (ordem) vira do backend no reload
+            list.push(movedCard);
+            return list;
+        });
 
-        newCards.splice(movingCardIndex, 1); // remove
-
-        // Find insertion index in global list is hard because it's segmented by status.
-        // We can rely on the server validation for exact position or just update status.
-        // Let's reload for safety or use the service batch update.
-
-        setCards(prev => prev.map(c => {
-            if (c.id === draggableId) {
-                return { ...c, status: newStatus }; // updating status only for now
-            }
-            return c;
-        }));
-
-        // Call persistence (this handles reordering on server)
         try {
             await persistAdminStatusOrdering([{
                 id: draggableId,
                 status: newStatus,
-                position: destination.index + 1 // approximating 1-based index
+                position: destination.index + 1
             }]);
-            loadData(); // Sync exact positions
+
+            await loadData(); // Reload garante sincronização final das posições
         } catch (e) {
-            console.error('Drag failed', e);
-            loadData(); // Revert
+            console.error('Falha ao mover card', e);
+            await loadData(); // Reverte para o estado da base caso erro
         }
         setDragIndicator(null);
     };
@@ -224,17 +274,7 @@ const ComercialAdminPage: React.FC = () => {
         }
     };
 
-    // Helper utils
-    const getTrialStatus = (card: ComercialAdminCard) => {
-        if (!card.data_fim_teste) return null;
-        const today = new Date();
-        const end = new Date(card.data_fim_teste);
-        const daysLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-        if (daysLeft < 0) return { label: 'Expirado', color: 'text-danger bg-danger/10' };
-        if (daysLeft <= 3) return { label: `${daysLeft} dias`, color: 'text-warning bg-warning/10' };
-        return { label: 'Em teste', color: 'text-brand-green bg-brand-green/10' };
-    };
 
     if (loading) {
         return <div className="flex h-full items-center justify-center"><div className="w-12 h-12 border-4 border-accent-primary border-t-transparent rounded-full animate-spin" /></div>;
@@ -249,11 +289,10 @@ const ComercialAdminPage: React.FC = () => {
             {/* Header */}
             <div className="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+                    <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2 mb-2">
                         <Icon name="Building2" className="w-8 h-8 text-accent-primary" />
                         Comercial Admin
                     </h1>
-                    <p className="text-sm text-text-secondary mt-1">Gestão de clientes B2B e Planos</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -301,18 +340,19 @@ const ComercialAdminPage: React.FC = () => {
                 </div>
             </div>
 
+            {/* Main Content Area */}
             {/* Kanban Board */}
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
                 <DragDropContext onDragEnd={handleDragEnd} onDragUpdate={handleDragUpdate}>
                     <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden pb-2">
-                        <div className="flex h-full gap-4">
+                        <div className="flex h-full gap-3">
                             {columns.map(column => {
                                 const columnCards = cardsByStatus[column.code] || [];
                                 const borderTone = STATUS_BORDER_CLASSES[column.code] || 'border-border-secondary';
                                 const badgeBg = STATUS_BADGE_BG[column.code] || 'bg-black/60';
 
                                 return (
-                                    <div key={column.id} className={`flex h-full w-[320px] min-w-[320px] shrink-0 flex-col rounded-lg border bg-bg-tertiary ${borderTone}`}>
+                                    <div key={column.id} className={`flex h-full min-w-[260px] flex-1 shrink-0 flex-col rounded-lg border bg-bg-tertiary ${borderTone}`}>
                                         {/* Column Header */}
                                         <div className="p-3 border-b border-border-secondary flex items-center justify-between bg-bg-secondary/50 rounded-t-lg">
                                             <h3 className="font-semibold text-text-primary uppercase text-sm tracking-wide">{column.name}</h3>
@@ -327,66 +367,16 @@ const ComercialAdminPage: React.FC = () => {
                                                 <div
                                                     ref={provided.innerRef}
                                                     {...provided.droppableProps}
-                                                    className={`flex-1 p-2 space-y-2 overflow-y-auto transition-colors ${snapshot.isDraggingOver ? 'bg-accent-primary/5' : ''
-                                                        }`}
+                                                    className={`flex-1 p-2 space-y-2 overflow-y-auto transition-colors ${snapshot.isDraggingOver ? 'bg-accent-primary/5' : ''}`}
                                                 >
-                                                    {columnCards.map((card, index) => {
-                                                        const trialStatus = getTrialStatus(card);
-                                                        const expirationStatus = getExpirationStatus(card);
-                                                        return (
-                                                            <Draggable draggableId={card.id} index={index}>
-                                                                {(dragProvided, dragSnapshot) => (
-                                                                    <div
-                                                                        ref={dragProvided.innerRef}
-                                                                        {...dragProvided.draggableProps}
-                                                                        {...dragProvided.dragHandleProps}
-                                                                        onClick={() => handleOpenModal(column.code, card)}
-                                                                        className={`
-                                      group relative p-3 rounded-lg bg-bg-secondary shadow-sm cursor-pointer
-                                      transition-all hover:shadow-md hover:border-accent-primary/30
-                                      ${expirationStatus.borderClass || 'border border-border-secondary'}
-                                      ${dragSnapshot.isDragging ? 'shadow-xl ring-2 ring-accent-primary rotate-1 scale-105 z-50' : ''}
-                                    `}
-                                                                    >
-                                                                        <h4 className="font-semibold text-text-primary mb-1">{card.nome}</h4>
-
-                                                                        {/* Info Grid */}
-                                                                        <div className="space-y-1.5 text-xs text-text-secondary">
-                                                                            {card.contato && (
-                                                                                <div className="flex items-center gap-1.5">
-                                                                                    <Icon name="Phone" className="w-3 h-3 text-text-tertiary" />
-                                                                                    <span>{card.contato}</span>
-                                                                                </div>
-                                                                            )}
-
-                                                                            {/* Plan Badge */}
-                                                                            {card.plano && (
-                                                                                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-cyan/10 text-brand-cyan font-medium border border-brand-cyan/20">
-                                                                                    <Icon name="CreditCard" className="w-3 h-3" />
-                                                                                    <span>{card.plano.name}</span>
-                                                                                    <span className="opacity-70 text-[10px] ml-1">R${card.plano.value}</span>
-                                                                                </div>
-                                                                            )}
-
-                                                                            {/* Trial Badge */}
-                                                                            {trialStatus && (
-                                                                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium border border-transparent ${trialStatus.color}`}>
-                                                                                    <Icon name="Clock" className="w-3 h-3" />
-                                                                                    <span>{trialStatus.label}</span>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-
-                                                                        {/* Footer */}
-                                                                        <div className="mt-3 flex items-center justify-between text-[10px] text-text-tertiary pt-2 border-t border-border-secondary/50">
-                                                                            <span>{new Date(card.created_at).toLocaleDateString()}</span>
-                                                                            {card.origem && <span className="uppercase tracking-wider">{card.origem}</span>}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </Draggable>
-                                                        );
-                                                    })}
+                                                    {columnCards.map((card, index) => (
+                                                        <KanbanCard
+                                                            key={card.id}
+                                                            card={card}
+                                                            index={index}
+                                                            onOpenModal={() => handleOpenModal(column.code, card)}
+                                                        />
+                                                    ))}
                                                     {provided.placeholder}
                                                 </div>
                                             )}
@@ -399,18 +389,20 @@ const ComercialAdminPage: React.FC = () => {
                 </DragDropContext>
             </div>
 
-            {modalOpen && (
-                <ComercialAdminCardModal
-                    isOpen={modalOpen}
-                    onClose={() => setModalOpen(false)}
-                    onSaved={loadData}
-                    defaultStatus={modalStatus}
-                    initialCard={editingCard}
-                    onCreate={handleCreateCard}
-                    onUpdate={handleUpdateCard}
-                    onDelete={deleteComercialAdminCard}
-                />
-            )}
+            <ComercialAdminCardModal
+                isOpen={modalOpen}
+                onClose={() => setModalOpen(false)}
+                onSaved={() => {
+                    loadData();
+                    setModalOpen(false);
+                }}
+                defaultStatus={modalStatus}
+                initialCard={editingCard}
+                onCreate={handleCreateCard}
+                onUpdate={handleUpdateCard}
+                onDelete={deleteComercialAdminCard}
+                columns={columns}
+            />
         </div>
     );
 };

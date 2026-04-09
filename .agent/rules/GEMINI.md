@@ -1,13 +1,7 @@
 ---
-trigger: always_on
+trigger: glob
 description: dromeflow-rules
----
-
-Perfeito 👍
-Abaixo está **um novo arquivo `GEMINI.md` totalmente reescrito**, **otimizado**, **mais leve**, **mais executável** e **100% orientado para Português (Brasil)** — mantendo toda a inteligência de agentes, skills e workflows que você construiu.
-
-Você pode **copiar e substituir diretamente** o atual.
-
+globs: Dromeflow-agent
 ---
 
 # 📘 GEMINI.md — Antigravity Kit (PT-BR)
@@ -29,6 +23,21 @@ P2 → SKILL.md (dentro de .agent/skills/)
 
 ❌ Nenhuma regra de nível inferior pode sobrescrever uma superior.
 ✅ Em caso de conflito, **P0 sempre vence**.
+
+---
+
+## 🔒 RESTRIÇÃO CRÍTICA: MÓDULO DADOS (P0)
+
+### Bloqueio de Edição Automática
+
+O módulo **DADOS** (Importação XLSX) é considerado **CRÍTICO** e sensível a quebras de processo.
+
+* ❌ **NUNCA** realizar edições proativas, automáticas ou sugestões de "melhorias" não solicitadas nos arquivos:
+    * `components/ui/UploadModal.tsx`
+    * `services/ingestion/upload.service.ts`
+* ❌ **NUNCA** alterar a estrutura da tabela `public.processed_data` ou seus índices/constraints sem pedido explícito.
+* ✅ Edições nestes arquivos e no banco de dados só podem ser realizadas sob **solicitação direta, definida e detalhada** do usuário.
+* ✅ Em caso de dúvida ou necessidade técnica, o sistema deve **parar e pedir autorização** antes de qualquer modificação.
 
 ---
 

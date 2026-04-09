@@ -911,18 +911,14 @@ const DashboardMetricsPage: React.FC = () => {
 
     // ✅ Memoizar filtro de Realtime
     const realtimeFilter = useCallback((record: any) => {
-        // Filtrar por unidade(s)
+        // Filtar por unidade(s) - Redundância de segurança (o filterQuery já faz a maior parte)
         if (selectedUnit && selectedUnit.unit_code !== 'ALL') {
-            if (record.unidade_code !== selectedUnit.unit_code) {
-                return false;
-            }
+            if (record.unidade_code !== selectedUnit.unit_code) return false;
         } else if (multiUnits.length > 0) {
-            if (!multiUnits.includes(record.unidade_code)) {
-                return false;
-            }
+            if (!multiUnits.includes(record.unidade_code)) return false;
         }
 
-        // Filtrar por período (recarrega métricas do mês atual) usando comparação robusta de string
+        // Filtrar por período (recarrega métricas do mês atual)
         if (record.DATA) {
             const [targetYear, targetMonth] = selectedPeriod.split('-');
             const dateStr = typeof record.DATA === 'string' ? record.DATA.split('T')[0] : '';
@@ -933,9 +929,20 @@ const DashboardMetricsPage: React.FC = () => {
         return false;
     }, [selectedUnit, multiUnits, selectedPeriod]);
 
+    // ✅ Otimização: Filtro server-side p/ reduzir carga
+    const realtimeFilterQuery = useMemo(() => {
+        if (!selectedUnit) return undefined;
+        if (selectedUnit.unit_code === 'ALL') {
+            if (multiUnits.length === 0) return undefined;
+            return `unidade_code=in.(${multiUnits.join(',')})`;
+        }
+        return `unidade_code=eq.${selectedUnit.unit_code}`;
+    }, [selectedUnit, multiUnits]);
+
     // Realtime Subscription para processed_data (Dashboard)
     useRealtimeSubscription({
         table: 'processed_data',
+        filterQuery: realtimeFilterQuery,
         filter: realtimeFilter,
         callbacks: {
             onInsert: handleRealtimeChange,

@@ -4,7 +4,7 @@ import type { AgendaSettings, AgendaDisponibilidade } from '../../types';
 // Mapeamento de períodos — fiel ao app externo
 const PERIODOS_MANHA = ['8 horas', '6 horas', '4 horas manhã'];
 const PERIODOS_TARDE = ['8 horas', '6 horas', '4 horas tarde'];
-const PERIODOS_NAO = ['NÃO DISPONIVEL'];
+const PERIODOS_NAO = ['NÃO DISPONIVEL', 'NÃO DISPONÍVEL', 'NÃO', 'NAO'];
 
 // ============================================================================
 // Configurações da Unidade (Gestão)
@@ -119,16 +119,16 @@ export const authenticateProfissional = async (
   const profData = profsData.find(p => {
     if (!p.whatsapp) return false;
     const dbPhone = p.whatsapp.replace(/\D/g, ''); // Limpa banco
-    
+
     // Normaliza banco tirando o 55 se houver
     const dbPhoneNoDDI = (dbPhone.startsWith('55') && dbPhone.length > 11) ? dbPhone.substring(2) : dbPhone;
-    
+
     // Comparações:
     // 1. Exato (sem DDI em ambos)
     // 2. Banco termina com o input (ex: banco tem 9º digito, input não; ou vice-versa)
-    return dbPhoneNoDDI === whatsLimpo || 
-           dbPhoneNoDDI.endsWith(whatsLimpo) || 
-           whatsLimpo.endsWith(dbPhoneNoDDI);
+    return dbPhoneNoDDI === whatsLimpo ||
+      dbPhoneNoDDI.endsWith(whatsLimpo) ||
+      whatsLimpo.endsWith(dbPhoneNoDDI);
   });
 
   if (!profData) {
@@ -257,8 +257,22 @@ export const saveDisponibilidades = async (
       statusManha = 'NÃO';
       statusTarde = 'NÃO';
     } else {
-      if (hasManha) statusManha = ocupaManha ? 'CLIENTE' : 'LIVRE';
-      if (hasTarde) statusTarde = ocupaTarde ? 'CLIENTE' : 'LIVRE';
+      // Prioridade total para atendimento (ocupaManha/ocupaTarde)
+      if (ocupaManha) {
+        statusManha = 'CLIENTE';
+      } else if (hasManha) {
+        statusManha = 'LIVRE';
+      } else if (disp.periodos.includes('4 horas tarde')) {
+        statusManha = 'NÃO';
+      }
+
+      if (ocupaTarde) {
+        statusTarde = 'CLIENTE';
+      } else if (hasTarde) {
+        statusTarde = 'LIVRE';
+      } else if (disp.periodos.includes('4 horas manhã')) {
+        statusTarde = 'NÃO';
+      }
     }
 
     return {
@@ -267,9 +281,11 @@ export const saveDisponibilidades = async (
       settings_id: settingsId, // Vínculo com a versão da agenda
       data: disp.data,
       periodos: disp.periodos,
+      selecao_real: disp.periodos.length > 0 ? disp.periodos[0] : null,
       status_manha: statusManha,
       status_tarde: statusTarde,
       conflito: ats.length > 0, // Marca true caso exista registro em processed_data independente do status selecionado
+      is_manual: false, // Ao receber novo formulário, reseta a flag de manual
       updated_at: new Date().toISOString()
     };
   });
@@ -347,8 +363,8 @@ export const getProfissionaisLivres = async (
     `)
     .eq('unit_id', unitId)
     .eq('data', dataStr)
-    .eq('conflito', false) // Só os que não tem conflito com agendamentos
-    .or('status_manha.is.null,status_manha.eq.LIVRE,status_tarde.is.null,status_tarde.eq.LIVRE'); // Apenas status livres
+    .eq('conflito', false) // Exclui conflitos detectados
+    .or('status_manha.eq.LIVRE,status_tarde.eq.LIVRE'); // Precisa ter pelo menos um período LIVRE
 
   if (settingsId) {
     query = query.eq('settings_id', settingsId);
@@ -356,12 +372,23 @@ export const getProfissionaisLivres = async (
 
   const { data, error } = await query;
 
-  // Filtra garantindo que pelo menos um período é LIVRE pelo mapeamento do app
+  if (error) {
+    console.error('Erro ao buscar profissionais livres:', error);
+    return [];
+  }
+
+  // Filtro adicional no JS para garantir exclusividade e limpeza da lista
   return (data as any[]).filter(disp => {
-    const isLivreManha = disp.status_manha === 'LIVRE' ||
-      (disp.status_manha === null && disp.periodos?.some((p: string) => PERIODOS_MANHA.includes(p)));
-    const isLivreTarde = disp.status_tarde === 'LIVRE' ||
-      (disp.status_tarde === null && disp.periodos?.some((p: string) => PERIODOS_TARDE.includes(p)));
+    // Exclui se tiver qualquer impedimento no outro turno (CLIENTE, NÃO, RESERVA, etc)
+    const impedimentos = ['CLIENTE', 'NÃO', 'RESERVA', 'FALTOU', 'CANCELOU'];
+    
+    if (impedimentos.includes(disp.status_manha || '') || impedimentos.includes(disp.status_tarde || '')) {
+      return false;
+    }
+
+    const isLivreManha = disp.status_manha === 'LIVRE';
+    const isLivreTarde = disp.status_tarde === 'LIVRE';
+
     return isLivreManha || isLivreTarde;
   }) as any;
 };
@@ -387,6 +414,9 @@ export const syncProfissionalAvailability = async (
 
     if (fetchDispError) throw fetchDispError;
     if (!currentDisp) return; // Se não tem registro de disponibilidade, não há o que sincronizar
+
+    // Se o status foi definido manualmente pelo administrador, não sobrescrevemos
+    if (currentDisp.is_manual) return;
 
     // 2. Busca atendimentos vigentes em processed_data
     const { data: ats, error: atsError } = await supabase
@@ -423,24 +453,22 @@ export const syncProfissionalAvailability = async (
     let statusManha: string | null = currentDisp.status_manha;
     let statusTarde: string | null = currentDisp.status_tarde;
 
-    // Prioridade: Atendimento (CLIENTE) sempre sobrescreve.
-    // Se não houver atendimento, mantemos o status se ele for um "Manual" (NÃO, FALTOU, etc).
-    // Se for LIVRE ou null, reavaliamos conforme os periodos originais.
-
+    // Prioridade total para atendimento (ocupaManha/ocupaTarde)
     if (ocupaManha) {
       statusManha = 'CLIENTE';
     } else if (!statusManha || statusManha === 'LIVRE' || statusManha === 'CLIENTE') {
+      // Se não tem nada ou era livre/cliente sem atendimento agora, reseta para original
       if (isNaoOriginal) statusManha = 'NÃO';
+      else if (periodos.includes('4 horas tarde')) statusManha = 'NÃO';
       else if (hasManhaOriginal) statusManha = 'LIVRE';
-      else statusManha = null;
     }
 
     if (ocupaTarde) {
       statusTarde = 'CLIENTE';
     } else if (!statusTarde || statusTarde === 'LIVRE' || statusTarde === 'CLIENTE') {
       if (isNaoOriginal) statusTarde = 'NÃO';
+      else if (periodos.includes('4 horas manhã')) statusTarde = 'NÃO';
       else if (hasTardeOriginal) statusTarde = 'LIVRE';
-      else statusTarde = null;
     }
 
     // 4. Update
