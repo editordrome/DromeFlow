@@ -1,8 +1,6 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
 ## DromeFlow
+
+> **Repositório Oficial:** [editordrome/DromeFlow](https://github.com/editordrome/DromeFlow)
 
 Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend (PostgreSQL + Realtime + Custom Auth via tabelas) e Tailwind para estilização. Inclui:
 
@@ -1263,7 +1261,7 @@ Módulos com sincronização automática via Supabase Realtime:
 ---
 ## 22. Subdomínios e URLs de Módulo
 
-Para servir cada unidade em um subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeboard.com.br/<module>`), siga o guia detalhado em `docs/SUBDOMINIOS_E_URLS.md`.
+Para servir cada unidade em um subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeflow.com/<module>`), siga o guia detalhado em `docs/SUBDOMINIOS_E_URLS.md`.
 
 
 - Métricas Rápidas: chips inline no cabeçalho com contagens de Hoje, Semana e Mês. Implementadas em `services/recrutadora/recrutadora.service.ts` usando utilitários de data em `services/utils/dates.ts` (início do dia/semana/mês).

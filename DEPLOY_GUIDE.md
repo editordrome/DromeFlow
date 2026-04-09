@@ -38,19 +38,33 @@ Antes do build, adicione na pasta `public/`:
 
 ---
 
-## 📤 Passo 2: Upload via FTP
+## 📤 Passo 2: Deploy Automatizado (Recomendado)
 
-### 2.1 Conectar ao FTP
-Use as credenciais da Hostinger:
-- **Host FTP:** `ftp://212.85.6.238` ou `ftp://dromeboard.com.br`
-- **Usuário:** `u854441981.dromeboard.com.br`
-- **Senha:** (a mesma do cPanel)
-- **Porta:** 21 (ou 22 para SFTP)
+O projeto possui um script de deploy que utiliza SFTP (SSH) na porta 65002, o que é mais rápido e seguro que o FTP manual.
 
-**Clientes FTP recomendados:**
-- **FileZilla** (Windows/Mac/Linux) - https://filezilla-project.org/
-- **Cyberduck** (Mac) - https://cyberduck.io/
-- **WinSCP** (Windows) - https://winscp.net/
+### 2.1 Configurar Ambiente
+Certifique-se de que o arquivo `.env.local` contém as credenciais necessárias:
+```env
+SFTP_HOST=72.61.220.147
+SFTP_PORT=65002
+SFTP_USER=u854441981
+SFTP_PASSWORD=sua_senha_ssh
+```
+
+### 2.2 Executar Deploy
+```bash
+npm run deploy
+```
+Este comando irá:
+1. Ler as variáveis do `.env.local`.
+2. Conectar via SSH à Hostinger.
+3. Sincronizar recursivamente o conteúdo da pasta `dist/` para o servidor.
+
+---
+
+## 📂 Passo 3: Upload via FTP (Fallback)
+
+Se por algum motivo o script automatizado falhar, você pode usar um cliente FTP tradicional.
 
 ### 2.2 Navegar até a Pasta Correta
 Após conectar, vá para:
@@ -109,7 +123,7 @@ dist/
 ## 🧪 Passo 3: Verificar o Deploy
 
 ### 3.1 Teste Básico
-Acesse: https://dromeboard.com.br
+Acesse: https://dromeflow.com
 
 **Verificações:**
 - ✅ Site carrega sem erros 404
@@ -119,7 +133,7 @@ Acesse: https://dromeboard.com.br
 
 ### 3.2 Teste PWA
 **No Chrome/Edge:**
-1. Abra: https://dromeboard.com.br
+1. Abra: https://dromeflow.com
 2. Pressione `F12` → Aba **Application**
 3. Verifique:
    - **Service Workers** → Deve aparecer `sw.js` ativo
@@ -128,7 +142,7 @@ Acesse: https://dromeboard.com.br
 
 ### 3.3 Teste de Compressão
 **No Chrome:**
-1. Abra: https://dromeboard.com.br
+1. Abra: https://dromeflow.com
 2. Pressione `F12` → Aba **Network**
 3. Recarregue a página (`Ctrl+Shift+R`)
 4. Clique em qualquer arquivo `.js` grande
@@ -199,7 +213,7 @@ Antes de considerar o deploy concluído:
 - [ ] Ícones PWA adicionados (ou placeholder)
 - [ ] Todos os arquivos da `dist/` enviados via FTP
 - [ ] `.htaccess` está em `/public_html/.htaccess`
-- [ ] Site acessível em https://dromeboard.com.br
+- [ ] Site acessível em https://dromeflow.com
 - [ ] Login funciona corretamente
 - [ ] Service Worker ativo (F12 → Application)
 - [ ] Compressão Brotli/Gzip funcionando (F12 → Network)
@@ -226,6 +240,16 @@ Antes de considerar o deploy concluído:
 1. **Cache do Navegador:** Após deploy, peça aos usuários para limpar cache (`Ctrl+Shift+Del`)
 2. **Updates Futuros:** Sempre execute `npm run build` antes de novo upload
 3. **Backup:** A Hostinger faz backups automáticos, mas mantenha backup local da `dist/`
+4. **Monitoramento:** Use Google Analytics ou similar para monitorar performance real
+
+**Deploy automatizado (futuro):**
+- Configure GitHub Actions para deploy automático via FTP
+- Use `wlixcc/SFTP-Deploy-Action` para CI/CD
+
+---
+
+✅ **Parabéns! Seu DromeFlow está otimizado e pronto para produção!** 🎉
+cal da `dist/`
 4. **Monitoramento:** Use Google Analytics ou similar para monitorar performance real
 
 **Deploy automatizado (futuro):**

@@ -19,13 +19,13 @@
 Este guia detalha como configurar o sistema DromeFlow para funcionar com:
 
 - **Subdomínios por Unidade**: Cada unidade possui seu próprio subdomínio
-  - Exemplo: `mb-joinville.dromeboard.com.br`
-  - Exemplo: `mb-blumenau.dromeboard.com.br`
+  - Exemplo: `mb-joinville.dromeflow.com`
+  - Exemplo: `mb-blumenau.dromeflow.com`
 
 - **Paths por Módulo**: Cada módulo é acessível via path na URL
-  - Exemplo: `https://mb-joinville.dromeboard.com.br/dashboard`
-  - Exemplo: `https://mb-joinville.dromeboard.com.br/atendimentos`
-  - Exemplo: `https://mb-joinville.dromeboard.com.br/profissionais`
+  - Exemplo: `https://mb-joinville.dromeflow.com/dashboard`
+  - Exemplo: `https://mb-joinville.dromeflow.com/atendimentos`
+  - Exemplo: `https://mb-joinville.dromeflow.com/profissionais`
 
 ### Benefícios
 - URLs amigáveis e memoráveis
@@ -42,13 +42,13 @@ Este guia detalha como configurar o sistema DromeFlow para funcionar com:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Usuário Final                          │
-│  https://mb-joinville.dromeboard.com.br/atendimentos       │
+│  https://mb-joinville.dromeflow.com/atendimentos       │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Cloudflare (DNS + CDN)                   │
-│  - Wildcard DNS: *.dromeboard.com.br                       │
+│  - Wildcard DNS: *.dromeflow.com                       │
 │  - SSL/TLS Universal                                        │
 │  - DDoS Protection                                          │
 │  - Cache + Performance                                      │
@@ -85,7 +85,7 @@ Este guia detalha como configurar o sistema DromeFlow para funcionar com:
 
 ### Ferramentas Necessárias
 - [ ] Conta Cloudflare (gratuita ou paga)
-- [ ] Domínio registrado (ex: dromeboard.com.br)
+- [ ] Domínio registrado (ex: dromeflow.com)
 - [ ] Hospedagem web (Hostinger ou similar com suporte a .htaccess)
 - [ ] Acesso SSH ou FTP ao servidor
 - [ ] Acesso ao painel DNS do registrador
@@ -111,7 +111,7 @@ Este guia detalha como configurar o sistema DromeFlow para funcionar com:
 
 2. **Adicione seu domínio**
    - Clique em "Add a Site"
-   - Digite: `dromeboard.com.br`
+   - Digite: `dromeflow.com`
    - Escolha o plano (Free é suficiente)
    - Clique em "Add Site"
 
@@ -167,7 +167,7 @@ Este guia detalha como configurar o sistema DromeFlow para funcionar com:
    ```
    Tipo: CNAME
    Name: *
-   Target: dromeboard.com.br
+   Target: dromeflow.com
    Proxy status: Proxied (ícone laranja)
    TTL: Auto
    ```
@@ -185,7 +185,7 @@ Este guia detalha como configurar o sistema DromeFlow para funcionar com:
    ```
    Tipo: CNAME
    Name: www
-   Target: dromeboard.com.br
+   Target: dromeflow.com
    Proxy status: Proxied (ícone laranja)
    TTL: Auto
    ```
@@ -217,7 +217,7 @@ Este passo é necessário apenas se você escolheu **Full (strict)** no modo SSL
 1. **Gere o Certificado**
    - SSL/TLS → Origin Server
    - Clique em "Create Certificate"
-   - Hostnames: `dromeboard.com.br` e `*.dromeboard.com.br`
+   - Hostnames: `dromeflow.com` e `*.dromeflow.com`
    - Validade: 15 anos
    - Clique em "Create"
 
@@ -585,7 +585,7 @@ SELECT
   unit_name, 
   slug, 
   unit_code,
-  'https://' || slug || '.dromeboard.com.br' as url_example
+  'https://' || slug || '.dromeflow.com' as url_example
 FROM public.units 
 ORDER BY unit_name;
 
@@ -596,7 +596,7 @@ SELECT
   code, 
   view_id,
   is_active,
-  'https://[unit-slug].dromeboard.com.br/' || code as url_example
+  'https://[unit-slug].dromeflow.com/' || code as url_example
 FROM public.modules 
 WHERE is_active = true
 ORDER BY position;
@@ -616,7 +616,7 @@ Crie o arquivo: `services/utils/urlUtils.ts`
  */
 
 // Domínio base da aplicação (sem subdomínio)
-export const BASE_DOMAIN = 'dromeboard.com.br';
+export const BASE_DOMAIN = 'dromeflow.com';
 
 // Regex para validar slugs (kebab-case)
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -634,7 +634,7 @@ export interface ParsedUrl {
 /**
  * Detecta a unidade (slug) e o módulo (code) da URL atual
  * 
- * Produção: https://mb-joinville.dromeboard.com.br/atendimentos
+ * Produção: https://mb-joinville.dromeflow.com/atendimentos
  * - unitSlug: 'mb-joinville'
  * - moduleCode: 'atendimentos'
  * 
@@ -664,7 +664,7 @@ export function parseUnitAndModule(): ParsedUrl {
   } 
   // Ambiente de produção (subdomínio)
   else if (hostname.endsWith(BASE_DOMAIN)) {
-    const subdomain = hostname.slice(0, -(BASE_DOMAIN.length + 1)); // Remove '.dromeboard.com.br'
+    const subdomain = hostname.slice(0, -(BASE_DOMAIN.length + 1)); // Remove '.dromeflow.com'
     
     // Valida subdomain (ignora 'www' e vazios)
     if (subdomain && subdomain !== 'www' && SLUG_REGEX.test(subdomain)) {
@@ -690,7 +690,7 @@ export function parseUnitAndModule(): ParsedUrl {
  * Constrói URL completa para unidade e módulo
  * 
  * Produção: buildUnitModuleUrl('mb-joinville', 'atendimentos')
- * → 'https://mb-joinville.dromeboard.com.br/atendimentos'
+ * → 'https://mb-joinville.dromeflow.com/atendimentos'
  * 
  * Local: buildUnitModuleUrl('mb-joinville', 'atendimentos', true)
  * → 'http://localhost:5173/u/mb-joinville/atendimentos'
@@ -1051,7 +1051,7 @@ const handleModuleClick = (module: Module) => {
 **Opção B: Via FTP/SFTP**
 
 1. **Conecte via FileZilla**
-   - Host: `ftp.dromeboard.com.br`
+   - Host: `ftp.dromeflow.com`
    - Usuário: (do hPanel)
    - Senha: (do hPanel)
    - Porta: 21 (FTP) ou 22 (SFTP)
@@ -1093,25 +1093,25 @@ Configure git hooks no servidor para deploy automático em push.
 
 1. **Teste o registro raiz**
    ```bash
-   dig +short dromeboard.com.br
+   dig +short dromeflow.com
    ```
    Deve retornar o IP do servidor.
 
 2. **Teste um subdomínio específico**
    ```bash
-   dig +short mb-joinville.dromeboard.com.br
+   dig +short mb-joinville.dromeflow.com
    ```
    Deve retornar o mesmo IP ou o IP do Cloudflare (se proxied).
 
 3. **Teste o wildcard**
    ```bash
-   dig +short qualquer-coisa.dromeboard.com.br
+   dig +short qualquer-coisa.dromeflow.com
    ```
    Deve retornar o IP (se wildcard configurado).
 
 4. **Verifique propagação**
    - https://www.whatsmydns.net/
-   - Digite: `mb-joinville.dromeboard.com.br`
+   - Digite: `mb-joinville.dromeflow.com`
    - Tipo: A
    - Verifique em diferentes locais
 
@@ -1119,13 +1119,13 @@ Configure git hooks no servidor para deploy automático em push.
 
 1. **Teste HTTPS**
    ```bash
-   curl -I https://mb-joinville.dromeboard.com.br
+   curl -I https://mb-joinville.dromeflow.com
    ```
    Deve retornar `200` ou `301`/`302`.
 
 2. **Verifique certificado**
    ```bash
-   openssl s_client -connect mb-joinville.dromeboard.com.br:443 -servername mb-joinville.dromeboard.com.br < /dev/null
+   openssl s_client -connect mb-joinville.dromeflow.com:443 -servername mb-joinville.dromeflow.com < /dev/null
    ```
    Deve mostrar certificado válido do Cloudflare.
 
@@ -1138,13 +1138,13 @@ Configure git hooks no servidor para deploy automático em push.
 ### 6.3 Testes de Roteamento
 
 1. **Acesso raiz do subdomínio**
-   - https://mb-joinville.dromeboard.com.br
+   - https://mb-joinville.dromeflow.com
    - Deve carregar app e redirecionar para primeiro módulo
 
 2. **Acesso direto a módulo**
-   - https://mb-joinville.dromeboard.com.br/dashboard
-   - https://mb-joinville.dromeboard.com.br/atendimentos
-   - https://mb-joinville.dromeboard.com.br/profissionais
+   - https://mb-joinville.dromeflow.com/dashboard
+   - https://mb-joinville.dromeflow.com/atendimentos
+   - https://mb-joinville.dromeflow.com/profissionais
    - Cada URL deve carregar o módulo correto
 
 3. **Navegação interna**
@@ -1165,15 +1165,15 @@ Configure git hooks no servidor para deploy automático em push.
    - Deve abrir diretamente no módulo correto
 
 6. **Deep linking**
-   - Envie link https://mb-joinville.dromeboard.com.br/profissionais via WhatsApp
+   - Envie link https://mb-joinville.dromeflow.com/profissionais via WhatsApp
    - Abra no mobile
    - Deve abrir app no módulo Profissionais
 
 ### 6.4 Testes de Unidades Múltiplas
 
 1. **Crie URLs para diferentes unidades**
-   - https://mb-joinville.dromeboard.com.br/dashboard
-   - https://mb-blumenau.dromeboard.com.br/dashboard
+   - https://mb-joinville.dromeflow.com/dashboard
+   - https://mb-blumenau.dromeflow.com/dashboard
 
 2. **Verifique isolamento de dados**
    - Cada subdomínio deve mostrar dados da unidade correta
@@ -1188,11 +1188,11 @@ Configure git hooks no servidor para deploy automático em push.
 ### 6.5 Testes de Erros
 
 1. **Slug inválido**
-   - https://unidade-inexistente.dromeboard.com.br
+   - https://unidade-inexistente.dromeflow.com
    - Deve redirecionar para primeira unidade do usuário ou página de erro
 
 2. **Module code inválido**
-   - https://mb-joinville.dromeboard.com.br/modulo-inexistente
+   - https://mb-joinville.dromeflow.com/modulo-inexistente
    - Deve redirecionar para primeiro módulo da unidade
 
 3. **Usuário sem permissão**
@@ -1232,7 +1232,7 @@ Configure git hooks no servidor para deploy automático em push.
 
 ### Problema: Subdomínio não resolve (DNS)
 
-**Sintoma:** `nslookup mb-joinville.dromeboard.com.br` retorna erro ou IP errado.
+**Sintoma:** `nslookup mb-joinville.dromeflow.com` retorna erro ou IP errado.
 
 **Causas Possíveis:**
 1. Nameservers não atualizados no registrador
@@ -1242,7 +1242,7 @@ Configure git hooks no servidor para deploy automático em push.
 **Soluções:**
 1. **Verifique nameservers:**
    ```bash
-   dig NS dromeboard.com.br
+   dig NS dromeflow.com
    ```
    Deve mostrar nameservers do Cloudflare (ex: `*.ns.cloudflare.com`)
 
@@ -1482,7 +1482,7 @@ Configure git hooks no servidor para deploy automático em push.
 
 3. **Configure CORS no webhook:**
    - N8N: Settings → Security → CORS
-   - Adicione origem: `https://*.dromeboard.com.br`
+   - Adicione origem: `https://*.dromeflow.com`
 
 ---
 
@@ -1517,10 +1517,10 @@ npm ci && npm run build
 npx serve -s dist -l 3000
 
 # Verificar DNS
-dig +short mb-joinville.dromeboard.com.br
+dig +short mb-joinville.dromeflow.com
 
 # Testar HTTPS
-curl -I https://mb-joinville.dromeboard.com.br
+curl -I https://mb-joinville.dromeflow.com
 
 # Ver logs do servidor (se tiver SSH)
 tail -f /var/log/apache2/error.log

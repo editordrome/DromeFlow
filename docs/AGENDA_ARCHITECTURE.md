@@ -135,6 +135,47 @@ Foi removido o antigo "Painel Lateral de Informativos". Agora, as métricas deta
 
 ---
 
-## 6. Gestão de Cache (PWA)
+## 7. Arquitetura Modular (Refatoração 2026)
 
-`AgendaExternaPage` limpa automaticamente caches e Service Workers após o envio do formulário, garantindo que a próxima visita da profissional sempre carregue a versão mais recente do app.
+Para melhorar a manutenção e performance, o componente monolítico `AgendaPage.tsx` foi decomposto em múltiplas camadas de responsabilidade:
+
+### 7.1 Orquestração (`AgendaPage.tsx`)
+Atua como um *Shell* leve. Gerencia apenas o roteamento de abas (`gestao` vs `configuracoes`) e injeta os estados dos hooks nas views correspondentes.
+
+### 7.2 Camada de Lógica (Hooks em `components/agenda/hooks/`)
+As regras de negócio e busca de dados foram isoladas em hooks especializados:
+- **`useAgendaPrincipal`**: Centraliza a busca de atendimentos, profissionais livres, disponibilidade semanal e sincronização Realtime para a aba de Gestão.
+- **`useAgendaConfig`**: Gerencia configurações de abertura de agenda, parâmetros de disponibilidade, persistência de dias liberados e métricas globais de profissionais.
+- **`useAgendaDnd`**: Encapsula a lógica complexa de *Drag and Drop*, incluindo validações de compatibilidade de carga horária e atualizações no banco via serviço.
+
+### 7.3 Camada de Visualização (Views em `components/agenda/views/`)
+- **`AgendaPrincipalView`**: Renderiza o dashboard de gestão. Utiliza `grid-rows-2` e `min-h-0` para garantir uma divisão estável 50/50 entre o topo (calendário/profissionais) e a base (métricas semanais), prevenindo sobreposição de conteúdo.
+- **`AgendaConfiguracoesView`**: Interface focada em parametrização técnica, integrada diretamente ao `useAgendaConfig`.
+
+### 7.4 Componentes de UI e Helpers
+- **`AgendaModals`**: Centraliza todos os diálogos (Conflitos, Detalhes de Profissional, Atendimentos) para manter a página principal limpa.
+- **`helpers.ts`**: Utilitários padronizados para cálculos de datas da semana (`getWeekDates`) e checagem de compatibilidade de períodos.
+
+---
+
+---
+
+## 9. Regras de Estabilidade e Gestão (Atualização 2026)
+
+Para garantir 100% de confiabilidade na tomada de decisão do gestor, o módulo recebeu uma camada de inteligência e ordenação prioritária:
+
+### 9.1 Paridade de Headcount (LIVRE > NÃO)
+- **Regra**: Profissionais com disponibilidade parcial (ex: Livre Manhã e Não Tarde) são contabilizados como **LIVRE** no resumo de métricas e sidebar.
+- **Objetivo**: Evitar que a indisponibilidade de um turno oculte a capacidade de atendimento do outro turno, refletindo o potencial real de escala.
+
+### 9.2 Filtro Inteligente de Turno Vencido
+- **Comportamento**: Em visualizações do dia atual, o sistema oculta profissionais que estão livres apenas na **Manhã** após as **13:00**.
+- **Benefício**: Limpa visualmente a barra lateral, deixando apenas quem realmente pode ser escalado para os atendimentos restantes do dia.
+
+### 9.3 Ordenação Prioritária (Sidebar)
+- **Profissionais Livres**: Ordenados por período (4h Manhã > 4h Tarde > 6h > 8h) e secundariamente por nome.
+- **Atendimentos**: Agendamentos sem profissional atribuído são movidos automaticamente para o topo da lista.
+
+### 9.4 Integridade de Envios Originais
+- A aba **"Últimos Envios"** na configuração utiliza o campo imutável `periodos`. 
+- **Garantia**: O histórico de formulários nunca é alterado por edições manuais ou sincronizações, servindo como a "fonte da verdade" da intenção original da profissional.

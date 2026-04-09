@@ -2,6 +2,52 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-04-07] - Webhook Recrutadora & Restauração de Períodos na Agenda 🚀
+
+### ✨ Novas Funcionalidades / Melhorias
+
+#### 1. Webhook de Candidatas (Recrutadora)
+- **Ação "Enviar Mensagem"**: Adicionado botão de disparo de webhook dentro do modal da candidata.
+- **Regra de Negócio**: O botão é exibido exclusivamente quando a candidata está na coluna **"Qualificadas"**, garantindo que apenas perfis aprovados recebam a comunicação.
+- **Integração Dinâmica**: Os dados (nome, WhatsApp, código da unidade) são extraídos em tempo real e enviados para o webhook configurado nas credenciais da unidade.
+
+#### 2. Gestão de Carga Horária (Agenda Admin)
+- **Restauração de Períodos**: Corrigida a gestão de disponibilidade para que, ao editar um dia sem status (`—`), o administrador selecione primeiro a carga horária (**8 horas**, **6 horas**, **4 horas...**) antes de aplicar status manuais.
+- **Menu Contextual Inteligente**: A interface agora alterna automaticamente entre o menu de "Jornada de Trabalho" (para novos registros) e o menu de "Status Operacional" (para registros já configurados), prevenindo inconsistências de dados.
+
+### 🔧 Correções Técnicas
+
+#### 3. Tipagem e Sincronização
+- **Fixo**: Importação de constantes de períodos e tipos no componente `AgendaConfiguracoesView.tsx`.
+- **Backend**: Validado o processamento de strings de jornada no hook `useAgendaConfig.ts` para garantir a unificação correta dos períodos Manhã/Tarde.
+
+---
+
+
+## [2026-03-30] - Comercial Admin Pro: Colunas Dinâmicas e WhatsApp Integration 🚀
+
+### ✨ Novas Funcionalidades / Melhorias
+
+#### 1. Kanban Dinâmico (Comercial Admin)
+- **Status Customizáveis**: O Kanban agora carrega as colunas e cores diretamente da tabela `comercial_admin_columns`, permitindo que o usuário personalize as etapas do processo comercial.
+- **Seletor de Status Premium**: A troca de status foi movida para dentro do modal de detalhes do card. Implementado um seletor customizado com `framer-motion`, eliminando o menu de três pontos no card fechado e mantendo a interface limpa.
+- **Atualização Otimista**: Ao trocar o status no modal, o card se move visualmente no Kanban instantaneamente, sem necessidade de recarregar a página.
+
+#### 2. Atalho para WhatsApp
+- **Click-to-Chat**: Adicionado um botão de WhatsApp ao lado do campo de contato no modal.
+- **Formatação Automática**: O sistema limpa o número (remove parênteses e traços) e garante a inclusão do DDI `55` para abertura correta do link `wa.me`.
+
+### 🔧 Correções Técnicas
+
+#### 3. Banco de Dados (Constraint Fix)
+- **Remoção de Trava de Status**: Identificado e removida a `CHECK constraint` legada (`comercial_admin_status_check`) na tabela `comercial_admin`, possibilitando que a coluna `status` aceite os novos valores definidos dinamicamente.
+- **Persistência de Dados (Modal)**: Resolvido bug de "stale data" onde o modal mantinha informações do card anterior ao abrir um novo. Agora o estado é reiniciado completamente sempre que o ID do card muda.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as mudanças de arquitetura e novas funcionalidades do Comercial Admin.
+
+---
+
 ## [2026-03-28] - Refatoração do Comercial Admin: Gestão de Produção e Webhook Umbler 🚀
 
 ### ✨ Novas Funcionalidades / Melhorias
