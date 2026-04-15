@@ -173,13 +173,13 @@ const ManageUsersPage: React.FC = () => {
         const adminUnitCode = profile.units?.[0]?.code || 'system';
         if (editingUser) {
           activityLogger.logUserUpdate(
-            profile.email || profile.name,
+            profile.email || profile.full_name,
             adminUnitCode,
             'success'
           );
         } else {
           activityLogger.logUserCreate(
-            profile.email || profile.name,
+            profile.email || profile.full_name,
             adminUnitCode,
             'success'
           );
@@ -219,7 +219,7 @@ const ManageUsersPage: React.FC = () => {
         if (profile) {
           const adminUnitCode = profile.units?.[0]?.code || 'system';
           activityLogger.logUserDelete(
-            profile.email || profile.name,
+            profile.email || profile.full_name,
             adminUnitCode,
             'success'
           );

@@ -189,7 +189,7 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
                                     <h3 className="text-sm font-semibold text-text-primary">Editor HTML</h3>
                                     <div className="flex items-center gap-2 text-xs text-text-secondary">
                                         <Icon name="Code" className="w-3.5 h-3.5" />
-                                        <span>Variáveis: {`{{nome}}, {{cpf}}, {{razaoSocial}}`}</span>
+                                        <span>Variáveis: {`{{nome}}, {{cpf}}, {{razaoSocial}}, {{unitName}}, {{unidade_endereco}}, {{profissional_endereco}}`}</span>
                                     </div>
                                 </div>
                             </div>

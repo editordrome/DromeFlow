@@ -108,10 +108,14 @@ export function generateDeclaracaoHTML(data: any): string {
   <img src="${HEADER_URL}" alt="Maria Brasileira" />
 
   <div class="title-box">
-    <strong>TERMO DE DECLARAÇÃO DE CIÊNCIA E COMPROMISSO DE NÃO ALICIAMENTO DE CLIENTES</strong>
+    <strong>DECLARAÇÃO DE QUALIFICAÇÃO E AUTONOMIA</strong>
   </div>
 
-  <p>Eu, <strong>${profissional.nome || '[NOME COMPLETO]'}</strong>, inscrita no CPF sob o nº <strong>${formatCPF(profissional.cpf)}</strong>, residente e domiciliada na <strong>${profissional.endereco || '[endereço completo]'}</strong>, declaro, para os devidos fins, que tomei pleno conhecimento das cláusulas e condições do Contrato de Agenciamento e Intermediação de Mão de Obra celebrado com a unidade franqueada da rede MARIA BRASILEIRA, e assumo o seguinte compromisso:</p>
+  <p>
+    <strong>AGENCIADOR:</strong> ${displayOrPlaceholder(unidade.razaoSocial, '[Razão Social]')}, CNPJ ${unidade.cnpj ? formatCNPJ(unidade.cnpj) : '[CNPJ]'}, ${displayOrPlaceholder(unidade.endereco, '[Endereço]')}, unidade franqueada da Rede Maria Brasileira – ${unidade.unitName || '[Unidade]'}.
+  </p>
+
+  <p>Eu, <strong>${profissional.nome || '[NOME COMPLETO]'}</strong>, inscrita no CPF sob o nº <strong>${formatCPF(profissional.cpf)}</strong>, residente e domiciliada na <strong>${profissional.endereco || '[endereço completo]'}</strong>, declaro, para os devidos fins, que tomei pleno conhecimento das cláusulas e condições do Contrato de Agenciamento e Intermediação de Mão de Obra celebrado com o <strong>AGENCIADOR</strong> acima qualificado, e assumo o seguinte compromisso:</p>
 
   <p><strong>1.</strong> Estou ciente de que os atendimentos realizados por meio da intermediação da unidade franqueada são exclusivamente viabilizados pela estrutura da MARIA BRASILEIRA, incluindo a prospecção de clientes, organização dos serviços e suporte operacional, razão pela qual não poderei oferecer, prestar ou divulgar, de forma direta ou indireta, serviços de limpeza e/ou passadoria aos clientes conquistados ou atendidos por meio da referida unidade franqueada, fora do sistema de agenciamento.</p>
 
@@ -128,7 +132,7 @@ export function generateDeclaracaoHTML(data: any): string {
   <div class="signatures">
     <div class="signature-block">
       <div class="signature-line"></div>
-      <strong>${displayOrPlaceholder(unidade.razaoSocial, 'UNIDADE FRANQUEADA')}</strong><br>
+      <strong>${displayOrPlaceholder(unidade.razaoSocial, 'UNIDADE FRANQUEADA')} - ${unidade.unitName || cidade || '[UNIDADE]'}</strong><br>
       CNPJ: ${unidade.cnpj ? formatCNPJ(unidade.cnpj) : '[CNPJ]'}
     </div>
 

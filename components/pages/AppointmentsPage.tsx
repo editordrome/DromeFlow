@@ -7,6 +7,7 @@ import { DataRecord } from '../../types';
 import DataDetailModal from '../ui/DataDetailModal';
 import { Icon } from '../ui/Icon';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 
 interface DayTab {
   label: string;
@@ -108,7 +109,7 @@ const AppointmentsPage: React.FC = () => {
       // Payload simplificado - apenas metadados
       const payload = {
         DATA: activeDate,
-        unit_id: selectedUnit.id,
+        unitId: selectedUnit.id,
         keyword: keyword || 'atendimento',
         usuario_email: profile?.email || null,
         unidade_code: unidadeCode,
@@ -170,6 +171,17 @@ const AppointmentsPage: React.FC = () => {
       if (result?.ok) {
         const msg = result.mode === 'POST' ? 'Atendimentos enviados.' : 'Webhook via fallback GET.';
         setSendFeedback({ type: 'success', message: msg });
+        
+        // Logar a atividade
+        activityLogger.logActivity({
+          actionCode: 'sync_data',
+          moduleName: 'Atendimentos',
+          unitId: selectedUnit.id,
+          unitCode: selectedUnit.unit_code,
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { records_count: filteredAppointments.length }
+        });
       }
     } catch (err: any) {
       let msg = 'Erro ao enviar webhook.';
@@ -205,6 +217,17 @@ const AppointmentsPage: React.FC = () => {
           const next = new Set(prev);
           next.add(key);
           return next;
+        });
+        
+        // Logar a atividade
+        activityLogger.logActivity({
+          actionCode: 'notify_client',
+          moduleName: 'Atendimentos',
+          unitId: selectedUnit.id,
+          unitCode: selectedUnit.unit_code,
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { atendimento_id: atendimentoId, cliente: rec.CLIENTE }
         });
       }
     } catch (err: any) {

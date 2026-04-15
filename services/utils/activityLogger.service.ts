@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 
 interface LogActivityParams {
   unitCode: string | null;
+  unitId?: string | null;
   actionCode: string;
   userIdentifier: string;
   status: 'success' | 'error';
@@ -26,6 +27,7 @@ export const activityLogger = {
    */
   async logActivity({
     unitCode,
+    unitId = null,
     actionCode,
     userIdentifier,
     status,
@@ -38,6 +40,7 @@ export const activityLogger = {
         .from('activity_logs')
         .insert({
           unit_code: unitCode,
+          unit_id: unitId || null,
           workflow: null, // Não vem de N8N
           action_code: actionCode,
           atend_id: atendId,

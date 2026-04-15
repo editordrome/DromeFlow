@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Icon } from '../ui/Icon';
@@ -20,13 +20,14 @@ interface ActivityLog {
   status: string | null;
   horario: string | null;
   metadata: any;
+  actions?: { action_name?: string; description?: string; } | null;
 }
 
 const DashboardSistemaPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
   const { profile } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<TabType>('n8n');
+  const [activeTab, setActiveTab] = useState<TabType>('dados');
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('today');
   const [monitoringLogs, setMonitoringLogs] = useState<N8NMonitoringLog[]>([]);
   const [errorLogs, setErrorLogs] = useState<N8NErrorLog[]>([]);
@@ -72,7 +73,26 @@ const DashboardSistemaPage: React.FC = () => {
 
   // Estado para paginação da tabela de atividades
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const itemsPerPage = 30;
+
+  // Estado para filtros de log
+  const [logUnitFilter, setLogUnitFilter] = useState<string | null>(null);
+  const [isLogUnitDropdownOpen, setIsLogUnitDropdownOpen] = useState(false);
+
+  // Estados para modais
+  const [showActiveUsersModal, setShowActiveUsersModal] = useState(false);
+  const [selectedLogDetail, setSelectedLogDetail] = useState<ActivityLog | null>(null);
+
+  // Estado para pesquisa de usuário
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [debouncedUserSearchTerm, setDebouncedUserSearchTerm] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedUserSearchTerm(userSearchTerm);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [userSearchTerm]);
 
   // Verifica se é super_admin
   const isSuperAdmin = profile?.role === 'super_admin';
@@ -108,7 +128,7 @@ const DashboardSistemaPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('activity_logs')
-        .select('*')
+        .select('*, actions(action_name, description)')
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -123,6 +143,7 @@ const DashboardSistemaPage: React.FC = () => {
         workflow: log.workflow || undefined,
         status: log.status || undefined,
         action: log.action_code || undefined,
+        action_description: log.actions?.description || undefined,
         user: log.user_identifier || undefined,
         user_identifier: log.user_identifier || undefined,
         atend_id: log.atend_id || undefined,
@@ -198,16 +219,21 @@ const DashboardSistemaPage: React.FC = () => {
   // Busca activity logs recentes
   const loadActivityLogs = useCallback(async () => {
     try {
-      // Busca últimas 100 atividades da última hora (aumentado para permitir paginação)
-      const oneHourAgo = new Date();
-      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-
-      const { data, error } = await supabase
+      let query = supabase
         .from('activity_logs')
-        .select('*')
-        .gte('created_at', oneHourAgo.toISOString())
+        .select('*, actions(action_name, description)')
         .order('created_at', { ascending: false })
         .limit(100);
+
+      if (debouncedUserSearchTerm) {
+        query = query.ilike('user_identifier', `%${debouncedUserSearchTerm}%`);
+      } else {
+        const oneHourAgo = new Date();
+        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+        query = query.gte('created_at', oneHourAgo.toISOString());
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setActivityLogs(data || []);
@@ -227,7 +253,13 @@ const DashboardSistemaPage: React.FC = () => {
     } catch (err) {
       console.error('[Dashboard Sistema] Erro ao carregar activity logs:', err);
     }
-  }, []);
+  }, [debouncedUserSearchTerm]);
+
+  // Logs filtrados por unidade
+  const filteredActivityLogs = useMemo(() => {
+    if (!logUnitFilter) return activityLogs;
+    return activityLogs.filter(log => log.unit_code === logUnitFilter);
+  }, [activityLogs, logUnitFilter]);
 
   // Realtime subscription para activity logs (sempre ativo para super_admin)
   useEffect(() => {
@@ -322,6 +354,20 @@ const DashboardSistemaPage: React.FC = () => {
     return actionsMap.get(actionCode) || actionCode;
   };
 
+  // Função para retornar o ícone da ação
+  const getActionIcon = (actionCode: string | null) => {
+    const code = actionCode?.toLowerCase();
+    if (!code) return <Icon name="Activity" className="w-4 h-4 text-text-tertiary" />;
+
+    if (code.includes('create')) return <Icon name="PlusCircle" className="w-4 h-4 text-green-600" />;
+    if (code.includes('update') || code.includes('edit')) return <Icon name="Edit" className="w-4 h-4 text-blue-600" />;
+    if (code.includes('delete') || code.includes('remove')) return <Icon name="Trash2" className="w-4 h-4 text-red-600" />;
+    if (code.includes('sync')) return <Icon name="RefreshCw" className="w-4 h-4 text-purple-600" />;
+    if (code.includes('notify') || code.includes('envio')) return <Icon name="Send" className="w-4 h-4 text-brand-cyan" />;
+
+    return <Icon name="Activity" className="w-4 h-4 text-text-tertiary" />;
+  };
+
   // Calcula intervalo de datas baseado no filtro
   const getDateRange = (period: PeriodFilter): { start: Date; end: Date } => {
     const now = new Date();
@@ -395,7 +441,8 @@ const DashboardSistemaPage: React.FC = () => {
       setErrorLogs(errors);
       setLatestErrors(latestErrs);
 
-      // 2. Busca dados da API do N8N
+/* 
+      // 2. Busca dados da API do N8N (DESATIVADO PARA EVITAR ERROS DE CORS/API INATIVA)
       try {
         const [executionsResult, workflows] = await Promise.all([
           n8nService.getExecutions(50),
@@ -446,6 +493,25 @@ const DashboardSistemaPage: React.FC = () => {
 
         setStats({ total, successCount, errorCount, byWorkflow });
       }
+      */
+
+      // FALLBACK AUTOMÁTICO PARA DADOS DO BANCO (SUPABASE)
+      const filteredLogs = filterLogsByPeriod(logs);
+      const total = filteredLogs.length;
+      const successCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'success' || l.status?.toLowerCase() === 'sucesso').length;
+      const errorCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'error' || l.status?.toLowerCase() === 'erro').length;
+
+      const workflowCounts = filteredLogs.reduce((acc: { [key: string]: number }, log) => {
+        const wf = log.workflow || 'Unknown';
+        acc[wf] = (acc[wf] || 0) + 1;
+        return acc;
+      }, {});
+
+      const byWorkflow = Object.entries(workflowCounts)
+        .map(([workflow, count]) => ({ workflow, count: count as number }))
+        .sort((a, b) => b.count - a.count);
+
+      setStats({ total, successCount, errorCount, byWorkflow });
     } catch (err: any) {
       console.error('[Dashboard Sistema] Erro ao carregar dados:', err);
       setError('Falha ao carregar dados do sistema');
@@ -542,16 +608,6 @@ const DashboardSistemaPage: React.FC = () => {
       <div className="border-b border-border-secondary">
         <nav className="flex gap-4">
           <button
-            onClick={() => setActiveTab('n8n')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'n8n'
-              ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-text-secondary hover:text-text-primary'
-              }`}
-          >
-            N8N
-          </button>
-
-          <button
             onClick={() => setActiveTab('dados')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'dados'
               ? 'border-accent-primary text-accent-primary'
@@ -559,6 +615,16 @@ const DashboardSistemaPage: React.FC = () => {
               }`}
           >
             Dados
+          </button>
+
+          <button
+            onClick={() => setActiveTab('n8n')}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'n8n'
+              ? 'border-accent-primary text-accent-primary'
+              : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
+          >
+            N8N
           </button>
         </nav>
       </div>
@@ -1123,7 +1189,7 @@ const DashboardSistemaPage: React.FC = () => {
                                 {log.workflow || 'N/A'}
                               </td>
                               <td className="px-4 py-3 text-sm text-text-secondary text-center" colSpan={3}>
-                                {getUnitName(log.unit)} - {getActionName(log.action)}
+                                {getUnitName(log.unit)} - {log.action_description || getActionName(log.action)}
                               </td>
                               <td className="px-4 py-3">
                                 <StatusBadge status={log.status} />
@@ -1144,30 +1210,6 @@ const DashboardSistemaPage: React.FC = () => {
           {/* Tab: Dados do Sistema */}
           {activeTab === 'dados' && (
             <div className="space-y-6">
-              {/* Card Armazenamento - Mesma altura dos cards N8N com barra de progresso */}
-              <div className="p-3 rounded-lg border bg-bg-secondary border-border-primary shadow-sm">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 min-w-[140px]">
-                    <Icon name="HardDrive" className="w-5 h-5 text-blue-600" />
-                    <span className="text-sm font-medium text-text-secondary">Armazenamento</span>
-                  </div>
-                  <div className="flex-1 flex items-center gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-blue-600">1.6%</span>
-                      </div>
-                      <div className="w-full bg-border-secondary rounded-full h-2">
-                        <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: '1.6%' }}></div>
-                      </div>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-lg font-bold text-text-primary">83 MB</span>
-                      <span className="text-xs text-text-secondary">/ 5 GB</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Filtros de Cards - Estilo igual aos filtros de período N8N */}
               <div className="flex w-full gap-2">
                 {isSuperAdmin && (
@@ -1224,10 +1266,14 @@ const DashboardSistemaPage: React.FC = () => {
                         <Icon name="Activity" className="w-4 h-4 text-green-600" />
                         Atividades em Tempo Real
                         {activeConnections > 0 && (
-                          <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full flex items-center gap-1">
+                          <button
+                            onClick={() => setShowActiveUsersModal(true)}
+                            className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full flex items-center gap-1 hover:bg-green-200 transition-colors pointer-events-auto"
+                            title="Ver usuários ativos"
+                          >
                             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                             {activeConnections} {activeConnections === 1 ? 'usuário ativo' : 'usuários ativos'}
-                          </span>
+                          </button>
                         )}
                       </h3>
                       {/* Estatísticas no header */}
@@ -1250,13 +1296,75 @@ const DashboardSistemaPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={loadActivityLogs}
-                      className="p-1.5 hover:bg-bg-secondary rounded transition-colors"
-                      title="Atualizar"
-                    >
-                      <Icon name="RefreshCw" className="w-4 h-4 text-text-secondary" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Filtro de Unidade */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setIsLogUnitDropdownOpen(!isLogUnitDropdownOpen)}
+                          className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md transition-colors ${logUnitFilter ? 'bg-accent-primary/10 border-accent-primary text-accent-primary' : 'bg-bg-secondary border-border-secondary text-text-secondary hover:border-text-primary'}`}
+                        >
+                          <Icon name="Building" className="w-4 h-4" />
+                          <span>{logUnitFilter ? (unitsMap.get(logUnitFilter) || logUnitFilter) : 'Todas as Unidades'}</span>
+                          <Icon name="ChevronDown" className="w-3.5 h-3.5" />
+                        </button>
+
+                        {isLogUnitDropdownOpen && (
+                          <div className="absolute right-0 mt-1 w-64 bg-bg-secondary border border-border-primary rounded-lg shadow-xl z-20 py-1 max-h-64 overflow-y-auto">
+                            <button
+                              onClick={() => {
+                                setLogUnitFilter(null);
+                                setIsLogUnitDropdownOpen(false);
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors"
+                            >
+                              Todas as Unidades
+                            </button>
+                            {Array.from(unitsMap.keys()).sort().map(code => (
+                              <button
+                                key={code}
+                                onClick={() => {
+                                  setLogUnitFilter(code);
+                                  setIsLogUnitDropdownOpen(false);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors"
+                              >
+                                {unitsMap.get(code)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-text-secondary pointer-events-none">
+                          <Icon name="search" className="w-4 h-4" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Buscar por usuário..."
+                          value={userSearchTerm}
+                          onChange={(e) => setUserSearchTerm(e.target.value)}
+                          className="w-48 pl-9 pr-8 py-1.5 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                        />
+                        {userSearchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setUserSearchTerm('')}
+                            className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
+                            aria-label="Limpar busca"
+                          >
+                            <Icon name="x" className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        onClick={loadActivityLogs}
+                        className="p-1.5 hover:bg-bg-secondary rounded transition-colors"
+                        title="Atualizar"
+                      >
+                        <Icon name="RefreshCw" className="w-4 h-4 text-text-secondary" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
@@ -1269,7 +1377,7 @@ const DashboardSistemaPage: React.FC = () => {
                         </p>
                       </div>
                     ) : (
-                      <div className="max-h-[400px] overflow-y-auto">
+                      <div className="max-h-[600px] overflow-y-auto">
                         <table className="w-full">
                           <thead className="bg-bg-tertiary sticky top-0 border-b border-border-secondary">
                             <tr>
@@ -1277,6 +1385,7 @@ const DashboardSistemaPage: React.FC = () => {
                               <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Hora</th>
                               <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Usuário</th>
                               <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Workflow</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Ação</th>
                               <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Unidade</th>
                               <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Status</th>
                             </tr>
@@ -1285,7 +1394,7 @@ const DashboardSistemaPage: React.FC = () => {
                             {(() => {
                               const startIndex = (currentPage - 1) * itemsPerPage;
                               const endIndex = startIndex + itemsPerPage;
-                              const paginatedLogs = activityLogs.slice(startIndex, endIndex);
+                              const paginatedLogs = filteredActivityLogs.slice(startIndex, endIndex);
 
                               return paginatedLogs.map((log) => {
                                 const logDate = new Date(log.created_at);
@@ -1295,11 +1404,13 @@ const DashboardSistemaPage: React.FC = () => {
 
                                 // Extrai módulo do metadata (workflow mostra o módulo acessado)
                                 const moduleName = log.metadata?.module_name || log.metadata?.module || log.workflow || '-';
+                                const actionIcon = getActionIcon(log.action_code);
 
                                 return (
                                   <tr
                                     key={log.id}
-                                    className={`hover:bg-bg-tertiary transition-colors ${isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
+                                    onClick={() => setSelectedLogDetail(log)}
+                                    className={`hover:bg-bg-tertiary transition-colors cursor-pointer group ${isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
                                       }`}
                                   >
                                     <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">
@@ -1316,6 +1427,14 @@ const DashboardSistemaPage: React.FC = () => {
                                     </td>
                                     <td className="px-3 py-2 text-sm text-text-secondary">
                                       {moduleName}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-text-secondary">
+                                      <div className="flex items-center gap-2">
+                                        {actionIcon}
+                                        <span className="truncate max-w-[200px]" title={log.actions?.description || log.actions?.action_name || getActionName(log.action_code) || '-'}>
+                                          {log.actions?.description || log.actions?.action_name || getActionName(log.action_code) || '-'}
+                                        </span>
+                                      </div>
                                     </td>
                                     <td className="px-3 py-2 text-sm text-text-secondary">
                                       {getUnitName(log.unit_code)}
@@ -1341,10 +1460,10 @@ const DashboardSistemaPage: React.FC = () => {
                   </div>
 
                   {/* Paginação */}
-                  {activityLogs.length > itemsPerPage && (
+                  {filteredActivityLogs.length > itemsPerPage && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-border-secondary bg-bg-secondary rounded-b-lg">
                       <div className="text-xs text-text-secondary">
-                        Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, activityLogs.length)} de {activityLogs.length} registros
+                        Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredActivityLogs.length)} de {filteredActivityLogs.length} registros
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -1737,13 +1856,241 @@ const DashboardSistemaPage: React.FC = () => {
                   </div>
                 </div>
               )}
-
             </div>
           )}
         </>
       )}
-    </div>
-  );
+
+          {/* Modal: Usuários Ativos */}
+          {showActiveUsersModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-bg-secondary border border-border-primary rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="px-6 py-4 border-b border-border-secondary flex items-center justify-between bg-bg-tertiary">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
+                    <h3 className="text-lg font-bold text-text-primary">Usuários Ativos (5m)</h3>
+                  </div>
+                  <button 
+                    onClick={() => setShowActiveUsersModal(false)}
+                    className="p-1 hover:bg-bg-tertiary rounded-full transition-colors"
+                  >
+                    <Icon name="x" className="w-5 h-5 text-text-secondary" />
+                  </button>
+                </div>
+                <div className="p-6 max-h-[60vh] overflow-y-auto">
+                  {(() => {
+                    const fiveMinAgo = new Date();
+                    fiveMinAgo.setMinutes(fiveMinAgo.getMinutes() - 5);
+                    
+                    const activeUsers = activityLogs
+                      .filter(log => new Date(log.created_at) >= fiveMinAgo)
+                      .reduce((acc: any[], log) => {
+                        const existing = acc.find(u => u.identifier === log.user_identifier);
+                        if (!existing) {
+                          acc.push({
+                            identifier: log.user_identifier,
+                            lastAction: log.created_at,
+                            unitCode: log.unit_code,
+                            module: log.workflow || log.metadata?.module_name || 'Sistema'
+                          });
+                        }
+                        return acc;
+                      }, [])
+                      .sort((a, b) => new Date(b.lastAction).getTime() - new Date(a.lastAction).getTime());
+
+                    if (activeUsers.length === 0) {
+                      return <p className="text-center text-text-tertiary py-4">Nenhum usuário ativo nos últimos 5 minutos.</p>;
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        {activeUsers.map((user, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-border-secondary bg-bg-tertiary">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-text-primary">{user.identifier}</span>
+                              <span className="text-[10px] text-text-tertiary uppercase font-medium">
+                                {user.module} • {user.unitCode || 'GERAL'}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-text-secondary block">Última ação</span>
+                              <span className="text-[10px] font-mono text-blue-600">{new Date(user.lastAction).toLocaleTimeString('pt-BR')}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="px-6 py-4 bg-bg-tertiary border-t border-border-secondary flex justify-end">
+                  <button 
+                    onClick={() => setShowActiveUsersModal(false)}
+                    className="px-4 py-2 bg-accent-primary text-text-on-accent rounded-md text-sm font-medium hover:bg-accent-primary/90 transition-all"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal: Detalhamento da Ação */}
+          {selectedLogDetail && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-bg-secondary border border-border-primary rounded-xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="px-6 py-4 border-b border-border-secondary flex items-center justify-between bg-bg-tertiary">
+                  <div className="flex items-center gap-2">
+                    {getActionIcon(selectedLogDetail.action_code)}
+                    <h3 className="text-lg font-bold text-text-primary">
+                      {selectedLogDetail.actions?.action_name || getActionName(selectedLogDetail.action_code)}
+                    </h3>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedLogDetail(null)}
+                    className="p-1 hover:bg-bg-tertiary rounded-full transition-colors"
+                  >
+                    <Icon name="x" className="w-5 h-5 text-text-secondary" />
+                  </button>
+                </div>
+                
+                <div className="p-6 space-y-6">
+                  {/* Header Info */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                      <span className="text-[10px] text-text-tertiary uppercase font-bold block mb-1">Usuário</span>
+                      <p className="text-sm font-semibold text-text-primary truncate">{selectedLogDetail.user_identifier}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                      <span className="text-[10px] text-text-tertiary uppercase font-bold block mb-1">Horário</span>
+                      <p className="text-sm font-semibold text-text-primary">
+                        {new Date(selectedLogDetail.created_at).toLocaleDateString('pt-BR')} {new Date(selectedLogDetail.created_at).toLocaleTimeString('pt-BR')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Specific Content Parsing */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-text-tertiary uppercase tracking-wider">Detalhes da Execução</h4>
+                    {(() => {
+                      const meta = selectedLogDetail.metadata || {};
+                      
+                      // Caso: Recrutadora
+                      if (selectedLogDetail.action_code === 'update_recrutadora') {
+                        return (
+                          <div className="space-y-3">
+                            <div className="p-4 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] text-blue-400 uppercase font-bold block">Candidata</span>
+                                <span className="text-base font-bold text-blue-900">{meta.nome || '-'}</span>
+                              </div>
+                              <Icon name="User" className="w-8 h-8 text-blue-200" />
+                            </div>
+                            <div className="flex items-center justify-between gap-4 p-4 bg-bg-tertiary rounded animate-in slide-in-from-bottom-2 duration-300">
+                               <div className="flex flex-col items-center flex-1">
+                                 <span className="text-[10px] uppercase text-text-tertiary mb-1">Status Anterior</span>
+                                 <span className="text-xs font-medium text-text-secondary px-3 py-1 bg-border-secondary rounded-full line-through opacity-60">
+                                   {meta.status_anterior || '-'}
+                                 </span>
+                               </div>
+                               <div className="flex flex-col items-center">
+                                 <Icon name="ArrowRight" className="w-5 h-5 text-blue-500 animate-pulse" />
+                               </div>
+                               <div className="flex flex-col items-center flex-1">
+                                 <span className="text-[10px] uppercase text-text-tertiary mb-1">Novo Status</span>
+                                 <span className="text-xs font-bold text-blue-600 px-3 py-1 bg-blue-100 border border-blue-200 rounded-full">
+                                   {meta.novo_status || '-'}
+                                 </span>
+                               </div>
+                            </div>
+                            <p className="text-[10px] text-text-tertiary italic text-center">Ação de arrastar e soltar card</p>
+                          </div>
+                        );
+                      }
+                      
+                      // Caso: Edição de Registro
+                      if (selectedLogDetail.action_code === 'update_atend' || selectedLogDetail.action_code === 'update_posvendas') {
+                         const fields = meta.fields_updated ? meta.fields_updated.split(',') : [];
+                         return (
+                           <div className="space-y-3">
+                             <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                               <div className="flex items-center gap-2">
+                                 <Icon name="Hash" className="w-4 h-4 text-text-tertiary" />
+                                 <span className="text-sm font-semibold text-text-secondary">ID do Atendimento:</span>
+                               </div>
+                               <span className="text-sm font-mono font-bold text-accent-primary border border-accent-primary/20 bg-accent-primary/5 px-2 py-0.5 rounded">
+                                 {selectedLogDetail.atend_id || meta.atend_id || '-'}
+                               </span>
+                             </div>
+                             <div className="p-4 bg-bg-tertiary rounded border border-border-secondary">
+                               <span className="text-xs font-semibold text-text-secondary block mb-3">Colunas Modificadas:</span>
+                               <div className="flex flex-wrap gap-2">
+                                 {fields.length > 0 ? fields.map((f: string) => (
+                                   <div key={f} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-border-secondary rounded shadow-sm">
+                                     <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                     <span className="text-[10px] text-text-primary uppercase font-bold truncate max-w-[120px]">
+                                       {f.replace(/_/g, ' ')}
+                                     </span>
+                                   </div>
+                                 )) : <span className="text-xs italic text-text-tertiary">Informação de campos não disponível</span>}
+                               </div>
+                             </div>
+                           </div>
+                         );
+                      }
+
+                      // Caso: Envio de Webhook/Notificação
+                      if (selectedLogDetail.action_code === 'notify_client' || selectedLogDetail.action_code === 'recrutadora_envio') {
+                        return (
+                          <div className="space-y-3">
+                            <div className="p-4 rounded-lg bg-green-50 border border-green-100 flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] text-green-400 uppercase font-bold block">Destinatário</span>
+                                <span className="text-base font-bold text-green-900">{meta.nome || '-'}</span>
+                              </div>
+                              <Icon name="Send" className="w-8 h-8 text-green-200" />
+                            </div>
+                            <div className="p-3 bg-bg-tertiary rounded border border-border-secondary flex items-center justify-between">
+                              <span className="text-sm font-medium text-text-secondary">WhatsApp:</span>
+                              <span className="text-sm font-mono text-text-primary">{meta.whatsapp || meta.telefone || '-'}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Default: mostrar JSON formatado
+                      return (
+                        <div className="bg-bg-tertiary p-4 rounded-md border border-border-secondary overflow-auto max-h-64 scrollbar-thin">
+                          <pre className="text-[11px] font-mono text-text-secondary leading-relaxed">
+                            {JSON.stringify(meta, null, 2)}
+                          </pre>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Status & Technical info */}
+                  <div className="pt-4 border-t border-border-secondary flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-tertiary uppercase font-bold">Status:</span>
+                      <StatusBadge status={selectedLogDetail.status} />
+                    </div>
+                    <span className="text-[10px] font-mono text-text-tertiary">#ID {String(selectedLogDetail.id).slice(0, 8)}</span>
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 bg-bg-tertiary border-t border-border-secondary flex justify-end">
+                  <button 
+                    onClick={() => setSelectedLogDetail(null)}
+                    className="px-4 py-2 bg-accent-primary text-text-on-accent rounded-md text-sm font-medium hover:bg-accent-primary/90 transition-all shadow-md"
+                  >
+                    Concluído
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
 };
 
 export default DashboardSistemaPage;

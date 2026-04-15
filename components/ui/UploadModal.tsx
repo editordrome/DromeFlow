@@ -251,6 +251,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                         observacao: null,
                         'pos vendas': null,
                         comentario: null,
+                        unidade_code: unit.unit_code,
                     };
                     recordsToUpload.push(record);
                     if (recordsToUpload.length === 1) {
@@ -285,7 +286,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                 // Registrar upload bem-sucedido
                 if (profile) {
                     activityLogger.logUpload(
-                        profile.email || profile.name,
+                        profile.email || profile.full_name,
                         unit.unit_code,
                         recordsToUpload.length,
                         'success'
@@ -306,7 +307,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                 // Registrar erro de upload
                 if (profile && unit) {
                     activityLogger.logUpload(
-                        profile.email || profile.name,
+                        profile.email || profile.full_name,
                         unit.unit_code,
                         0,
                         'error',

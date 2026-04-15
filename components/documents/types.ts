@@ -33,6 +33,8 @@ export interface DocumentData {
         email: string;
         unitName: string;
         unitCode: string;
+        uniformValue?: number;
+        id?: string;
     };
 
     contrato: {

@@ -126,7 +126,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: u.id,
           unit_name: u.unit_name,
           unit_code: u.unit_code,
-          slug: u.slug || '', // Inclui slug vindo do banco
+          slug: u.slug || '',
+          razao_social: u.razao_social,
+          cnpj: u.cnpj,
+          endereco: u.endereco,
+          responsavel: u.responsavel,
+          contato: u.contato,
+          email: u.email,
+          uniform_value: u.uniform_value,
           is_active: u.is_active,
           created_at: u.created_at
         }));
@@ -311,7 +318,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Registrar logout antes de limpar o estado
     if (profile) {
       const unitCode = profile.units?.[0]?.code || null;
-      activityLogger.logLogout(profile.email || profile.name, unitCode);
+      activityLogger.logLogout(profile.email || profile.full_name, unitCode);
     }
 
     setUser(null);

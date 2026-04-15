@@ -14,6 +14,7 @@ export interface Profile {
   email?: string | null;
   full_name: string;
   role: UserRole;
+  units?: any[]; // Adicionado para suportar permissões de unidade
 }
 export interface Unit {
   id: string;
@@ -137,9 +138,11 @@ export type PageView =
   | 'financial'
   | 'typebot'
   | 'sistema'
-  | 'configuracoes'
-  | 'agenda'
-  | 'loyalty';
+  | 'manage_versions'
+  | 'loyalty'
+  | 'umbler'
+  | 'production'
+  | 'configuracoes';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
 
@@ -514,6 +517,7 @@ export interface ActivityLog {
   id: number;
   created_at: string;
   unit_code: string | null;
+  unit_id?: string | null;
   workflow: string | null;
   action_code: string | null;
   atend_id: string | null;
@@ -521,6 +525,7 @@ export interface ActivityLog {
   status: 'success' | 'error' | 'pending' | 'cancelled';
   horario: string | null;
   metadata: Record<string, unknown> | null;
+  actions?: { action_name: string; description: string | null } | null;
 }
 
 export interface ErrorLog {
@@ -596,6 +601,7 @@ export interface N8NMonitoringLog {
   user: string | null;
   atend_id: string | null;
   action: string | null;
+  action_description?: string;
   workflow: string | null;
 }
 
@@ -742,6 +748,51 @@ export interface WhatsAppConnection {
   access_token: string;
   status: WhatsAppConnectionStatus;
   created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// Production Module (Super Admin)
+// ============================================================================
+
+export interface ProductionColumn {
+  id: string;
+  name: string;
+  position: number;
+  is_fixed: boolean;
+  templates?: ProductionColumnTemplate[];
+}
+
+export interface ProductionColumnTemplate {
+  id: string;
+  column_id: string;
+  title: string;
+  position: number;
+}
+
+export interface ProductionCard {
+  id: string;
+  unit_id: string;
+  current_column_id: string;
+  position: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  
+  // Joins
+  unit?: {
+    id: string;
+    unit_name: string;
+  };
+  progress?: ProductionCardProgress[];
+}
+
+export interface ProductionCardProgress {
+  id: string;
+  card_id: string;
+  template_item_id: string;
+  column_id: string;
+  is_completed: boolean;
   updated_at: string;
 }
 

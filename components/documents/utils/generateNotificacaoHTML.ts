@@ -155,11 +155,10 @@ export function generateNotificacaoHTML(data: any): string {
   </div>
 
   <div class="signature-block">
-    <p><strong>${displayOrPlaceholder(unidade.razaoSocial, '[Nome da Unidade Franqueada]')}</strong><br>
+    <p><strong>${displayOrPlaceholder(unidade.razaoSocial, '[Nome da Unidade Franqueada]')} - ${unidade.unitName || cidade || '[UNIDADE]'}</strong><br>
     CNPJ: ${unidade.cnpj ? formatCNPJ(unidade.cnpj) : '[CNPJ]'}<br>
-    Endereço: ${unidade.endereco || '[Endereço]'}<br>
-    Telefone: ${unidade.telefone || '[Telefone]'}<br>
-    E-mail: ${unidade.email || '[E-mail]'}</p>
+    ${displayOrPlaceholder(unidade.endereco, '[Endereço]')}<br>
+    unidade franqueada da Rede Maria Brasileira</p>
   </div>
 
   <div class="footer-note">

@@ -5,6 +5,8 @@ import { updateDataRecord } from '../../services/data/dataTable.service';
 import { useAppContext } from '../../contexts/AppContext';
 import { ProfessionalAutocomplete } from './ProfessionalAutocomplete';
 import { fetchClientHistory, ClientHistoryRecord } from '../../services/data/clientHistory.service';
+import { useAuth } from '../../contexts/AuthContext';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 
 interface DataDetailModalProps {
     isOpen: boolean;
@@ -18,6 +20,7 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
     if (!isOpen || !record) return null;
 
     const { selectedUnit } = useAppContext();
+    const { profile } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
     const [activeTab, setActiveTab] = useState<'info' | 'posvenda' | 'historico'>('info');
 
@@ -104,6 +107,24 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         }
     }, [record]);
 
+    // Helper para log de atividades
+    const logHelper = (status: 'success' | 'error', fieldsUpdated: string, errorMsg?: string) => {
+        if (profile && selectedUnit && record) {
+            activityLogger.logActivity({
+                actionCode: 'update_atend',
+                moduleName: 'Detalhes / Edição Rápida',
+                unitId: (selectedUnit as any)?.id || '',
+                unitCode: (selectedUnit as any)?.unit_code || '',
+                userIdentifier: profile.email || profile.full_name || 'user',
+                status: status,
+                atendId: record.ATENDIMENTO_ID || '',
+                metadata: status === 'success' 
+                  ? { fields_updated: fieldsUpdated } 
+                  : { error_message: errorMsg || 'Erro desconhecido' }
+            });
+        }
+    };
+
     // Auto-save para STATUS e PROFISSIONAL
     const handleAutoSave = async (field: 'STATUS' | 'PROFISSIONAL', newValue: string) => {
         try {
@@ -116,10 +137,12 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
             if (onEdit) onEdit(merged as DataRecord);
 
             setSavingHeader('saved');
+            logHelper('success', field);
             setTimeout(() => setSavingHeader('idle'), 2000);
         } catch (e) {
             console.error('Erro ao salvar:', e);
             setSavingHeader('error');
+            logHelper('error', field, e instanceof Error ? e.message : 'Erro ao salvar');
             setTimeout(() => setSavingHeader('idle'), 3000);
         }
     };
@@ -254,10 +277,12 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
                 setComent(updated.comentario || '');
                 setSavingComent('saved');
             }
+            logHelper('success', field);
         } catch (e) {
             if (field === 'observacao') setSavingObs('error');
             else setSavingComent('error');
             console.error('Falha ao salvar', field, e);
+            logHelper('error', field, e instanceof Error ? e.message : 'Falha ao salvar');
         }
     };
 
@@ -281,9 +306,11 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
             const updated = await updateDataRecord(String(record.id), payload);
             setPosVenda((updated as any)['pos vendas'] ? String((updated as any)['pos vendas']) : '');
             setSavingPosVenda('saved');
+            logHelper('success', 'pos vendas');
         } catch (e) {
             console.error('Falha ao salvar pos vendas:', e);
             setSavingPosVenda('error');
+            logHelper('error', 'pos vendas', e instanceof Error ? e.message : 'Falha ao salvar');
         }
     };
 
@@ -295,10 +322,12 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
             const updated = await updateDataRecord(String(record.id), payload);
             setReagendou((updated as any).reagendou === true || (updated as any).reagendou === 'true');
             setSavingReagendou('saved');
+            logHelper('success', 'reagendou');
             setTimeout(() => setSavingReagendou('idle'), 2000);
         } catch (e) {
             console.error('Falha ao salvar reagendou:', e);
             setSavingReagendou('error');
+            logHelper('error', 'reagendou', e instanceof Error ? e.message : 'Falha ao salvar');
             setTimeout(() => setSavingReagendou('idle'), 3000);
         }
     };
@@ -900,6 +929,7 @@ Obrigada e tenha um ótimo atendimento😊`
                                             const updated = await updateDataRecord(String(record.id), payload);
                                             const merged: any = { ...record, ...payload };
                                             if (onEdit) onEdit(merged as DataRecord);
+                                            logHelper('success', Object.keys(payload).join(', '));
                                         }
                                         setSavingHeader('saved');
                                         setIsEditing(false);
@@ -909,6 +939,7 @@ Obrigada e tenha um ótimo atendimento😊`
                                     } catch (e) {
                                         console.error('Falha ao salvar:', e);
                                         setSavingHeader('error');
+                                        logHelper('error', 'multi_fields', e instanceof Error ? e.message : 'Falha ao salvar');
                                     }
                                     return;
                                 }

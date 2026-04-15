@@ -30,6 +30,7 @@ export interface ActivityLog {
   id: number;
   created_at: string;
   unit_code: string | null;
+  unit_id?: string | null;
   workflow: string | null;
   action_code: string | null;
   atend_id: string | null;
@@ -37,6 +38,7 @@ export interface ActivityLog {
   status: 'success' | 'error' | 'pending' | 'cancelled';
   horario: string | null;
   metadata: Record<string, unknown> | null;
+  actions?: { action_name: string; description: string | null } | null;
 }
 
 export interface ErrorLog {
@@ -143,6 +145,7 @@ export const upsertAction = async (action: {
  */
 export const logActivity = async (log: {
   unit_code?: string;
+  unit_id?: string;
   workflow?: string;
   action_code?: string;
   atend_id?: string;
@@ -155,6 +158,7 @@ export const logActivity = async (log: {
     .from('activity_logs')
     .insert({
       unit_code: log.unit_code || null,
+      unit_id: log.unit_id || null,
       workflow: log.workflow || null,
       action_code: log.action_code || null,
       atend_id: log.atend_id || null,
@@ -188,7 +192,7 @@ export const fetchActivityLogs = async (filters?: {
 }): Promise<ActivityLog[]> => {
   let query = supabase
     .from('activity_logs')
-    .select('*')
+    .select('*, actions(action_name, description)')
     .order('created_at', { ascending: false });
 
   if (filters?.unit_code) query = query.eq('unit_code', filters.unit_code);
@@ -215,7 +219,7 @@ export const fetchActivityLogs = async (filters?: {
 export const fetchActivityLogsByAtendimento = async (atendId: string): Promise<ActivityLog[]> => {
   const { data, error } = await supabase
     .from('activity_logs')
-    .select('*')
+    .select('*, actions(action_name, description)')
     .eq('atend_id', atendId)
     .order('created_at', { ascending: false });
 

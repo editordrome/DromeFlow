@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../../services/supabaseClient';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { RecrutadoraCard, Unit } from '../../types';
@@ -10,6 +11,7 @@ import { generateDistratoHTML } from '../documents/utils/generateDistratoHTML';
 import { generateTermoHTML } from '../documents/utils/generateTermoHTML';
 import { generateNotificacaoHTML } from '../documents/utils/generateNotificacaoHTML';
 import { getDocumentTemplate } from '../documents/utils/templateHelpers';
+import { prepareDocumentData } from '../documents/utils/documentHelpers';
 
 interface Props {
   isOpen: boolean;
@@ -715,8 +717,8 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                   onClick={() => initialCard && onSendWebhook(initialCard)}
                   disabled={isSendingWebhook || saving}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed border ${isSendingWebhook
-                      ? 'bg-bg-tertiary text-text-secondary border-border-secondary'
-                      : 'bg-accent-primary/10 text-accent-primary border-accent-primary/30 hover:bg-accent-primary hover:text-white'
+                    ? 'bg-bg-tertiary text-text-secondary border-border-secondary'
+                    : 'bg-accent-primary/10 text-accent-primary border-accent-primary/30 hover:bg-accent-primary hover:text-white'
                     }`}
                   title="Enviar para Webhook"
                 >
@@ -1037,54 +1039,55 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         return;
                       }
 
-                      const unit = selectedUnit as import('../../types').Unit;
-                      const documentData = {
-                        profissional: {
-                          nome: nome || '',
-                          cpf: cpf || '',
-                          rg: rg || '',
-                          dataNascimento: dataNascimento || '',
-                          estadoCivil: estadoCivil || '',
-                          endereco: endereco || '',
-                          whatsapp: whatsapp || '',
-                          fumante: fumante || false,
-                          filhos: filhos || false,
-                          qtosFilhos: qtosFilhos ? parseInt(String(qtosFilhos)) : 0,
-                          rotinaFilhos: rotinaFilhos || '',
-                          diasLivres: diasLivres || '',
-                          diasSemana: diasSemana || '',
-                          expResidencial: expResidencial || '',
-                          refResidencial: refResidencial || '',
-                          expComercial: expComercial || '',
-                          refComercial: refComercial || '',
-                          sitAtual: sitAtual || '',
-                          motivoCadastro: motivoCadastro || '',
-                          transporte: transporte || '',
-                          assinatura: assinatura || '',
-                        },
-                        unidade: {
-                          razaoSocial: unit.razao_social || '',
-                          cnpj: unit.cnpj || '',
-                          endereco: unit.endereco || unit.address || '',
-                          responsavel: unit.responsavel || '',
-                          contato: unit.contato || '',
-                          email: unit.email || '',
-                          unitName: unit.unit_name || '',
-                          unitCode: unit.unit_code || '',
-                          uniformValue: (unit as any).uniform_value,
-                        },
-                        contrato: {
-                          dataAssinatura: new Date().toLocaleDateString('pt-BR'),
-                          percentualProfissional: 55,
-                        },
+                      // Busca dados completos da unidade para garantir que temos todos os campos (CNPJ, Razão Social, etc.)
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', (selectedUnit as any).id)
+                        .single();
+
+                      if (unitError) {
+                        console.error('[Aditamento] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade. Tente novamente.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
+                      const profissionalData: any = {
+                        nome,
+                        whatsapp,
+                        data_nasc: dataNascimento,
+                        estado_civil: estadoCivil,
+                        fumante: fumante ? 'sim' : 'nao',
+                        filhos: filhos ? 'sim' : 'nao',
+                        qto_filhos: qtosFilhos,
+                        rotina_filhos: rotinaFilhos,
+                        endereco,
+                        rg,
+                        cpf,
+                        dias_livres: diasLivres,
+                        dias_semana: diasSemana,
+                        exp_residencial: expResidencial,
+                        ref_residencial: refResidencial,
+                        exp_comercial: expComercial,
+                        ref_comercial: refComercial,
+                        sit_atual: sitAtual,
+                        motivo_cadastro: motivoCadastro,
+                        transporte: transporte,
+                        assinatura: assinatura,
                       };
 
+                      const fullDocumentData = prepareDocumentData(profissionalData, unit);
+                      fullDocumentData.contrato.dataAssinatura = assinatura
+                        ? new Date(assinatura + 'T12:00:00').toLocaleDateString('pt-BR')
+                        : new Date().toLocaleDateString('pt-BR');
+
                       try {
-                        const html = await getDocumentTemplate(unit.id, 'aditamento', documentData, 'recrutadora');
+                        const html = await getDocumentTemplate(unit.id, 'aditamento', fullDocumentData, 'recrutadora');
                         generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
                       } catch (error) {
                         console.error('[Aditamento] Error loading template:', error);
-                        const html = generateAditamentoHTML(documentData);
+                        const html = generateAditamentoHTML(fullDocumentData);
                         generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
                       }
                     }}
@@ -1106,33 +1109,32 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         alert('Por favor, selecione uma unidade específica para gerar o documento.');
                         return;
                       }
-                      const documentData = {
-                        profissional: {
-                          nome,
-                          cpf,
-                          rg,
-                          dataNascimento,
-                          estadoCivil,
-                          endereco,
-                          whatsapp,
-                        },
-                        unidade: {
-                          razaoSocial: (selectedUnit as Unit).razao_social,
-                          cnpj: (selectedUnit as Unit).cnpj,
-                          endereco: (selectedUnit as Unit).endereco,
-                          unitName: (selectedUnit as Unit).unit_name,
-                          uniformValue: (selectedUnit as Unit).uniform_value,
-                        },
-                        contrato: {
-                          percentualProfissional: 55,
-                        },
+
+                      // Busca dados completos da unidade
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', selectedUnit.id)
+                        .single();
+
+                      if (unitError) {
+                        console.error('[Contrato] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
+                      const profissionalData: any = {
+                        nome, cpf, rg, data_nasc: dataNascimento, estado_civil: estadoCivil, endereco, whatsapp, assinatura
                       };
+                      const fullDocumentData = prepareDocumentData(profissionalData, unit);
+                      fullDocumentData.contrato.dataAssinatura = assinatura ? new Date(assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
                       try {
-                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'contrato', documentData, 'recrutadora');
+                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'contrato', fullDocumentData, 'recrutadora');
                         generateTemplateDocument(html, 'Contrato_Agenciamento');
                       } catch (error) {
                         console.error('[Contrato] Error loading template:', error);
-                        const html = generateContratoHTML(documentData);
+                        const html = generateContratoHTML(fullDocumentData);
                         generateTemplateDocument(html, 'Contrato_Agenciamento');
                       }
                     }}
@@ -1154,29 +1156,31 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         alert('Por favor, selecione uma unidade específica para gerar o documento.');
                         return;
                       }
-                      const documentData = {
-                        profissional: {
-                          nome,
-                          cpf,
-                          rg,
-                          dataNascimento,
-                          estadoCivil,
-                          endereco,
-                          whatsapp,
-                        },
-                        unidade: {
-                          razaoSocial: (selectedUnit as Unit).razao_social,
-                          cnpj: (selectedUnit as Unit).cnpj,
-                          endereco: (selectedUnit as Unit).endereco,
-                          unitName: (selectedUnit as Unit).unit_name,
-                        },
+
+                      // Busca dados completos da unidade
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', selectedUnit.id)
+                        .single();
+
+                      if (unitError) {
+                        console.error('[Termo] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
+                      const profissionalData: any = {
+                        nome, cpf, rg, data_nasc: dataNascimento, estado_civil: estadoCivil, endereco, whatsapp, assinatura
                       };
+                      const fullDocumentData = prepareDocumentData(profissionalData, unit);
                       try {
-                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'termo', documentData, 'recrutadora');
+                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'termo', fullDocumentData, 'recrutadora');
                         generateTemplateDocument(html, 'Termo_Confidencialidade');
                       } catch (error) {
                         console.error('[Termo] Error loading template:', error);
-                        const html = generateTermoHTML(documentData);
+                        const html = generateTermoHTML(fullDocumentData);
                         generateTemplateDocument(html, 'Termo_Confidencialidade');
                       }
                     }}
@@ -1198,6 +1202,20 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         alert('Por favor, selecione uma unidade específica para gerar o documento.');
                         return;
                       }
+
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', (selectedUnit as Unit).id)
+                        .single();
+
+                      if (unitError || !unitData) {
+                        console.error('[Notificação] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
                       const documentData = {
                         profissional: {
                           nome,
@@ -1209,14 +1227,19 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                           whatsapp,
                         },
                         unidade: {
-                          razaoSocial: (selectedUnit as Unit).razao_social,
-                          cnpj: (selectedUnit as Unit).cnpj,
-                          endereco: (selectedUnit as Unit).endereco,
-                          unitName: (selectedUnit as Unit).unit_name,
+                          razaoSocial: unit.razao_social || '',
+                          cnpj: unit.cnpj || '',
+                          endereco: unit.endereco || '',
+                          responsavel: unit.responsavel || '',
+                          contato: unit.contato || '',
+                          email: unit.email || '',
+                          unitName: unit.unit_name || '',
+                          unitCode: unit.unit_code || '',
+                          uniformValue: unit.uniform_value || 0,
                         },
                       };
                       try {
-                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'notificacao', documentData, 'recrutadora');
+                        const html = await getDocumentTemplate(unit.id, 'notificacao', documentData, 'recrutadora');
                         generateTemplateDocument(html, 'Notificacao_Rescisao');
                       } catch (error) {
                         console.error('[Notificação] Error loading template:', error);
@@ -1242,6 +1265,20 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                         alert('Por favor, selecione uma unidade específica para gerar o documento.');
                         return;
                       }
+
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', (selectedUnit as Unit).id)
+                        .single();
+
+                      if (unitError || !unitData) {
+                        console.error('[Distrato] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
                       const documentData = {
                         profissional: {
                           nome,
@@ -1253,14 +1290,19 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                           whatsapp,
                         },
                         unidade: {
-                          razaoSocial: (selectedUnit as Unit).razao_social,
-                          cnpj: (selectedUnit as Unit).cnpj,
-                          endereco: (selectedUnit as Unit).endereco,
-                          unitName: (selectedUnit as Unit).unit_name,
+                          razaoSocial: unit.razao_social || '',
+                          cnpj: unit.cnpj || '',
+                          endereco: unit.endereco || '',
+                          responsavel: unit.responsavel || '',
+                          contato: unit.contato || '',
+                          email: unit.email || '',
+                          unitName: unit.unit_name || '',
+                          unitCode: unit.unit_code || '',
+                          uniformValue: unit.uniform_value || 0,
                         },
                       };
                       try {
-                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'distrato', documentData, 'recrutadora');
+                        const html = await getDocumentTemplate(unit.id, 'distrato', documentData, 'recrutadora');
                         generateTemplateDocument(html, 'Distrato_Parceria');
                       } catch (error) {
                         console.error('[Distrato] Error loading template:', error);

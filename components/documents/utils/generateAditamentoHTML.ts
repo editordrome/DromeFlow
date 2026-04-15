@@ -396,7 +396,7 @@ export function generateAditamentoHTML(data: any): string {
   </p>
   <div class="article-title">ARTIGO 15º - FORO</div>
   <p>
-    14.1. Para resolver quaisquer dúvidas ou conflitos relacionados a este contrato, as partes elegem o foro da comarca de ${unidade.unitName || '[cidade da unidade franqueada]'}, com renúncia de qualquer outro, por mais privilegiado que seja.
+    <strong>14.1.</strong> Para resolver quaisquer dúvidas ou conflitos relacionados a este contrato, as partes elegem o foro da comarca de ${cidade || unidade.unitName || '[cidade da unidade franqueada]'}, com renúncia de qualquer outro, por mais privilegiado que seja.
   </p>
   <p>
     Por estarem de acordo, as partes firmam o presente.
@@ -405,7 +405,7 @@ export function generateAditamentoHTML(data: any): string {
     &nbsp;<br>
     &nbsp;<br>
     ___________________________________________________<br>
-    ${displayOrPlaceholder(unidade.razaoSocial, 'EMPRESA DO FRANQUEADO')}${cidade ? ' - ' + cidade : ''}<br>
+    ${displayOrPlaceholder(unidade.razaoSocial, 'EMPRESA DO FRANQUEADO')} - ${unidade.unitName || cidade || '[UNIDADE]'}<br>
     CNPJ: ${unidade.cnpj ? formatCNPJ(unidade.cnpj) : '[CNPJ]'}
   </p>
   <p>

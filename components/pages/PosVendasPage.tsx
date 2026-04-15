@@ -25,6 +25,7 @@ import {
 import PosVendaFormModal from '../ui/PosVendaFormModal';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 
 type ActiveCard = 'geral' | 'pendente' | 'agendado' | 'contatado' | 'finalizados';
 
@@ -502,7 +503,7 @@ const PosVendasPage: React.FC = () => {
       const payload = {
         action: 'pos_vendas',
         ATENDIMENTO_ID: record.ATENDIMENTO_ID,
-        unit_id: record.unit_id,
+        unitId: record.unit_id,
         conexao,
         usuario_email: profile?.email || null,
         timestamp
@@ -520,6 +521,17 @@ const PosVendasPage: React.FC = () => {
           throw new Error(`Falha HTTP ${resp.status}${text ? ' - ' + text.slice(0, 140) : ''}`);
         }
         setWebhookFeedback({ type: 'success', message: 'Pós venda enviado com sucesso!' });
+        
+        // Logar a atividade
+        activityLogger.logActivity({
+          actionCode: 'notify_client',
+          moduleName: 'Pós Vendas',
+          unitId: record.unit_id,
+          unitCode: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { atendimento_id: record.ATENDIMENTO_ID }
+        });
       } catch (primaryErr: any) {
         const msg = primaryErr?.message || '';
         if (msg.includes('Failed to fetch') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('TypeError')) {
@@ -609,7 +621,7 @@ const PosVendasPage: React.FC = () => {
           const payload = {
             action: 'agendado',
             ATENDIMENTO_ID: schedulingRecord.ATENDIMENTO_ID,
-            unit_code: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
+            unitCode: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
             conexao,
             data_agendamento: dataAgendamento,
             horario_agendamento: horarioAgendamento,
@@ -641,6 +653,16 @@ const PosVendasPage: React.FC = () => {
             url.searchParams.set('cx', conexao || '');
             await fetch(url.toString(), { method: 'GET' }).catch(err => console.error('Fallback GET failed:', err));
           }
+          
+          activityLogger.logActivity({
+            actionCode: 'update_posvendas',
+            moduleName: 'Pós Vendas',
+            unitId: schedulingRecord.unit_id,
+            unitCode: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
+            userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+            status: 'success',
+            metadata: { atendimento_id: schedulingRecord.ATENDIMENTO_ID, acao: 'agendar' }
+          });
         } catch (webhookErr) {
           console.error('Erro ao notificar webhook de agendamento:', webhookErr);
         }

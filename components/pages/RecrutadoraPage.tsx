@@ -9,6 +9,7 @@ import RecrutadoraCardModal from '../ui/RecrutadoraCardModal';
 import { Icon } from '../ui/Icon';
 import { startOfTodayISO, startOfWeekISO, startOfMonthISO } from '../../services/utils/dates';
 import { supabase } from '../../services/supabaseClient';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 
 const RecrutadoraDashboard = lazy(() => import('./RecrutadoraDashboard'));
 
@@ -287,6 +288,22 @@ const RecrutadoraPage: React.FC = () => {
 
       await moveCard(profile.id, moving.id, destStatus, newPosition);
 
+      // Logar a atividade
+      activityLogger.logActivity({
+        actionCode: 'update_recrutadora',
+        moduleName: 'Recrutadora',
+        unitId: moving.unit_id,
+        unitCode: isAllUnits ? 'ALL' : (selectedUnit as any)?.unit_code || 'ALL',
+        userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+        status: 'success',
+        metadata: { 
+          card_id: moving.id, 
+          nome: moving.nome, 
+          status_anterior: sourceStatus, 
+          novo_status: destStatus 
+        }
+      });
+
       // Quando ALL, recarrega do servidor para garantir ordenação por unidade correta
       if (isAllUnits) {
         if (userUnits && userUnits.length > 0) {
@@ -297,6 +314,21 @@ const RecrutadoraPage: React.FC = () => {
         }
       }
     } catch (e: any) {
+      // Logar erro
+      activityLogger.logActivity({
+        actionCode: 'update_recrutadora',
+        moduleName: 'Recrutadora',
+        unitId: moving.unit_id,
+        unitCode: isAllUnits ? 'ALL' : (selectedUnit as any)?.unit_code || 'ALL',
+        userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+        status: 'error',
+        metadata: { 
+          card_id: moving.id, 
+          nome: moving.nome,
+          error_message: e.message 
+        }
+      });
+
       // reverte
       setError('Falha ao mover card: ' + (e.message || ''));
       // força reload
@@ -347,7 +379,7 @@ const RecrutadoraPage: React.FC = () => {
         action: 'recrutadora_envio',
         nome: card.nome,
         whatsapp: card.whatsapp,
-        unit_code: unitCode,
+        unitCode: unitCode,
         timestamp: new Date().toISOString(),
         usuario_email: profile?.email || null
       };
@@ -364,6 +396,17 @@ const RecrutadoraPage: React.FC = () => {
           throw new Error(`Falha HTTP ${resp.status}${text ? ' - ' + text.slice(0, 140) : ''}`);
         }
         setWebhookFeedback({ type: 'success', message: 'Dados enviados com sucesso!' });
+        
+        // Logar atividade
+        activityLogger.logActivity({
+          actionCode: 'notify_client', // Ou outro código mapeado em actions, ex: recrutadora_envio
+          moduleName: 'Recrutadora',
+          unitId: card.unit_id,
+          unitCode: unitCode,
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { nome: card.nome, whatsapp: card.whatsapp, action: 'recrutadora_envio' }
+        });
       } catch (primaryErr: any) {
         const msg = primaryErr?.message || '';
         if (msg.includes('Failed to fetch') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('TypeError')) {
@@ -385,6 +428,17 @@ const RecrutadoraPage: React.FC = () => {
         const r = await fetch(url.toString(), { method: 'GET' });
         if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
         setWebhookFeedback({ type: 'success', message: 'Dados enviados via fallback (GET)!' });
+
+        // Logar atividade
+        activityLogger.logActivity({
+          actionCode: 'notify_client',
+          moduleName: 'Recrutadora',
+          unitId: card.unit_id,
+          unitCode: unitCode,
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { nome: card.nome, whatsapp: card.whatsapp, action: 'recrutadora_envio_fallback' }
+        });
       }
     } catch (err: any) {
       console.error('Erro ao enviar webhook recrutadora:', err);
@@ -709,7 +763,7 @@ const RecrutadoraPage: React.FC = () => {
         defaultStatus={editingCard ? undefined : modalStatus}
         initialCard={editingCard}
         onCreate={async (payload) => {
-          await createCard({ ...payload, unit_id: selectedUnit.id, unidade: selectedUnit.unit_name });
+          await createCard({ ...payload, unitId: selectedUnit.id, unidade: selectedUnit.unit_name });
         }}
         onUpdate={async (id, payload) => {
           await updateCard(id, payload);

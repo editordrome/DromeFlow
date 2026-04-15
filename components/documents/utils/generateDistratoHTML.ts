@@ -178,12 +178,12 @@ export function generateDistratoHTML(data: any): string {
 
   <p>Por estarem de acordo, as partes firmam o presente.</p>
 
-  <p class="center-text">${formatCurrentDateExtended()}.</p>
+  <p class="center-text">${cidade || unidade.unitName || '[Local]'}, ${formatCurrentDateExtended()}.</p>
 
   <div class="signatures">
     <div class="center-text">
       <div class="signature-line"></div>
-      <p><strong>${displayOrPlaceholder(unidade.razaoSocial, 'EMPRESA DO FRANQUEADO')}${cidade ? ' - ' + cidade : ''}</strong><br>
+      <p><strong>${displayOrPlaceholder(unidade.razaoSocial, 'EMPRESA DO FRANQUEADO')} - ${unidade.unitName || cidade || '[UNIDADE]'}</strong><br>
       CNPJ: ${unidade.cnpj ? formatCNPJ(unidade.cnpj) : '[CNPJ]'}</p>
     </div>
 

@@ -20,7 +20,7 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
 }) => {
   const { profile } = useAuth();
   const { selectedUnit } = useAppContext();
-  const [formData, setFormData] = useState<Partial<DataRecord>>({});
+  const [formData, setFormData] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -32,7 +32,7 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
         CLIENTE: record.CLIENTE || '',
         VALOR: record.VALOR || 0,
         status: record.status || '',
-        orcamento: record.orcamento || '',
+        orcamento: (record as any).orcamento || '',
       });
     }
   }, [record]);
@@ -69,35 +69,56 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
         CLIENTE: formData.CLIENTE!,
         VALOR: formData.VALOR!,
         status: formData.status || '',
-        orcamento: formData.orcamento || '',
       };
 
+      // Adiciona orcamento se existir no formData, prevenindo erro de tipagem
+      if ((formData as any).orcamento) {
+        (updatedRecord as any).orcamento = (formData as any).orcamento;
+      }
+
       await onSave(updatedRecord);
+
+      // Logar sucesso
+      if (profile && selectedUnit) {
+        const actionCode = record ? 'update_atend' : 'create_atend';
+        activityLogger.logActivity({
+          actionCode: actionCode,
+          moduleName: 'Formulário / Edição',
+          unitId: (selectedUnit as any)?.id || '',
+          unitCode: (selectedUnit as any)?.unit_code || '',
+          userIdentifier: profile.email || profile.full_name || 'user',
+          status: 'success',
+          atendId: formData.ATENDIMENTO_ID || '',
+          metadata: { fields_updated: Object.keys(formData).join(',') }
+        });
+      }
+
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao salvar registro');
+      setErrors({ submit: err instanceof Error ? err.message : 'Erro ao salvar registro' });
 
       // Registrar erro ao salvar
       if (profile && selectedUnit && formData.ATENDIMENTO_ID) {
         const actionCode = record ? 'update_atend' : 'create_atend';
         activityLogger.logActivity({
-          unitCode: selectedUnit,
-          actionCode,
-          userIdentifier: profile.email || profile.name,
+          actionCode: actionCode,
+          moduleName: 'Formulário / Edição',
+          unitId: (selectedUnit as any)?.id || '',
+          unitCode: (selectedUnit as any)?.unit_code || '',
+          userIdentifier: profile.email || profile.full_name || 'user',
           status: 'error',
           atendId: formData.ATENDIMENTO_ID,
           metadata: { error_message: err instanceof Error ? err.message : 'Erro desconhecido' }
         });
       }
     } finally {
-      setSaving(false);
+      setIsLoading(false);
     }
   };
-
   const handleInputChange = (field: keyof DataRecord, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+    if (errors[field as string]) {
+      setErrors(prev => ({ ...prev, [field as string]: '' }));
     }
   };
 

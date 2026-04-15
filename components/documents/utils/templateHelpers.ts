@@ -8,7 +8,7 @@ export function prepareTemplateData(documentData: any): Record<string, any> {
     const { profissional, unidade, contrato } = documentData;
 
     return {
-        // Profissional - flat snake_case
+        // Profissional - Prefixed (Legacy)
         profissional_nome: profissional?.nome || '',
         profissional_cpf: profissional?.cpf || '',
         profissional_rg: profissional?.rg || '',
@@ -18,7 +18,19 @@ export function prepareTemplateData(documentData: any): Record<string, any> {
         profissional_whatsapp: profissional?.whatsapp || '',
         profissional_assinatura: profissional?.assinatura || '',
 
-        // Unidade - flat snake_case
+        // Profissional - Direct
+        nome: profissional?.nome || '',
+        cpf: profissional?.cpf || '',
+        rg: profissional?.rg || '',
+        data_nascimento: profissional?.dataNascimento || '',
+        dataNascimento: profissional?.dataNascimento || '',
+        estado_civil: profissional?.estadoCivil || '',
+        estadoCivil: profissional?.estadoCivil || '',
+        endereco_profissional: profissional?.endereco || '', // Alias
+        prof_endereco: profissional?.endereco || '', // Alias
+        whatsapp: profissional?.whatsapp || '',
+
+        // Unidade - Prefixed (Legacy)
         unidade_razao_social: unidade?.razaoSocial || '',
         unidade_cnpj: unidade?.cnpj || '',
         unidade_endereco: unidade?.endereco || '',
@@ -26,12 +38,37 @@ export function prepareTemplateData(documentData: any): Record<string, any> {
         unidade_contato: unidade?.contato || '',
         unidade_email: unidade?.email || '',
         unidade_unit_name: unidade?.unitName || '',
+        unidade_nome: unidade?.unitName || '',
         unidade_unit_code: unidade?.unitCode || '',
-        unidade_uniform_value: unidade?.uniformValue || unidade?.uniform_value || '',
+        unidade_uniform_value: unidade?.uniformValue || '',
+        unidade_id: unidade?.id || '',
 
-        // Contrato - flat snake_case
+        // Unidade - Direct
+        razao_social: unidade?.razaoSocial || '',
+        razaoSocial: unidade?.razaoSocial || '',
+        cnpj: unidade?.cnpj || '',
+        unit_name: unidade?.unitName || '',
+        unit_nome: unidade?.unitName || '',
+        unitName: unidade?.unitName || '',
+        unit_code: unidade?.unitCode || '',
+        unitCode: unidade?.unitCode || '',
+        uni_id: unidade?.id || '',
+        responsavel: unidade?.responsavel || '',
+        contato: unidade?.contato || '',
+        email: unidade?.email || '',
+        uniform_value: unidade?.uniformValue || '',
+        uniformValue: unidade?.uniformValue || '',
+        endereco_unidade: unidade?.endereco || '', // Alias
+        unit_endereco: unidade?.endereco || '', // Alias
+        endereco: unidade?.endereco || '', // O endereço da unidade agora tem prioridade se houver colisão
+
+        // Contrato
         contrato_data_assinatura: contrato?.dataAssinatura || '',
+        data_assinatura: contrato?.dataAssinatura || '',
+        dataAssinatura: contrato?.dataAssinatura || '',
         contrato_percentual_profissional: contrato?.percentualProfissional || '55',
+        percentual_profissional: contrato?.percentualProfissional || '55',
+        percentualProfissional: contrato?.percentualProfissional || '55',
     };
 }
 

@@ -3,14 +3,14 @@ import type { RecrutadoraCard, RecrutadoraColumn } from '../../types';
 import { startOfTodayISO, startOfWeekISO, startOfMonthISO } from '../utils/dates';
 
 export const DEFAULT_COLUMNS: Array<Pick<RecrutadoraColumn, 'code' | 'name' | 'color' | 'image_url'>> = [
-  { code: 'qualificadas', name: 'QUALIFICADAS', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/QUALIFICADAS.png' },
-  { code: 'contato', name: 'CONTATO', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/CONTATO.png' },
-  { code: 'envio_doc', name: 'ENVIO DOS DOCUMENTOS', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/ENVDOCS.png' },
-  { code: 'truora', name: 'TRUORA', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/TRUORA.png' },
-  { code: 'treinamento', name: 'TREINAMENTO', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/TREINAMENTOS.png' },
-  { code: 'finalizado', name: 'FINALIZADO', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/FINALIZADOS.png' },
-  { code: 'nao_aprovadas', name: 'NÃO APROVADAS', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/NAOAPROV.png' },
-  { code: 'desistentes', name: 'DESISTENTES', color: null, image_url: 'https://amtrvspaizpodgvjxvwc.supabase.co/storage/v1/object/public/dromebanco/Imagens/DESISTENTES.png' },
+  { code: 'qualificadas', name: 'QUALIFICADAS', color: null, image_url: 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/QUALIFICADAS.png' },
+  { code: 'contato', name: 'CONTATO', color: null, image_url: 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/CONTATO.png' },
+  { code: 'envio_doc', name: 'ENVIO DOS DOCUMENTOS', color: null, image_url: 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/ENVDOCS.png' },
+  { code: 'truora', name: 'TRUORA', color: null, image_url: 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/TRUORA.png' },
+  { code: 'treinamento', name: 'TREINAMENTO', color: null, image_url: 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/TREINAMENTOS.png' },
+  { code: 'finalizado', name: 'FINALIZADO', color: null, image_url: 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/FINALIZADOS.png' },
+  { code: 'nao_aprovadas', name: 'NÃO APROVADAS', color: null, image_url: 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/NAOAPROV.png' },
+  { code: 'desistentes', name: 'DESISTENTES', color: null, image_url: 'https://uframhbsgtxckdxttofo.supabase.co/storage/v1/object/public/mb-docs/DESISTENTES.png' },
 ];
 
 /**

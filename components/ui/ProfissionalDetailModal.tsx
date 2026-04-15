@@ -16,6 +16,8 @@ import { generateNotificacaoHTML } from '../documents/utils/generateNotificacaoH
 import { getDocumentTemplate } from '../documents/utils/templateHelpers';
 import { supabase } from '../../services/supabaseClient';
 import type { Unit } from '../../types';
+import { prepareDocumentData } from '../documents/utils/documentHelpers';
+import { RecrutadoraCard } from '../../types';
 
 interface Props {
   isOpen: boolean;
@@ -1102,41 +1104,30 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                         console.log('[Aditamento] profissional?.assinatura:', profissional?.assinatura);
                         console.log('[Aditamento] assinaturaValue final:', assinaturaValue);
 
-                        const documentData = {
-                          profissional: {
-                            nome: editNome || profissional?.nome || '',
-                            cpf: editCpf || profissional?.cpf || '',
-                            rg: editRg || profissional?.rg || '',
-                            dataNascimento: editDataNasc || profissional?.data_nasc || '',
-                            estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
-                            endereco: editEndereco || profissional?.endereco || '',
-                            whatsapp: editWhatsapp || profissional?.whatsapp || '',
-                            assinatura: assinaturaValue,
-                          },
-                          unidade: {
-                            razaoSocial: unit.razao_social || '',
-                            cnpj: unit.cnpj || '',
-                            endereco: unit.endereco || (unit as any).address || '',
-                            unitName: unit.unit_name || '',
-                            uniform_value: (unit as any).uniform_value,
-                          },
-                          contrato: {
-                            percentualProfissional: 55,
-                            dataAssinatura: assinaturaValue
-                              ? new Date(assinaturaValue + 'T12:00:00').toLocaleDateString('pt-BR')
-                              : new Date().toLocaleDateString('pt-BR'),
-                          },
-                        };
+                        const profissionalMerged = {
+                          ...profissional,
+                          nome: editNome || profissional?.nome,
+                          cpf: editCpf || profissional?.cpf,
+                          rg: editRg || (profissional as any)?.rg,
+                          data_nasc: editDataNasc || (profissional as any)?.data_nasc,
+                          estado_civil: editEstadoCivil || (profissional as any)?.estado_civil,
+                          endereco: editEndereco || profissional?.endereco,
+                          whatsapp: editWhatsapp || profissional?.whatsapp,
+                          assinatura: assinaturaValue,
+                        } as any;
 
-                        console.log('[Aditamento] documentData:', documentData);
-                        console.log('[Aditamento] documentData.profissional.assinatura:', documentData.profissional.assinatura);
+                        const fullDocumentData = prepareDocumentData(profissionalMerged, unit);
+                        // Sobrescrever assinaturaValue se necessário
+                        fullDocumentData.contrato.dataAssinatura = assinaturaValue
+                          ? new Date(assinaturaValue + 'T12:00:00').toLocaleDateString('pt-BR')
+                          : new Date().toLocaleDateString('pt-BR');
 
                         try {
-                          const html = await getDocumentTemplate(unit.id, 'aditamento', documentData, 'profissional');
+                          const html = await getDocumentTemplate(unit.id, 'aditamento', fullDocumentData, 'profissional');
                           generateTemplateDocument(html, `Aditamento_${(editNome || profissional?.nome || 'sem_nome').replace(/\s+/g, '_')}`);
                         } catch (error) {
                           console.error('[Aditamento] Error loading template:', error);
-                          const html = generateAditamentoHTML(documentData);
+                          const html = generateAditamentoHTML(fullDocumentData);
                           generateTemplateDocument(html, `Aditamento_${(editNome || profissional?.nome || 'sem_nome').replace(/\s+/g, '_')}`);
                         }
                       }}
@@ -1159,39 +1150,27 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                           return;
                         }
                         const unit = selectedUnit as Unit;
-                        const documentData = {
-                          profissional: {
-                            nome: editNome || profissional?.nome || '',
-                            cpf: editCpf || profissional?.cpf || '',
-                            rg: editRg || profissional?.rg || '',
-                            dataNascimento: editDataNasc || profissional?.data_nasc || '',
-                            estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
-                            endereco: editEndereco || profissional?.endereco || '',
-                            whatsapp: editWhatsapp || profissional?.whatsapp || '',
-                            assinatura: editAssinatura || profissional?.assinatura || '',
-                          },
-                          unidade: {
-                            razaoSocial: unit.razao_social || '',
-                            cnpj: unit.cnpj || '',
-                            endereco: unit.endereco || (unit as any).address || '',
-                            unitName: unit.unit_name || '',
-                            unitCode: unit.unit_code || '',
-                            responsavel: unit.responsavel || '',
-                            contato: unit.contato || '',
-                            email: unit.email || '',
-                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
-                          },
-                          contrato: {
-                            percentualProfissional: 55,
-                            dataAssinatura: editAssinatura ? new Date(editAssinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
-                          },
-                        };
+                        const profissionalMerged = {
+                          ...profissional,
+                          nome: editNome || profissional?.nome,
+                          cpf: editCpf || profissional?.cpf,
+                          rg: editRg || (profissional as any)?.rg,
+                          data_nasc: editDataNasc || (profissional as any)?.data_nasc,
+                          estado_civil: editEstadoCivil || (profissional as any)?.estado_civil,
+                          endereco: editEndereco || profissional?.endereco,
+                          whatsapp: editWhatsapp || profissional?.whatsapp,
+                          assinatura: editAssinatura || profissional?.assinatura,
+                        } as any;
+
+                        const fullDocumentData = prepareDocumentData(profissionalMerged, unit);
+                        fullDocumentData.contrato.dataAssinatura = editAssinatura ? new Date(editAssinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+
                         try {
-                          const html = await getDocumentTemplate(unit.id, 'contrato', documentData, 'profissional');
+                          const html = await getDocumentTemplate(unit.id, 'contrato', fullDocumentData, 'profissional');
                           generateTemplateDocument(html, 'Contrato_Agenciamento');
                         } catch (error) {
                           console.error('[Contrato] Error loading template:', error);
-                          const html = generateContratoHTML(documentData);
+                          const html = generateContratoHTML(fullDocumentData);
                           generateTemplateDocument(html, 'Contrato_Agenciamento');
                         }
                       }}
@@ -1214,35 +1193,26 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                           return;
                         }
                         const unit = selectedUnit as Unit;
-                        const documentData = {
-                          profissional: {
-                            nome: editNome || profissional?.nome || '',
-                            cpf: editCpf || profissional?.cpf || '',
-                            rg: editRg || profissional?.rg || '',
-                            dataNascimento: editDataNasc || profissional?.data_nasc || '',
-                            estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
-                            endereco: editEndereco || profissional?.endereco || '',
-                            whatsapp: editWhatsapp || profissional?.whatsapp || '',
-                            assinatura: editAssinatura || profissional?.assinatura || '',
-                          },
-                          unidade: {
-                            razaoSocial: unit.razao_social || '',
-                            cnpj: unit.cnpj || '',
-                            endereco: unit.endereco || (unit as any).address || '',
-                            unitName: unit.unit_name || '',
-                            unitCode: unit.unit_code || '',
-                            responsavel: unit.responsavel || '',
-                            contato: unit.contato || '',
-                            email: unit.email || '',
-                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
-                          },
-                        };
+                        const profissionalMerged = {
+                          ...profissional,
+                          nome: editNome || profissional?.nome,
+                          cpf: editCpf || profissional?.cpf,
+                          rg: editRg || (profissional as any)?.rg,
+                          data_nasc: editDataNasc || (profissional as any)?.data_nasc,
+                          estado_civil: editEstadoCivil || (profissional as any)?.estado_civil,
+                          endereco: editEndereco || profissional?.endereco,
+                          whatsapp: editWhatsapp || profissional?.whatsapp,
+                          assinatura: editAssinatura || profissional?.assinatura,
+                        } as any;
+
+                        const fullDocumentData = prepareDocumentData(profissionalMerged, unit);
+
                         try {
-                          const html = await getDocumentTemplate(unit.id, 'termo', documentData, 'profissional');
+                          const html = await getDocumentTemplate(unit.id, 'termo', fullDocumentData, 'profissional');
                           generateTemplateDocument(html, 'Termo_Confidencialidade');
                         } catch (error) {
                           console.error('[Termo] Error loading template:', error);
-                          const html = generateTermoHTML(documentData);
+                          const html = generateTermoHTML(fullDocumentData);
                           generateTemplateDocument(html, 'Termo_Confidencialidade');
                         }
                       }}
@@ -1265,35 +1235,26 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                           return;
                         }
                         const unit = selectedUnit as Unit;
-                        const documentData = {
-                          profissional: {
-                            nome: editNome || profissional?.nome || '',
-                            cpf: editCpf || profissional?.cpf || '',
-                            rg: editRg || profissional?.rg || '',
-                            dataNascimento: editDataNasc || profissional?.data_nasc || '',
-                            estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
-                            endereco: editEndereco || profissional?.endereco || '',
-                            whatsapp: editWhatsapp || profissional?.whatsapp || '',
-                            assinatura: editAssinatura || profissional?.assinatura || '',
-                          },
-                          unidade: {
-                            razaoSocial: unit.razao_social || '',
-                            cnpj: unit.cnpj || '',
-                            endereco: unit.endereco || (unit as any).address || '',
-                            unitName: unit.unit_name || '',
-                            unitCode: unit.unit_code || '',
-                            responsavel: unit.responsavel || '',
-                            contato: unit.contato || '',
-                            email: unit.email || '',
-                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
-                          },
-                        };
+                        const profissionalMerged = {
+                          ...profissional,
+                          nome: editNome || profissional?.nome,
+                          cpf: editCpf || profissional?.cpf,
+                          rg: editRg || (profissional as any)?.rg,
+                          data_nasc: editDataNasc || (profissional as any)?.data_nasc,
+                          estado_civil: editEstadoCivil || (profissional as any)?.estado_civil,
+                          endereco: editEndereco || profissional?.endereco,
+                          whatsapp: editWhatsapp || profissional?.whatsapp,
+                          assinatura: editAssinatura || profissional?.assinatura,
+                        } as any;
+
+                        const fullDocumentData = prepareDocumentData(profissionalMerged, unit);
+
                         try {
-                          const html = await getDocumentTemplate(unit.id, 'notificacao', documentData, 'profissional');
+                          const html = await getDocumentTemplate(unit.id, 'notificacao', fullDocumentData, 'profissional');
                           generateTemplateDocument(html, 'Notificacao_Rescisao');
                         } catch (error) {
                           console.error('[Notificação] Error loading template:', error);
-                          const html = generateNotificacaoHTML(documentData);
+                          const html = generateNotificacaoHTML(fullDocumentData);
                           generateTemplateDocument(html, 'Notificacao_Rescisao');
                         }
                       }}
@@ -1316,32 +1277,26 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                           return;
                         }
                         const unit = selectedUnit as Unit;
-                        const documentData = {
-                          profissional: {
-                            nome: editNome || profissional?.nome || '',
-                            cpf: editCpf || profissional?.cpf || '',
-                            rg: editRg || profissional?.rg || '',
-                            dataNascimento: editDataNasc || profissional?.data_nasc || '',
-                            estadoCivil: editEstadoCivil || profissional?.estado_civil || '',
-                            endereco: editEndereco || profissional?.endereco || '',
-                            whatsapp: editWhatsapp || profissional?.whatsapp || '',
-                          },
-                          unidade: {
-                            razaoSocial: unit.razao_social || '',
-                            cnpj: unit.cnpj || '',
-                            endereco: unit.endereco || (unit as any).address || '',
-                            unitName: unit.unit_name || '',
-                          },
-                          contrato: {
-                            dataAssinatura: editAssinatura ? new Date(editAssinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
-                          }
-                        };
+                        const profissionalMerged = {
+                          ...profissional,
+                          nome: editNome || profissional?.nome,
+                          cpf: editCpf || profissional?.cpf,
+                          rg: editRg || (profissional as any)?.rg,
+                          data_nasc: editDataNasc || (profissional as any)?.data_nasc,
+                          estado_civil: editEstadoCivil || (profissional as any)?.estado_civil,
+                          endereco: editEndereco || profissional?.endereco,
+                          whatsapp: editWhatsapp || profissional?.whatsapp,
+                        } as any;
+
+                        const fullDocumentData = prepareDocumentData(profissionalMerged, unit);
+                        fullDocumentData.contrato.dataAssinatura = editAssinatura ? new Date(editAssinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+
                         try {
-                          const html = await getDocumentTemplate(unit.id, 'distrato', documentData, 'profissional');
+                          const html = await getDocumentTemplate(unit.id, 'distrato', fullDocumentData, 'profissional');
                           generateTemplateDocument(html, 'Distrato_Parceria');
                         } catch (error) {
                           console.error('[Distrato] Error loading template:', error);
-                          const html = generateDistratoHTML(documentData);
+                          const html = generateDistratoHTML(fullDocumentData);
                           generateTemplateDocument(html, 'Distrato_Parceria');
                         }
                       }}

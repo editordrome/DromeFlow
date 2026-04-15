@@ -340,7 +340,7 @@ export function generateContratoHTML(data: any): string {
 
   <div class="article-title">ARTIGO 13° - FORO</div>
 
-  <p><strong>13.1.</strong> Para resolver quaisquer dúvidas ou conflitos relacionados a este contrato, as partes elegem o foro da comarca de ${cidade || '[cidade da unidade franqueada]'}, com renúncia de qualquer outro, por mais privilegiado que seja.</p>
+  <p><strong>13.1.</strong> Para resolver quaisquer dúvidas ou conflitos relacionados a este contrato, as partes elegem o foro da comarca de ${cidade || unidade.unitName || '[cidade da unidade franqueada]'}, com renúncia de qualquer outro, por mais privilegiado que seja.</p>
 
   <p>Por estarem de acordo, as partes firmam o presente.</p>
 
@@ -349,7 +349,7 @@ export function generateContratoHTML(data: any): string {
   <div class="signatures">
     <div class="center-text">
       <div class="signature-line"></div>
-      <p><strong>${displayOrPlaceholder(unidade.razaoSocial, 'EMPRESA DO FRANQUEADO')}${cidade ? ' - ' + cidade : ''}</strong><br>
+      <p><strong>${displayOrPlaceholder(unidade.razaoSocial, 'EMPRESA DO FRANQUEADO')} - ${unidade.unitName || cidade || '[UNIDADE]'}</strong><br>
       CNPJ: ${unidade.cnpj ? formatCNPJ(unidade.cnpj) : '[CNPJ]'}</p>
     </div>
 

@@ -33,6 +33,7 @@ const SistemaPage = lazy(() => import('../pages/SistemaPage'));
 const SistemaAdminPage = lazy(() => import('../pages/SistemaAdminPage'));
 const LoyaltyPage = lazy(() => import('../pages/LoyaltyPage'));
 const UmblerPage = lazy(() => import('../pages/UmblerPage'));
+const ProductionPage = lazy(() => import('../pages/ProductionPage'));
 const PageLoader = () => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
@@ -156,6 +157,9 @@ const ContentArea: React.FC = () => {
     // @ts-ignore
     if (activeView === 'umbler') {
         return <Suspense fallback={<PageLoader />}><UmblerPage /></Suspense>;
+    }
+    if (activeView === 'production') {
+        return <Suspense fallback={<PageLoader />}><ProductionPage /></Suspense>;
     }
 
     return (

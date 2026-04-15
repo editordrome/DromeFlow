@@ -61,31 +61,35 @@ Resposta: Oriente o Admin a verificar a aba Módulos dentro do cadastro do usuá
 
 
 📄 Módulo 1.4: Configurações - Gestão de Documentos
-Objetivo: Personalizar os templates de contratos, termos e notificações oficiais da sua unidade.
+Objetivo: Personalizar os templates de contratos, termos e notificações oficiais da sua unidade com preenchimento automático inteligente.
 Como Ajustar seus Templates:
 Acesse o menu Configurações.
-+1
 Clique na quarta aba: Documentos.
 No seletor à esquerda, escolha qual documento deseja visualizar ou editar:
-Aditamento Contratual
-Contrato de Agenciamento
-Termo de Confidencialidade
-Notificação
-Distrato
+- Aditamento Contratual
+- Contrato de Agenciamento
+- Termo de Confidencialidade
+- Notificação
+- Distrato
 Defina para qual público o documento se aplica marcando Recrutadora ou Profissional.
-Regras de Edição:
-Campos Automatizados (Tags): Os termos entre chaves duplas (ex: {{unidade_razao_social}}, {{profissional_nome}}) são campos pré-configurados e bloqueados para edição. O sistema preencherá esses dados automaticamente com as informações do cadastro.
-Texto Livre: Você pode editar todo o restante do texto para adequar às necessidades específicas da sua unidade.
+
+Regras de Edição e Automação:
+Campos Automatizados (Tags): O DromeFlow utiliza um sistema padronizado de tags entre chaves duplas que são preenchidas automaticamente. 
+- Dados da Unidade: `{{unidade_nome}}`, `{{unidade_cnpj}}`, `{{unidade_endereco}}`, `{{uni_id}}`.
+- Dados do Profissional: `{{profissional_nome}}`, `{{profissional_cpf}}`, `{{profissional_endereco}}`.
+Texto Livre: Você pode editar todo o restante do texto. O sistema garantirá que as informações da unidade selecionada sejam injetadas corretamente no momento da geração, independentemente do tipo de documento.
 Restauração: Se desejar cancelar suas alterações e voltar ao modelo padrão da rede, clique no ícone de Seta Circular (Restaurar) e confirme em OK.
 Após finalizar as edições, clique no ícone de Disquete Roxo (Salvar) no canto superior direito.
 
 🎥 Roteiro de Micro-vídeo: Gestão de Documentos (50s)
-"Olá! No DromeFlow, seus contratos são automatizados. Na aba 'Documentos', selecione o template que deseja ajustar, como o 'Aditamento Contratual'. Escolha se ele é para a 'Recrutadora' ou para a 'Profissional'. Note que as informações em chaves, como o nome da unidade ou do profissional, o sistema preenche sozinho e você não precisa mexer. Edite o texto conforme sua necessidade e salve. Se precisar voltar ao original, o botão de restaurar resolve na hora. Praticidade e segurança jurídica para sua unidade!"
+"Olá! No DromeFlow, seus contratos são 100% automatizados e padronizados. Na aba 'Documentos', selecione o template que deseja ajustar. Note que as informações em chaves, como o nome da unidade ou do profissional, o sistema preenche sozinho em todos os documentos, inclusive Aditamentos e Distratos. Edite o texto conforme sua necessidade e salve. Se precisar voltar ao original, o botão de restaurar resolve na hora. Praticidade e total segurança jurídica para sua unidade!"
+
 🤖 Lógica para o Agente de IA:
-Dúvida: "Como mudo o texto do contrato?"
-Resposta: Direcione para Configurações > Documentos. Explique que ele pode editar o texto livre, mas as tags entre {{ }} são automáticas.
+Dúvida: "Como mudo o texto do contrato ou aditamento?"
+Resposta: Direcione para Configurações > Documentos. Explique que ele pode editar o texto livre, mas as tags entre {{ }} como {{unidade_nome}} são automáticas e agora funcionam de forma idêntica em todos os tipos de documentos.
 Dúvida: "Estraguei o template, como volto ao normal?"
 Resposta: Instrua a clicar no botão de Restaurar (ícone de seta circular) ao lado do botão de salvar.
+
 s imagens mostram um Dashboard muito bem estruturado, focado em indicadores financeiros e operacionais claros. Seguindo sua lógica de que cada "métrica mãe" (Faturamento, Atendimentos, Clientes e Repasse) expande os dados abaixo, vamos detalhar a primeira: Faturamento.
 Aqui está a estrutura para o seu documento de treinamento:
 
@@ -450,4 +454,37 @@ Dúvida: "Onde pego o link para as profissionais responderem a agenda?"
 Resposta: Na aba Agenda > Configurações > Configuração, o link fica disponível no canto superior direito da tela.
 Dúvida: "Como eu apago os dias da semana passada?"
 Resposta: Utilize o botão LIMPAR na parte inferior da aba de configuração para resetar o calendário antes de selecionar os novos dias.
+
+🏗️ Módulo 7: Produção (Gestão de Processos)
+Objetivo: Monitorar o fluxo de preparação de cada unidade através de etapas customizáveis e checklists obrigatórios de qualidade.
+
+1. Estrutura do Kanban de Produção
+A tela de produção é organizada em colunas que representam as etapas do seu processo:
+- Coluna Inicial: É o ponto de entrada das unidades no fluxo de produção. Serve como um backlog de trabalho por vir.
+- Colunas de Plataformas: Representam as fases reais de execução (ex: Configuração, Revisão, Finalização). Você pode criar novas colunas clicando em [ + Adicionar Plataforma ].
+
+2. Configuração de Checkpoints (A Engrenagem)
+No DromeFlow, a qualidade é padronizada através de checkpoints:
+- Clique no ícone de Engrenagem (Configurar) no topo de uma coluna de plataforma.
+- Adicione os Itens Padrão (ex: "Configurar DNS", "Validar Login").
+- Importante: Estes itens aparecerão automaticamente em todos os cards de unidade, garantindo que nenhum passo técnico seja esquecido.
+
+3. Gestão de Cards e Evolução
+- Criar Produção: Na coluna Inicial, clique no ícone de [ + ] e selecione a unidade desejada.
+- Movimentação: Arraste os cards entre as colunas conforme as etapas são concluídas.
+- Checklist e Progresso: Ao clicar em um card, a aba Checkpoints mostra o progresso global. Conforme você marca os itens como concluídos, a barra de porcentagem do card é atualizada em tempo real na tela principal.
+
+4. Integração com Unit Keys
+Dentro do card de produção, a aba Unit Keys permite visualizar e editar chaves técnicas da unidade (ex: IDs de integração, links de suporte) sincronizadas diretamente com o banco de dados daquela unidade específica.
+
+🎥 Roteiro de Micro-vídeo: Gestão de Produção (60s)
+"Olá! O módulo de Produção é a sua central de controle de qualidade. Cada coluna aqui é uma etapa do seu processo de entrega. O segredo está na engrenagem: clique nela e defina o que deve ser conferido em cada plataforma. Quando uma unidade chega, você arrasta o card dela entre as etapas. Dentro do card, você marca os checkpoints concluídos e vê a barra de progresso subir na hora! E para agilizar, a aba 'Unit Keys' traz todos os dados técnicos que você precisa sem sair da tela. Produção ágil e sem falhas!"
+
+🤖 Lógica para o Agente de IA:
+Dúvida: "Como defino as tarefas obrigatórias de uma coluna?"
+Resposta: No módulo de Produção, clique no ícone de Engrenagem da coluna desejada e adicione os itens padrão. Eles serão aplicados a todos os cards.
+Dúvida: "Como vejo o progresso de uma unidade específica?"
+Resposta: O card na tela principal mostra uma barra de porcentagem. Para detalhar, clique no card e abra a aba 'Checkpoints'.
+Dúvida: "Posso criar novas etapas de produção?"
+Resposta: Sim, como Super Admin, clique no botão 'Adicionar Plataforma' no topo do módulo de Produção.
 
