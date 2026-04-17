@@ -1,12 +1,29 @@
 import SftpClient from 'ssh2-sftp-client';
 import path from 'path';
+import { readFileSync } from 'fs';
 
 /**
  * Script de Deploy SFTP (SSH) para DromeFlow
- * 
+ *
  * Utiliza a porta 65002 da Hostinger para transferir arquivos via SSH.
- * Mais seguro e confiável que o FTP tradicional.
+ * Carrega credenciais do .env.local antes de qualquer execução.
  */
+
+// Carrega .env.local manualmente (sem dependência do dotenv)
+try {
+    const envContent = readFileSync(path.resolve('.env.local'), 'utf8');
+    for (const line of envContent.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx === -1) continue;
+        const key = trimmed.slice(0, eqIdx).trim();
+        const value = trimmed.slice(eqIdx + 1).trim();
+        if (!process.env[key]) process.env[key] = value;
+    }
+} catch {
+    console.warn('⚠️  .env.local não encontrado — usando variáveis de ambiente do sistema.');
+}
 
 const sftp = new SftpClient();
 
@@ -18,7 +35,7 @@ const config = {
 };
 
 const localDir = path.resolve('./dist');
-const remoteDir = `${process.env.SFTP_DEST || 'public_html'}/`;
+const remoteDir = `${process.env.SFTP_DEST || 'domains/dromeflow.com/public_html'}/`;
 
 async function deploy() {
     try {

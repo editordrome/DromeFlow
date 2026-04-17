@@ -22,7 +22,8 @@ O DromeFlow é uma **Progressive Web App** totalmente funcional:
 
 #### Arquivos Importantes
 - `vite.config.ts` - Configuração VitePWA
-- `/public/pwa-*.png` - Ícones do app
+- `/public/android-chrome-192x192.png` - Ícone PWA 192x192
+- `/public/android-chrome-512x512.png` - Ícone PWA 512x512
 - Service Worker gerado automaticamente no build
 
 #### Testando PWA
@@ -611,10 +612,8 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.html [L]
 
-# Compressão
-<IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/css text/javascript
-</IfModule>
+# Brotli e Gzip (arquivos pré-comprimidos pelo Vite)
+# Configurados via FilesMatch e Content-Encoding no .htaccess completo
 ```
 
 ---

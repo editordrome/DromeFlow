@@ -144,25 +144,37 @@ const AgendaExternaPage: React.FC = () => {
 
       // Limpa estritamente os caches locais e unregister os Service Workers para não segurar versão velha
       if ('caches' in window) {
-        const names = await caches.keys();
-        await Promise.all(names.map(name => caches.delete(name)));
+        try {
+          const names = await caches.keys();
+          await Promise.all(names.map(name => caches.delete(name)));
+          console.log('[AgendaExterna] Caches limpos');
+        } catch (e) {
+          console.error('[AgendaExterna] Erro ao limpar caches:', e);
+        }
       }
+      
       if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const registration of registrations) {
-          await registration.unregister();
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const registration of registrations) {
+            await registration.unregister();
+          }
+          console.log('[AgendaExterna] Service Workers removidos');
+        } catch (e) {
+          console.error('[AgendaExterna] Erro ao remover service workers:', e);
         }
       }
 
       // Limpa dados de sessão local para forçar novo fetch de configurações no próximo acesso
       localStorage.clear();
+      sessionStorage.clear();
 
       setSuccess(true);
 
-      // Recarrega silenciosamente a página no fundo após 3 segundos 
-      // para garantir que a próxima visita da pessoa use a versão mais atual
+      // Recarrega forçadamente a página após 3.5 segundos 
+      // para garantir que a próxima visita da pessoa use a versão e dados mais atuais
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = window.location.origin + window.location.pathname;
       }, 3500);
 
     } catch (err: any) {

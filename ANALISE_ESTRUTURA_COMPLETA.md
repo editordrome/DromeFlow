@@ -110,7 +110,7 @@ services/
 │
 ├── data/
 │   ├── dataTable.service.ts - CRUD atendimentos
-│   └── agendamentos.service.ts - Gestão agendamentos
+│   └── clientHistory.service.ts - Histórico de clientes
 │
 ├── ingestion/
 │   └── upload.service.ts - Pipeline XLSX (expansão, divisão, limpeza)
@@ -172,8 +172,8 @@ VitePWA({
   - API Supabase: 5 minutos (NetworkFirst)
 
 **Arquivos PWA:**
-- `/public/pwa-192x192.png`
-- `/public/pwa-512x512.png`
+- `/public/android-chrome-192x192.png`
+- `/public/android-chrome-512x512.png`
 - `/public/favicon.ico`
 - `/public/apple-touch-icon.png`
 
@@ -444,8 +444,6 @@ docs/sql/
 │   └── 2025-11-03_normalize_processed_data_structure.sql
 │
 ├── Infraestrutura
-│   ├── 2025-11-15_fdw_data_drome_setup.sql
-│   ├── 2025-11-15_fdw_dromeflow_connection.sql
 │   └── 2025-10-10_subdomains_and_module_routes.sql
 │
 └── Realtime & RLS
@@ -538,13 +536,25 @@ Fase 4: JWT claims para RLS
 - **Backend:** Supabase Cloud
 - **CDN/Proxy:** Cloudflare (apenas DNS/CDN)
 
+### Processo de Deploy (SSH/SFTP)
+- **Método:** Sincronização recursiva via SFTP (SSH) utilizando o script `scripts/deploy.js`.
+- **Servidor:** Hostinger (Porta **65002**).
+- **Diretório Remoto:** `domains/dromeflow.com/public_html/`.
+- **Credenciais:** Armazenadas no arquivo `.env.local` (não versionado).
+- **Variáveis Necessárias:**
+  - `SFTP_HOST`: IP do servidor.
+  - `SFTP_PORT`: 65002.
+  - `SFTP_USER`: Usuário SSH.
+  - `SFTP_PASSWORD`: Senha SSH.
+  - `SFTP_DEST`: Caminho de destino.
+
 ### Arquivos de Deploy
 ```
 public/
-├── .htaccess - Rewrite rules para SPA
+├── .htaccess - Rewrite rules para SPA + Brotli/Gzip estático + cache + headers de segurança
 ├── favicon.ico
-├── pwa-192x192.png
-└── pwa-512x512.png
+├── android-chrome-192x192.png
+└── android-chrome-512x512.png
 
 dist/ (gerado)
 ├── index.html
@@ -664,6 +674,10 @@ useRealtimeSubscription({
 **Causa:** Mutação direta de Sets
 **Fix:** Sempre usar `new Set(oldSet)` (imutabilidade React)
 
+### 5. net::ERR_NAME_NOT_RESOLVED / Cache Obsoleto (Resolvido)
+**Causa:** Navegador mantendo Service Workers ou cache de DNS de APIs (Supabase) após atualizações ou mudanças de rede.
+**Fix:** Implementação de "Deep Cache Clear" no `UpdatePrompt` e `AgendaExternaPage`. O sistema agora desregistra Service Workers, limpa Storage (Local/Session) e força Hard Reload ao detectar nova versão ou finalizar envio de dados externos.
+
 ---
 
 ## 📚 Guias de Referência Rápida
@@ -738,8 +752,7 @@ docs/
 ├── REALTIME_STATUS.md       - Status do Realtime
 ├── UNIT_BASED_ACCESS_CONTROL.md - Sistema de permissões
 ├── UPLOAD_BEHAVIOR.md       - Comportamento de upload
-├── SUBDOMINIOS_E_URLS.md    - Configuração de subdomínios
-└── FDW_SETUP_STATUS.md      - Foreign Data Wrappers
+└── SUBDOMINIOS_E_URLS.md    - Configuração de subdomínios
 ```
 
 ---
@@ -769,6 +782,6 @@ docs/
 
 ---
 
-**Última atualização:** 2025-11-16  
-**Versão:** 1.0  
-**Autor:** Análise Automatizada via GitHub Copilot
+**Última atualização:** 2026-04-17  
+**Versão:** 1.1  
+**Autor:** Engenheiro de Software Sênior (Antigravity)

@@ -441,59 +441,59 @@ const DashboardSistemaPage: React.FC = () => {
       setErrorLogs(errors);
       setLatestErrors(latestErrs);
 
-/* 
-      // 2. Busca dados da API do N8N (DESATIVADO PARA EVITAR ERROS DE CORS/API INATIVA)
-      try {
-        const [executionsResult, workflows] = await Promise.all([
-          n8nService.getExecutions(50),
-          n8nService.getWorkflows()
-        ]);
-
-        setN8nExecutions(executionsResult.data);
-        setN8nWorkflows(workflows);
-
-        const wfMap = new Map<string, string>();
-        workflows.forEach(wf => wfMap.set(wf.id, wf.name));
-        setWorkflowsMap(wfMap);
-
-        // Se estivermos na aba n8n, as métricas do topo usam os dados da API
-        const executions = executionsResult.data;
-        const total = executions.length;
-        const successCount = executions.filter(e => e.status === 'success').length;
-        const errorCount = executions.filter(e => e.status === 'error').length;
-
-        const workflowStats = executions.reduce((acc: { [key: string]: number }, exec) => {
-          const wfName = wfMap.get(exec.workflowId) || exec.workflowId;
-          acc[wfName] = (acc[wfName] || 0) + 1;
-          return acc;
-        }, {});
-
-        const byWorkflow = Object.entries(workflowStats)
-          .map(([workflow, count]) => ({ workflow, count: count as number }))
-          .sort((a, b) => b.count - a.count);
-
-        setStats({ total, successCount, errorCount, byWorkflow });
-      } catch (n8nErr) {
-        console.warn('[Dashboard Sistema] Falha ao carregar dados da API do N8N:', n8nErr);
-        // Fallback para métricas baseadas em logs do Supabase se a API falhar (ex: CORS ou credenciais)
-        const filteredLogs = filterLogsByPeriod(logs);
-        const total = filteredLogs.length;
-        const successCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'success' || l.status?.toLowerCase() === 'sucesso').length;
-        const errorCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'error' || l.status?.toLowerCase() === 'erro').length;
-
-        const workflowCounts = filteredLogs.reduce((acc: { [key: string]: number }, log) => {
-          const wf = log.workflow || 'Unknown';
-          acc[wf] = (acc[wf] || 0) + 1;
-          return acc;
-        }, {});
-
-        const byWorkflow = Object.entries(workflowCounts)
-          .map(([workflow, count]) => ({ workflow, count: count as number }))
-          .sort((a, b) => b.count - a.count);
-
-        setStats({ total, successCount, errorCount, byWorkflow });
-      }
-      */
+      /* 
+            // 2. Busca dados da API do N8N (DESATIVADO PARA EVITAR ERROS DE CORS/API INATIVA)
+            try {
+              const [executionsResult, workflows] = await Promise.all([
+                n8nService.getExecutions(50),
+                n8nService.getWorkflows()
+              ]);
+      
+              setN8nExecutions(executionsResult.data);
+              setN8nWorkflows(workflows);
+      
+              const wfMap = new Map<string, string>();
+              workflows.forEach(wf => wfMap.set(wf.id, wf.name));
+              setWorkflowsMap(wfMap);
+      
+              // Se estivermos na aba n8n, as métricas do topo usam os dados da API
+              const executions = executionsResult.data;
+              const total = executions.length;
+              const successCount = executions.filter(e => e.status === 'success').length;
+              const errorCount = executions.filter(e => e.status === 'error').length;
+      
+              const workflowStats = executions.reduce((acc: { [key: string]: number }, exec) => {
+                const wfName = wfMap.get(exec.workflowId) || exec.workflowId;
+                acc[wfName] = (acc[wfName] || 0) + 1;
+                return acc;
+              }, {});
+      
+              const byWorkflow = Object.entries(workflowStats)
+                .map(([workflow, count]) => ({ workflow, count: count as number }))
+                .sort((a, b) => b.count - a.count);
+      
+              setStats({ total, successCount, errorCount, byWorkflow });
+            } catch (n8nErr) {
+              console.warn('[Dashboard Sistema] Falha ao carregar dados da API do N8N:', n8nErr);
+              // Fallback para métricas baseadas em logs do Supabase se a API falhar (ex: CORS ou credenciais)
+              const filteredLogs = filterLogsByPeriod(logs);
+              const total = filteredLogs.length;
+              const successCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'success' || l.status?.toLowerCase() === 'sucesso').length;
+              const errorCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'error' || l.status?.toLowerCase() === 'erro').length;
+      
+              const workflowCounts = filteredLogs.reduce((acc: { [key: string]: number }, log) => {
+                const wf = log.workflow || 'Unknown';
+                acc[wf] = (acc[wf] || 0) + 1;
+                return acc;
+              }, {});
+      
+              const byWorkflow = Object.entries(workflowCounts)
+                .map(([workflow, count]) => ({ workflow, count: count as number }))
+                .sort((a, b) => b.count - a.count);
+      
+              setStats({ total, successCount, errorCount, byWorkflow });
+            }
+            */
 
       // FALLBACK AUTOMÁTICO PARA DADOS DO BANCO (SUPABASE)
       const filteredLogs = filterLogsByPeriod(logs);
@@ -646,7 +646,6 @@ const DashboardSistemaPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab Content */}
       {!isLoading && !error && (
         <>
           {/* Tab: N8N Workflows */}
@@ -1861,236 +1860,236 @@ const DashboardSistemaPage: React.FC = () => {
         </>
       )}
 
-          {/* Modal: Usuários Ativos */}
-          {showActiveUsersModal && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-bg-secondary border border-border-primary rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="px-6 py-4 border-b border-border-secondary flex items-center justify-between bg-bg-tertiary">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
-                    <h3 className="text-lg font-bold text-text-primary">Usuários Ativos (5m)</h3>
-                  </div>
-                  <button 
-                    onClick={() => setShowActiveUsersModal(false)}
-                    className="p-1 hover:bg-bg-tertiary rounded-full transition-colors"
-                  >
-                    <Icon name="x" className="w-5 h-5 text-text-secondary" />
-                  </button>
-                </div>
-                <div className="p-6 max-h-[60vh] overflow-y-auto">
-                  {(() => {
-                    const fiveMinAgo = new Date();
-                    fiveMinAgo.setMinutes(fiveMinAgo.getMinutes() - 5);
-                    
-                    const activeUsers = activityLogs
-                      .filter(log => new Date(log.created_at) >= fiveMinAgo)
-                      .reduce((acc: any[], log) => {
-                        const existing = acc.find(u => u.identifier === log.user_identifier);
-                        if (!existing) {
-                          acc.push({
-                            identifier: log.user_identifier,
-                            lastAction: log.created_at,
-                            unitCode: log.unit_code,
-                            module: log.workflow || log.metadata?.module_name || 'Sistema'
-                          });
-                        }
-                        return acc;
-                      }, [])
-                      .sort((a, b) => new Date(b.lastAction).getTime() - new Date(a.lastAction).getTime());
+      {/* Modal: Usuários Ativos */}
+      {showActiveUsersModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg-secondary border border-border-primary rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-border-secondary flex items-center justify-between bg-bg-tertiary">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
+                <h3 className="text-lg font-bold text-text-primary">Usuários Ativos (5m)</h3>
+              </div>
+              <button
+                onClick={() => setShowActiveUsersModal(false)}
+                className="p-1 hover:bg-bg-tertiary rounded-full transition-colors"
+              >
+                <Icon name="x" className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {(() => {
+                const fiveMinAgo = new Date();
+                fiveMinAgo.setMinutes(fiveMinAgo.getMinutes() - 5);
 
-                    if (activeUsers.length === 0) {
-                      return <p className="text-center text-text-tertiary py-4">Nenhum usuário ativo nos últimos 5 minutos.</p>;
+                const activeUsers = activityLogs
+                  .filter(log => new Date(log.created_at) >= fiveMinAgo)
+                  .reduce((acc: any[], log) => {
+                    const existing = acc.find(u => u.identifier === log.user_identifier);
+                    if (!existing) {
+                      acc.push({
+                        identifier: log.user_identifier,
+                        lastAction: log.created_at,
+                        unitCode: log.unit_code,
+                        module: log.workflow || log.metadata?.module_name || 'Sistema'
+                      });
                     }
+                    return acc;
+                  }, [])
+                  .sort((a, b) => new Date(b.lastAction).getTime() - new Date(a.lastAction).getTime());
 
+                if (activeUsers.length === 0) {
+                  return <p className="text-center text-text-tertiary py-4">Nenhum usuário ativo nos últimos 5 minutos.</p>;
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {activeUsers.map((user, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-border-secondary bg-bg-tertiary">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-text-primary">{user.identifier}</span>
+                          <span className="text-[10px] text-text-tertiary uppercase font-medium">
+                            {user.module} • {user.unitCode || 'GERAL'}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-text-secondary block">Última ação</span>
+                          <span className="text-[10px] font-mono text-blue-600">{new Date(user.lastAction).toLocaleTimeString('pt-BR')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="px-6 py-4 bg-bg-tertiary border-t border-border-secondary flex justify-end">
+              <button
+                onClick={() => setShowActiveUsersModal(false)}
+                className="px-4 py-2 bg-accent-primary text-text-on-accent rounded-md text-sm font-medium hover:bg-accent-primary/90 transition-all"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Detalhamento da Ação */}
+      {selectedLogDetail && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg-secondary border border-border-primary rounded-xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-border-secondary flex items-center justify-between bg-bg-tertiary">
+              <div className="flex items-center gap-2">
+                {getActionIcon(selectedLogDetail.action_code)}
+                <h3 className="text-lg font-bold text-text-primary">
+                  {selectedLogDetail.actions?.action_name || getActionName(selectedLogDetail.action_code)}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedLogDetail(null)}
+                className="p-1 hover:bg-bg-tertiary rounded-full transition-colors"
+              >
+                <Icon name="x" className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Header Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                  <span className="text-[10px] text-text-tertiary uppercase font-bold block mb-1">Usuário</span>
+                  <p className="text-sm font-semibold text-text-primary truncate">{selectedLogDetail.user_identifier}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                  <span className="text-[10px] text-text-tertiary uppercase font-bold block mb-1">Horário</span>
+                  <p className="text-sm font-semibold text-text-primary">
+                    {new Date(selectedLogDetail.created_at).toLocaleDateString('pt-BR')} {new Date(selectedLogDetail.created_at).toLocaleTimeString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Specific Content Parsing */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-text-tertiary uppercase tracking-wider">Detalhes da Execução</h4>
+                {(() => {
+                  const meta = selectedLogDetail.metadata || {};
+
+                  // Caso: Recrutadora
+                  if (selectedLogDetail.action_code === 'update_recrutadora') {
                     return (
-                      <div className="space-y-4">
-                        {activeUsers.map((user, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-border-secondary bg-bg-tertiary">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-text-primary">{user.identifier}</span>
-                              <span className="text-[10px] text-text-tertiary uppercase font-medium">
-                                {user.module} • {user.unitCode || 'GERAL'}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-[10px] text-text-secondary block">Última ação</span>
-                              <span className="text-[10px] font-mono text-blue-600">{new Date(user.lastAction).toLocaleTimeString('pt-BR')}</span>
-                            </div>
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-blue-400 uppercase font-bold block">Candidata</span>
+                            <span className="text-base font-bold text-blue-900">{meta.nome || '-'}</span>
                           </div>
-                        ))}
+                          <Icon name="User" className="w-8 h-8 text-blue-200" />
+                        </div>
+                        <div className="flex items-center justify-between gap-4 p-4 bg-bg-tertiary rounded animate-in slide-in-from-bottom-2 duration-300">
+                          <div className="flex flex-col items-center flex-1">
+                            <span className="text-[10px] uppercase text-text-tertiary mb-1">Status Anterior</span>
+                            <span className="text-xs font-medium text-text-secondary px-3 py-1 bg-border-secondary rounded-full line-through opacity-60">
+                              {meta.status_anterior || '-'}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <Icon name="ArrowRight" className="w-5 h-5 text-blue-500 animate-pulse" />
+                          </div>
+                          <div className="flex flex-col items-center flex-1">
+                            <span className="text-[10px] uppercase text-text-tertiary mb-1">Novo Status</span>
+                            <span className="text-xs font-bold text-blue-600 px-3 py-1 bg-blue-100 border border-blue-200 rounded-full">
+                              {meta.novo_status || '-'}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-text-tertiary italic text-center">Ação de arrastar e soltar card</p>
                       </div>
                     );
-                  })()}
-                </div>
-                <div className="px-6 py-4 bg-bg-tertiary border-t border-border-secondary flex justify-end">
-                  <button 
-                    onClick={() => setShowActiveUsersModal(false)}
-                    className="px-4 py-2 bg-accent-primary text-text-on-accent rounded-md text-sm font-medium hover:bg-accent-primary/90 transition-all"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+                  }
 
-          {/* Modal: Detalhamento da Ação */}
-          {selectedLogDetail && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-bg-secondary border border-border-primary rounded-xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="px-6 py-4 border-b border-border-secondary flex items-center justify-between bg-bg-tertiary">
-                  <div className="flex items-center gap-2">
-                    {getActionIcon(selectedLogDetail.action_code)}
-                    <h3 className="text-lg font-bold text-text-primary">
-                      {selectedLogDetail.actions?.action_name || getActionName(selectedLogDetail.action_code)}
-                    </h3>
-                  </div>
-                  <button 
-                    onClick={() => setSelectedLogDetail(null)}
-                    className="p-1 hover:bg-bg-tertiary rounded-full transition-colors"
-                  >
-                    <Icon name="x" className="w-5 h-5 text-text-secondary" />
-                  </button>
-                </div>
-                
-                <div className="p-6 space-y-6">
-                  {/* Header Info */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
-                      <span className="text-[10px] text-text-tertiary uppercase font-bold block mb-1">Usuário</span>
-                      <p className="text-sm font-semibold text-text-primary truncate">{selectedLogDetail.user_identifier}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
-                      <span className="text-[10px] text-text-tertiary uppercase font-bold block mb-1">Horário</span>
-                      <p className="text-sm font-semibold text-text-primary">
-                        {new Date(selectedLogDetail.created_at).toLocaleDateString('pt-BR')} {new Date(selectedLogDetail.created_at).toLocaleTimeString('pt-BR')}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Specific Content Parsing */}
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-bold text-text-tertiary uppercase tracking-wider">Detalhes da Execução</h4>
-                    {(() => {
-                      const meta = selectedLogDetail.metadata || {};
-                      
-                      // Caso: Recrutadora
-                      if (selectedLogDetail.action_code === 'update_recrutadora') {
-                        return (
-                          <div className="space-y-3">
-                            <div className="p-4 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-between">
-                              <div>
-                                <span className="text-[10px] text-blue-400 uppercase font-bold block">Candidata</span>
-                                <span className="text-base font-bold text-blue-900">{meta.nome || '-'}</span>
-                              </div>
-                              <Icon name="User" className="w-8 h-8 text-blue-200" />
-                            </div>
-                            <div className="flex items-center justify-between gap-4 p-4 bg-bg-tertiary rounded animate-in slide-in-from-bottom-2 duration-300">
-                               <div className="flex flex-col items-center flex-1">
-                                 <span className="text-[10px] uppercase text-text-tertiary mb-1">Status Anterior</span>
-                                 <span className="text-xs font-medium text-text-secondary px-3 py-1 bg-border-secondary rounded-full line-through opacity-60">
-                                   {meta.status_anterior || '-'}
-                                 </span>
-                               </div>
-                               <div className="flex flex-col items-center">
-                                 <Icon name="ArrowRight" className="w-5 h-5 text-blue-500 animate-pulse" />
-                               </div>
-                               <div className="flex flex-col items-center flex-1">
-                                 <span className="text-[10px] uppercase text-text-tertiary mb-1">Novo Status</span>
-                                 <span className="text-xs font-bold text-blue-600 px-3 py-1 bg-blue-100 border border-blue-200 rounded-full">
-                                   {meta.novo_status || '-'}
-                                 </span>
-                               </div>
-                            </div>
-                            <p className="text-[10px] text-text-tertiary italic text-center">Ação de arrastar e soltar card</p>
+                  // Caso: Edição de Registro
+                  if (selectedLogDetail.action_code === 'update_atend' || selectedLogDetail.action_code === 'update_posvendas') {
+                    const fields = meta.fields_updated ? meta.fields_updated.split(',') : [];
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                          <div className="flex items-center gap-2">
+                            <Icon name="Hash" className="w-4 h-4 text-text-tertiary" />
+                            <span className="text-sm font-semibold text-text-secondary">ID do Atendimento:</span>
                           </div>
-                        );
-                      }
-                      
-                      // Caso: Edição de Registro
-                      if (selectedLogDetail.action_code === 'update_atend' || selectedLogDetail.action_code === 'update_posvendas') {
-                         const fields = meta.fields_updated ? meta.fields_updated.split(',') : [];
-                         return (
-                           <div className="space-y-3">
-                             <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
-                               <div className="flex items-center gap-2">
-                                 <Icon name="Hash" className="w-4 h-4 text-text-tertiary" />
-                                 <span className="text-sm font-semibold text-text-secondary">ID do Atendimento:</span>
-                               </div>
-                               <span className="text-sm font-mono font-bold text-accent-primary border border-accent-primary/20 bg-accent-primary/5 px-2 py-0.5 rounded">
-                                 {selectedLogDetail.atend_id || meta.atend_id || '-'}
-                               </span>
-                             </div>
-                             <div className="p-4 bg-bg-tertiary rounded border border-border-secondary">
-                               <span className="text-xs font-semibold text-text-secondary block mb-3">Colunas Modificadas:</span>
-                               <div className="flex flex-wrap gap-2">
-                                 {fields.length > 0 ? fields.map((f: string) => (
-                                   <div key={f} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-border-secondary rounded shadow-sm">
-                                     <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                                     <span className="text-[10px] text-text-primary uppercase font-bold truncate max-w-[120px]">
-                                       {f.replace(/_/g, ' ')}
-                                     </span>
-                                   </div>
-                                 )) : <span className="text-xs italic text-text-tertiary">Informação de campos não disponível</span>}
-                               </div>
-                             </div>
-                           </div>
-                         );
-                      }
-
-                      // Caso: Envio de Webhook/Notificação
-                      if (selectedLogDetail.action_code === 'notify_client' || selectedLogDetail.action_code === 'recrutadora_envio') {
-                        return (
-                          <div className="space-y-3">
-                            <div className="p-4 rounded-lg bg-green-50 border border-green-100 flex items-center justify-between">
-                              <div>
-                                <span className="text-[10px] text-green-400 uppercase font-bold block">Destinatário</span>
-                                <span className="text-base font-bold text-green-900">{meta.nome || '-'}</span>
-                              </div>
-                              <Icon name="Send" className="w-8 h-8 text-green-200" />
-                            </div>
-                            <div className="p-3 bg-bg-tertiary rounded border border-border-secondary flex items-center justify-between">
-                              <span className="text-sm font-medium text-text-secondary">WhatsApp:</span>
-                              <span className="text-sm font-mono text-text-primary">{meta.whatsapp || meta.telefone || '-'}</span>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      // Default: mostrar JSON formatado
-                      return (
-                        <div className="bg-bg-tertiary p-4 rounded-md border border-border-secondary overflow-auto max-h-64 scrollbar-thin">
-                          <pre className="text-[11px] font-mono text-text-secondary leading-relaxed">
-                            {JSON.stringify(meta, null, 2)}
-                          </pre>
+                          <span className="text-sm font-mono font-bold text-accent-primary border border-accent-primary/20 bg-accent-primary/5 px-2 py-0.5 rounded">
+                            {selectedLogDetail.atend_id || meta.atend_id || '-'}
+                          </span>
                         </div>
-                      );
-                    })()}
-                  </div>
+                        <div className="p-4 bg-bg-tertiary rounded border border-border-secondary">
+                          <span className="text-xs font-semibold text-text-secondary block mb-3">Colunas Modificadas:</span>
+                          <div className="flex flex-wrap gap-2">
+                            {fields.length > 0 ? fields.map((f: string) => (
+                              <div key={f} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-border-secondary rounded shadow-sm">
+                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                <span className="text-[10px] text-text-primary uppercase font-bold truncate max-w-[120px]">
+                                  {f.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                            )) : <span className="text-xs italic text-text-tertiary">Informação de campos não disponível</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
 
-                  {/* Status & Technical info */}
-                  <div className="pt-4 border-t border-border-secondary flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-text-tertiary uppercase font-bold">Status:</span>
-                      <StatusBadge status={selectedLogDetail.status} />
+                  // Caso: Envio de Webhook/Notificação
+                  if (selectedLogDetail.action_code === 'notify_client' || selectedLogDetail.action_code === 'recrutadora_envio') {
+                    return (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-lg bg-green-50 border border-green-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-green-400 uppercase font-bold block">Destinatário</span>
+                            <span className="text-base font-bold text-green-900">{meta.nome || '-'}</span>
+                          </div>
+                          <Icon name="Send" className="w-8 h-8 text-green-200" />
+                        </div>
+                        <div className="p-3 bg-bg-tertiary rounded border border-border-secondary flex items-center justify-between">
+                          <span className="text-sm font-medium text-text-secondary">WhatsApp:</span>
+                          <span className="text-sm font-mono text-text-primary">{meta.whatsapp || meta.telefone || '-'}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Default: mostrar JSON formatado
+                  return (
+                    <div className="bg-bg-tertiary p-4 rounded-md border border-border-secondary overflow-auto max-h-64 scrollbar-thin">
+                      <pre className="text-[11px] font-mono text-text-secondary leading-relaxed">
+                        {JSON.stringify(meta, null, 2)}
+                      </pre>
                     </div>
-                    <span className="text-[10px] font-mono text-text-tertiary">#ID {String(selectedLogDetail.id).slice(0, 8)}</span>
-                  </div>
-                </div>
+                  );
+                })()}
+              </div>
 
-                <div className="px-6 py-4 bg-bg-tertiary border-t border-border-secondary flex justify-end">
-                  <button 
-                    onClick={() => setSelectedLogDetail(null)}
-                    className="px-4 py-2 bg-accent-primary text-text-on-accent rounded-md text-sm font-medium hover:bg-accent-primary/90 transition-all shadow-md"
-                  >
-                    Concluído
-                  </button>
+              {/* Status & Technical info */}
+              <div className="pt-4 border-t border-border-secondary flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-text-tertiary uppercase font-bold">Status:</span>
+                  <StatusBadge status={selectedLogDetail.status} />
                 </div>
+                <span className="text-[10px] font-mono text-text-tertiary">#ID {String(selectedLogDetail.id).slice(0, 8)}</span>
               </div>
             </div>
-          )}
+
+            <div className="px-6 py-4 bg-bg-tertiary border-t border-border-secondary flex justify-end">
+              <button
+                onClick={() => setSelectedLogDetail(null)}
+                className="px-4 py-2 bg-accent-primary text-text-on-accent rounded-md text-sm font-medium hover:bg-accent-primary/90 transition-all shadow-md"
+              >
+                Concluído
+              </button>
+            </div>
+          </div>
         </div>
-      );
+      )}
+    </div>
+  );
 };
 
 export default DashboardSistemaPage;

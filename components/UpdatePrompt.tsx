@@ -84,15 +84,46 @@ export const UpdatePrompt = () => {
     try {
       console.log('[UpdatePrompt] Registrando atualização...');
 
-      // Registra que usuário atualizou
+      // 1. Registra que usuário atualizou no banco de dados
       await recordUserUpdate(profile.id, version.id!, false);
 
-      console.log('[UpdatePrompt] Atualização registrada, recarregando página...');
+      console.log('[UpdatePrompt] Limpando caches do navegador...');
 
-      // Recarrega página para aplicar nova versão
-      window.location.reload();
+      // 2. Limpa todos os caches de Service Worker registrados
+      if ('caches' in window) {
+        try {
+          const cacheNames = await caches.keys();
+          await Promise.all(
+            cacheNames.map(cacheName => caches.delete(cacheName))
+          );
+          console.log('[UpdatePrompt] Caches removidos com sucesso');
+        } catch (cacheError) {
+          console.error('[UpdatePrompt] Erro ao limpar caches:', cacheError);
+        }
+      }
+
+      // 3. Remove Service Workers ativos para forçar a nova versão
+      if ('serviceWorker' in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const registration of registrations) {
+            await registration.unregister();
+          }
+          console.log('[UpdatePrompt] Service Workers removidos');
+        } catch (swError) {
+          console.error('[UpdatePrompt] Erro ao remover service workers:', swError);
+        }
+      }
+
+      console.log('[UpdatePrompt] Recarregando página para aplicar nova versão...');
+
+      // 4. Força o recarregamento total da página
+      // Usar href = href força um "hard reload" em alguns navegadores mais que o reload()
+      window.location.href = window.location.href;
     } catch (error) {
-      console.error('[UpdatePrompt] Erro ao registrar atualização:', error);
+      console.error('[UpdatePrompt] Erro geral no processo de atualização:', error);
+      // Fallback: recarrega de qualquer forma se algo falhar no registro
+      window.location.reload();
     }
   };
 

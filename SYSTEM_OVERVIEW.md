@@ -6,7 +6,7 @@ Este documento descreve a arquitetura e a configuração atual da aplicação Dr
 
 A aplicação está organizada da seguinte forma:
 
-- **`/index.html`**: Ponto de entrada da aplicação. Configura o `importmap` para as bibliotecas (React, Supabase, SheetJS) e o Tailwind CSS.
+- **`/index.html`**: Ponto de entrada da aplicação. Serve como container para a aplicação SPA e gerencia metadados, PWA e CSP. O build e bundling são gerenciados pelo Vite.
 - **`/index.tsx`**: Monta a aplicação React no elemento `#root` do HTML.
 - **`/App.tsx`**: Componente raiz que gerencia o fluxo de autenticação, decidindo se renderiza a `LoginPage` ou a `DashboardPage`.
 - **`/types.ts`**: Arquivo central que define todas as interfaces e tipos de dados TypeScript usados na aplicação (User, Unit, Module, DataRecord, etc.).

@@ -1,10 +1,76 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  
-  # Redireciona tudo para o index.html se não for um arquivo real
+
+  # Redireciona tudo para o index.html se não for um arquivo real (SPA routing)
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
+
+# ─── Brotli: serve arquivos .br pré-comprimidos ───────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteCond %{HTTP:Accept-Encoding} br
+  RewriteCond %{REQUEST_FILENAME}\.br -f
+  RewriteRule ^(.*)$ $1.br [L]
+</IfModule>
+
+<FilesMatch "\.js\.br$">
+  ForceType application/javascript
+  Header set Content-Encoding br
+  Header append Vary Accept-Encoding
+</FilesMatch>
+
+<FilesMatch "\.css\.br$">
+  ForceType text/css
+  Header set Content-Encoding br
+  Header append Vary Accept-Encoding
+</FilesMatch>
+
+# ─── Gzip: serve arquivos .gz como fallback ───────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteCond %{HTTP:Accept-Encoding} gzip
+  RewriteCond %{REQUEST_FILENAME}\.gz -f
+  RewriteRule ^(.*)$ $1.gz [L]
+</IfModule>
+
+<FilesMatch "\.js\.gz$">
+  ForceType application/javascript
+  Header set Content-Encoding gzip
+  Header append Vary Accept-Encoding
+</FilesMatch>
+
+<FilesMatch "\.css\.gz$">
+  ForceType text/css
+  Header set Content-Encoding gzip
+  Header append Vary Accept-Encoding
+</FilesMatch>
+
+# ─── Cache de longa duração para assets com hash ──────────────────────────────
+<IfModule mod_expires.c>
+  ExpiresActive On
+
+  # Assets com hash no nome (imutáveis)
+  <FilesMatch "\.[0-9a-f]{8,}\.(js|css|woff2|png|jpg|svg|webp)$">
+    ExpiresDefault "access plus 1 year"
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # HTML e manifest — sempre revalidar
+  <FilesMatch "\.(html|webmanifest)$">
+    ExpiresDefault "access plus 0 seconds"
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # Service Worker — sempre revalidar
+  <FilesMatch "^(sw|registerSW)\.js$">
+    ExpiresDefault "access plus 0 seconds"
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+# ─── Segurança básica ─────────────────────────────────────────────────────────
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "SAMEORIGIN"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"

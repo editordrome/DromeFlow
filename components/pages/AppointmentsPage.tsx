@@ -109,7 +109,7 @@ const AppointmentsPage: React.FC = () => {
       // Payload simplificado - apenas metadados
       const payload = {
         DATA: activeDate,
-        unitId: selectedUnit.id,
+        unit_id: selectedUnit.id,
         keyword: keyword || 'atendimento',
         usuario_email: profile?.email || null,
         unidade_code: unidadeCode,

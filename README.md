@@ -483,7 +483,7 @@ services/
 │   └── prestadoras.service.ts
 ├── data/                       # Dados de atendimentos
 │   ├── dataTable.service.ts
-│   └── agendamentos.service.ts
+│   └── clientHistory.service.ts
 ├── ingestion/                  # Upload e processamento
 │   └── upload.service.ts
 ├── profissionais/

@@ -376,7 +376,7 @@ Assets estáticos: Pré-cache automático
 
 ### Arquivos PWA
 - `vite.config.ts` - Configuração VitePWA completa
-- `/public/pwa-192x192.png` e `/public/pwa-512x512.png` - Ícones
+- `/public/android-chrome-192x192.png` e `/public/android-chrome-512x512.png` - Ícones PWA
 - Service Worker gerado automaticamente no build
 
 ### ⚠️ Desenvolvimento

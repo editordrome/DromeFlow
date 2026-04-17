@@ -35,7 +35,7 @@ Páginas (lazy loaded):       ~10-50KB cada (com .br/.gz)
 ## 🗂️ Estrutura de Diretórios
 
 ```
-sidebar-drome-6/
+DromeFlow/
 ├── .github/                        # Configurações GitHub
 │   └── copilot-instructions.md    # Instruções para IA
 │
@@ -252,7 +252,6 @@ sidebar-drome-6/
 ├── .env.local                      # Variáveis locais (não commitado)
 ├── .gitignore
 ├── App.tsx                         # Componente raiz da aplicação
-├── debug-comercial.ts              # Script de debug
 ├── DEPLOY_GUIDE.md
 ├── index.html                      # HTML raiz
 ├── index.tsx                       # Entry point React
