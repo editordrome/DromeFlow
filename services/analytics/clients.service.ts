@@ -34,11 +34,11 @@ export const fetchClients = async ({
 
   // Busca dados de contato da tabela unit_clients para enriquecimento
   const unitsRes = await supabase.from('units').select('id').eq('unit_code', unitCode).maybeSingle();
-  let contactMap = new Map<string, string>();
+  let contactMap = new Map<string, any>();
   if (!unitsRes.error && unitsRes.data?.id) {
     const clientsRes = await supabase
       .from('unit_clients')
-      .select('nome, contato')
+      .select('nome, contato, is_verified')
       .eq('unit_id', unitsRes.data.id);
     if (!clientsRes.error && clientsRes.data) {
       const normalize = (value: string | null | undefined) => {
@@ -55,7 +55,7 @@ export const fetchClients = async ({
       };
       clientsRes.data.forEach((c: any) => {
         const key = normalize(c.nome);
-        if (key && c.contato) contactMap.set(key, c.contato);
+        if (key) contactMap.set(key, { contato: c.contato, is_verified: c.is_verified });
       });
     }
   }
@@ -63,19 +63,19 @@ export const fetchClients = async ({
   const [currentRes, prevRes, prev2Res] = await Promise.all([
     supabase
       .from('processed_data')
-      .select('CLIENTE, TIPO, DATA, ACAO')
+      .select('CLIENTE, TIPO, DATA, ACAO, whatscliente')
       .eq('unidade_code', unitCode)
       .gte('DATA', startDate)
       .lte('DATA', endDate),
     supabase
       .from('processed_data')
-      .select('CLIENTE, TIPO, DATA, ACAO')
+      .select('CLIENTE, TIPO, DATA, ACAO, whatscliente')
       .eq('unidade_code', unitCode)
       .gte('DATA', prevStart)
       .lte('DATA', prevEnd),
     supabase
       .from('processed_data')
-      .select('CLIENTE, TIPO, DATA, ACAO')
+      .select('CLIENTE, TIPO, DATA, ACAO, whatscliente')
       .eq('unidade_code', unitCode)
       .gte('DATA', prev2Start)
       .lte('DATA', prev2End),
@@ -88,6 +88,7 @@ export const fetchClients = async ({
     TIPO?: string | null;
     DATA: string;
     ACAO?: string | null;
+    whatscliente?: string | null;
   }
 
   const currentRows = ((currentRes.data as Row[]) || []).filter(
@@ -128,12 +129,13 @@ export const fetchClients = async ({
     const inPrev = prevSet.has(raw);
     const categoria = inPrev ? 'recorrente' : 'outro';
     const normalizedName = normalize(raw);
-    const contato = contactMap.get(normalizedName) || null;
+    const contactInfo = contactMap.get(normalizedName);
     return {
       id: raw,
       nome: raw.trim() || raw,
       tipo: r.TIPO || null,
-      contato: contato,
+      contato: contactInfo?.contato || r.whatscliente || null,
+      is_verified: contactInfo?.is_verified || false,
       lastAttendance: r.DATA,
       categoria,
     };
@@ -176,12 +178,13 @@ export const fetchClients = async ({
         [currentPeriodKey]: currentCountMap.get(c) || 0,
       };
       const normalizedName = normalize(c);
-      const contato = contactMap.get(normalizedName) || null;
+      const contactInfo = contactMap.get(normalizedName);
       return {
         id: c,
         nome: c.trim() || c,
         tipo: row?.TIPO || null,
-        contato: contato,
+        contato: contactInfo?.contato || row?.whatscliente || null,
+        is_verified: contactInfo?.is_verified || false,
         lastAttendance: row?.DATA || null,
         acao: row?.ACAO || null,
         categoria: 'atencao',
@@ -334,7 +337,7 @@ export const fetchAllUnitClientsWithHistory = async ({
     (() => {
       let query = supabase
         .from('unit_clients')
-        .select('id, nome, tipo, contato')
+        .select('id, nome, tipo, contato, is_verified')
         .eq('unit_id', unitId)
         .order('nome', { ascending: true });
       if (filtersSearch) query = query.ilike('nome', `%${filtersSearch}%`);
@@ -342,7 +345,7 @@ export const fetchAllUnitClientsWithHistory = async ({
     })(),
     supabase
       .from('processed_data')
-      .select('CLIENTE, DATA')
+      .select('CLIENTE, DATA, whatscliente')
       .eq('unidade_code', unitCode)
       .order('DATA', { ascending: false }),
   ]);
@@ -368,21 +371,29 @@ export const fetchAllUnitClientsWithHistory = async ({
   };
 
   const lastAttendanceMap = new Map<string, string>();
+  const fallbackContactMap = new Map<string, string>();
   ((historyRes.data as any[]) || []).forEach((row) => {
     const key = normalize(row.CLIENTE);
     if (!key) return;
     if (!lastAttendanceMap.has(key)) {
       lastAttendanceMap.set(key, row.DATA ?? null);
     }
+    if (!fallbackContactMap.has(key) && row.whatscliente) {
+      fallbackContactMap.set(key, row.whatscliente);
+    }
   });
 
-  const list = ((baseRes.data as any[]) || []).map((row) => ({
-    id: row.id,
-    nome: row.nome,
-    tipo: row.tipo ?? null,
-    contato: row.contato ?? null,
-    lastAttendance: lastAttendanceMap.get(normalize(row.nome)) ?? null,
-  }));
+  const list = ((baseRes.data as any[]) || []).map((row) => {
+    const normalized = normalize(row.nome);
+    return {
+      id: row.id,
+      nome: row.nome,
+      tipo: row.tipo ?? null,
+      contato: row.contato || fallbackContactMap.get(normalized) || null,
+      is_verified: row.is_verified ?? false,
+      lastAttendance: lastAttendanceMap.get(normalized) ?? null,
+    };
+  });
 
   return list;
 };
@@ -552,7 +563,7 @@ export const fetchAvailableYears = async (unitCode: string): Promise<number[]> =
 
     // Converte para array e ordena decrescente
     const years = Array.from(yearsSet).sort((a, b) => b - a);
-    
+
     // Se não encontrou nenhum ano válido, retorna ano atual
     return years.length > 0 ? years : [new Date().getFullYear()];
   } catch (error) {
@@ -568,4 +579,4 @@ export const fetchAvailableYears = async (unitCode: string): Promise<number[]> =
 
 // TODO: migrar funções: fetchClients, fetchClientMetrics, fetchClientMetricsFromProcessed, fetchClientAnalysisData
 
-export {};
+export { };

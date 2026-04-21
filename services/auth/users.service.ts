@@ -64,13 +64,13 @@ const updateUserAssignments = async (userId: string, unitIds: string[], moduleId
 	console.log('[updateUserAssignments] userId:', userId);
 	console.log('[updateUserAssignments] unitIds:', unitIds);
 	console.log('[updateUserAssignments] moduleIds:', moduleIds);
-	
+
 	// Deletar atribuições antigas
 	const [unitsDeleteResult, modulesDeleteResult] = await Promise.all([
 		supabase.from('user_units').delete().eq('user_id', userId),
 		supabase.from('user_modules').delete().eq('user_id', userId),
 	]);
-	
+
 	if (unitsDeleteResult.error) {
 		console.error('[updateUserAssignments] Erro ao deletar user_units:', unitsDeleteResult.error);
 		throw unitsDeleteResult.error;
@@ -79,7 +79,7 @@ const updateUserAssignments = async (userId: string, unitIds: string[], moduleId
 		console.error('[updateUserAssignments] Erro ao deletar user_modules:', modulesDeleteResult.error);
 		throw modulesDeleteResult.error;
 	}
-	
+
 	console.log('[updateUserAssignments] Atribuições antigas deletadas com sucesso');
 
 	// Inserir novas atribuições de unidades
@@ -93,7 +93,7 @@ const updateUserAssignments = async (userId: string, unitIds: string[], moduleId
 		}
 		console.log('[updateUserAssignments] user_units inseridos com sucesso');
 	}
-	
+
 	// Inserir novas atribuições de módulos
 	if (moduleIds.length > 0) {
 		const moduleAssignments = moduleIds.map((module_id) => ({ user_id: userId, module_id }));
@@ -171,7 +171,7 @@ export const deleteUser = async (userId: string): Promise<void> => {
 
 export const removeUserFromUnit = async (userId: string, unitId: string, callerId: string): Promise<void> => {
 	const { error } = await supabase.rpc('remove_user_from_unit', { p_caller_id: callerId, p_user_id: userId, p_unit_id: unitId });
-    if (error) throw error;
+	if (error) throw error;
 };
 
 export const fetchUsersForUnit = async (
@@ -200,40 +200,44 @@ export const fetchUsersForUnit = async (
 	}));
 };
 
-	// Unidades vinculadas a um usuário (RPC com fallback)
-	export const fetchUserUnits = async (userId: string): Promise<Unit[]> => {
-		try {
-			const { data, error } = await supabase.rpc('get_user_units', { p_user_id: userId });
-			if (error) throw error;
-			return (data as Unit[]) || [];
-		} catch (rpcErr) {
-			console.warn('[fetchUserUnits] Falha RPC get_user_units, aplicando fallback manual:', rpcErr);
-			const { data: linkData, error: linkError } = await supabase
-				.from('user_units')
-				.select('unit_id')
-				.eq('user_id', userId);
-			if (linkError) {
-				console.error('[fetchUserUnits] Erro fallback user_units:', linkError);
-				return [];
-			}
-			const unitIds = (linkData || []).map((r: any) => r.unit_id);
-			if (unitIds.length === 0) return [];
-			const { data: unitsData, error: unitsError } = await supabase
-				.from('units')
-				.select('*')
-				.in('id', unitIds);
-			if (unitsError) {
-				console.error('[fetchUserUnits] Erro buscando units no fallback:', unitsError);
-				return [];
-			}
-			return (unitsData as Unit[]) || [];
-		}
-	};
-
-	// Módulos vinculados a um usuário via RPC (mantido aqui para simetria, apesar de AuthContext ter lógica própria)
-	export const fetchUserModules = async (userId: string): Promise<Module[]> => {
-		const { data, error } = await supabase.rpc('get_user_modules', { p_user_id: userId });
+// Unidades vinculadas a um usuário (RPC com fallback)
+export const fetchUserUnits = async (userId: string): Promise<Unit[]> => {
+	try {
+		const { data, error } = await supabase.rpc('get_user_units', { p_user_id: userId });
 		if (error) throw error;
-		return (data as Module[]) || [];
-	};
+		console.log('[fetchUserUnits] RPC retornou:', data);
+		console.log('[fetchUserUnits] Primeira unidade do RPC tem is_active?', data?.[0]?.is_active);
+		return (data as Unit[]) || [];
+	} catch (rpcErr) {
+		console.warn('[fetchUserUnits] Falha RPC get_user_units, aplicando fallback manual:', rpcErr);
+		const { data: linkData, error: linkError } = await supabase
+			.from('user_units')
+			.select('unit_id')
+			.eq('user_id', userId);
+		if (linkError) {
+			console.error('[fetchUserUnits] Erro fallback user_units:', linkError);
+			return [];
+		}
+		const unitIds = (linkData || []).map((r: any) => r.unit_id);
+		if (unitIds.length === 0) return [];
+		const { data: unitsData, error: unitsError } = await supabase
+			.from('units')
+			.select('*')
+			.in('id', unitIds);
+		if (unitsError) {
+			console.error('[fetchUserUnits] Erro buscando units no fallback:', unitsError);
+			return [];
+		}
+		console.log('[fetchUserUnits] Fallback retornou:', unitsData);
+		console.log('[fetchUserUnits] Primeira unidade do fallback tem is_active?', unitsData?.[0]?.is_active);
+		return (unitsData as Unit[]) || [];
+	}
+};
+
+// Módulos vinculados a um usuário via RPC (mantido aqui para simetria, apesar de AuthContext ter lógica própria)
+export const fetchUserModules = async (userId: string): Promise<Module[]> => {
+	const { data, error } = await supabase.rpc('get_user_modules', { p_user_id: userId });
+	if (error) throw error;
+	return (data as Module[]) || [];
+};
 

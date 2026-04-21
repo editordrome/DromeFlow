@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { activityLogger } from '../services/utils/activityLogger.service';
 import { User, Profile, Module, Unit } from '../types';
 import { fetchUnitModuleIds } from '../services/units/unitModules.service';
 
@@ -109,18 +110,49 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Carrega unidades do usuário (não centralizado antes). Para super_admin mantemos comportamento atual: nenhuma unidade listada.
+  // Carrega unidades do usuário. Para super_admin, agora carrega TODAS as unidades ativas para permitir a "Visão Admin".
   const fetchUnitsForUser = async (profile: Profile) => {
     if (profile.role === 'super_admin') {
-      setUserUnits([]);
+      try {
+        const { data, error } = await supabase
+          .from('units')
+          .select('*')
+          .eq('is_active', true)
+          .order('unit_name');
+
+        if (error) throw error;
+
+        const mappedUnits: Unit[] = (data || []).map(u => ({
+          id: u.id,
+          unit_name: u.unit_name,
+          unit_code: u.unit_code,
+          slug: u.slug || '',
+          razao_social: u.razao_social,
+          cnpj: u.cnpj,
+          endereco: u.endereco,
+          responsavel: u.responsavel,
+          contato: u.contato,
+          email: u.email,
+          uniform_value: u.uniform_value,
+          is_active: u.is_active,
+          created_at: u.created_at
+        }));
+
+        setUserUnits(mappedUnits);
+      } catch (err) {
+        console.error('[AuthContext] Erro ao carregar todas as unidades para super_admin:', err);
+        setUserUnits([]);
+      }
       return;
     }
     try {
-  // Usa serviço segmentado com fallback (RPC get_user_units -> fallback join manual)
-  const { fetchUserUnits } = await import('../services/auth/users.service');
+      // Usa serviço segmentado com fallback (RPC get_user_units -> fallback join manual)
+      const { fetchUserUnits } = await import('../services/auth/users.service');
       const units = await fetchUserUnits(profile.id as string);
+      console.log('[AuthContext] Units retornadas de fetchUserUnits:', units);
+      console.log('[AuthContext] Primeira unidade tem is_active?', units[0]?.is_active);
       // Ordena por nome para consistência
-      const ordered = [...units].sort((a,b)=> a.unit_name.localeCompare(b.unit_name));
+      const ordered = [...units].sort((a, b) => a.unit_name.localeCompare(b.unit_name));
       setUserUnits(ordered);
     } catch (err) {
       console.error('Erro ao carregar unidades do usuário:', err);
@@ -150,6 +182,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
+      // 0. Para SUPER_ADMIN: se houver unitId e não for 'ALL', retorna os módulos daquela unidade (Modo Admin View)
+      // Se não houver unitId ou for ALL, o comportamento padrão já retorna userModules (módulos de sistema)
+      if (profile.role === 'super_admin') {
+        if (!unitId || unitId === 'ALL') {
+          return userModules;
+        }
+
+        const unitModuleIds = await fetchUnitModuleIds(unitId);
+        if (unitModuleIds.length === 0) return [];
+
+        const { data: superAdminUnitModules, error } = await supabase
+          .from('modules')
+          .select('*')
+          .in('id', unitModuleIds)
+          .eq('is_active', true);
+
+        if (error) {
+          console.error('[AuthContext] Erro ao buscar módulos da unidade (super_admin view):', error);
+          return userModules;
+        }
+
+        const list = (superAdminUnitModules || []) as Module[];
+        return list.sort((a, b) => {
+          const posA = a.position ?? 0;
+          const posB = b.position ?? 0;
+          if (posA !== posB) return posA - posB;
+          return a.name.localeCompare(b.name);
+        });
+      }
+
       // 1. Busca módulos atribuídos à unidade
       const unitModuleIds = await fetchUnitModuleIds(unitId);
 
@@ -246,9 +308,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       fetchUserModules(data),
       fetchUnitsForUser(data)
     ]);
+
+    // Registrar login no activity_logs
+    const unitCode = data.units?.[0]?.code || null;
+    activityLogger.logLogin(data.email || data.name, unitCode, data.role);
   };
 
   const logout = () => {
+    // Registrar logout antes de limpar o estado
+    if (profile) {
+      const unitCode = profile.units?.[0]?.code || null;
+      activityLogger.logLogout(profile.email || profile.full_name, unitCode);
+    }
+
     setUser(null);
     setProfile(null);
     setUserModules([]);
@@ -259,7 +331,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.removeItem('df_selected_unit_id');
       localStorage.removeItem('df_active_view');
       localStorage.removeItem('df_active_module_id');
-    } catch {}
+    } catch { }
   };
 
   const value = {

@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import viteCompression from 'vite-plugin-compression';
 import { VitePWA } from 'vite-plugin-pwa';
 // Fix: Import fileURLToPath to resolve __dirname in an ES module context.
@@ -12,32 +13,34 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
+      base: './',
       plugins: [
         react(),
+        tailwindcss(),
         // PWA with Service Worker
         VitePWA({
           registerType: 'autoUpdate',
-          includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+          includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'android-chrome-192x192.png', 'android-chrome-512x512.png'],
           manifest: {
             name: 'DromeFlow',
             short_name: 'DromeFlow',
             description: 'Sistema de gestão DromeFlow',
             theme_color: '#010d32',
-            background_color: '#ffffff',
+            background_color: '#010d32',
             display: 'standalone',
             icons: [
               {
-                src: 'pwa-192x192.png',
+                src: '/android-chrome-192x192.png',
                 sizes: '192x192',
                 type: 'image/png'
               },
               {
-                src: 'pwa-512x512.png',
+                src: '/android-chrome-512x512.png',
                 sizes: '512x512',
                 type: 'image/png'
               },
               {
-                src: 'pwa-512x512.png',
+                src: '/android-chrome-512x512.png',
                 sizes: '512x512',
                 type: 'image/png',
                 purpose: 'any maskable'

@@ -1,19 +1,27 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
 ## DromeFlow
 
-Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend (PostgreSQL + Realtime + Auth) e Tailwind para estilização. Inclui:
+> **Repositório Oficial:** [editordrome/DromeFlow](https://github.com/editordrome/DromeFlow)
+
+Aplicação de gestão e análise construída em React (Vite + TypeScript) com Supabase como backend (PostgreSQL + Realtime + Custom Auth via tabelas) e Tailwind para estilização. Inclui:
 
 **Stack Tecnológica:**
 - **Frontend**: React 18 + TypeScript + Vite
 - **Backend**: Supabase (PostgreSQL, Realtime, Row Level Security)
 - **UI/UX**: Tailwind CSS + Lucide Icons
 - **Gestão de Estado**: React Context API
+- **PWA**: Instalável com Service Worker e cache estratégico
 - **Deploy**: Hostinger + Cloudflare (CDN/DNS apenas)
 
-**Nota**: Sistema 100% Supabase - toda persistência de dados, storage e autenticação ocorrem no Supabase. Cloudflare é usado apenas como CDN/DNS/Proxy, não para storage (R2/D1 foram removidos).
+- ✅ **Comercial Admin (Produção Hub)**: Novo fluxo de gestão de implantação com checklist, status de produção e automação Umbler.
+- ✅ **Onboarding Wizard**: Fluxo externo de captura de leads com integração direta InfinitePay.
+- ✅ **N8N API Integration**: Visualização real de execuções, status e duração via API.
+- ✅ **Sidebar Super Admin**: Novo modo de visualização (Sistema vs Unidades) com seletor de unidade.
+- ✅ **Toggle Sidebar Invisível**: Botão de recolher transparente na área da logo.
+- ✅ **Gestão de Usuários Unificada**: Movida para Settings → aba Usuários.
+- ✅ **Download de Relatórios (Clientes)**: Exportação dinâmica em PDF, Excel e CSV baseada em filtros e métricas.
+- ✅ **Correção de Erro 406**: Estabilização do salvamento de versões da aplicação.
+
+**Nota**: Sistema 100% Supabase - toda persistência de dados e storage ocorrem no Supabase. A autenticação é customizada via tabelas PostgreSQL (em vez do supabase.auth). Cloudflare é usado apenas como CDN/DNS/Proxy.
 
 ## Configuração por Unidade (Keys)
 
@@ -48,11 +56,13 @@ Requisitos de backend:
 ### Realtime
 Os seguintes módulos implementam atualizações em tempo real via Supabase Realtime. Mudanças feitas por qualquer usuário são refletidas instantaneamente para todos os visualizadores:
 
+- ✅ **Comercial Admin**: Completo - gestão de implantação com webhook `umbler-org`.
 - ✅ **Pós-Vendas**: Completo - sincronização bidirecional com `processed_data`
 - ✅ **Agendamentos**: Completo - atualização automática da tabela de agendamentos
 - ✅ **Dashboard/Métricas**: Completo - recalculo automático de métricas
+- ✅ **Dashboard Sistema**: Completo - logs de atividade em tempo real
 
-**Status**: ✅ Implementado e funcionando. Para detalhes técnicos, consulte [`docs/REALTIME_STATUS.md`](docs/REALTIME_STATUS.md).
+**Status**: ✅ Implementado e funcionando (Março 2026). Para detalhes técnicos, consulte [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md).
 
 ### Campos Mapeados
 | pos_vendas | ← | processed_data |
@@ -72,14 +82,131 @@ Os seguintes módulos implementam atualizações em tempo real via Supabase Real
 
 ---
 
+## Rastreamento de Acesso a Módulos
+
+### Sistema Automático de Logging
+
+O sistema registra automaticamente cada vez que um usuário acessa um módulo, criando um histórico completo de navegação.
+
+**Implementação:**
+- **Tabela `actions`**: Cada módulo possui uma action específica (`access_module_{código}`)
+- **Trigger automático**: Ao criar/renomear módulo, a action correspondente é criada/atualizada
+- **Logger centralizado**: `services/utils/activityLogger.service.ts`
+- **Captura no Sidebar**: Registro ao clicar em qualquer módulo
+
+**Exemplo de registro:**
+```json
+{
+  "action_code": "access_module_dashboard",
+  "user_identifier": "joao@exemplo.com",
+  "unit_code": "mb_londrina",
+  "status": "success",
+  "metadata": {
+    "module_code": "dashboard",
+    "module_name": "Dashboard"
+  }
+}
+```
+
+**Visualização**: Dashboard Sistema → Aba "Dados" → "Atividades em Tempo Real"
+
+---
+
+## Comercial Admin (Gestão de Produção)
+
+Módulo especializado para transformar leads ganhos em unidades operacionais.
+
+- **Checklist de Produção**: Controle granular de Cadastro, Pagamento, Recrutadora e Umbler.
+- **Integração Umbler**: Botão de disparo 🚀 para provisionamento automatizado via webhook (`umbler-org`).
+- **Cards Dinâmicos**: Badges de status de produção integrados ao Kanban Administrativo.
+- **Sincronização**: Vinculação direta com unidades via `linked_unit_id`.
+
+---
+
+## Onboarding Wizard & InfinitePay
+
+Fluxo externo de captura de leads (`cadastro.dromeflow.com`) altamente otimizado para conversão.
+
+- **Wizard de 4 Etapas**: Seleção de Plano → Dados da Unidade (com busca CNPJ) → Perfil do Admin → Revisão e Pagamento.
+- **InfinitePay Integration**: Geração inteligente de links de cobrança e redirecionamento para o SDK de pagamento seguro.
+- **Notificação em Tempo Real**: Disparo de webhook `onboarding_completed` para o ecossistema N8N assim que o lead é criado.
+- **Segurança**: Persistência imediata no Supabase antes de qualquer redirecionamento externo.
+
+---
+
+## Logs N8N (Webhooks Externos)
+
+### Tabela Dedicada para Workflows
+
+A tabela `n8n_logs` foi criada para receber logs de workflows N8N via webhooks externos, separada de `activity_logs` (que é alimentada pelo frontend).
+
+**Estrutura:**
+- `id`, `unit_code`, `workflow`, `action_code`, `atend_id`, `user_identifier`, `status`, `horario`, `metadata`, `created_at`
+- 7 índices otimizados para consultas por unidade, workflow, status e data
+- RLS configurado: SELECT para authenticated, INSERT para anon/service_role
+
+**Uso em N8N:**
+```javascript
+// POST https://seu-projeto.supabase.co/rest/v1/n8n_logs
+{
+  "unit_code": "mb_londrina",
+  "workflow": "envio_confirmacao_agendamento",
+  "action_code": "envio_atend_client",
+  "status": "success",
+  "metadata": {"channel": "whatsapp", "message": "Enviado"}
+}
+```
+
+**Documentação completa**: [`docs/N8N_LOGS_TABLE.md`](docs/N8N_LOGS_TABLE.md)
+
+### Integração Direta N8N (API)
+
+O sistema agora se conecta diretamente à API do N8N através do `n8n.service.ts` para fornecer métricas reais:
+- **Execuções**: Lista de execuções com status, modo, duração e link direto para o bot.
+- **Workflow Map**: Mapeamento automático de nomes de workflows via API.
+- **Troubleshooting**: Aba dedicada para visualização de erros agrupados.
+
+---
+
+## Upload de Planilhas - Lógica de STATUS
+
+### Regra Inteligente de "esperar"
+
+O sistema aplica automaticamente `STATUS = "esperar"` apenas em casos específicos de múltiplos atendimentos no turno da Tarde.
+
+**Condições para aplicar "esperar":**
+1. ✅ Profissional tem 2+ atendimentos no mesmo dia
+2. ✅ TODOS os atendimentos são no turno "Tarde"
+3. ✅ NENHUM atendimento é no turno "Manhã"
+
+**Preservação do STATUS:**
+- ❌ Mix de turnos (Manhã + Tarde) → STATUS preservado
+- ❌ Apenas Manhã → STATUS preservado
+- ❌ Único atendimento → STATUS preservado
+
+**Exemplo:**
+| Profissional | MOMENTO | STATUS Original | STATUS Final |
+|--------------|---------|----------------|--------------|
+| Maria - Dia 1 | Tarde 14:00 | confirmado | **esperar** ✅ |
+| Maria - Dia 1 | Tarde 16:00 | confirmado | **esperar** ✅ |
+| João - Dia 2 | Manhã 09:00 | confirmado | **confirmado** ❌ |
+| João - Dia 2 | Tarde 14:00 | confirmado | **confirmado** ❌ |
+
+**Documentação completa**: [`docs/UPLOAD_STATUS_LOGIC.md`](docs/UPLOAD_STATUS_LOGIC.md)
+
+---
+
 - Autenticação customizada via tabela `profiles` (MVP – sem `supabase.auth` ainda).  
    Nota: O barrel `services/index.ts` e o arquivo de compatibilidade `services/mockApi.ts` seguem ativos até a Fase 6 de limpeza.
-- Módulos dinâmicos (icones + allowed_profiles + ordenação drag & drop persistida).
+- Módulos dinâmicos (ícones + allowed_profiles + ordenação drag & drop persistida).
+- **Rastreamento de acesso a módulos**: Sistema automático que registra cada acesso em `activity_logs` com sincronização via triggers.
 - Dashboard com métricas recalculadas localmente (repasse, ticket médio real).
 - Upload de planilhas XLSX com expansão de múltiplos profissionais e sincronização por período.
+- **Lógica inteligente de STATUS**: Aplica "esperar" apenas quando todos os atendimentos do dia são à Tarde.
 - **Controle de acesso baseado em unidades**: Sistema hierárquico de permissões com `unit_modules` e `user_modules`.
+- **Logs N8N dedicados**: Tabela `n8n_logs` separada para receber webhooks externos de workflows.
 - Visualização multi-unidade ("Todos") em módulos selecionados com agregações corretas por período.
- - Módulo Prestadoras com dois painéis: Profissionais (ativos) e Recrutadora (cadastros), incluindo métricas mensais, ranking e drill‑down de atendimentos por profissional.
+- Módulo Prestadoras com dois painéis: Profissionais (ativos) e Recrutadora (cadastros), incluindo métricas mensais, ranking e drill-down de atendimentos por profissional.
 
 ---
 
@@ -291,20 +418,15 @@ Troubleshooting
 Crie `.env.local` na raiz com as seguintes variáveis:
 
 ```bash
-# DromeFlow - Projeto Principal (Supabase)
+# DromeFlow - Projeto Supabase
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON
-
-# Data Drome - Projeto N8N (Monitoramento e Logs - Opcional)
-VITE_DATA_DROME_URL=https://SEU-PROJETO-DATALOGS.supabase.co
-VITE_DATA_DROME_ANON_KEY=SUA_CHAVE_SERVICE_ROLE
 ```
 
 **Observações:**
-- O cliente Supabase principal é inicializado em `services/supabaseClient.ts` usando `import.meta.env.VITE_SUPABASE_*`
-- O projeto Data Drome é opcional e usado apenas para logs de monitoramento N8N
+- O cliente Supabase é inicializado em `services/supabaseClient.ts` usando `import.meta.env.VITE_SUPABASE_*`
+- Todas as tabelas estão consolidadas no banco DromeFlow (incluindo `actions`, `activity_logs`, `error_logs`)
 - **Cloudflare removido**: Anteriormente o projeto usava Cloudflare R2/D1 para storage. Essa integração foi completamente removida. Cloudflare agora é usado apenas como CDN/DNS/Proxy.
-- Todas as credenciais Cloudflare (R2/D1) foram removidas do `.env.local` e do banco de dados
 
 ---
 ## 3. Instalação e Execução
@@ -357,10 +479,11 @@ services/
 │   ├── storage.service.ts      # Apenas Supabase (Cloudflare removido)
 │   ├── serviceAnalysis.service.ts
 │   ├── repasse.service.ts
+│   ├── activityLogs.service.ts # Logs de atividades N8N/sistema
 │   └── prestadoras.service.ts
 ├── data/                       # Dados de atendimentos
 │   ├── dataTable.service.ts
-│   └── agendamentos.service.ts
+│   └── clientHistory.service.ts
 ├── ingestion/                  # Upload e processamento
 │   └── upload.service.ts
 ├── profissionais/
@@ -376,10 +499,9 @@ services/
 │   └── accessCredentials.service.ts
 ├── content/                    # Conteúdo de webhooks
 │   └── content.service.ts
-├── integration/                # Integrações externas
-│   └── dataDrome.service.ts    # N8N logs (opcional)
 └── utils/                      # Utilitários
-    └── dates.ts
+    ├── dates.ts
+    └── activityLogger.service.ts # Logger centralizado de atividades
 ```
 
 **Observações:**
@@ -387,6 +509,7 @@ services/
 - Lógica de negócio centralizada nos serviços (não nos componentes)
 - Barrel `services/index.ts` será removido na Fase 6 (limpeza)
 - **Storage removido**: Cloudflare R2/D1 completamente removido, apenas Supabase
+- **Data Drome consolidado**: Tabelas `actions`, `activity_logs`, `error_logs` agora estão no DromeFlow
 
 Notas:
 - O `ContentArea` só injeta HTML quando a origem começa com `internal://` (segurança de conteúdo).
@@ -1138,7 +1261,7 @@ Módulos com sincronização automática via Supabase Realtime:
 ---
 ## 22. Subdomínios e URLs de Módulo
 
-Para servir cada unidade em um subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeboard.com.br/<module>`), siga o guia detalhado em `docs/SUBDOMINIOS_E_URLS.md`.
+Para servir cada unidade em um subdomínio e manter o módulo no path (ex.: `https://<slug>.dromeflow.com/<module>`), siga o guia detalhado em `docs/SUBDOMINIOS_E_URLS.md`.
 
 
 - Métricas Rápidas: chips inline no cabeçalho com contagens de Hoje, Semana e Mês. Implementadas em `services/recrutadora/recrutadora.service.ts` usando utilitários de data em `services/utils/dates.ts` (início do dia/semana/mês).

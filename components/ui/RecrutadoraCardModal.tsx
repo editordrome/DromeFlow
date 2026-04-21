@@ -1,8 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../../services/supabaseClient';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { RecrutadoraCard } from '../../types';
+import { RecrutadoraCard, Unit } from '../../types';
 import { Icon } from './Icon';
+import { useAppContext } from '../../contexts/AppContext';
+import { generateAditamentoHTML } from '../documents/utils/generateAditamentoHTML';
+import { generateContratoHTML } from '../documents/utils/generateContratoHTML';
+import { generateDistratoHTML } from '../documents/utils/generateDistratoHTML';
+import { generateTermoHTML } from '../documents/utils/generateTermoHTML';
+import { generateNotificacaoHTML } from '../documents/utils/generateNotificacaoHTML';
+import { getDocumentTemplate } from '../documents/utils/templateHelpers';
+import { prepareDocumentData } from '../documents/utils/documentHelpers';
 
 interface Props {
   isOpen: boolean;
@@ -14,6 +23,8 @@ interface Props {
   onDelete?: (id: number) => Promise<void>;
   onCreate?: (payload: Partial<RecrutadoraCard>) => Promise<void>;
   onUpdate?: (id: number, payload: Partial<RecrutadoraCard>) => Promise<void>;
+  onSendWebhook?: (card: RecrutadoraCard) => Promise<void>;
+  isSendingWebhook?: boolean;
 }
 
 const RecrutadoraCardModal: React.FC<Props> = ({
@@ -26,8 +37,11 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   onDelete,
   onCreate,
   onUpdate,
+  onSendWebhook,
+  isSendingWebhook,
 }) => {
   const isEditing = !!initialCard;
+  const { selectedUnit } = useAppContext();
   const [editMode, setEditMode] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'pessoal' | 'profissional' | 'observacao' | 'documentos'>('pessoal');
   const colorInputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +70,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   const [sitAtual, setSitAtual] = useState<string>('');
   const [motivoCadastro, setMotivoCadastro] = useState<string>(''); // UI; envia em motivo_cadastro
   const [transporte, setTransporte] = useState<string>('');
+  const [assinatura, setAssinatura] = useState<string>(''); // Data de assinatura do contrato
   // Observação
   const [observacao, setObservacao] = useState<string>('');
   // Histórico removido
@@ -67,9 +82,16 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   const prevObservacaoRef = useRef<string>('');
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  const [documentName, setDocumentName] = useState<string>('Ficha');
+  const [previewHtml, setPreviewHtml] = useState<string>('');
+  // Document Editor Modal
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [editorTemplateName, setEditorTemplateName] = useState<'aditamento' | 'contrato' | 'termo'>('aditamento');
   // Auto-save de Status
   const [autoSavingStatus, setAutoSavingStatus] = useState(false);
   const [autoSaveStatusMsg, setAutoSaveStatusMsg] = useState<string | null>(null);
+  // Disponibilidade de documentos
+  const [availableDocuments, setAvailableDocuments] = useState<Set<string>>(new Set(['aditamento', 'contrato', 'termo', 'notificacao', 'distrato']));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -83,7 +105,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       setWhatsapp(initialCard.whatsapp || '');
       setColor(initialCard.color_card || '#4ade80');
       // pessoais
-  setDataNascimento(initialCard.data_nasc || initialCard.data_nascimento || '');
+      setDataNascimento(initialCard.data_nasc || initialCard.data_nascimento || '');
       setFumante(initialCard.fumante ?? null);
       setEstadoCivil(initialCard.estado_civil || '');
       setFilhos(initialCard.filhos ?? null);
@@ -97,22 +119,23 @@ const RecrutadoraCardModal: React.FC<Props> = ({
         }
       }
       setRotinaFilhos(initialCard.rotina_filhos || '');
-  setEndereco((initialCard.endereco as any) || (initialCard['endereço'] as any) || '');
+      setEndereco((initialCard.endereco as any) || (initialCard['endereço'] as any) || '');
       setRg(initialCard.rg || '');
       setCpf(initialCard.cpf || '');
       // profissionais
       setDiasLivres(initialCard.dias_livres || '');
       setDiasSemana(initialCard.dias_semana || '');
       setExpResidencial(initialCard.exp_residencial || '');
-  setRefResidencial(initialCard.ref_residencial || (initialCard as any).ref_redidencial || '');
+      setRefResidencial(initialCard.ref_residencial || (initialCard as any).ref_redidencial || '');
       setExpComercial(initialCard.exp_comercial || '');
       setRefComercial(initialCard.ref_comercial || '');
       setSitAtual(initialCard.sit_atual || '');
-  setMotivoCadastro(initialCard.motivo_cadastro || (initialCard as any).motivo_cadstro || '');
+      setMotivoCadastro(initialCard.motivo_cadastro || (initialCard as any).motivo_cadstro || '');
       setTransporte(initialCard.transporte || '');
+      setAssinatura(initialCard.assinatura || '');
       // observação
       setObservacao(initialCard.observacao || '');
-  prevObservacaoRef.current = initialCard.observacao || '';
+      prevObservacaoRef.current = initialCard.observacao || '';
       // histórico removido
     } else {
       setNome('');
@@ -138,9 +161,59 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       setTransporte('');
       setObservacao('');
       prevObservacaoRef.current = '';
-  // histórico removido
+      // histórico removido
     }
   }, [isOpen, initialCard, defaultStatus]);
+
+  // Auto-save debounced para observação
+  useEffect(() => {
+    if (!initialCard || !onUpdate || !isOpen) return;
+    if (observacao === prevObservacaoRef.current) return;
+
+    const timeoutId = setTimeout(() => {
+      handleAutoSaveObservacao();
+    }, 1200);
+
+    return () => clearTimeout(timeoutId);
+  }, [observacao, initialCard, onUpdate, isOpen]);
+
+  // Carrega disponibilidade de documentos
+  useEffect(() => {
+    if (!isOpen || !selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') return;
+
+    const loadDocumentAvailability = async () => {
+      try {
+        const { documentTemplatesService } = await import('../../services/documentTemplates.service');
+        const templates = ['aditamento', 'contrato', 'termo', 'notificacao', 'distrato'] as const;
+        const available = new Set<string>();
+
+        for (const templateName of templates) {
+          try {
+            const template = await documentTemplatesService.getTemplate(selectedUnit.id, templateName);
+            // Verifica se o template está disponível para recrutadora
+            if (template && template.available_in && template.available_in.includes('recrutadora')) {
+              available.add(templateName);
+            } else if (template && !template.available_in) {
+              // Se não tem available_in, assume que está disponível (backward compatibility)
+              available.add(templateName);
+            }
+          } catch (error) {
+            // Se não encontrar template, assume que está disponível (usará fallback)
+            available.add(templateName);
+          }
+        }
+
+        setAvailableDocuments(available);
+        console.log('[RecrutadoraCardModal] Available documents for recrutadora:', Array.from(available));
+      } catch (error) {
+        console.error('[RecrutadoraCardModal] Error loading document availability:', error);
+        // Em caso de erro, mantém todos disponíveis
+        setAvailableDocuments(new Set(['aditamento', 'contrato', 'termo', 'notificacao', 'distrato']));
+      }
+    };
+
+    loadDocumentAvailability();
+  }, [isOpen, selectedUnit]);
 
   const handleSave = async () => {
     if (saving) return;
@@ -155,7 +228,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
         fumante: fumante === null ? null : (fumante ? 'sim' : 'nao') as any,
         estado_civil: estadoCivil || null,
         filhos: filhos === null ? null : (filhos ? 'sim' : 'nao') as any,
-  qto_filhos: qtosFilhos === '' ? null : String(qtosFilhos),
+        qto_filhos: qtosFilhos === '' ? null : Number(qtosFilhos),
         rotina_filhos: rotinaFilhos || null,
         ['endereço']: endereco || null as any,
         rg: rg || null,
@@ -169,6 +242,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
         sit_atual: sitAtual || null,
         motivo_cadastro: motivoCadastro || null,
         transporte: transporte || null,
+        assinatura: assinatura || null,
         observacao: observacao || null,
         status: (statusLabel as any) || undefined,
       };
@@ -214,6 +288,8 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       await onUpdate(initialCard.id, { observacao });
       prevObservacaoRef.current = observacao;
       setAutoSaveObsMsg('Observação salva');
+      // Notifica o pai para atualizar o Kanban (que mostra a primeira linha da obs)
+      onSaved();
       setTimeout(() => setAutoSaveObsMsg(null), 2000);
     } catch (e) {
       // feedback discreto sem bloquear o usuário
@@ -264,17 +340,28 @@ const RecrutadoraCardModal: React.FC<Props> = ({
     return s === '' ? '-' : s;
   };
 
+  // Função para gerar PDF de templates HTML usando o modal de preview (igual à Ficha)
+  const generateTemplateDocument = (templateHtml: string, filename: string) => {
+    // Define o nome do documento para o download
+    setDocumentName(filename);
+    // Armazena o HTML completo no estado para o preview e para as funções de impressão/PDF
+    setPreviewHtml(templateHtml);
+    // Abre o modal de pré-visualização
+    setPreviewOpen(true);
+  };
+
   const generatePdf = () => {
+    setDocumentName('Ficha'); // Define nome do documento
     const titulo = `Ficha - ${nome || initialCard?.nome || 'Sem nome'}`;
     const now = new Date();
     const dateStr = now.toLocaleString('pt-BR');
-  // Força o PDF a usar o azul escuro do Sidebar, independente da cor do card
-  const accent = '#010d32';
+    // Força o PDF a usar o azul escuro do Sidebar, independente da cor do card
+    const accent = '#010d32';
 
     // Helpers de cor para contraste e variações claras
     const hexToRgb = (hex: string) => {
-      const h = hex.replace('#','');
-      const bigint = parseInt(h.length === 3 ? h.split('').map(c=>c+c).join('') : h, 16);
+      const h = hex.replace('#', '');
+      const bigint = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
       const r = (bigint >> 16) & 255;
       const g = (bigint >> 8) & 255;
       const b = bigint & 255;
@@ -283,7 +370,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
     const getContrast = (hex: string) => {
       const { r, g, b } = hexToRgb(hex);
       // YIQ luma
-      const yiq = (r*299 + g*587 + b*114) / 1000;
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
       return yiq >= 140 ? '#111827' : '#ffffff';
     };
     const { r, g, b } = hexToRgb(accent);
@@ -464,7 +551,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
     w.document.write(doc);
     w.document.close();
     w.focus();
-    try { w.print(); } catch {}
+    try { w.print(); } catch { }
   };
 
   const downloadPreviewPdf = async () => {
@@ -502,7 +589,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
         }
       }
     }
-    const filename = `Ficha_${(nome || initialCard?.nome || 'sem_nome').replace(/\s+/g,'_')}.pdf`;
+    const filename = `${documentName}_${(nome || initialCard?.nome || 'sem_nome').replace(/\s+/g, '_')}.pdf`;
     pdf.save(filename);
   };
 
@@ -510,7 +597,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+      <div className="w-full max-w-3xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header compacto com gradiente */}
         <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
           <div className="flex items-center justify-between gap-4">
@@ -542,20 +629,20 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                 ref={colorInputRef}
                 type="color"
                 value={color || '#4ade80'}
-                onChange={(e)=>setColor(e.target.value)}
+                onChange={(e) => setColor(e.target.value)}
                 className="sr-only"
                 aria-hidden="true"
                 tabIndex={-1}
               />
             </div>
-            
+
             <div className="flex items-center gap-3">
               {/* Status ao lado do botão fechar */}
               <label className="flex flex-col gap-1.5 min-w-[180px]">
                 <span className="text-xs font-medium text-text-secondary">Status</span>
                 <select
                   value={statusLabel || ''}
-                  onChange={(e)=> handleStatusChange(e.target.value)}
+                  onChange={(e) => handleStatusChange(e.target.value)}
                   className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
                 >
                   <option value="">-</option>
@@ -570,10 +657,10 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                   <option value="desistentes">Desistentes</option>
                 </select>
               </label>
-              
-              <button 
-                onClick={onClose} 
-                className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5" 
+
+              <button
+                onClick={onClose}
+                className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
                 aria-label="Fechar"
                 disabled={saving}
               >
@@ -587,45 +674,63 @@ const RecrutadoraCardModal: React.FC<Props> = ({
         <div className="border-b border-border-secondary bg-bg-tertiary/30">
           <div className="flex items-center px-5">
             <button
-              onClick={()=>setActiveTab('pessoal')}
-              className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === 'pessoal'
-                  ? 'text-accent-primary border-b-2 border-accent-primary'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
+              onClick={() => setActiveTab('pessoal')}
+              className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'pessoal'
+                ? 'text-accent-primary border-b-2 border-accent-primary'
+                : 'text-text-secondary hover:text-text-primary'
+                }`}
             >
               Dados Pessoais
             </button>
             <button
-              onClick={()=>setActiveTab('profissional')}
-              className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === 'profissional'
-                  ? 'text-accent-primary border-b-2 border-accent-primary'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
+              onClick={() => setActiveTab('profissional')}
+              className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'profissional'
+                ? 'text-accent-primary border-b-2 border-accent-primary'
+                : 'text-text-secondary hover:text-text-primary'
+                }`}
             >
               Profissional
             </button>
             <button
-              onClick={()=>setActiveTab('observacao')}
-              className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === 'observacao'
-                  ? 'text-accent-primary border-b-2 border-accent-primary'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
+              onClick={() => setActiveTab('observacao')}
+              className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'observacao'
+                ? 'text-accent-primary border-b-2 border-accent-primary'
+                : 'text-text-secondary hover:text-text-primary'
+                }`}
             >
               Observação
             </button>
             <button
-              onClick={()=>setActiveTab('documentos')}
-              className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === 'documentos'
-                  ? 'text-accent-primary border-b-2 border-accent-primary'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
+              onClick={() => setActiveTab('documentos')}
+              className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'documentos'
+                ? 'text-accent-primary border-b-2 border-accent-primary'
+                : 'text-text-secondary hover:text-text-primary'
+                }`}
             >
               Documentos
             </button>
+
+            {isEditing && onSendWebhook && statusLabel === 'qualificadas' && (
+              <div className="ml-auto flex items-center pr-2">
+                <button
+                  type="button"
+                  onClick={() => initialCard && onSendWebhook(initialCard)}
+                  disabled={isSendingWebhook || saving}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed border ${isSendingWebhook
+                    ? 'bg-bg-tertiary text-text-secondary border-border-secondary'
+                    : 'bg-accent-primary/10 text-accent-primary border-accent-primary/30 hover:bg-accent-primary hover:text-white'
+                    }`}
+                  title="Enviar para Webhook"
+                >
+                  {isSendingWebhook ? (
+                    <div className="w-3.5 h-3.5 border-2 border-t-transparent border-current rounded-full animate-spin" />
+                  ) : (
+                    <Icon name="Send" className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isSendingWebhook ? 'Enviando...' : 'Enviar Mensagem'}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -644,57 +749,57 @@ const RecrutadoraCardModal: React.FC<Props> = ({
               {!editMode ? (
                 <>
                   {/* Linha 1: Nome | Data Nascimento | WhatsApp */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    <div>
-                      <div className="text-xs text-text-secondary">Nome</div>
-                      <div className="text-sm text-text-primary">{nome || '-'}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-10 gap-2.5">
+                    <div className="md:col-span-4">
+                      <div className="text-xs text-text-secondary mb-1">Nome</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{nome || '-'}</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-text-secondary">Data Nascimento</div>
-                      <div className="text-sm text-text-primary">{dataNascimento || '-'}</div>
+                    <div className="md:col-span-3">
+                      <div className="text-xs text-text-secondary mb-1">Data Nascimento</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{dataNascimento || '-'}</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-text-secondary">WhatsApp</div>
-                      <div className="text-sm text-text-primary">{whatsapp || '-'}</div>
+                    <div className="md:col-span-3">
+                      <div className="text-xs text-text-secondary mb-1">WhatsApp</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{whatsapp || '-'}</div>
                     </div>
                   </div>
                   {/* Linha 2: RG | CPF | Estado Civil | Fumante */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
                     <div>
-                      <div className="text-xs text-text-secondary">RG</div>
-                      <div className="text-sm text-text-primary">{rg || '-'}</div>
+                      <div className="text-xs text-text-secondary mb-1">RG</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{rg || '-'}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-text-secondary">CPF</div>
-                      <div className="text-sm text-text-primary">{cpf || '-'}</div>
+                      <div className="text-xs text-text-secondary mb-1">CPF</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{cpf || '-'}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-text-secondary">Estado Civil</div>
-                      <div className="text-sm text-text-primary">{estadoCivil || '-'}</div>
+                      <div className="text-xs text-text-secondary mb-1">Estado Civil</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{estadoCivil || '-'}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-text-secondary">Fumante</div>
-                      <div className="text-sm text-text-primary">{fumante === null ? '-' : (fumante ? 'Sim' : 'Não')}</div>
+                      <div className="text-xs text-text-secondary mb-1">Fumante</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{fumante === null ? '-' : (fumante ? 'Sim' : 'Não')}</div>
                     </div>
                   </div>
                   {/* Linha 3: Endereço (terceira linha) */}
                   <div>
-                    <div className="text-xs text-text-secondary">Endereço</div>
-                    <div className="text-sm text-text-primary">{endereco || '-'}</div>
+                    <div className="text-xs text-text-secondary mb-1">Endereço</div>
+                    <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{endereco || '-'}</div>
                   </div>
                   {/* Linha 4: Tem filhos? | Qtde. filhos | Rotina filhos */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
-                      <div className="text-xs text-text-secondary">Tem filhos?</div>
-                      <div className="text-sm text-text-primary">{filhos === null ? '-' : (filhos ? 'Sim' : 'Não')}</div>
+                      <div className="text-xs text-text-secondary mb-1">Tem filhos?</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{filhos === null ? '-' : (filhos ? 'Sim' : 'Não')}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-text-secondary">Qtde. filhos</div>
-                      <div className="text-sm text-text-primary">{qtosFilhos === '' ? '-' : qtosFilhos}</div>
+                      <div className="text-xs text-text-secondary mb-1">Qtde. filhos</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{qtosFilhos === '' ? '-' : qtosFilhos}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-text-secondary">Rotina filhos</div>
-                      <div className="text-sm text-text-primary">{rotinaFilhos || '-'}</div>
+                      <div className="text-xs text-text-secondary mb-1">Rotina filhos</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{rotinaFilhos || '-'}</div>
                     </div>
                   </div>
                   {/* Cor do Card removido: edição via dot no título */}
@@ -702,37 +807,37 @@ const RecrutadoraCardModal: React.FC<Props> = ({
               ) : (
                 <>
                   {/* Linha 1: Nome | Data Nascimento | WhatsApp */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    <div>
+                  <div className="grid grid-cols-1 md:grid-cols-10 gap-2.5">
+                    <div className="md:col-span-4">
                       <label className="block text-sm mb-1 text-text-secondary">Nome</label>
-                      <input type="text" value={nome} onChange={(e)=>setNome(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Nome da candidata(o)"/>
+                      <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Nome da candidata(o)" />
                     </div>
-                    <div>
+                    <div className="md:col-span-3">
                       <label className="block text-sm mb-1 text-text-secondary">Data Nascimento</label>
-                      <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="date" value={dataNascimento} onChange={(e) => setDataNascimento(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
-                    <div>
+                    <div className="md:col-span-3">
                       <label className="block text-sm mb-1 text-text-secondary">WhatsApp</label>
-                      <input type="text" value={whatsapp} onChange={(e)=>setWhatsapp(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="55999990000"/>
+                      <input type="text" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="55999990000" />
                     </div>
                   </div>
                   {/* Linha 2: RG | CPF | Estado Civil | Fumante */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">RG</label>
-                      <input type="text" value={rg} onChange={(e)=>setRg(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="text" value={rg} onChange={(e) => setRg(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">CPF</label>
-                      <input type="text" value={cpf} onChange={(e)=>setCpf(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="text" value={cpf} onChange={(e) => setCpf(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Estado Civil</label>
-                      <input type="text" value={estadoCivil} onChange={(e)=>setEstadoCivil(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Solteira(o), Casada(o), ..."/>
+                      <input type="text" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Solteira(o), Casada(o), ..." />
                     </div>
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Fumante</label>
-                      <select value={fumante===null?'' : fumante? 'sim':'nao'} onChange={(e)=>setFumante(e.target.value===''? null : e.target.value==='sim')} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none">
+                      <select value={fumante === null ? '' : fumante ? 'sim' : 'nao'} onChange={(e) => setFumante(e.target.value === '' ? null : e.target.value === 'sim')} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none">
                         <option value="">-</option>
                         <option value="sim">Sim</option>
                         <option value="nao">Não</option>
@@ -742,13 +847,13 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                   {/* Linha 3: Endereço (terceira linha) */}
                   <div>
                     <label className="block text-sm mb-1 text-text-secondary">Endereço</label>
-                    <input type="text" value={endereco} onChange={(e)=>setEndereco(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Rua, número, bairro, cidade"/>
+                    <input type="text" value={endereco} onChange={(e) => setEndereco(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Rua, número, bairro, cidade" />
                   </div>
                   {/* Linha 4: Tem filhos? | Qtde. filhos | Rotina filhos */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Tem filhos?</label>
-                      <select value={filhos===null?'' : filhos? 'sim':'nao'} onChange={(e)=>setFilhos(e.target.value===''? null : e.target.value==='sim')} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none">
+                      <select value={filhos === null ? '' : filhos ? 'sim' : 'nao'} onChange={(e) => setFilhos(e.target.value === '' ? null : e.target.value === 'sim')} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none">
                         <option value="">-</option>
                         <option value="sim">Sim</option>
                         <option value="nao">Não</option>
@@ -756,11 +861,11 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     </div>
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Qtde. filhos</label>
-                      <input type="number" min={0} value={qtosFilhos} onChange={(e)=>setQtosFilhos(e.target.value===''? '' : Number(e.target.value))} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="number" min={0} value={qtosFilhos} onChange={(e) => setQtosFilhos(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Rotina filhos</label>
-                      <input type="text" value={rotinaFilhos} onChange={(e)=>setRotinaFilhos(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Escola, horários, responsáveis..."/>
+                      <input type="text" value={rotinaFilhos} onChange={(e) => setRotinaFilhos(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Escola, horários, responsáveis..." />
                     </div>
                   </div>
                   {/* Cor do Card removido: edição via dot no título */}
@@ -774,101 +879,99 @@ const RecrutadoraCardModal: React.FC<Props> = ({
               {!editMode ? (
                 <div className="space-y-2.5">
                   {/* Linha 1: Situação, Dias Livres, Dias Semana */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    <div>
-                      <div className="text-xs text-text-secondary">Situação Atual</div>
-                      <div className="text-sm text-text-primary">{sitAtual || '-'}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
+                    <div className="md:col-span-1">
+                      <div className="text-xs text-text-secondary mb-1">Situação Atual</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{sitAtual || '-'}</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-text-secondary">Dias Livres</div>
-                      <div className="text-sm text-text-primary">{diasLivres || '-'}</div>
+                    <div className="md:col-span-1">
+                      <div className="text-xs text-text-secondary mb-1">Dias Livres</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{diasLivres || '-'}</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-text-secondary">Dias Semana</div>
-                      <div className="text-sm text-text-primary">{diasSemana || '-'}</div>
-                    </div>
-                  </div>
-                  
-                  {/* Linha 2: Exp. Residencial, Ref. Residencial, Exp. Comercial, Ref. Comercial */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
-                    <div>
-                      <div className="text-xs text-text-secondary">Exp. Residencial</div>
-                      <div className="text-sm text-text-primary">{expResidencial || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-text-secondary">Ref. Residencial</div>
-                      <div className="text-sm text-text-primary">{refResidencial || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-text-secondary">Exp. Comercial</div>
-                      <div className="text-sm text-text-primary">{expComercial || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-text-secondary">Ref. Comercial</div>
-                      <div className="text-sm text-text-primary">{refComercial || '-'}</div>
+                    <div className="md:col-span-3">
+                      <div className="text-xs text-text-secondary mb-1">Dias Semana</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">
+                        {diasSemana ? diasSemana.replace(/-feira/gi, '').replace(/-Feira/gi, '') : '-'}
+                      </div>
                     </div>
                   </div>
-                  
-                  {/* Linha 3: Motivo Cadastro, Transporte */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    <div>
-                      <div className="text-xs text-text-secondary">Motivo do Cadastro</div>
-                      <div className="text-sm text-text-primary">{motivoCadastro || '-'}</div>
+
+                  {/* Linha 2: Exp. Residencial, Ref. Residencial, Exp. Comercial, Ref. Comercial, Transporte */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
+                    <div className="md:col-span-2">
+                      <div className="text-xs text-text-secondary mb-1">Exp. Residencial</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{expResidencial || '-'}</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-text-secondary">Transporte</div>
-                      <div className="text-sm text-text-primary">{transporte || '-'}</div>
+                    <div className="md:col-span-2">
+                      <div className="text-xs text-text-secondary mb-1">Ref. Residencial</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{refResidencial || '-'}</div>
                     </div>
+                    <div className="md:col-span-2">
+                      <div className="text-xs text-text-secondary mb-1">Exp. Comercial</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{expComercial || '-'}</div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <div className="text-xs text-text-secondary mb-1">Ref. Comercial</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{refComercial || '-'}</div>
+                    </div>
+                    <div className="md:col-span-4">
+                      <div className="text-xs text-text-secondary mb-1">Transporte</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{transporte || '-'}</div>
+                    </div>
+                  </div>
+
+                  {/* Linha 3: Motivo Cadastro */}
+                  <div>
+                    <div className="text-xs text-text-secondary mb-1">Motivo do Cadastro</div>
+                    <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{motivoCadastro || '-'}</div>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2.5">
                   {/* Linha 1: Situação, Dias Livres, Dias Semana */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    <div>
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
+                    <div className="md:col-span-1">
                       <label className="block text-sm mb-1 text-text-secondary">Situação Atual</label>
-                      <input type="text" value={sitAtual} onChange={(e)=>setSitAtual(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="text" value={sitAtual} onChange={(e) => setSitAtual(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
-                    <div>
+                    <div className="md:col-span-1">
                       <label className="block text-sm mb-1 text-text-secondary">Dias Livres</label>
-                      <input type="text" value={diasLivres} onChange={(e)=>setDiasLivres(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Seg, Qua, Sex"/>
+                      <input type="text" value={diasLivres} onChange={(e) => setDiasLivres(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Seg, Qua, Sex" />
                     </div>
-                    <div>
+                    <div className="md:col-span-3">
                       <label className="block text-sm mb-1 text-text-secondary">Dias Semana</label>
-                      <input type="text" value={diasSemana} onChange={(e)=>setDiasSemana(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Segunda a Sábado"/>
+                      <input type="text" value={diasSemana} onChange={(e) => setDiasSemana(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Segunda a Sábado" />
                     </div>
                   </div>
-                  
-                  {/* Linha 2: Exp. Residencial, Ref. Residencial, Exp. Comercial, Ref. Comercial */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
-                    <div>
+
+                  {/* Linha 2: Exp. Residencial, Ref. Residencial, Exp. Comercial, Ref. Comercial, Transporte */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
+                    <div className="md:col-span-2">
                       <label className="block text-sm mb-1 text-text-secondary">Exp. Residencial</label>
-                      <input type="text" value={expResidencial} onChange={(e)=>setExpResidencial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="text" value={expResidencial} onChange={(e) => setExpResidencial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-sm mb-1 text-text-secondary">Ref. Residencial</label>
-                      <input type="text" value={refResidencial} onChange={(e)=>setRefResidencial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="text" value={refResidencial} onChange={(e) => setRefResidencial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-sm mb-1 text-text-secondary">Exp. Comercial</label>
-                      <input type="text" value={expComercial} onChange={(e)=>setExpComercial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="text" value={expComercial} onChange={(e) => setExpComercial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-sm mb-1 text-text-secondary">Ref. Comercial</label>
-                      <input type="text" value={refComercial} onChange={(e)=>setRefComercial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
+                      <input type="text" value={refComercial} onChange={(e) => setRefComercial(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
+                    </div>
+                    <div className="md:col-span-4">
+                      <label className="block text-sm mb-1 text-text-secondary">Transporte</label>
+                      <input type="text" value={transporte} onChange={(e) => setTransporte(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Próprio, Aplicativo, Ônibus" />
                     </div>
                   </div>
-                  
-                  {/* Linha 3: Motivo Cadastro, Transporte */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-sm mb-1 text-text-secondary">Motivo do Cadastro</label>
-                      <input type="text" value={motivoCadastro} onChange={(e)=>setMotivoCadastro(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                    </div>
-                    <div>
-                      <label className="block text-sm mb-1 text-text-secondary">Transporte</label>
-                      <input type="text" value={transporte} onChange={(e)=>setTransporte(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" placeholder="Ex.: Próprio, Aplicativo, Ônibus"/>
-                    </div>
+
+                  {/* Linha 3: Motivo Cadastro */}
+                  <div>
+                    <label className="block text-sm mb-1 text-text-secondary">Motivo do Cadastro</label>
+                    <input type="text" value={motivoCadastro} onChange={(e) => setMotivoCadastro(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                   </div>
                 </div>
               )}
@@ -876,50 +979,347 @@ const RecrutadoraCardModal: React.FC<Props> = ({
           )}
 
           {activeTab === 'observacao' && (
-            <div className="space-y-2.5">
-              <div>
-                <label className="block text-sm mb-1 text-text-secondary">Observação</label>
-                <textarea
-                  value={observacao}
-                  onChange={(e)=>setObservacao(e.target.value)}
-                  onBlur={handleAutoSaveObservacao}
-                  rows={4}
-                  className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"
-                  placeholder="Adicione observações relevantes..."
-                />
-                <div className="mt-1 h-5 text-xs text-text-secondary">
-                  {autoSavingObs ? 'Salvando…' : (autoSaveObsMsg || '')}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-text-secondary">Observações Gerais</label>
+                <div className="flex items-center gap-1.5 text-[10px] text-accent-primary/60 font-medium uppercase tracking-wider">
+                  <div className={`w-1.5 h-1.5 rounded-full ${autoSavingObs ? 'bg-accent-primary animate-pulse' : 'bg-green-500'}`}></div>
+                  {autoSavingObs ? 'Salvando...' : (autoSaveObsMsg || 'Salvo automaticamente')}
                 </div>
               </div>
+              <textarea
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                onBlur={handleAutoSaveObservacao}
+                rows={8}
+                className="w-full px-4 py-3 rounded-lg bg-bg-tertiary text-text-primary border border-border-secondary focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/10 transition-all outline-none resize-none text-sm leading-relaxed"
+                placeholder="Digite aqui as observações sobre esta candidata... O salvamento é automático."
+              />
             </div>
           )}
 
           {activeTab === "documentos" && (
-            <div className="space-y-2.5">
-              <div className="text-sm text-text-secondary">Em breve: upload e visualização de documentos associados ao cadastro.</div>
-              {!editMode ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  <div>
-                    <div className="text-xs text-text-secondary">RG</div>
-                    <div className="text-sm text-text-primary">{rg || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-secondary">CPF</div>
-                    <div className="text-sm text-text-primary">{cpf || '-'}</div>
-                  </div>
+            <div className="space-y-3">
+              {/* Linha com informação e campo de assinatura */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm text-text-secondary">
+                  Selecione um documento para visualizar ou baixar em PDF
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-sm mb-1 text-text-secondary">RG</label>
-                    <input type="text" value={rg} onChange={(e)=>setRg(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1 text-text-secondary">CPF</label>
-                    <input type="text" value={cpf} onChange={(e)=>setCpf(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none"/>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-text-secondary whitespace-nowrap">Data Assinatura:</label>
+                  <input
+                    type="date"
+                    value={assinatura}
+                    onChange={(e) => setAssinatura(e.target.value)}
+                    className="px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none text-sm"
+                  />
                 </div>
-              )}
+              </div>
+
+              {/* Grid de documentos - agora Flex Scroll */}
+              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
+                {/* Ficha - PDF existente */}
+                <button
+                  onClick={generatePdf}
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-accent-primary/10 flex items-center justify-center group-hover:bg-accent-primary/20 transition-colors">
+                    <Icon name="FileText" className="w-6 h-6 text-accent-primary" />
+                  </div>
+                  <div className="text-sm font-medium text-text-primary text-center">Ficha</div>
+                  <div className="text-xs text-text-secondary text-center">Cadastro completo</div>
+                </button>
+
+                {/* Aditamento Contratual */}
+                {availableDocuments.has('aditamento') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica.');
+                        return;
+                      }
+
+                      // Busca dados completos da unidade para garantir que temos todos os campos (CNPJ, Razão Social, etc.)
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', (selectedUnit as any).id)
+                        .single();
+
+                      if (unitError) {
+                        console.error('[Aditamento] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade. Tente novamente.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
+                      const profissionalData: any = {
+                        nome,
+                        whatsapp,
+                        data_nasc: dataNascimento,
+                        estado_civil: estadoCivil,
+                        fumante: fumante ? 'sim' : 'nao',
+                        filhos: filhos ? 'sim' : 'nao',
+                        qto_filhos: qtosFilhos,
+                        rotina_filhos: rotinaFilhos,
+                        endereco,
+                        rg,
+                        cpf,
+                        dias_livres: diasLivres,
+                        dias_semana: diasSemana,
+                        exp_residencial: expResidencial,
+                        ref_residencial: refResidencial,
+                        exp_comercial: expComercial,
+                        ref_comercial: refComercial,
+                        sit_atual: sitAtual,
+                        motivo_cadastro: motivoCadastro,
+                        transporte: transporte,
+                        assinatura: assinatura,
+                      };
+
+                      const fullDocumentData = prepareDocumentData(profissionalData, unit);
+                      fullDocumentData.contrato.dataAssinatura = assinatura
+                        ? new Date(assinatura + 'T12:00:00').toLocaleDateString('pt-BR')
+                        : new Date().toLocaleDateString('pt-BR');
+
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'aditamento', fullDocumentData, 'recrutadora');
+                        generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
+                      } catch (error) {
+                        console.error('[Aditamento] Error loading template:', error);
+                        const html = generateAditamentoHTML(fullDocumentData);
+                        generateTemplateDocument(html, `Aditamento_${nome || 'sem_nome'}.pdf`);
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-blue-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Aditamento</div>
+                    <div className="text-xs text-text-secondary text-center">Contrato</div>
+                  </button>
+                )}
+
+                {/* Contrato de Agenciamento */}
+                {availableDocuments.has('contrato') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                        return;
+                      }
+
+                      // Busca dados completos da unidade
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', selectedUnit.id)
+                        .single();
+
+                      if (unitError) {
+                        console.error('[Contrato] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
+                      const profissionalData: any = {
+                        nome, cpf, rg, data_nasc: dataNascimento, estado_civil: estadoCivil, endereco, whatsapp, assinatura
+                      };
+                      const fullDocumentData = prepareDocumentData(profissionalData, unit);
+                      fullDocumentData.contrato.dataAssinatura = assinatura ? new Date(assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+                      try {
+                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'contrato', fullDocumentData, 'recrutadora');
+                        generateTemplateDocument(html, 'Contrato_Agenciamento');
+                      } catch (error) {
+                        console.error('[Contrato] Error loading template:', error);
+                        const html = generateContratoHTML(fullDocumentData);
+                        generateTemplateDocument(html, 'Contrato_Agenciamento');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-green-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Contrato</div>
+                    <div className="text-xs text-text-secondary text-center">Agenciamento</div>
+                  </button>
+                )}
+
+                {/* Termo de Confidencialidade */}
+                {availableDocuments.has('termo') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                        return;
+                      }
+
+                      // Busca dados completos da unidade
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', selectedUnit.id)
+                        .single();
+
+                      if (unitError) {
+                        console.error('[Termo] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
+                      const profissionalData: any = {
+                        nome, cpf, rg, data_nasc: dataNascimento, estado_civil: estadoCivil, endereco, whatsapp, assinatura
+                      };
+                      const fullDocumentData = prepareDocumentData(profissionalData, unit);
+                      try {
+                        const html = await getDocumentTemplate((selectedUnit as Unit).id, 'termo', fullDocumentData, 'recrutadora');
+                        generateTemplateDocument(html, 'Termo_Confidencialidade');
+                      } catch (error) {
+                        console.error('[Termo] Error loading template:', error);
+                        const html = generateTermoHTML(fullDocumentData);
+                        generateTemplateDocument(html, 'Termo_Confidencialidade');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-purple-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Termo</div>
+                    <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
+                  </button>
+                )}
+
+                {/* Notificação Extrajudicial */}
+                {availableDocuments.has('notificacao') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                        return;
+                      }
+
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', (selectedUnit as Unit).id)
+                        .single();
+
+                      if (unitError || !unitData) {
+                        console.error('[Notificação] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
+                      const documentData = {
+                        profissional: {
+                          nome,
+                          cpf,
+                          rg,
+                          dataNascimento,
+                          estadoCivil,
+                          endereco,
+                          whatsapp,
+                        },
+                        unidade: {
+                          razaoSocial: unit.razao_social || '',
+                          cnpj: unit.cnpj || '',
+                          endereco: unit.endereco || '',
+                          responsavel: unit.responsavel || '',
+                          contato: unit.contato || '',
+                          email: unit.email || '',
+                          unitName: unit.unit_name || '',
+                          unitCode: unit.unit_code || '',
+                          uniformValue: unit.uniform_value || 0,
+                        },
+                      };
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'notificacao', documentData, 'recrutadora');
+                        generateTemplateDocument(html, 'Notificacao_Rescisao');
+                      } catch (error) {
+                        console.error('[Notificação] Error loading template:', error);
+                        const html = generateNotificacaoHTML(documentData);
+                        generateTemplateDocument(html, 'Notificacao_Rescisao');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-orange-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
+                    <div className="text-xs text-text-secondary text-center">Rescisão</div>
+                  </button>
+                )}
+
+                {/* Distrato */}
+                {availableDocuments.has('distrato') && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') {
+                        alert('Por favor, selecione uma unidade específica para gerar o documento.');
+                        return;
+                      }
+
+                      const { data: unitData, error: unitError } = await supabase
+                        .from('units')
+                        .select('*')
+                        .eq('id', (selectedUnit as Unit).id)
+                        .single();
+
+                      if (unitError || !unitData) {
+                        console.error('[Distrato] Erro ao buscar dados da unidade:', unitError);
+                        alert('Erro ao carregar dados da unidade.');
+                        return;
+                      }
+
+                      const unit = unitData as Unit;
+                      const documentData = {
+                        profissional: {
+                          nome,
+                          cpf,
+                          rg,
+                          dataNascimento,
+                          estadoCivil,
+                          endereco,
+                          whatsapp,
+                        },
+                        unidade: {
+                          razaoSocial: unit.razao_social || '',
+                          cnpj: unit.cnpj || '',
+                          endereco: unit.endereco || '',
+                          responsavel: unit.responsavel || '',
+                          contato: unit.contato || '',
+                          email: unit.email || '',
+                          unitName: unit.unit_name || '',
+                          unitCode: unit.unit_code || '',
+                          uniformValue: unit.uniform_value || 0,
+                        },
+                      };
+                      try {
+                        const html = await getDocumentTemplate(unit.id, 'distrato', documentData, 'recrutadora');
+                        generateTemplateDocument(html, 'Distrato_Parceria');
+                      } catch (error) {
+                        console.error('[Distrato] Error loading template:', error);
+                        const html = generateDistratoHTML(documentData);
+                        generateTemplateDocument(html, 'Distrato_Parceria');
+                      }
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                      <Icon name="FileText" className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div className="text-sm font-medium text-text-primary text-center">Distrato</div>
+                    <div className="text-xs text-text-secondary text-center">Parceria</div>
+                  </button>
+                )}
+              </div>
             </div>
           )}
           {err && <div className="text-sm text-danger bg-danger/10 p-2 rounded mt-3">{err}</div>}
@@ -931,7 +1331,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
             <Icon name="info" className="w-3 h-3" />
             <span>{activeTab === 'pessoal' && editMode ? '* Obrigatório' : ''}</span>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {isEditing && onDelete && (
               <button
@@ -944,15 +1344,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                 <Icon name="delete" className="w-5 h-5" />
               </button>
             )}
-            <button
-              type="button"
-              onClick={generatePdf}
-              disabled={saving}
-              className="rounded-lg p-2 text-text-primary hover:bg-bg-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-border-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Visualizar PDF"
-            >
-              <Icon name="Printer" className="w-5 h-5" />
-            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -977,20 +1369,50 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       </div>
       {/* Modal de Preview A4 */}
       {previewOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={()=>setPreviewOpen(false)}>
-          <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] max-w-5xl flex flex-col overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setPreviewOpen(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] max-w-5xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-3 py-2 border-b">
               <div className="font-semibold text-sm">Pré-visualização (A4)</div>
               <div className="flex items-center gap-2">
-                <button onClick={printPreview} className="p-2 rounded border hover:bg-gray-50" title="Imprimir"><Icon name="Printer" /></button>
-                <button onClick={downloadPreviewPdf} className="px-3 py-1.5 rounded border hover:bg-gray-50 text-sm" title="Baixar PDF">Baixar PDF</button>
-                <button onClick={()=>setPreviewOpen(false)} className="p-2 rounded border hover:bg-gray-50" title="Fechar"><Icon name="close" /></button>
+                <button
+                  onClick={printPreview}
+                  className="p-2 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+                  title="Imprimir"
+                >
+                  <Icon name="Printer" className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={downloadPreviewPdf}
+                  className="px-3 py-1.5 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary text-sm font-medium transition-colors"
+                  title="Baixar PDF"
+                >
+                  Baixar PDF
+                </button>
+                <button
+                  onClick={() => setPreviewOpen(false)}
+                  className="p-2 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+                  title="Fechar"
+                >
+                  <Icon name="close" className="w-4 h-4" />
+                </button>
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-auto bg-gray-100">
               <div className="mx-auto my-4 bg-white shadow-sm" style={{ width: '210mm', minHeight: '297mm' }}>
                 {/* Conteúdo HTML injetado (A4) */}
-                <div ref={previewRef} />
+                <div
+                  ref={previewRef}
+                  dangerouslySetInnerHTML={{
+                    __html: (previewHtml && previewHtml.includes('<!doctype html>'))
+                      ? (() => {
+                        const bodyMatch = previewHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+                        const styleMatch = previewHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+                        const styles = styleMatch ? styleMatch.join('\n') : '';
+                        return styles + (bodyMatch ? bodyMatch[1] : previewHtml);
+                      })()
+                      : previewHtml
+                  }}
+                />
               </div>
             </div>
           </div>

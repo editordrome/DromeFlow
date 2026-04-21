@@ -1,28 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Icon } from '../ui/Icon';
 import { supabase } from '../../services/supabaseClient';
-import {
-  fetchMonitoringLogs,
-  fetchErrorLogs,
-  fetchMonitoringStats,
-  fetchLatestErrorsByWorkflow,
-  fetchActions
-} from '../../services/integration/dataDrome.service';
+import { n8nService, N8NExecution, N8NWorkflow } from '../../services/n8n/n8n.service';
 import type { N8NMonitoringLog, N8NErrorLog } from '../../types';
 
-type TabType = 'n8n' | 'metrics' | 'dados';
+type TabType = 'n8n' | 'dados';
 type PeriodFilter = 'today' | 'yesterday' | 'last7days' | 'lastWeek' | 'lastMonth' | 'last30days';
+
+interface ActivityLog {
+  id: number;
+  created_at: string;
+  unit_code: string | null;
+  workflow: string | null;
+  action_code: string | null;
+  atend_id: string | null;
+  user_identifier: string | null;
+  status: string | null;
+  horario: string | null;
+  metadata: any;
+  actions?: { action_name?: string; description?: string; } | null;
+}
 
 const DashboardSistemaPage: React.FC = () => {
   const { selectedUnit } = useAppContext();
   const { profile } = useAuth();
-  
-  const [activeTab, setActiveTab] = useState<TabType>('n8n');
+
+  const [activeTab, setActiveTab] = useState<TabType>('dados');
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('today');
   const [monitoringLogs, setMonitoringLogs] = useState<N8NMonitoringLog[]>([]);
   const [errorLogs, setErrorLogs] = useState<N8NErrorLog[]>([]);
+
+  // Estados para N8N API
+  const [n8nExecutions, setN8nExecutions] = useState<N8NExecution[]>([]);
+  const [n8nWorkflows, setN8nWorkflows] = useState<N8NWorkflow[]>([]);
+  const [workflowsMap, setWorkflowsMap] = useState<Map<string, string>>(new Map());
+
   const [stats, setStats] = useState<{
     total: number;
     successCount: number;
@@ -30,28 +44,268 @@ const DashboardSistemaPage: React.FC = () => {
     byWorkflow: { workflow: string; count: number }[];
   }>({ total: 0, successCount: 0, errorCount: 0, byWorkflow: [] });
   const [latestErrors, setLatestErrors] = useState<any[]>([]);
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Estado para filtro de workflow
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const [isWorkflowDropdownOpen, setIsWorkflowDropdownOpen] = useState(false);
-  
+
   // Estado para filtro de unidade
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string | null>(null);
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [unitsMap, setUnitsMap] = useState<Map<string, string>>(new Map()); // unit_code -> unit_name
   const [actionsMap, setActionsMap] = useState<Map<string, string>>(new Map()); // action_code -> action_name
-  
+
   // Estado para mostrar gráfico de evolução
   const [showExecutionChart, setShowExecutionChart] = useState(false);
-  
+
   // Estado para mostrar logs de erro
   const [showErrorLogs, setShowErrorLogs] = useState(false);
 
+  // Estado para controlar qual card está ativo (apenas um por vez)
+  const [activeCard, setActiveCard] = useState<'atividades' | 'indexScans' | 'operacoes' | null>('atividades');
+
+  // Estado para activity logs em tempo real
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [activeConnections, setActiveConnections] = useState(0);
+
+  // Estado para paginação da tabela de atividades
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
+
+  // Estado para filtros de log
+  const [logUnitFilter, setLogUnitFilter] = useState<string | null>(null);
+  const [isLogUnitDropdownOpen, setIsLogUnitDropdownOpen] = useState(false);
+
+  // Estados para modais
+  const [showActiveUsersModal, setShowActiveUsersModal] = useState(false);
+  const [selectedLogDetail, setSelectedLogDetail] = useState<ActivityLog | null>(null);
+
+  // Estado para pesquisa de usuário
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [debouncedUserSearchTerm, setDebouncedUserSearchTerm] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedUserSearchTerm(userSearchTerm);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [userSearchTerm]);
+
   // Verifica se é super_admin
   const isSuperAdmin = profile?.role === 'super_admin';
+
+  // Funções locais para buscar dados (substituindo dataDrome.service.ts removido)
+  const fetchActions = async (): Promise<Map<string, string>> => {
+    try {
+      const { data, error } = await supabase
+        .from('actions')
+        .select('action_code, action_name')
+        .order('action_name', { ascending: true });
+
+      if (error) {
+        console.error('[Dashboard Sistema] Erro ao buscar ações:', error);
+        return new Map();
+      }
+
+      const map = new Map<string, string>();
+      data?.forEach(action => {
+        if (action.action_code && action.action_name) {
+          map.set(action.action_code, action.action_name);
+        }
+      });
+
+      return map;
+    } catch (error) {
+      console.error('[Dashboard Sistema] Falha ao buscar ações:', error);
+      return new Map();
+    }
+  };
+
+  const fetchMonitoringLogs = async (limit: number = 100): Promise<N8NMonitoringLog[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('*, actions(action_name, description)')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      // Mapeia activity_logs para formato N8NMonitoringLog
+      return (data || []).map((log: ActivityLog) => ({
+        id: log.id,
+        created_at: log.created_at,
+        horario: log.created_at, // Usa created_at como horario se não houver
+        unit: log.unit_code || undefined,
+        workflow: log.workflow || undefined,
+        status: log.status || undefined,
+        action: log.action_code || undefined,
+        action_description: log.actions?.description || undefined,
+        user: log.user_identifier || undefined,
+        user_identifier: log.user_identifier || undefined,
+        atend_id: log.atend_id || undefined,
+        metadata: log.metadata
+      }));
+    } catch (error) {
+      console.error('[Dashboard Sistema] Falha ao buscar logs de monitoramento:', error);
+      return [];
+    }
+  };
+
+  const fetchErrorLogs = async (limit: number = 50): Promise<N8NErrorLog[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('error_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      return (data || []).map((log: any) => ({
+        id: log.id,
+        created_at: log.created_at,
+        workflow: log.workflow || undefined,
+        erro_message: log.error_message || undefined,
+        error_message: log.error_message || undefined, // Suporte a ambas as chaves
+        url_workflow: log.url_workflow || undefined
+      }));
+    } catch (error) {
+      console.error('[Dashboard Sistema] Falha ao buscar logs de erro:', error);
+      return [];
+    }
+  };
+
+  const fetchLatestErrorsByWorkflow = async (limit: number = 10): Promise<any[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('error_logs')
+        .select('workflow, error_message, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      const logs = data || [];
+
+      // Agrupar por workflow
+      const grouped = logs.reduce((acc: { [key: string]: any }, log) => {
+        const wf = log.workflow || 'Unknown';
+        if (!acc[wf]) {
+          acc[wf] = {
+            workflow: wf,
+            lastError: log.error_message || 'N/A',
+            lastOccurrence: log.created_at,
+            count: 1
+          };
+        } else {
+          acc[wf].count += 1;
+        }
+        return acc;
+      }, {});
+
+      return Object.values(grouped)
+        .sort((a: any, b: any) => b.count - a.count)
+        .slice(0, limit);
+    } catch (error) {
+      console.error('[Dashboard Sistema] Falha ao buscar últimos erros:', error);
+      return [];
+    }
+  };
+
+  // Busca activity logs recentes
+  const loadActivityLogs = useCallback(async () => {
+    try {
+      let query = supabase
+        .from('activity_logs')
+        .select('*, actions(action_name, description)')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (debouncedUserSearchTerm) {
+        query = query.ilike('user_identifier', `%${debouncedUserSearchTerm}%`);
+      } else {
+        const oneHourAgo = new Date();
+        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+        query = query.gte('created_at', oneHourAgo.toISOString());
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      setActivityLogs(data || []);
+      setCurrentPage(1); // Reset para primeira página ao atualizar
+
+      // Conta conexões únicas ativas (últimos 5 minutos)
+      const fiveMinAgo = new Date();
+      fiveMinAgo.setMinutes(fiveMinAgo.getMinutes() - 5);
+
+      const uniqueUsers = new Set(
+        (data || [])
+          .filter(log => new Date(log.created_at) >= fiveMinAgo)
+          .map(log => log.user_identifier)
+          .filter(Boolean)
+      );
+      setActiveConnections(uniqueUsers.size);
+    } catch (err) {
+      console.error('[Dashboard Sistema] Erro ao carregar activity logs:', err);
+    }
+  }, [debouncedUserSearchTerm]);
+
+  // Logs filtrados por unidade
+  const filteredActivityLogs = useMemo(() => {
+    if (!logUnitFilter) return activityLogs;
+    return activityLogs.filter(log => log.unit_code === logUnitFilter);
+  }, [activityLogs, logUnitFilter]);
+
+  // Realtime subscription para activity logs (sempre ativo para super_admin)
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+
+    loadActivityLogs();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('activity_logs_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs'
+        },
+        (payload) => {
+          console.log('[Realtime] Nova atividade:', payload.new);
+
+          // Garantir que o payload tenha um ID antes de adicionar
+          const newLog = payload.new as ActivityLog;
+          if (newLog && newLog.id) {
+            setActivityLogs(prev => {
+              // Evitar duplicatas
+              if (prev.some(log => log.id === newLog.id)) {
+                return prev;
+              }
+              return [newLog, ...prev.slice(0, 19)];
+            });
+          }
+
+          // Atualiza contagem de conexões ativas
+          loadActivityLogs();
+        }
+      )
+      .subscribe();
+
+    // Refresh a cada 30 segundos para atualizar contadores
+    const interval = setInterval(loadActivityLogs, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [isSuperAdmin, loadActivityLogs]);
 
   // Busca unidades do banco dromeflow para mapeamento
   useEffect(() => {
@@ -60,9 +314,9 @@ const DashboardSistemaPage: React.FC = () => {
         const { data: units, error } = await supabase
           .from('units')
           .select('unit_code, unit_name');
-        
+
         if (error) throw error;
-        
+
         const map = new Map<string, string>();
         units?.forEach(unit => {
           if (unit.unit_code && unit.unit_name) {
@@ -74,7 +328,7 @@ const DashboardSistemaPage: React.FC = () => {
         console.error('[Dashboard Sistema] Erro ao buscar unidades:', err);
       }
     };
-    
+
     const fetchActionsData = async () => {
       try {
         const map = await fetchActions();
@@ -83,7 +337,7 @@ const DashboardSistemaPage: React.FC = () => {
         console.error('[Dashboard Sistema] Erro ao buscar ações:', err);
       }
     };
-    
+
     fetchUnits();
     fetchActionsData();
   }, []);
@@ -100,10 +354,24 @@ const DashboardSistemaPage: React.FC = () => {
     return actionsMap.get(actionCode) || actionCode;
   };
 
+  // Função para retornar o ícone da ação
+  const getActionIcon = (actionCode: string | null) => {
+    const code = actionCode?.toLowerCase();
+    if (!code) return <Icon name="Activity" className="w-4 h-4 text-text-tertiary" />;
+
+    if (code.includes('create')) return <Icon name="PlusCircle" className="w-4 h-4 text-green-600" />;
+    if (code.includes('update') || code.includes('edit')) return <Icon name="Edit" className="w-4 h-4 text-blue-600" />;
+    if (code.includes('delete') || code.includes('remove')) return <Icon name="Trash2" className="w-4 h-4 text-red-600" />;
+    if (code.includes('sync')) return <Icon name="RefreshCw" className="w-4 h-4 text-purple-600" />;
+    if (code.includes('notify') || code.includes('envio')) return <Icon name="Send" className="w-4 h-4 text-brand-cyan" />;
+
+    return <Icon name="Activity" className="w-4 h-4 text-text-tertiary" />;
+  };
+
   // Calcula intervalo de datas baseado no filtro
   const getDateRange = (period: PeriodFilter): { start: Date; end: Date } => {
     const now = new Date();
-    const end = new Date(now);
+    let end = new Date(now);
     let start = new Date(now);
 
     switch (period) {
@@ -162,9 +430,9 @@ const DashboardSistemaPage: React.FC = () => {
     setError(null);
 
     try {
-      // Busca todos os logs (filtro será aplicado no frontend)
+      // 1. Busca dados do Supabase
       const [logs, errors, latestErrs] = await Promise.all([
-        fetchMonitoringLogs(1000), // Aumenta limite para ter dados suficientes
+        fetchMonitoringLogs(1000),
         fetchErrorLogs(500),
         fetchLatestErrorsByWorkflow(10)
       ]);
@@ -172,8 +440,62 @@ const DashboardSistemaPage: React.FC = () => {
       setMonitoringLogs(logs);
       setErrorLogs(errors);
       setLatestErrors(latestErrs);
+
+      /* 
+            // 2. Busca dados da API do N8N (DESATIVADO PARA EVITAR ERROS DE CORS/API INATIVA)
+            try {
+              const [executionsResult, workflows] = await Promise.all([
+                n8nService.getExecutions(50),
+                n8nService.getWorkflows()
+              ]);
       
-      // Calcula stats dos logs filtrados
+              setN8nExecutions(executionsResult.data);
+              setN8nWorkflows(workflows);
+      
+              const wfMap = new Map<string, string>();
+              workflows.forEach(wf => wfMap.set(wf.id, wf.name));
+              setWorkflowsMap(wfMap);
+      
+              // Se estivermos na aba n8n, as métricas do topo usam os dados da API
+              const executions = executionsResult.data;
+              const total = executions.length;
+              const successCount = executions.filter(e => e.status === 'success').length;
+              const errorCount = executions.filter(e => e.status === 'error').length;
+      
+              const workflowStats = executions.reduce((acc: { [key: string]: number }, exec) => {
+                const wfName = wfMap.get(exec.workflowId) || exec.workflowId;
+                acc[wfName] = (acc[wfName] || 0) + 1;
+                return acc;
+              }, {});
+      
+              const byWorkflow = Object.entries(workflowStats)
+                .map(([workflow, count]) => ({ workflow, count: count as number }))
+                .sort((a, b) => b.count - a.count);
+      
+              setStats({ total, successCount, errorCount, byWorkflow });
+            } catch (n8nErr) {
+              console.warn('[Dashboard Sistema] Falha ao carregar dados da API do N8N:', n8nErr);
+              // Fallback para métricas baseadas em logs do Supabase se a API falhar (ex: CORS ou credenciais)
+              const filteredLogs = filterLogsByPeriod(logs);
+              const total = filteredLogs.length;
+              const successCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'success' || l.status?.toLowerCase() === 'sucesso').length;
+              const errorCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'error' || l.status?.toLowerCase() === 'erro').length;
+      
+              const workflowCounts = filteredLogs.reduce((acc: { [key: string]: number }, log) => {
+                const wf = log.workflow || 'Unknown';
+                acc[wf] = (acc[wf] || 0) + 1;
+                return acc;
+              }, {});
+      
+              const byWorkflow = Object.entries(workflowCounts)
+                .map(([workflow, count]) => ({ workflow, count: count as number }))
+                .sort((a, b) => b.count - a.count);
+      
+              setStats({ total, successCount, errorCount, byWorkflow });
+            }
+            */
+
+      // FALLBACK AUTOMÁTICO PARA DADOS DO BANCO (SUPABASE)
       const filteredLogs = filterLogsByPeriod(logs);
       const total = filteredLogs.length;
       const successCount = filteredLogs.filter(l => l.status?.toLowerCase() === 'success' || l.status?.toLowerCase() === 'sucesso').length;
@@ -214,6 +536,21 @@ const DashboardSistemaPage: React.FC = () => {
     });
   };
 
+  // Formata tempo relativo (ex: "há 2 min")
+  const formatTimeAgo = (isoString: string) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+
+    if (diffSecs < 10) return 'agora';
+    if (diffSecs < 60) return `há ${diffSecs}s`;
+    if (diffMins < 60) return `há ${diffMins} min`;
+    return `há ${diffHours}h`;
+  };
+
   // Renderiza badge de status
   const StatusBadge: React.FC<{ status: string | null }> = ({ status }) => {
     const statusLower = status?.toLowerCase();
@@ -221,11 +558,10 @@ const DashboardSistemaPage: React.FC = () => {
     const isError = statusLower === 'error' || statusLower === 'erro';
 
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded ${
-        isSuccess ? 'bg-green-100 text-green-800' :
+      <span className={`px-2 py-1 text-sm font-medium rounded ${isSuccess ? 'bg-green-100 text-green-800' :
         isError ? 'bg-red-100 text-red-800' :
-        'bg-gray-100 text-gray-800'
-      }`}>
+          'bg-gray-100 text-gray-800'
+        }`}>
         {status || 'N/A'}
       </span>
     );
@@ -272,45 +608,23 @@ const DashboardSistemaPage: React.FC = () => {
       <div className="border-b border-border-secondary">
         <nav className="flex gap-4">
           <button
-            onClick={() => setActiveTab('n8n')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-              activeTab === 'n8n'
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Icon name="workflow" className="w-4 h-4" />
-              N8N Workflows
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('metrics')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-              activeTab === 'metrics'
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Icon name="bar-chart-3" className="w-4 h-4" />
-              Métricas Sistema
-            </div>
-          </button>
-
-          <button
             onClick={() => setActiveTab('dados')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-              activeTab === 'dados'
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'dados'
+              ? 'border-accent-primary text-accent-primary'
+              : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
           >
-            <div className="flex items-center gap-2">
-              <Icon name="database" className="w-4 h-4" />
-              Dados
-            </div>
+            Dados
+          </button>
+
+          <button
+            onClick={() => setActiveTab('n8n')}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'n8n'
+              ? 'border-accent-primary text-accent-primary'
+              : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
+          >
+            N8N
           </button>
         </nav>
       </div>
@@ -332,7 +646,6 @@ const DashboardSistemaPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab Content */}
       {!isLoading && !error && (
         <>
           {/* Tab: N8N Workflows */}
@@ -343,17 +656,16 @@ const DashboardSistemaPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowExecutionChart(!showExecutionChart)}
-                  className={`p-3 rounded-lg border bg-bg-secondary border-border-primary hover:shadow-md transition-all ${
-                    showExecutionChart ? 'ring-2 ring-accent-primary' : ''
-                  }`}
+                  className={`p-3 rounded-lg border bg-bg-secondary border-border-primary hover:shadow-md transition-all ${showExecutionChart ? 'ring-2 ring-accent-primary' : ''
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="Activity" className="w-5 h-5 text-blue-600" />
-                    <span className="text-sm font-medium text-text-secondary">Total Execuções</span>
-                    <span className="ml-auto text-lg font-bold text-text-primary">{stats.total}</span>
-                    <Icon 
-                      name={showExecutionChart ? "ChevronUp" : "ChevronDown"} 
-                      className="w-4 h-4 text-text-secondary" 
+                    <span className="text-base font-semibold text-text-secondary">Total Execuções</span>
+                    <span className="ml-auto text-xl font-bold text-text-primary">{stats.total}</span>
+                    <Icon
+                      name={showExecutionChart ? "ChevronUp" : "ChevronDown"}
+                      className="w-5 h-5 text-text-secondary"
                     />
                   </div>
                 </button>
@@ -363,24 +675,23 @@ const DashboardSistemaPage: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="CheckCircle" className="w-5 h-5 text-green-600" />
-                    <span className="text-sm font-medium text-text-secondary">Sucesso</span>
-                    <span className="ml-auto text-lg font-bold text-green-600">{stats.successCount}</span>
+                    <span className="text-base font-semibold text-text-secondary">Sucesso</span>
+                    <span className="ml-auto text-xl font-bold text-green-600">{stats.successCount}</span>
                   </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowErrorLogs(!showErrorLogs)}
-                  className={`p-3 rounded-lg border bg-bg-secondary border-border-primary hover:shadow-md transition-all ${
-                    showErrorLogs ? 'ring-2 ring-red-500' : ''
-                  }`}
+                  className={`p-3 rounded-lg border bg-bg-secondary border-border-primary hover:shadow-md transition-all ${showErrorLogs ? 'ring-2 ring-red-500' : ''
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="XCircle" className="w-5 h-5 text-red-600" />
-                    <span className="text-sm font-medium text-text-secondary">Erros</span>
-                    <span className="ml-auto text-lg font-bold text-red-600">{stats.errorCount}</span>
-                    <Icon 
-                      name={showErrorLogs ? "ChevronUp" : "ChevronDown"} 
-                      className="w-4 h-4 text-text-secondary" 
+                    <span className="text-base font-semibold text-text-secondary">Erros</span>
+                    <span className="ml-auto text-xl font-bold text-red-600">{stats.errorCount}</span>
+                    <Icon
+                      name={showErrorLogs ? "ChevronUp" : "ChevronDown"}
+                      className="w-5 h-5 text-text-secondary"
                     />
                   </div>
                 </button>
@@ -390,8 +701,8 @@ const DashboardSistemaPage: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <Icon name="Zap" className="w-5 h-5 text-purple-600" />
-                    <span className="text-sm font-medium text-text-secondary">Taxa Sucesso</span>
-                    <span className="ml-auto text-lg font-bold text-purple-600">
+                    <span className="text-base font-semibold text-text-secondary">Taxa Sucesso</span>
+                    <span className="ml-auto text-xl font-bold text-purple-600">
                       {stats.total > 0 ? Math.round((stats.successCount / stats.total) * 100) : 0}%
                     </span>
                   </div>
@@ -405,67 +716,61 @@ const DashboardSistemaPage: React.FC = () => {
                   <div className="flex w-full gap-2">
                     <button
                       onClick={() => setSelectedPeriod('today')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'today'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'today'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        }`}
                     >
                       Hoje
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('yesterday')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'yesterday'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'yesterday'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        }`}
                     >
                       Dia Anterior
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('last7days')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'last7days'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'last7days'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        }`}
                     >
                       Últimos 7 dias
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('lastWeek')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'lastWeek'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'lastWeek'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        }`}
                     >
                       Última Semana
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('lastMonth')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'lastMonth'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'lastMonth'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        }`}
                     >
                       Mês Anterior
                     </button>
                     <button
                       onClick={() => setSelectedPeriod('last30days')}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center border ${
-                        selectedPeriod === 'last30days'
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-md text-sm font-bold transition text-center border ${selectedPeriod === 'last30days'
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        }`}
                     >
                       Últimos 30 dias
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Gráfico de Evolução das Execuções */}
                 {showExecutionChart && (
                   <div className="p-4 bg-bg-secondary border-t border-border-secondary">
@@ -478,31 +783,31 @@ const DashboardSistemaPage: React.FC = () => {
                       const filteredLogs = filterLogsByPeriod(monitoringLogs)
                         .filter(log => !selectedWorkflow || log.workflow === selectedWorkflow)
                         .filter(log => !selectedUnitFilter || log.unit === selectedUnitFilter);
-                      
+
                       const hourlyData = new Map<number, { success: number; error: number }>();
-                      
+
                       filteredLogs.forEach(log => {
                         const date = new Date(log.created_at);
                         const hour = date.getHours();
-                        
+
                         if (!hourlyData.has(hour)) {
                           hourlyData.set(hour, { success: 0, error: 0 });
                         }
-                        
+
                         const data = hourlyData.get(hour)!;
                         const isSuccess = log.status?.toLowerCase() === 'success';
-                        
+
                         if (isSuccess) {
                           data.success++;
                         } else {
                           data.error++;
                         }
                       });
-                      
+
                       // Ordena as horas e preenche intervalo contínuo
                       const sortedHours = Array.from(hourlyData.entries())
                         .sort((a, b) => a[0] - b[0]);
-                      
+
                       if (sortedHours.length === 0) {
                         return (
                           <div className="space-y-4">
@@ -512,20 +817,20 @@ const DashboardSistemaPage: React.FC = () => {
                           </div>
                         );
                       }
-                      
+
                       // Pega primeira e última hora com dados, limitando ao horário comercial
                       const firstHour = 6; // Sempre inicia às 6h
                       const lastHour = 23; // Sempre termina às 23h
-                      
+
                       // Cria array contínuo de horas (inclui horas sem execuções)
                       const continuousHours: Array<[number, { success: number; error: number }]> = [];
                       for (let h = firstHour; h <= lastHour; h++) {
                         continuousHours.push([h, hourlyData.get(h) || { success: 0, error: 0 }]);
                       }
-                      
+
                       // Define valor máximo baseado no maior número de execuções em uma hora
                       const maxValue = Math.max(...continuousHours.map(([_, data]) => data.success + data.error));
-                      
+
                       return (
                         <div className="space-y-4">
                           <>
@@ -545,7 +850,7 @@ const DashboardSistemaPage: React.FC = () => {
                                   );
                                 })}
                               </div>
-                              
+
                               {/* Barras - Colunas únicas por hora */}
                               <div className="absolute inset-0 pl-12 flex items-end gap-1 pb-8">
                                 {continuousHours.map(([hour, data]) => {
@@ -553,7 +858,7 @@ const DashboardSistemaPage: React.FC = () => {
                                   const totalHeight = total > 0 ? (total / maxValue) * 100 : 0;
                                   const successPercent = total > 0 ? (data.success / total) * 100 : 0;
                                   const errorPercent = total > 0 ? (data.error / total) * 100 : 0;
-                                  
+
                                   // Define cor baseada na proporção de sucesso
                                   let barColor = 'bg-gray-300';
                                   if (total > 0) {
@@ -571,17 +876,17 @@ const DashboardSistemaPage: React.FC = () => {
                                       barColor = 'bg-red-400 hover:bg-red-500';
                                     }
                                   }
-                                  
+
                                   return (
-                                    <div 
-                                      key={hour} 
+                                    <div
+                                      key={hour}
                                       className="flex-1 flex flex-col items-center justify-end"
                                       style={{ minWidth: '20px' }}
                                     >
                                       {total > 0 ? (
-                                        <div 
+                                        <div
                                           className={`w-full ${barColor} rounded-t transition-all cursor-pointer relative group`}
-                                          style={{ 
+                                          style={{
                                             height: `${Math.max(totalHeight, 8)}%`,
                                             minHeight: '30px'
                                           }}
@@ -607,12 +912,12 @@ const DashboardSistemaPage: React.FC = () => {
                                   );
                                 })}
                               </div>
-                              
+
                               {/* Eixo X - Horas (a partir da primeira execução) */}
                               <div className="absolute bottom-0 left-12 right-0 flex gap-1">
                                 {continuousHours.map(([hour]) => (
-                                  <div 
-                                    key={hour} 
+                                  <div
+                                    key={hour}
                                     className="flex-1 text-center"
                                     style={{ minWidth: '16px' }}
                                   >
@@ -623,7 +928,7 @@ const DashboardSistemaPage: React.FC = () => {
                                 ))}
                               </div>
                             </div>
-                            
+
                             {/* Legenda */}
                             <div className="flex items-center justify-center gap-6 pt-2 border-t border-border-secondary">
                               <div className="flex items-center gap-2">
@@ -646,7 +951,7 @@ const DashboardSistemaPage: React.FC = () => {
                     })()}
                   </div>
                 )}
-                
+
                 {/* Logs de Erro - Aparecem quando card Erros é clicado */}
                 {showErrorLogs && (
                   <div className="space-y-4 p-4 bg-bg-tertiary border-t border-border-secondary">
@@ -654,7 +959,7 @@ const DashboardSistemaPage: React.FC = () => {
                       <Icon name="AlertTriangle" className="w-4 h-4 text-red-600" />
                       Logs de Erro
                     </h3>
-                    
+
                     {/* Latest Errors by Workflow */}
                     {latestErrors.length > 0 && (
                       <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
@@ -668,12 +973,12 @@ const DashboardSistemaPage: React.FC = () => {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
                                     <Icon name="AlertCircle" className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
-                                    <span className="font-semibold text-xs text-red-900 truncate">{err.workflow}</span>
+                                    <span className="font-semibold text-sm text-red-900 truncate">{err.workflow}</span>
                                     <span className="px-1.5 py-0.5 text-[10px] bg-red-200 text-red-900 rounded-full flex-shrink-0">
                                       {err.count}x
                                     </span>
                                   </div>
-                                  <p className="text-xs text-red-800 truncate">{err.lastError}</p>
+                                  <p className="text-sm text-red-800 truncate">{err.lastError}</p>
                                 </div>
                                 <span className="text-[10px] text-red-700 whitespace-nowrap">
                                   {formatDateTime(err.lastOccurrence)}
@@ -694,10 +999,10 @@ const DashboardSistemaPage: React.FC = () => {
                         <table className="w-full">
                           <thead className="bg-bg-tertiary sticky top-0">
                             <tr>
-                              <th className="px-3 py-2 text-left text-[10px] font-medium text-text-secondary">Data/Hora</th>
-                              <th className="px-3 py-2 text-left text-[10px] font-medium text-text-secondary">Workflow</th>
-                              <th className="px-3 py-2 text-left text-[10px] font-medium text-text-secondary">Mensagem de Erro</th>
-                              <th className="px-3 py-2 text-left text-[10px] font-medium text-text-secondary">URL</th>
+                              <th className="px-3 py-2 text-left text-sm font-medium text-text-secondary">Data/Hora</th>
+                              <th className="px-3 py-2 text-left text-sm font-medium text-text-secondary">Workflow</th>
+                              <th className="px-3 py-2 text-left text-sm font-medium text-text-secondary">Mensagem de Erro</th>
+                              <th className="px-3 py-2 text-left text-sm font-medium text-text-secondary">URL</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border-secondary">
@@ -706,25 +1011,25 @@ const DashboardSistemaPage: React.FC = () => {
                                 <td colSpan={4} className="px-3 py-6 text-center text-text-secondary">
                                   <div className="flex flex-col items-center gap-2">
                                     <Icon name="CheckCircle" className="w-6 h-6 text-green-500" />
-                                    <p className="text-xs">Nenhum erro registrado!</p>
+                                    <p className="text-sm">Nenhum erro registrado!</p>
                                   </div>
                                 </td>
                               </tr>
                             ) : (
                               errorLogs.map((log) => (
                                 <tr key={log.id} className="hover:bg-bg-tertiary transition-colors">
-                                  <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                  <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">
                                     {formatDateTime(log.created_at)}
                                   </td>
-                                  <td className="px-3 py-2 text-xs text-text-primary font-medium">
+                                  <td className="px-3 py-2 text-sm text-text-primary font-medium">
                                     {log.workflow || 'N/A'}
                                   </td>
-                                  <td className="px-3 py-2 text-xs text-red-600">
+                                  <td className="px-3 py-2 text-sm text-red-600">
                                     <div className="max-w-md truncate" title={log.erro_message || 'N/A'}>
                                       {log.erro_message || 'N/A'}
                                     </div>
                                   </td>
-                                  <td className="px-3 py-2 text-xs">
+                                  <td className="px-3 py-2 text-sm">
                                     {log.url_workflow ? (
                                       <a
                                         href={log.url_workflow}
@@ -748,13 +1053,13 @@ const DashboardSistemaPage: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-bg-primary border-y border-border-secondary">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Data/Hora</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">Data/Hora</th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
                           <div className="flex items-center gap-2 relative">
                             <span>Workflow</span>
                             <button
@@ -780,130 +1085,119 @@ const DashboardSistemaPage: React.FC = () => {
                                     setSelectedWorkflow(null);
                                     setIsWorkflowDropdownOpen(false);
                                   }}
-                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors ${
-                                    !selectedWorkflow ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                  }`}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors ${!selectedWorkflow ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
+                                    }`}
                                 >
                                   Todos os workflows
                                 </button>
-                                {Array.from(new Set(filterLogsByPeriod(monitoringLogs).map(log => log.workflow).filter(Boolean)))
-                                  .sort()
-                                  .map((workflow) => (
-                                    <button
-                                      key={workflow}
-                                      onClick={() => {
-                                        setSelectedWorkflow(workflow!);
-                                        setIsWorkflowDropdownOpen(false);
-                                      }}
-                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${
-                                        selectedWorkflow === workflow ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
+                                {((n8nExecutions.length > 0)
+                                  ? Array.from(new Set(n8nExecutions.map(e => workflowsMap.get(e.workflowId) || e.workflowId)))
+                                  : Array.from(new Set(filterLogsByPeriod(monitoringLogs).map(log => log.workflow).filter(Boolean)))
+                                ).sort().map((wf) => (
+                                  <button
+                                    key={wf}
+                                    onClick={() => {
+                                      setSelectedWorkflow(wf!);
+                                      setIsWorkflowDropdownOpen(false);
+                                    }}
+                                    className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${selectedWorkflow === wf ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
                                       }`}
-                                    >
-                                      {workflow}
-                                    </button>
-                                  ))}
+                                  >
+                                    {wf}
+                                  </button>
+                                ))}
                               </div>
                             )}
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
-                          <div className="flex items-center gap-2 relative">
-                            <span>Unidade</span>
-                            <button
-                              onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
-                              className="p-1 hover:bg-bg-tertiary rounded transition-colors"
-                              title="Filtrar por unidade"
-                            >
-                              <Icon name="Filter" className="w-3.5 h-3.5" />
-                            </button>
-                            {selectedUnitFilter && (
-                              <button
-                                onClick={() => setSelectedUnitFilter(null)}
-                                className="p-1 hover:bg-bg-tertiary rounded transition-colors text-accent-primary"
-                                title="Limpar filtro"
-                              >
-                                <Icon name="X" className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {isUnitDropdownOpen && (
-                              <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border-primary rounded-lg shadow-lg z-10 min-w-[200px] max-h-[300px] overflow-y-auto">
-                                <button
-                                  onClick={() => {
-                                    setSelectedUnitFilter(null);
-                                    setIsUnitDropdownOpen(false);
-                                  }}
-                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors ${
-                                    !selectedUnitFilter ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                  }`}
-                                >
-                                  Todas as unidades
-                                </button>
-                                {Array.from(new Set(filterLogsByPeriod(monitoringLogs).map(log => log.unit).filter(Boolean)))
-                                  .sort((a, b) => {
-                                    const nameA = getUnitName(a!);
-                                    const nameB = getUnitName(b!);
-                                    return nameA.localeCompare(nameB);
-                                  })
-                                  .map((unit) => (
-                                    <button
-                                      key={unit}
-                                      onClick={() => {
-                                        setSelectedUnitFilter(unit!);
-                                        setIsUnitDropdownOpen(false);
-                                      }}
-                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors border-t border-border-secondary ${
-                                        selectedUnitFilter === unit ? 'bg-accent-primary/10 text-accent-primary font-medium' : 'text-text-primary'
-                                      }`}
-                                    >
-                                      {getUnitName(unit!)}
-                                    </button>
-                                  ))}
-                              </div>
-                            )}
-                          </div>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
+                          {n8nExecutions.length > 0 ? 'ID Execução' : 'Unidade'}
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Usuário</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Ação</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Atend. ID</th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
+                          {n8nExecutions.length > 0 ? 'Modo' : 'Usuário'}
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
+                          {n8nExecutions.length > 0 ? 'Duração' : 'Ação'}
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">Status</th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-text-secondary">
+                          {n8nExecutions.length > 0 ? 'Link' : 'Atend. ID'}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-secondary">
-                      {filterLogsByPeriod(monitoringLogs).length === 0 ? (
+                      {n8nExecutions.length > 0 ? (
+                        /* Renderização via N8N API */
+                        n8nExecutions
+                          .filter(exec => {
+                            const wfName = workflowsMap.get(exec.workflowId) || exec.workflowId;
+                            return !selectedWorkflow || wfName === selectedWorkflow;
+                          })
+                          .map((exec) => (
+                            <tr key={exec.id} className="hover:bg-bg-tertiary transition-colors">
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {formatDateTime(exec.startedAt)}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-primary font-medium">
+                                {workflowsMap.get(exec.workflowId) || exec.workflowId}
+                                <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-bg-tertiary text-text-tertiary rounded border border-border-secondary">
+                                  ID: {exec.workflowId.substring(0, 8)}...
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary font-mono">
+                                {exec.id}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {exec.mode === 'trigger' ? 'Trigger' : 'Manual'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {exec.stoppedAt ? Math.round((new Date(exec.stoppedAt).getTime() - new Date(exec.startedAt).getTime()) / 1000) + 's' : '-'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <StatusBadge status={exec.status} />
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                <a
+                                  href={`https://bot.dromeflow.com/workflow/${exec.workflowId}/executions/${exec.id}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-accent-primary hover:underline flex items-center gap-1"
+                                >
+                                  Abrir <Icon name="ExternalLink" className="w-3 h-3" />
+                                </a>
+                              </td>
+                            </tr>
+                          ))
+                      ) : filterLogsByPeriod(monitoringLogs).length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-4 py-8 text-center text-text-secondary">
-                            Nenhum log de monitoramento encontrado para o período selecionado
+                            Nenhum dado de execução encontrado (API ou Logs)
                           </td>
                         </tr>
                       ) : (
+                        /* Fallback para logs do Supabase */
                         filterLogsByPeriod(monitoringLogs)
                           .filter(log => !selectedWorkflow || log.workflow === selectedWorkflow)
                           .filter(log => !selectedUnitFilter || log.unit === selectedUnitFilter)
                           .map((log) => (
-                          <tr key={log.id} className="hover:bg-bg-tertiary transition-colors">
-                            <td className="px-4 py-3 text-sm text-text-secondary">
-                              {formatDateTime(log.created_at)}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-primary font-medium">
-                              {log.workflow || 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-secondary">
-                              {getUnitName(log.unit)}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-secondary">
-                              {log.user || 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-secondary">
-                              {getActionName(log.action)}
-                            </td>
-                            <td className="px-4 py-3">
-                              <StatusBadge status={log.status} />
-                            </td>
-                            <td className="px-4 py-3 text-sm text-text-secondary font-mono">
-                              {log.atend_id || 'N/A'}
-                            </td>
-                          </tr>
-                        ))
+                            <tr key={log.id} className="hover:bg-bg-tertiary transition-colors">
+                              <td className="px-4 py-3 text-sm text-text-secondary">
+                                {formatDateTime(log.created_at)}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-primary font-medium">
+                                {log.workflow || 'N/A'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary text-center" colSpan={3}>
+                                {getUnitName(log.unit)} - {log.action_description || getActionName(log.action)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <StatusBadge status={log.status} />
+                              </td>
+                              <td className="px-4 py-3 text-sm text-text-secondary font-mono">
+                                {log.atend_id || 'N/A'}
+                              </td>
+                            </tr>
+                          ))
                       )}
                     </tbody>
                   </table>
@@ -912,40 +1206,890 @@ const DashboardSistemaPage: React.FC = () => {
             </div>
           )}
 
-          {/* Tab: Métricas Sistema */}
-          {activeTab === 'metrics' && (
+          {/* Tab: Dados do Sistema */}
+          {activeTab === 'dados' && (
             <div className="space-y-6">
-              <div className="bg-bg-secondary rounded-lg border border-border-primary p-8 text-center">
-                <Icon name="chart-bar" className="w-12 h-12 mx-auto mb-4 text-text-secondary" />
-                <h3 className="text-lg font-semibold text-text-primary mb-2">
-                  Métricas em Desenvolvimento
-                </h3>
-                <p className="text-text-secondary">
-                  Esta seção será populada com métricas de sistema como:<br />
-                  • Usuários ativos<br />
-                  • Performance de queries<br />
-                  • Uploads recentes<br />
-                  • Uso de storage<br />
-                  • Logs de auditoria
-                </p>
-              </div>
-          </div>
-        )}
+              {/* Filtros de Cards - Estilo igual aos filtros de período N8N */}
+              <div className="flex w-full gap-2">
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveCard(activeCard === 'atividades' ? null : 'atividades')}
+                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition text-center border ${activeCard === 'atividades'
+                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                      }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Icon name="Activity" className="w-4 h-4" />
+                      Atividades
+                    </div>
+                  </button>
+                )}
 
-        {/* Tab: Dados - REMOVIDO (Cloudflare integração removida) */}
-        {activeTab === 'dados' && (
-          <div className="bg-bg-secondary rounded-lg border border-border-secondary p-8 text-center">
-            <Icon name="Database" className="w-16 h-16 mx-auto mb-4 text-text-tertiary" />
-            <h3 className="text-lg font-semibold text-text-primary mb-2">
-              Aba de Dados Removida
-            </h3>
-            <p className="text-text-secondary">
-              A integração com Cloudflare R2/D1 foi removida do sistema.
-            </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveCard(activeCard === 'indexScans' ? null : 'indexScans')}
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition text-center border ${activeCard === 'indexScans'
+                    ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                    : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                    }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Icon name="Zap" className="w-4 h-4" />
+                    Index Scans
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveCard(activeCard === 'operacoes' ? null : 'operacoes')}
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition text-center border ${activeCard === 'operacoes'
+                    ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                    : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                    }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Icon name="Edit" className="w-4 h-4" />
+                    Operações
+                  </div>
+                </button>
+              </div>
+
+              {/* Activity Logs - Aparecem quando card Atividades é clicado (apenas super_admin) */}
+              {isSuperAdmin && activeCard === 'atividades' && (
+                <div className="space-y-4 p-4 bg-bg-tertiary border border-border-secondary rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                        <Icon name="Activity" className="w-4 h-4 text-green-600" />
+                        Atividades em Tempo Real
+                        {activeConnections > 0 && (
+                          <button
+                            onClick={() => setShowActiveUsersModal(true)}
+                            className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full flex items-center gap-1 hover:bg-green-200 transition-colors pointer-events-auto"
+                            title="Ver usuários ativos"
+                          >
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            {activeConnections} {activeConnections === 1 ? 'usuário ativo' : 'usuários ativos'}
+                          </button>
+                        )}
+                      </h3>
+                      {/* Estatísticas no header */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary">Total:</span>
+                          <span className="text-sm font-bold text-blue-600">{activityLogs.length}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary">Sucesso:</span>
+                          <span className="text-sm font-bold text-green-600">
+                            {activityLogs.filter(l => l.status?.toLowerCase() === 'success').length}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary">Erros:</span>
+                          <span className="text-sm font-bold text-red-600">
+                            {activityLogs.filter(l => l.status?.toLowerCase() === 'error').length}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Filtro de Unidade */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setIsLogUnitDropdownOpen(!isLogUnitDropdownOpen)}
+                          className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md transition-colors ${logUnitFilter ? 'bg-accent-primary/10 border-accent-primary text-accent-primary' : 'bg-bg-secondary border-border-secondary text-text-secondary hover:border-text-primary'}`}
+                        >
+                          <Icon name="Building" className="w-4 h-4" />
+                          <span>{logUnitFilter ? (unitsMap.get(logUnitFilter) || logUnitFilter) : 'Todas as Unidades'}</span>
+                          <Icon name="ChevronDown" className="w-3.5 h-3.5" />
+                        </button>
+
+                        {isLogUnitDropdownOpen && (
+                          <div className="absolute right-0 mt-1 w-64 bg-bg-secondary border border-border-primary rounded-lg shadow-xl z-20 py-1 max-h-64 overflow-y-auto">
+                            <button
+                              onClick={() => {
+                                setLogUnitFilter(null);
+                                setIsLogUnitDropdownOpen(false);
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors"
+                            >
+                              Todas as Unidades
+                            </button>
+                            {Array.from(unitsMap.keys()).sort().map(code => (
+                              <button
+                                key={code}
+                                onClick={() => {
+                                  setLogUnitFilter(code);
+                                  setIsLogUnitDropdownOpen(false);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors"
+                              >
+                                {unitsMap.get(code)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-text-secondary pointer-events-none">
+                          <Icon name="search" className="w-4 h-4" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Buscar por usuário..."
+                          value={userSearchTerm}
+                          onChange={(e) => setUserSearchTerm(e.target.value)}
+                          className="w-48 pl-9 pr-8 py-1.5 text-sm border border-border-secondary rounded-md bg-bg-secondary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                        />
+                        {userSearchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setUserSearchTerm('')}
+                            className="absolute inset-y-0 right-2 flex items-center text-text-secondary hover:text-text-primary"
+                            aria-label="Limpar busca"
+                          >
+                            <Icon name="x" className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        onClick={loadActivityLogs}
+                        className="p-1.5 hover:bg-bg-secondary rounded transition-colors"
+                        title="Atualizar"
+                      >
+                        <Icon name="RefreshCw" className="w-4 h-4 text-text-secondary" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
+                    {activityLogs.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <Icon name="Info" className="w-8 h-8 mx-auto mb-2 text-blue-500" />
+                        <p className="text-sm text-text-secondary mb-1">Nenhuma atividade registrada na última hora</p>
+                        <p className="text-xs text-text-tertiary">
+                          As ações dos usuários aparecerão aqui em tempo real quando workflows N8N executarem
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[600px] overflow-y-auto">
+                        <table className="w-full">
+                          <thead className="bg-bg-tertiary sticky top-0 border-b border-border-secondary">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Data</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Hora</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Usuário</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Workflow</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Ação</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Unidade</th>
+                              <th className="px-3 py-2 text-left text-sm font-semibold text-text-secondary">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border-secondary">
+                            {(() => {
+                              const startIndex = (currentPage - 1) * itemsPerPage;
+                              const endIndex = startIndex + itemsPerPage;
+                              const paginatedLogs = filteredActivityLogs.slice(startIndex, endIndex);
+
+                              return paginatedLogs.map((log) => {
+                                const logDate = new Date(log.created_at);
+                                const dateStr = logDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                const timeStr = logDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                const isRecent = new Date(log.created_at) > new Date(Date.now() - 60000); // Últimos 60s
+
+                                // Extrai módulo do metadata (workflow mostra o módulo acessado)
+                                const moduleName = log.metadata?.module_name || log.metadata?.module || log.workflow || '-';
+                                const actionIcon = getActionIcon(log.action_code);
+
+                                return (
+                                  <tr
+                                    key={log.id}
+                                    onClick={() => setSelectedLogDetail(log)}
+                                    className={`hover:bg-bg-tertiary transition-colors cursor-pointer group ${isRecent ? 'bg-green-50 dark:bg-green-900/10' : ''
+                                      }`}
+                                  >
+                                    <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">
+                                      {isRecent && (
+                                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                                      )}
+                                      {dateStr}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">
+                                      {timeStr}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm font-medium text-text-primary">
+                                      {log.user_identifier || 'N/A'}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-text-secondary">
+                                      {moduleName}
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-text-secondary">
+                                      <div className="flex items-center gap-2">
+                                        {actionIcon}
+                                        <span className="truncate max-w-[200px]" title={log.actions?.description || log.actions?.action_name || getActionName(log.action_code) || '-'}>
+                                          {log.actions?.description || log.actions?.action_name || getActionName(log.action_code) || '-'}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-sm text-text-secondary">
+                                      {getUnitName(log.unit_code)}
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <span className={`px-2 py-0.5 text-sm font-medium rounded ${log.status?.toLowerCase() === 'success'
+                                        ? 'bg-green-100 text-green-800'
+                                        : log.status?.toLowerCase() === 'error'
+                                          ? 'bg-red-100 text-red-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                        }`}>
+                                        {log.status || 'N/A'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Paginação */}
+                  {filteredActivityLogs.length > itemsPerPage && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-border-secondary bg-bg-secondary rounded-b-lg">
+                      <div className="text-xs text-text-secondary">
+                        Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredActivityLogs.length)} de {filteredActivityLogs.length} registros
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1.5 text-xs font-medium rounded border border-border-primary hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Icon name="ChevronLeft" className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-medium text-text-primary px-2">
+                          Página {currentPage} de {Math.ceil(activityLogs.length / itemsPerPage)}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(Math.ceil(activityLogs.length / itemsPerPage), prev + 1))}
+                          disabled={currentPage >= Math.ceil(activityLogs.length / itemsPerPage)}
+                          className="px-3 py-1.5 text-xs font-medium rounded border border-border-primary hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Icon name="ChevronRight" className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Index Scans - Aparecem quando card Index Scans é clicado */}
+              {activeCard === 'indexScans' && (
+                <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-hidden">
+                  <div className="px-4 py-3 bg-bg-tertiary border-b border-border-secondary">
+                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <Icon name="BarChart3" className="w-4 h-4" />
+                      Tabelas por Tamanho e Performance
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-bg-primary border-b border-border-secondary">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Tabela</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Registros</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Tamanho Total</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Dados</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">Índices</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">% do Banco</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-secondary">
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">processed_data</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">63,335</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">52 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">28 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">24 MB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: '62.7%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">62.7%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">pos_vendas</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">43,749</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">12 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">6.5 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">6.3 MB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-green-500 h-2 rounded-full" style={{ width: '14.5%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">14.5%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">recrutadora</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">2,297</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">2 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">1.5 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">600 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-purple-500 h-2 rounded-full" style={{ width: '2.4%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">2.4%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">unit_clients</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">3,772</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">1.5 MB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">928 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">576 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-orange-500 h-2 rounded-full" style={{ width: '1.8%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">1.8%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">profissionais</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">502</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">432 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">104 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">328 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-cyan-500 h-2 rounded-full" style={{ width: '0.5%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">0.5%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">comercial</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">120</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~200 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~100 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~100 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-pink-500 h-2 rounded-full" style={{ width: '0.2%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">0.2%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">atend_status</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">510</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~150 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~80 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~70 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-indigo-500 h-2 rounded-full" style={{ width: '0.2%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">0.2%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">unit_modules</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">66</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~50 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-teal-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">user_modules</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">125</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~40 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-violet-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">user_units</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">45</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~30 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-fuchsia-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">profiles</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">23</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~25 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~12 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~13 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-rose-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">units</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">19</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~20 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-amber-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">modules</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">15</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~15 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~8 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~7 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-lime-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">actions</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">10</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~10 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">activity_logs</td>
+                          <td className="px-4 py-3 text-sm font-mono">
+                            <span className="text-green-600 font-semibold">{activityLogs.length}</span>
+                            <span className="text-text-secondary"> (tempo real)</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~2 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~3 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-sky-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-bg-tertiary transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-text-primary">error_logs</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">0</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~5 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~2 KB</td>
+                          <td className="px-4 py-3 text-sm text-text-secondary font-mono">~3 KB</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-border-secondary rounded-full h-2 max-w-[100px]">
+                                <div className="bg-red-500 h-2 rounded-full" style={{ width: '0.1%' }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-text-secondary">&lt;0.1%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Operações - Aparecem quando card Operações é clicado */}
+              {activeCard === 'operacoes' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Index vs Sequential Scans */}
+                  <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                    <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                      <Icon name="Search" className="w-4 h-4 text-blue-600" />
+                      Tipos de Busca
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary">Index Scans</span>
+                        <span className="text-sm font-bold text-green-600">1.4M</span>
+                      </div>
+                      <div className="w-full bg-border-secondary rounded-full h-2">
+                        <div className="bg-green-500 h-2 rounded-full" style={{ width: '96.5%' }}></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary">Sequential Scans</span>
+                        <span className="text-sm font-bold text-orange-600">51.4K</span>
+                      </div>
+                      <div className="w-full bg-border-secondary rounded-full h-2">
+                        <div className="bg-orange-500 h-2 rounded-full" style={{ width: '3.5%' }}></div>
+                      </div>
+                      <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                        <Icon name="TrendingUp" className="w-3 h-3 inline mr-1 text-green-600" />
+                        96.5% das buscas usando índices (excelente!)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Operações de Escrita */}
+                  <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                    <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                      <Icon name="Edit" className="w-4 h-4 text-purple-600" />
+                      Operações de Escrita
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="text-xs text-text-secondary">Inserts</span>
+                        </div>
+                        <span className="text-sm font-bold text-text-primary">306.6K</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-xs text-text-secondary">Updates</span>
+                        </div>
+                        <span className="text-sm font-bold text-text-primary">301.4K</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                          <span className="text-xs text-text-secondary">Deletes</span>
+                        </div>
+                        <span className="text-sm font-bold text-text-primary">40.0K</span>
+                      </div>
+                      <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                        Total de 648K operações realizadas
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Top Índices Mais Usados */}
+                  <div className="bg-bg-secondary rounded-lg border border-border-primary p-4">
+                    <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                      <Icon name="Zap" className="w-4 h-4 text-yellow-600" />
+                      Índices Mais Utilizados
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary truncate">processed_data_pkey</span>
+                        <span className="text-xs font-bold text-text-primary">935K</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary truncate">idx_unidade_code_data</span>
+                        <span className="text-xs font-bold text-text-primary">199K</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary truncate">units_pkey</span>
+                        <span className="text-xs font-bold text-text-primary">79K</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary truncate">unidade_atendimento</span>
+                        <span className="text-xs font-bold text-text-primary">69K</span>
+                      </div>
+                      <p className="text-xs text-text-tertiary mt-2 pt-2 border-t border-border-secondary">
+                        <Icon name="Info" className="w-3 h-3 inline mr-1" />
+                        Performance otimizada com índices
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Modal: Usuários Ativos */}
+      {showActiveUsersModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg-secondary border border-border-primary rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-border-secondary flex items-center justify-between bg-bg-tertiary">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
+                <h3 className="text-lg font-bold text-text-primary">Usuários Ativos (5m)</h3>
+              </div>
+              <button
+                onClick={() => setShowActiveUsersModal(false)}
+                className="p-1 hover:bg-bg-tertiary rounded-full transition-colors"
+              >
+                <Icon name="x" className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {(() => {
+                const fiveMinAgo = new Date();
+                fiveMinAgo.setMinutes(fiveMinAgo.getMinutes() - 5);
+
+                const activeUsers = activityLogs
+                  .filter(log => new Date(log.created_at) >= fiveMinAgo)
+                  .reduce((acc: any[], log) => {
+                    const existing = acc.find(u => u.identifier === log.user_identifier);
+                    if (!existing) {
+                      acc.push({
+                        identifier: log.user_identifier,
+                        lastAction: log.created_at,
+                        unitCode: log.unit_code,
+                        module: log.workflow || log.metadata?.module_name || 'Sistema'
+                      });
+                    }
+                    return acc;
+                  }, [])
+                  .sort((a, b) => new Date(b.lastAction).getTime() - new Date(a.lastAction).getTime());
+
+                if (activeUsers.length === 0) {
+                  return <p className="text-center text-text-tertiary py-4">Nenhum usuário ativo nos últimos 5 minutos.</p>;
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {activeUsers.map((user, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-border-secondary bg-bg-tertiary">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-text-primary">{user.identifier}</span>
+                          <span className="text-[10px] text-text-tertiary uppercase font-medium">
+                            {user.module} • {user.unitCode || 'GERAL'}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-text-secondary block">Última ação</span>
+                          <span className="text-[10px] font-mono text-blue-600">{new Date(user.lastAction).toLocaleTimeString('pt-BR')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="px-6 py-4 bg-bg-tertiary border-t border-border-secondary flex justify-end">
+              <button
+                onClick={() => setShowActiveUsersModal(false)}
+                className="px-4 py-2 bg-accent-primary text-text-on-accent rounded-md text-sm font-medium hover:bg-accent-primary/90 transition-all"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
-        )}
-      </>
-    )}
-  </div>
-);
-};export default DashboardSistemaPage;
+        </div>
+      )}
+
+      {/* Modal: Detalhamento da Ação */}
+      {selectedLogDetail && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-bg-secondary border border-border-primary rounded-xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-border-secondary flex items-center justify-between bg-bg-tertiary">
+              <div className="flex items-center gap-2">
+                {getActionIcon(selectedLogDetail.action_code)}
+                <h3 className="text-lg font-bold text-text-primary">
+                  {selectedLogDetail.actions?.action_name || getActionName(selectedLogDetail.action_code)}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedLogDetail(null)}
+                className="p-1 hover:bg-bg-tertiary rounded-full transition-colors"
+              >
+                <Icon name="x" className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Header Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                  <span className="text-[10px] text-text-tertiary uppercase font-bold block mb-1">Usuário</span>
+                  <p className="text-sm font-semibold text-text-primary truncate">{selectedLogDetail.user_identifier}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                  <span className="text-[10px] text-text-tertiary uppercase font-bold block mb-1">Horário</span>
+                  <p className="text-sm font-semibold text-text-primary">
+                    {new Date(selectedLogDetail.created_at).toLocaleDateString('pt-BR')} {new Date(selectedLogDetail.created_at).toLocaleTimeString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Specific Content Parsing */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-text-tertiary uppercase tracking-wider">Detalhes da Execução</h4>
+                {(() => {
+                  const meta = selectedLogDetail.metadata || {};
+
+                  // Caso: Recrutadora
+                  if (selectedLogDetail.action_code === 'update_recrutadora') {
+                    return (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-blue-400 uppercase font-bold block">Candidata</span>
+                            <span className="text-base font-bold text-blue-900">{meta.nome || '-'}</span>
+                          </div>
+                          <Icon name="User" className="w-8 h-8 text-blue-200" />
+                        </div>
+                        <div className="flex items-center justify-between gap-4 p-4 bg-bg-tertiary rounded animate-in slide-in-from-bottom-2 duration-300">
+                          <div className="flex flex-col items-center flex-1">
+                            <span className="text-[10px] uppercase text-text-tertiary mb-1">Status Anterior</span>
+                            <span className="text-xs font-medium text-text-secondary px-3 py-1 bg-border-secondary rounded-full line-through opacity-60">
+                              {meta.status_anterior || '-'}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <Icon name="ArrowRight" className="w-5 h-5 text-blue-500 animate-pulse" />
+                          </div>
+                          <div className="flex flex-col items-center flex-1">
+                            <span className="text-[10px] uppercase text-text-tertiary mb-1">Novo Status</span>
+                            <span className="text-xs font-bold text-blue-600 px-3 py-1 bg-blue-100 border border-blue-200 rounded-full">
+                              {meta.novo_status || '-'}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-text-tertiary italic text-center">Ação de arrastar e soltar card</p>
+                      </div>
+                    );
+                  }
+
+                  // Caso: Edição de Registro
+                  if (selectedLogDetail.action_code === 'update_atend' || selectedLogDetail.action_code === 'update_posvendas') {
+                    const fields = meta.fields_updated ? meta.fields_updated.split(',') : [];
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary border border-border-secondary">
+                          <div className="flex items-center gap-2">
+                            <Icon name="Hash" className="w-4 h-4 text-text-tertiary" />
+                            <span className="text-sm font-semibold text-text-secondary">ID do Atendimento:</span>
+                          </div>
+                          <span className="text-sm font-mono font-bold text-accent-primary border border-accent-primary/20 bg-accent-primary/5 px-2 py-0.5 rounded">
+                            {selectedLogDetail.atend_id || meta.atend_id || '-'}
+                          </span>
+                        </div>
+                        <div className="p-4 bg-bg-tertiary rounded border border-border-secondary">
+                          <span className="text-xs font-semibold text-text-secondary block mb-3">Colunas Modificadas:</span>
+                          <div className="flex flex-wrap gap-2">
+                            {fields.length > 0 ? fields.map((f: string) => (
+                              <div key={f} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-border-secondary rounded shadow-sm">
+                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                <span className="text-[10px] text-text-primary uppercase font-bold truncate max-w-[120px]">
+                                  {f.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                            )) : <span className="text-xs italic text-text-tertiary">Informação de campos não disponível</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Caso: Envio de Webhook/Notificação
+                  if (selectedLogDetail.action_code === 'notify_client' || selectedLogDetail.action_code === 'recrutadora_envio') {
+                    return (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-lg bg-green-50 border border-green-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-green-400 uppercase font-bold block">Destinatário</span>
+                            <span className="text-base font-bold text-green-900">{meta.nome || '-'}</span>
+                          </div>
+                          <Icon name="Send" className="w-8 h-8 text-green-200" />
+                        </div>
+                        <div className="p-3 bg-bg-tertiary rounded border border-border-secondary flex items-center justify-between">
+                          <span className="text-sm font-medium text-text-secondary">WhatsApp:</span>
+                          <span className="text-sm font-mono text-text-primary">{meta.whatsapp || meta.telefone || '-'}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Default: mostrar JSON formatado
+                  return (
+                    <div className="bg-bg-tertiary p-4 rounded-md border border-border-secondary overflow-auto max-h-64 scrollbar-thin">
+                      <pre className="text-[11px] font-mono text-text-secondary leading-relaxed">
+                        {JSON.stringify(meta, null, 2)}
+                      </pre>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Status & Technical info */}
+              <div className="pt-4 border-t border-border-secondary flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-text-tertiary uppercase font-bold">Status:</span>
+                  <StatusBadge status={selectedLogDetail.status} />
+                </div>
+                <span className="text-[10px] font-mono text-text-tertiary">#ID {String(selectedLogDetail.id).slice(0, 8)}</span>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-bg-tertiary border-t border-border-secondary flex justify-end">
+              <button
+                onClick={() => setSelectedLogDetail(null)}
+                className="px-4 py-2 bg-accent-primary text-text-on-accent rounded-md text-sm font-medium hover:bg-accent-primary/90 transition-all shadow-md"
+              >
+                Concluído
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DashboardSistemaPage;

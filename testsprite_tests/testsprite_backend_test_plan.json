@@ -1,0 +1,19 @@
+[
+  {
+    "id": "1",
+    "requirement": "Acesso Público e Navegação",
+    "description": "Validar se as páginas públicas estão carregando corretamente.",
+    "steps": [
+      {
+        "id": "1.1",
+        "action": "Acessar a rota raiz",
+        "expected_result": "Deve exibir a página de login se não houver sessão ativa."
+      },
+      {
+        "id": "1.2",
+        "action": "Navegar para /onboarding",
+        "expected_result": "Deve exibir a página de onboarding."
+      }
+    ]
+  }
+]

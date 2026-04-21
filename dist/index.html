@@ -1,145 +1,46 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <!-- Favicons para diferentes contextos -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DromeFlow</title>
-    <style>
-      :root {
-        /* Cores de Acento e Ação (Tema Claro) */
-        --accent-primary: #ac009e;
-        --accent-secondary: #fd24a0;
-  /* Alias usado como fallback no stripe lateral dos cards */
-  --color-accent-primary: var(--accent-primary);
-        
-        /* Cores Semânticas */
-        --success-color: #70e000;
-        --warning-color: #f88f0b;
-        --danger-color: #ef476f;
-        --info-color: #00d5ff;
 
-        /* Paleta de Cores Adicional */
-        --brand-magenta: #ccff33;
-        --brand-pink: #fd24a0;
-        --brand-lime: #ccff33;
-        --brand-green: #70e000;
-        --brand-cyan: #00d5ff;
-        --brand-orange: #f88f0b;
-        --brand-dark-blue: #010d32;
-        --brand-snow-white: #fffafa;
-        
-        /* Tema Claro (Padrão) */
-        --bg-primary: #f8fafc;
-        --bg-secondary: #ffffff;
-        --bg-tertiary: #f1f5f9;
-        
-        --text-primary: #1e293b;
-        --text-secondary: #64748b;
-        --text-accent: var(--accent-primary);
-        --text-on-accent: #ffffff;
-        
-        --border-primary: #e2e8f0;
-        --border-secondary: #cbd5e1;
-        --border-accent: var(--accent-primary);
-        
-        /* Estados de Foco */
-        --focus-ring-color: #ac009e;
+<head>
+  <meta charset="UTF-8" />
+  <!-- Favicons para diferentes contextos -->
+  <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./android-chrome-192x192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="./android-chrome-512x512.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-        /* Sombras */
-        --shadow-color-rgb: 30, 41, 59;
-        --shadow-sm: 0 1px 3px rgba(var(--shadow-color-rgb), 0.05);
-        --shadow-md: 0 2px 8px rgba(var(--shadow-color-rgb), 0.08);
-        --shadow-lg: 0 4px 16px rgba(var(--shadow-color-rgb), 0.12);
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' https://*.facebook.com;
+                 img-src 'self' data: blob: https:;
+                 media-src 'self' blob: https:;
+                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net;
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                 font-src 'self' https://fonts.gstatic.com;
+                 frame-src 'self' https://*.facebook.com;
+                 connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.paineldromedario.top https://n8n.paineldromedario.top https://*.dromedario.cloud https://brasilapi.com.br https://app-utalk.umbler.com https://*.facebook.com;">
 
-        /* Layout */
-        --border-radius-sm: 8px;
-        --border-radius: 10px;
-        --border-radius-lg: 16px;
-      }
-      /* Estilos para conteúdo HTML injetado */
-      .prose h2 { color: var(--text-primary); }
-      .prose p { color: var(--text-secondary); }
-      .prose strong { color: var(--text-primary); }
-      .prose ul > li::before { background-color: var(--text-secondary); }
-    </style>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              'accent-primary': 'var(--accent-primary)',
-              'accent-secondary': 'var(--accent-secondary)',
-              'success': 'var(--success-color)',
-              'warning': 'var(--warning-color)',
-              'danger': 'var(--danger-color)',
-              'info': 'var(--info-color)',
-              'brand-magenta': 'var(--brand-magenta)',
-              'brand-pink': 'var(--brand-pink)',
-              'brand-lime': 'var(--brand-lime)',
-              'brand-green': 'var(--brand-green)',
-              'brand-cyan': 'var(--brand-cyan)',
-              'brand-orange': 'var(--brand-orange)',
-              'brand-dark-blue': 'var(--brand-dark-blue)',
-              'brand-snow-white': 'var(--brand-snow-white)',
-              'bg-primary': 'var(--bg-primary)',
-              'bg-secondary': 'var(--bg-secondary)',
-              'bg-tertiary': 'var(--bg-tertiary)',
-              'text-primary': 'var(--text-primary)',
-              'text-secondary': 'var(--text-secondary)',
-              'text-accent': 'var(--text-accent)',
-              'text-on-accent': 'var(--text-on-accent)',
-              'border-primary': 'var(--border-primary)',
-              'border-secondary': 'var(--border-secondary)',
-              'border-accent': 'var(--border-accent)',
-            },
-            boxShadow: {
-              sm: 'var(--shadow-sm)',
-              md: 'var(--shadow-md)',
-              lg: 'var(--shadow-lg)',
-            },
-            borderRadius: {
-              sm: 'var(--border-radius-sm)',
-              DEFAULT: 'var(--border-radius)',
-              lg: 'var(--border-radius-lg)',
-            },
-            ringColor: {
-              DEFAULT: 'var(--focus-ring-color)',
-            }
-          }
-        }
-      }
-    </script>
+  <title>DromeFlow</title>
 
-  <!-- Removido: /index.css inexistente causava erro de MIME; Tailwind via CDN já cobre estilos -->
-    <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs",
-    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm",
-    "recharts": "https://aistudiocdn.com/recharts@^3.2.1",
-    "path": "https://aistudiocdn.com/path@^0.12.7",
-    "vite": "https://aistudiocdn.com/vite@^7.1.6",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.3",
-    "url": "https://aistudiocdn.com/url@^0.11.4"
-  }
-}
-</script>
-  <script type="module" crossorigin src="/assets/index-3q4JJB-x.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/vendor-react-BIZPrBPB.js">
-  <link rel="modulepreload" crossorigin href="/assets/vendor-supabase-BE7hfcN1.js">
-<link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
-  <body class="bg-bg-primary text-text-primary">
-    <div id="root"></div>
-  </body>
+  <!-- Fontes Premium & Acessíveis -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
+
+  <!-- Tailwind CSS v4.x Native via Vite -->
+  <!-- Tailwind CSS is configured via CSS-first blocks in src/index.css -->
+
+  <script type="module" crossorigin src="./assets/index-f3Mrsne6.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/vendor-react-BIZPrBPB.js">
+  <link rel="modulepreload" crossorigin href="./assets/vendor-supabase-J4Jtr83s.js">
+  <link rel="stylesheet" crossorigin href="./assets/index-B3j3Ti6X.css">
+<link rel="manifest" href="./manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="./registerSW.js"></script></head>
+
+<body class="bg-bg-primary text-text-primary">
+  <div id="root"></div>
+</body>
+
 </html>

@@ -3,6 +3,8 @@ import * as XLSX from 'xlsx';
 import { Unit, UploadMetrics } from '../../types';
 import { Icon } from './Icon';
 import { uploadXlsxData } from '../../services/ingestion/upload.service';
+import { activityLogger } from '../../services/utils/activityLogger.service';
+import { useAuth } from '../../contexts/AuthContext';
 import type { RawDataRecordForUpload } from '../../services/ingestion/upload.service';
 
 interface UploadModalProps {
@@ -15,6 +17,7 @@ interface UploadModalProps {
 type Status = 'idle' | 'processing' | 'success' | 'error';
 
 const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess, unit }) => {
+    const { profile } = useAuth();
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState<Status>('idle');
     const [message, setMessage] = useState('');
@@ -101,7 +104,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                 if (jsonData.length < 2) throw new Error("A planilha parece estar vazia ou não contém cabeçalhos e dados.");
 
                 setMessage('Validando colunas...');
-                
+
                 // Buscar cabeçalhos começando da linha 2 (índice 1), pulando linha 1 que pode estar vazia
                 let headerRowIndex = -1;
                 let headers: string[] = [];
@@ -113,7 +116,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                         break;
                     }
                 }
-                
+
                 // Fallback: se não encontrar a partir da linha 2, tentar desde a linha 1
                 if (headerRowIndex === -1) {
                     for (let i = 0; i < Math.min(jsonData.length, 3); i++) {
@@ -125,43 +128,43 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                         }
                     }
                 }
-                
+
                 if (headerRowIndex === -1) {
                     throw new Error("Linha de cabeçalhos não encontrada. Verifique se existe uma coluna 'Número'.");
                 }
-                
+
                 console.log(`Cabeçalhos encontrados na linha ${headerRowIndex + 1}:`, headers);
                 const requiredHeaders = ['Número', 'Data', 'Cliente', 'Valor (R$)', 'Serviço'];
                 for (const rh of requiredHeaders) {
                     if (!headers.some(h => h.toLowerCase() === rh.toLowerCase())) throw new Error(`Coluna obrigatória não encontrada: "${rh}"`);
                 }
 
-                                const headerMap: { [key: string]: number } = {};
-                                const normalizedHeaderMap: { [key: string]: number } = {};
-                                const normalize = (s: string) => s
-                                    .toLowerCase()
-                                    .normalize('NFD')
-                                    .replace(/\p{Diacritic}/gu, '') // remove acentos
-                                    .replace(/\s+/g, ' ') // espaços múltiplos -> 1
-                                    .trim();
-                                headers.forEach((h, i) => {
-                                        const lower = h.toLowerCase();
-                                        headerMap[lower] = i;
-                                        normalizedHeaderMap[normalize(h)] = i;
-                                });
-                                // LOG diagnóstico nomes de cabeçalho
-                                console.log('[UPLOAD] Cabeçalhos brutos:', headers);
-                                console.log('[UPLOAD] Cabeçalhos lower-case:', Object.keys(headerMap));
-                                console.log('[UPLOAD] Cabeçalhos normalizados:', Object.keys(normalizedHeaderMap));
+                const headerMap: { [key: string]: number } = {};
+                const normalizedHeaderMap: { [key: string]: number } = {};
+                const normalize = (s: string) => s
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/\p{Diacritic}/gu, '') // remove acentos
+                    .replace(/\s+/g, ' ') // espaços múltiplos -> 1
+                    .trim();
+                headers.forEach((h, i) => {
+                    const lower = h.toLowerCase();
+                    headerMap[lower] = i;
+                    normalizedHeaderMap[normalize(h)] = i;
+                });
+                // LOG diagnóstico nomes de cabeçalho
+                console.log('[UPLOAD] Cabeçalhos brutos:', headers);
+                console.log('[UPLOAD] Cabeçalhos lower-case:', Object.keys(headerMap));
+                console.log('[UPLOAD] Cabeçalhos normalizados:', Object.keys(normalizedHeaderMap));
 
                 setMessage('Processando registros...');
-                
+
                 const formatarData = (d: string) => {
                     if (!d) return null;
                     const parts = d.split('/');
                     return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : d;
                 };
-                
+
                 const formatarMoeda = (v: string) => {
                     if (!v) return 0;
                     let valor = String(v).trim().replace(/R\$\s*/g, '');
@@ -185,7 +188,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                     const valorOriginal = String(row[headerMap['valor']] || row[headerMap['valor (r$)']] || '0').trim();
                     const clienteOriginal = String(row[headerMap['cliente']] || '').trim();
                     const servicoOriginal = String(row[headerMap['serviço']] || row[headerMap['servico']] || '').trim();
-                    
+
                     // Validação rigorosa: todos os campos obrigatórios devem ter conteúdo
                     const numeroTrimmed = numero.trim();
                     if (!numeroTrimmed || !dataOriginal || !clienteOriginal || !servicoOriginal) {
@@ -248,6 +251,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                         observacao: null,
                         'pos vendas': null,
                         comentario: null,
+                        unidade_code: unit.unit_code,
                     };
                     recordsToUpload.push(record);
                     if (recordsToUpload.length === 1) {
@@ -262,22 +266,33 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                         }
                     }
                 }
-                
+
                 if (recordsToUpload.length === 0) throw new Error("Nenhum registro válido encontrado para upload.");
-                
+
                 console.log(`Total de ${recordsToUpload.length} linhas prontas para envio.`);
-                
+
                 setMessage('Sincronizando e enviando dados...');
                 const finalMetrics = await uploadXlsxData(unit.unit_code, recordsToUpload);
 
                 const messageParts = [`Importação concluída com sucesso!`];
-                if(finalMetrics.deleted > 0) messageParts.push(`${finalMetrics.deleted} registros obsoletos foram removidos.`);
+                if (finalMetrics.deleted > 0) messageParts.push(`${finalMetrics.deleted} registros obsoletos foram removidos.`);
                 messageParts.push(`${finalMetrics.inserted} registros novos foram adicionados.`);
                 messageParts.push(`${finalMetrics.updated} registros existentes foram atualizados.`);
                 messageParts.push(`${finalMetrics.ignored} registros permaneceram inalterados.`);
 
                 setMessage(messageParts.join(' '));
                 setStatus('success');
+
+                // Registrar upload bem-sucedido
+                if (profile) {
+                    activityLogger.logUpload(
+                        profile.email || profile.full_name,
+                        unit.unit_code,
+                        recordsToUpload.length,
+                        'success'
+                    );
+                }
+
                 setTimeout(() => {
                     onUploadSuccess();
                     handleClose();
@@ -285,8 +300,20 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
 
             } catch (err: any) {
                 console.error("Erro no processamento:", err);
-                setMessage(err.message || 'Ocorreu um erro desconhecido.');
+                const errorMessage = err.message || 'Ocorreu um erro desconhecido.';
+                setMessage(errorMessage);
                 setStatus('error');
+
+                // Registrar erro de upload
+                if (profile && unit) {
+                    activityLogger.logUpload(
+                        profile.email || profile.full_name,
+                        unit.unit_code,
+                        0,
+                        'error',
+                        errorMessage
+                    );
+                }
             }
         };
         reader.onerror = () => {
@@ -303,7 +330,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" aria-modal="true" role="dialog" onClick={handleOverlayClick}>
-            <div className="w-full max-w-lg p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg" onClick={(e)=>e.stopPropagation()}>
+            <div className="w-full max-w-lg p-6 mx-4 bg-bg-secondary rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between pb-3 border-b border-border-primary">
                     <div className="flex items-center gap-2">
                         <h2 className="text-xl font-bold text-text-primary">Importar Dados XLSX</h2>
@@ -328,12 +355,12 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                                         <Icon name="close" className="w-4 h-4" />
                                     </button>
                                     <h3 className="font-semibold text-text-primary mb-3">📊 Como tirar o relatório</h3>
-                                    
+
                                     <div className="space-y-3 text-text-secondary">
                                         <div>
                                             <p className="font-medium text-text-primary mb-1">🔹 Relatório de Atendimentos</p>
                                         </div>
-                                        
+
                                         <div>
                                             <p className="font-medium text-text-primary mb-1">📋 Colunas necessárias:</p>
                                             <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
@@ -346,7 +373,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                                                 <li>Dia da semana</li>
                                             </ul>
                                         </div>
-                                        
+
                                         <div>
                                             <p className="font-medium text-text-primary mb-1">🔍 Filtros recomendados:</p>
                                             <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
@@ -376,9 +403,8 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                         onDragOver={handleDragEvents}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`p-6 border-2 border-dashed rounded-lg text-center transition-colors duration-200 ${
-                            isDragOver ? 'border-accent-primary bg-accent-primary/10' : 'border-border-secondary'
-                        } ${isProcessing ? 'cursor-not-allowed opacity-60' : ''}`}
+                        className={`p-6 border-2 border-dashed rounded-lg text-center transition-colors duration-200 ${isDragOver ? 'border-accent-primary bg-accent-primary/10' : 'border-border-secondary'
+                            } ${isProcessing ? 'cursor-not-allowed opacity-60' : ''}`}
                     >
                         <input
                             type="file"
@@ -398,11 +424,10 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                     </div>
 
                     {message && (
-                         <div className={`mt-4 text-sm text-center p-3 rounded-md ${
-                            status === 'error' ? 'text-danger bg-danger/10' : 
-                            status === 'success' ? 'text-success bg-success/10' :
-                            'text-text-secondary'
-                        }`}>
+                        <div className={`mt-4 text-sm text-center p-3 rounded-md ${status === 'error' ? 'text-danger bg-danger/10' :
+                                status === 'success' ? 'text-success bg-success/10' :
+                                    'text-text-secondary'
+                            }`}>
                             {message.split('\n').map((line, i) => <p key={i}>{line}</p>)}
                         </div>
                     )}

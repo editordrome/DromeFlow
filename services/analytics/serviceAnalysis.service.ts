@@ -27,10 +27,11 @@ export const fetchServiceAnalysisData = async (
   const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('processed_data')
-    .select('CADASTRO, DATA, DIA, ATENDIMENTO_ID')
+    .select('CADASTRO, DATA, DIA, ATENDIMENTO_ID, IS_DIVISAO')
     .eq('unidade_code', unitCode)
     .gte('DATA', startDate)
     .lte('DATA', endDate);
+
   if (error) throw error;
   return (data as ServiceAnalysisRecord[]) || [];
 };
@@ -43,26 +44,26 @@ export const fetchServicePeriodAnalysisData = async (
   const [year, month] = period.split('-').map(Number);
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-  
+
   const { data, error } = await supabase
     .from('processed_data')
     .select('"PERÍODO", "TIPO"')
     .eq('unidade_code', unitCode)
     .gte('DATA', startDate)
     .lte('DATA', endDate);
-    
+
   if (error) {
     console.error('Error fetching period data:', error);
     throw error;
   }
-  
+
   console.log('🔍 Period Data from Supabase:', {
     total: data?.length || 0,
     first5: data?.slice(0, 5),
     uniquePeriods: [...new Set(data?.map(d => d.PERÍODO))].filter(Boolean),
     uniqueTypes: [...new Set(data?.map(d => d.TIPO))].filter(Boolean)
   });
-  
+
   return (data as { PERÍODO: string; TIPO?: string }[]) || [];
 };
 
@@ -107,7 +108,7 @@ export const fetchClientAnalysisData = async (
 
   return { currentMonthClients, allPreviousClients, clientDetails };
 };
- 
+
 export const fetchServiceMonthlySubmetrics = async (
   unitCode: string,
   year: number
@@ -148,7 +149,7 @@ export const fetchServiceMonthlySubmetrics = async (
     const seenAppointments = new Set<string>();
     let startOfMonth = 0;
     let evolution = 0;
-    const dailyCounts: Record<string, number> = {};
+    const dailyBudgets: Map<string, Set<string>> = new Map();
 
     // serviços únicos por atendimento original
     const original = records.filter(r => r.IS_DIVISAO !== 'SIM');
@@ -156,8 +157,13 @@ export const fetchServiceMonthlySubmetrics = async (
     original.forEach(r => { if (r.ATENDIMENTO_ID) uniqueBudgets.add(r.ATENDIMENTO_ID); });
     const totalServices = uniqueBudgets.size;
 
-    records.forEach(r => {
-      if (r.DATA) dailyCounts[r.DATA] = (dailyCounts[r.DATA] || 0) + 1;
+    original.forEach(r => {
+      if (r.DATA && r.ATENDIMENTO_ID) {
+        if (!dailyBudgets.has(r.DATA)) {
+          dailyBudgets.set(r.DATA, new Set());
+        }
+        dailyBudgets.get(r.DATA)!.add(r.ATENDIMENTO_ID);
+      }
       if (r.ATENDIMENTO_ID && r.CADASTRO) {
         if (!seenAppointments.has(r.ATENDIMENTO_ID)) {
           const cadastroDate = new Date(`${r.CADASTRO}T12:00:00Z`);
@@ -169,9 +175,25 @@ export const fetchServiceMonthlySubmetrics = async (
         }
       }
     });
-    const productiveDays = Object.values(dailyCounts).filter(c => c > 5).length;
+
+    const productiveDays = Array.from(dailyBudgets.values()).filter(budgets => budgets.size > 5).length;
+
     const productiveDayAvg = productiveDays > 0 ? totalServices / productiveDays : 0;
+
+    // DEBUG: Log temporário para verificar valores
+    if (unitCode === 'mb-teresina' && m.value === '02' && year === 2026) {
+      console.log('🔍 DEBUG MB Teresina Fev 2026:', {
+        totalServices,
+        startOfMonth,
+        evolution,
+        productiveDays,
+        productiveDayAvg,
+        dailyBudgetsSize: dailyBudgets.size
+      });
+    }
+
     results.push({ month: m.value, monthName: m.name, startOfMonth, evolution, productiveDayAvg });
+
   }
   return results;
 };
@@ -218,15 +240,20 @@ export const fetchServiceMonthlySubmetricsMulti = async (
     const seenAppointments = new Set<string>();
     let startOfMonth = 0;
     let evolution = 0;
-    const dailyCounts: Record<string, number> = {};
+    const dailyBudgets: Map<string, Set<string>> = new Map();
 
     const original = records.filter(r => r.IS_DIVISAO !== 'SIM');
     const uniqueBudgets = new Set<string>();
     original.forEach(r => { if (r.ATENDIMENTO_ID) uniqueBudgets.add(r.ATENDIMENTO_ID); });
     const totalServices = uniqueBudgets.size;
 
-    records.forEach(r => {
-      if (r.DATA) dailyCounts[r.DATA] = (dailyCounts[r.DATA] || 0) + 1;
+    original.forEach(r => {
+      if (r.DATA && r.ATENDIMENTO_ID) {
+        if (!dailyBudgets.has(r.DATA)) {
+          dailyBudgets.set(r.DATA, new Set());
+        }
+        dailyBudgets.get(r.DATA)!.add(r.ATENDIMENTO_ID);
+      }
       if (r.ATENDIMENTO_ID && r.CADASTRO) {
         if (!seenAppointments.has(r.ATENDIMENTO_ID)) {
           const cadastroDate = new Date(`${r.CADASTRO}T12:00:00Z`);
@@ -238,7 +265,9 @@ export const fetchServiceMonthlySubmetricsMulti = async (
         }
       }
     });
-    const productiveDays = Object.values(dailyCounts).filter(c => c > 5).length;
+
+    const productiveDays = Array.from(dailyBudgets.values()).filter(budgets => budgets.size > 5).length;
+
     const productiveDayAvg = productiveDays > 0 ? totalServices / productiveDays : 0;
     results.push({ month: m.value, monthName: m.name, startOfMonth, evolution, productiveDayAvg });
   }
@@ -377,4 +406,4 @@ export const fetchClientMonthlySubmetricsMulti = async (
 
 // TODO: migrar função: fetchServiceAnalysisData
 
-export {};
+export { };

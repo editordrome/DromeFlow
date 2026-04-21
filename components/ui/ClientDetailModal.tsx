@@ -5,6 +5,7 @@ import { getUnitClientByName, updateUnitClient, updateClientNameInAppointments }
 import DataDetailModal from './DataDetailModal';
 import { fetchDataRecordById } from '../../services/data/dataTable.service';
 import { fetchClientHistory } from '../../services/analytics/clients.service';
+import { getClientPlans } from '../../services/loyalty/loyaltyClients.service';
 
 export const ClientDetailModal: React.FC<{
   isOpen: boolean;
@@ -21,12 +22,14 @@ export const ClientDetailModal: React.FC<{
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>(currentPeriod);
-  
+  const [loyaltyBalance, setLoyaltyBalance] = useState<number | null>(null);
+
   // Estados para edição
   const [isEditMode, setIsEditMode] = useState(false);
   const [editNome, setEditNome] = useState('');
   const [editContato, setEditContato] = useState('');
   const [editResponsavel, setEditResponsavel] = useState('');
+  const [editIsVerified, setEditIsVerified] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => { setSelectedPeriod(currentPeriod); }, [currentPeriod]);
@@ -42,10 +45,26 @@ export const ClientDetailModal: React.FC<{
         ]);
         setUnitClient(uc);
         setHistory(hist || []);
+
+        // Buscar saldo de fidelidade se o cliente for encontrado
+        if (uc) {
+          try {
+            const plans = await getClientPlans(uc.id);
+            if (plans && plans.length > 0) {
+              setLoyaltyBalance(plans[0].current_balance);
+            } else {
+              setLoyaltyBalance(null);
+            }
+          } catch (err) {
+            console.error('Erro ao buscar saldo de fidelidade:', err);
+            setLoyaltyBalance(null);
+          }
+        }
         // Inicializa estados de edição
         setEditNome(uc?.nome || '');
         setEditContato(uc?.contato || '');
         setEditResponsavel(uc?.responsavel || '');
+        setEditIsVerified(uc?.is_verified || false);
       } finally {
         setLoading(false);
       }
@@ -65,9 +84,10 @@ export const ClientDetailModal: React.FC<{
     return (
       editNome !== (unitClient.nome || '') ||
       editContato !== (unitClient.contato || '') ||
-      editResponsavel !== (unitClient.responsavel || '')
+      editResponsavel !== (unitClient.responsavel || '') ||
+      editIsVerified !== (unitClient.is_verified || false)
     );
-  }, [unitClient, editNome, editContato, editResponsavel]);
+  }, [unitClient, editNome, editContato, editResponsavel, editIsVerified]);
 
   const handleSave = async () => {
     if (!unitClient?.id || !hasChanges) return;
@@ -76,17 +96,18 @@ export const ClientDetailModal: React.FC<{
       const patch: Partial<UnitClient> = {};
       const oldNome = unitClient.nome || '';
       let nomeChanged = false;
-      
+
       if (editNome !== unitClient.nome) {
         patch.nome = editNome;
         nomeChanged = true;
       }
       if (editContato !== (unitClient.contato || '')) patch.contato = editContato;
       if (editResponsavel !== (unitClient.responsavel || '')) patch.responsavel = editResponsavel;
-      
+      if (editIsVerified !== (unitClient.is_verified || false)) patch.is_verified = editIsVerified;
+
       // Atualiza o cliente
       const updated = await updateUnitClient(unitClient.id, patch);
-      
+
       // Se o nome foi alterado, atualiza todos os atendimentos vinculados
       if (nomeChanged && oldNome && editNome) {
         try {
@@ -99,7 +120,7 @@ export const ClientDetailModal: React.FC<{
           alert('Cliente atualizado, mas houve um erro ao atualizar os atendimentos vinculados.');
         }
       }
-      
+
       setUnitClient(updated);
       setIsEditMode(false);
     } catch (error) {
@@ -115,6 +136,7 @@ export const ClientDetailModal: React.FC<{
     setEditNome(unitClient.nome || '');
     setEditContato(unitClient.contato || '');
     setEditResponsavel(unitClient.responsavel || '');
+    setEditIsVerified(unitClient.is_verified || false);
     setIsEditMode(false);
   };
 
@@ -127,7 +149,7 @@ export const ClientDetailModal: React.FC<{
 
   const stop: React.MouseEventHandler<HTMLDivElement> = (e) => e.stopPropagation();
 
-  const Row: React.FC<{ label: string; value: React.ReactNode }>= ({ label, value }) => (
+  const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
     <div>
       <p className="text-xs font-medium text-text-secondary mb-1.5">{label}</p>
       <p className="text-sm text-text-primary break-words">{value || <span className="text-text-tertiary">-</span>}</p>
@@ -153,18 +175,25 @@ export const ClientDetailModal: React.FC<{
         <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-text-primary truncate" title={clientName}>
+              {unitClient?.is_verified && <Icon name="CheckCircle" className="w-5 h-5 text-blue-500 flex-shrink-0" />}
+              <h2 className="text-lg font-bold text-text-primary truncate flex items-center gap-3" title={clientName}>
                 {clientName}
+                {loyaltyBalance !== null && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-success/10 text-success text-sm font-bold border border-success/20">
+                    R$ {loyaltyBalance.toFixed(2)}
+                  </span>
+                )}
               </h2>
               <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                 <Icon name="User" className="w-3.5 h-3.5" />
                 <span>Cliente</span>
+
               </div>
             </div>
-            
-            <button 
-              onClick={onClose} 
-              className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors" 
+
+            <button
+              onClick={onClose}
+              className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors"
               aria-label="Fechar"
             >
               <Icon name="X" className="w-5 h-5" />
@@ -175,14 +204,14 @@ export const ClientDetailModal: React.FC<{
         {/* Tabs */}
         <div className="border-b border-border-secondary bg-bg-tertiary/30">
           <div className="flex items-center px-5">
-            <button 
-              className={`px-4 py-3 text-sm font-medium transition-colors ${activeTab==='dados' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary hover:text-text-primary'}`} 
+            <button
+              className={`px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'dados' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary hover:text-text-primary'}`}
               onClick={() => setActiveTab('dados')}
             >
               Dados
             </button>
-            <button 
-              className={`px-4 py-3 text-sm font-medium transition-colors ${activeTab==='atendimentos' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary hover:text-text-primary'}`} 
+            <button
+              className={`px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'atendimentos' ? 'text-accent-primary border-b-2 border-accent-primary' : 'text-text-secondary hover:text-text-primary'}`}
               onClick={() => setActiveTab('atendimentos')}
             >
               Atendimentos
@@ -210,7 +239,7 @@ export const ClientDetailModal: React.FC<{
                     const label = (p?: string) => {
                       if (!p || !/^\d{4}-\d{2}$/.test(p)) return '-';
                       const [yy, mm] = p.split('-').map(Number);
-                      const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+                      const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
                       return `${meses[Math.max(1, Math.min(12, mm)) - 1]} ${yy}`;
                     };
                     return label(selectedPeriod);
@@ -252,7 +281,18 @@ export const ClientDetailModal: React.FC<{
               <div className="flex gap-3">
                 {isEditMode ? (
                   <label className="flex-1 flex flex-col gap-1.5">
-                    <span className="text-xs font-medium text-text-secondary">Nome</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-text-secondary">Nome</span>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editIsVerified}
+                          onChange={(e) => setEditIsVerified(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded border-border-secondary text-accent-primary focus:ring-accent-primary/20"
+                        />
+                        <span className="text-xs text-text-secondary">Verificado</span>
+                      </label>
+                    </div>
                     <input
                       type="text"
                       value={editNome}
@@ -266,7 +306,7 @@ export const ClientDetailModal: React.FC<{
                     <p className="text-sm text-text-primary">{unitClient?.nome || clientName}</p>
                   </div>
                 )}
-                
+
                 <div className="w-40">
                   <p className="text-xs font-medium text-text-secondary mb-1.5">Tipo</p>
                   <p className="text-sm text-text-primary">{unitClient?.tipo || '-'}</p>
@@ -330,17 +370,17 @@ export const ClientDetailModal: React.FC<{
                   </tr>
                 </thead>
                 <tbody>
-                  {(!history || history.length===0) ? (
+                  {(!history || history.length === 0) ? (
                     <tr><td colSpan={6} className="px-3 py-8 text-center text-text-secondary text-sm">Sem atendimentos registrados.</td></tr>
                   ) : (
                     history.map((h, idx) => {
                       const periodo = (h as any)['PERÍODO'] || (h as any)['PERIODO'];
-                      
+
                       return (
-                        <tr 
-                          key={h.id || idx} 
-                          className="border-t border-border-secondary/50 hover:bg-accent-primary/5 cursor-pointer transition-colors" 
-                          onDoubleClick={async ()=>{
+                        <tr
+                          key={h.id || idx}
+                          className="border-t border-border-secondary/50 hover:bg-accent-primary/5 cursor-pointer transition-colors"
+                          onDoubleClick={async () => {
                             if (!h.id) return;
                             const rec = await fetchDataRecordById(h.id as number);
                             setDetailRecord(rec);
@@ -354,11 +394,10 @@ export const ClientDetailModal: React.FC<{
                           <td className="px-3 py-2 text-text-primary">{h.PROFISSIONAL || '-'}</td>
                           <td className="px-3 py-2 text-text-secondary">{periodo ? `${periodo} horas` : '-'}</td>
                           <td className="px-3 py-2">
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${
-                              (h as any)['pos vendas'] === 'contatado' ? 'bg-success-color/20 text-success-color' :
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${(h as any)['pos vendas'] === 'contatado' ? 'bg-success-color/20 text-success-color' :
                               (h as any)['pos vendas'] === 'pendente' ? 'bg-yellow-500/20 text-yellow-500' :
-                              'text-text-tertiary'
-                            }`}>
+                                'text-text-tertiary'
+                              }`}>
                               {(h as any)['pos vendas'] || '-'}
                             </span>
                           </td>
@@ -392,7 +431,7 @@ export const ClientDetailModal: React.FC<{
               <span>Duplo clique para detalhes</span>
             </div>
           )}
-          
+
           <div className="flex items-center gap-2">
             {activeTab === 'dados' && isEditMode && (
               <>
@@ -434,8 +473,8 @@ export const ClientDetailModal: React.FC<{
         isOpen={detailOpen}
         onClose={() => setDetailOpen(false)}
         record={detailRecord}
-        onEdit={()=>{}}
-        onDelete={()=>{}}
+        onEdit={() => { }}
+        onDelete={() => { }}
       />
     </div>
   );

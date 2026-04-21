@@ -2,6 +2,295 @@
 
 Registro de todas as mudanças notáveis no projeto DromeFlow.
 
+## [2026-04-07] - Webhook Recrutadora & Restauração de Períodos na Agenda 🚀
+
+### ✨ Novas Funcionalidades / Melhorias
+
+#### 1. Webhook de Candidatas (Recrutadora)
+- **Ação "Enviar Mensagem"**: Adicionado botão de disparo de webhook dentro do modal da candidata.
+- **Regra de Negócio**: O botão é exibido exclusivamente quando a candidata está na coluna **"Qualificadas"**, garantindo que apenas perfis aprovados recebam a comunicação.
+- **Integração Dinâmica**: Os dados (nome, WhatsApp, código da unidade) são extraídos em tempo real e enviados para o webhook configurado nas credenciais da unidade.
+
+#### 2. Gestão de Carga Horária (Agenda Admin)
+- **Restauração de Períodos**: Corrigida a gestão de disponibilidade para que, ao editar um dia sem status (`—`), o administrador selecione primeiro a carga horária (**8 horas**, **6 horas**, **4 horas...**) antes de aplicar status manuais.
+- **Menu Contextual Inteligente**: A interface agora alterna automaticamente entre o menu de "Jornada de Trabalho" (para novos registros) e o menu de "Status Operacional" (para registros já configurados), prevenindo inconsistências de dados.
+
+### 🔧 Correções Técnicas
+
+#### 3. Tipagem e Sincronização
+- **Fixo**: Importação de constantes de períodos e tipos no componente `AgendaConfiguracoesView.tsx`.
+- **Backend**: Validado o processamento de strings de jornada no hook `useAgendaConfig.ts` para garantir a unificação correta dos períodos Manhã/Tarde.
+
+---
+
+
+## [2026-03-30] - Comercial Admin Pro: Colunas Dinâmicas e WhatsApp Integration 🚀
+
+### ✨ Novas Funcionalidades / Melhorias
+
+#### 1. Kanban Dinâmico (Comercial Admin)
+- **Status Customizáveis**: O Kanban agora carrega as colunas e cores diretamente da tabela `comercial_admin_columns`, permitindo que o usuário personalize as etapas do processo comercial.
+- **Seletor de Status Premium**: A troca de status foi movida para dentro do modal de detalhes do card. Implementado um seletor customizado com `framer-motion`, eliminando o menu de três pontos no card fechado e mantendo a interface limpa.
+- **Atualização Otimista**: Ao trocar o status no modal, o card se move visualmente no Kanban instantaneamente, sem necessidade de recarregar a página.
+
+#### 2. Atalho para WhatsApp
+- **Click-to-Chat**: Adicionado um botão de WhatsApp ao lado do campo de contato no modal.
+- **Formatação Automática**: O sistema limpa o número (remove parênteses e traços) e garante a inclusão do DDI `55` para abertura correta do link `wa.me`.
+
+### 🔧 Correções Técnicas
+
+#### 3. Banco de Dados (Constraint Fix)
+- **Remoção de Trava de Status**: Identificado e removida a `CHECK constraint` legada (`comercial_admin_status_check`) na tabela `comercial_admin`, possibilitando que a coluna `status` aceite os novos valores definidos dinamicamente.
+- **Persistência de Dados (Modal)**: Resolvido bug de "stale data" onde o modal mantinha informações do card anterior ao abrir um novo. Agora o estado é reiniciado completamente sempre que o ID do card muda.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as mudanças de arquitetura e novas funcionalidades do Comercial Admin.
+
+---
+
+## [2026-03-28] - Refatoração do Comercial Admin: Gestão de Produção e Webhook Umbler 🚀
+
+### ✨ Novas Funcionalidades / Melhorias
+
+#### 1. Módulo Comercial Admin (Fluxo de Produção)
+- **Novo Foco**: O módulo agora atua como um hub de gestão de implantação/produção para novos clientes.
+- **Checklist de Produção**: Implementado checklist interativo com 4 categorias (Cadastro Unidade, Status Pagamento, Recrutadora, Umbler) com persistência automática no `handleAutoSave`.
+- **Badges de Produção**: Cards no Kanban agora exibem badges visuais coloridos com o status da produção para facilitar o acompanhamento da fila de implantação.
+- **Limpeza de UI**: Removidos campos legados (endereço, início/fim de teste) que não fazem mais parte do escopo administrativo atual.
+
+#### 2. Integração Webhook Umbler (`umbler-org`)
+- **Action Rocket 🚀**: Adicionado botão de disparo manual para o webhook de provisionamento Umbler, visível apenas para leads com status "Ganhos".
+- **Busca Dinâmica**: A URL do webhook é consumida em tempo real da tabela `public.access_credentials`.
+- **Feedback Visual**: Implementados estados de loading, sucesso e erro para a ação do webhook.
+
+### 🔧 Correções Técnicas
+
+#### 3. Resolvida Ambiguidade de Relacional (`Units`)
+- **Correção SQL**: Atualizada a query de busca em `comercial-admin.service.ts` para resolver conflito de múltiplas chaves estrangeiras com a tabela `units`, utilizando a relação explícita `linked_unit_id`.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as mudanças de arquitetura e novas funcionalidades do módulo de produção.
+
+---
+
+## [2026-03-27] - Correções de Inicialização (startsWith) e Sincronização SQL (TIPO)
+
+### 🔧 Correções Técnicas
+
+#### 1. Fix 'startsWith' na Inicialização
+- **Problema**: Erro `null is not an object (evaluating 'e.startsWith')` ocorrendo durante o refresh da página.
+- **Causa**: Chamada de `.startsWith()` em URLs de webhooks nulas durante a hidratação do estado do módulo ativo.
+- **Solução**: Adicionadas verificações defensivas em `content.service.ts` e `ContentArea.tsx`.
+
+#### 2. Fix 'TIPO' Casing: Sincronização `processed_data` -> `pos_vendas`
+- **Problema**: Upload falhando com erro `record "new" has no field "tipo"`.
+- **Causa**: A tabela `processed_data` possui a coluna `TIPO` (maiúsculo), mas o gatilho tentava acessar `NEW.tipo`.
+- **Solução**: Atualizada a função SQL para referenciar corretamente `NEW."TIPO"`.
+- **Melhoria**: Atualizada a cláusula `ON CONFLICT` para realizar `UPDATE` nos dados (UPSERT), garantindo sincronização total.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as correções de frontend e backend.
+
+---
+
+## [2026-02-03] - Integração de Unidades em Teste e Melhorias no Comercial Admin
+
+### ✨ Novas Funcionalidades
+
+#### 1. Sistema de Unidades em Teste (Espelhamento Comercial)
+- **Modo Teste**: Nova funcionalidade que permite marcar unidades como "em teste" e espelhá-las automaticamente no módulo Comercial Admin.
+- **Sincronização Bidirecional**: Trigger SQL (`sync_unit_to_comercial_admin`) que mantém os dados sincronizados entre as tabelas `units` e `comercial_admin`.
+- **Controles Visuais**: 
+  - Badge "TESTE" na lista de unidades
+  - Toggle rápido no painel de detalhes da unidade
+  - Card premium no modal do Comercial Admin mostrando a conexão com a unidade
+- **Auto-fechamento**: Ao desativar o modo teste pelo Kanban, o modal fecha automaticamente após sincronizar.
+
+#### 2. Alertas de Expiração de Teste
+- **Bordas Coloridas**: Sistema visual de alertas baseado na `data_fim_teste`:
+  - 🔴 **Borda Vermelha (2px)**: Teste expirado
+  - 🟡 **Borda Amarela (2px)**: Expira em 3 dias ou menos
+  - ⚪ **Borda Normal**: Mais de 3 dias restantes
+- **Cálculo Automático**: Função `getExpirationStatus` que processa datas e aplica classes CSS dinamicamente.
+
+#### 3. Campo "Origem" com Autocomplete
+- **Input Dinâmico**: Substituído select fixo por input de texto com sugestões inteligentes.
+- **Filtragem em Tempo Real**: Opções são filtradas conforme o usuário digita.
+- **Flexibilidade**: Aceita valores personalizados além das sugestões pré-definidas (Whatsapp, Ligação, E-mail, Indicação, Site, Outros).
+- **UX Aprimorada**: Dropdown interativo com hover states e transições suaves.
+
+### 🔧 Correções Técnicas
+
+#### 4. Correções de TypeScript no ComercialAdminPage
+- **Type Assertions**: Adicionadas type assertions para `ComercialAdminCard` em operações de array (findIndex, spread operator).
+- **Draggable Key**: Removida prop `key` inválida do componente `Draggable` da biblioteca `@hello-pangea/dnd`.
+- **Build Limpo**: Todos os erros de lint resolvidos, compilação sem warnings.
+
+#### 5. Filtro Global de Cards
+- **Busca Unificada**: Modificada a query do Comercial Admin para buscar TODOS os cards de unidades em teste, não apenas de uma unidade específica.
+- **Métricas Globais**: KPIs agora consideram todos os cards do sistema.
+
+### 🗄️ Banco de Dados
+
+#### 6. Migrações SQL
+- **Nova Coluna**: `teste` (boolean) adicionada à tabela `units`.
+- **Trigger**: `trigger_sync_unit_to_comercial` para sincronização automática.
+- **Função**: `sync_unit_to_comercial_admin()` com lógica de UPSERT e DELETE baseada no status de teste.
+
+### 🚀 Build
+- **dist**: Build de produção atualizado via `npm run build` incluindo todas as alterações de frontend, correções de tipo e novas funcionalidades do Comercial Admin.
+
+---
+
+## [2026-01-27] - Expansão do Módulo Sistema (Manuais e Layouts)
+
+### ✨ Novas Funcionalidades
+
+#### 1. Múltiplos Manuais por Módulo
+- **Sub-funções**: Agora é possível cadastrar múltiplos manuais dentro de um único módulo (ex: "Visualizar", "Editar", "Relatórios").
+- **Navegação**: O menu lateral do módulo Sistema exibe automaticamente a lista de funções quando houver mais de uma.
+- **Ordenação**: Controle total sobre a ordem de exibição dos tópicos.
+
+#### 2. Customização Visual de Documentação
+- **Posicionamento de Imagem**: Nova opção para definir a posição da imagem ilustrativa (Topo, Fundo, Esquerda, Direita).
+- **Tamanhos Flexíveis**: Controle de tamanho da imagem (Pequeno, Médio, Grande, Full) para melhor adaptação ao conteúdo.
+- **Layout Responsivo**: A interface se adapta automaticamente (colunas vs linhas) baseado na configuração escolhida pelo admin.
+
+### 🚀 Build
+- **dist**: Build de produção atualizado incluindo todas as alterações de frontend e migrações de banco de dados.
+
+---
+
+## [2026-01-27] - Otimização do Sistema de Documentos e Correção de RLS
+
+### ✨ Novas Funcionalidades / Melhorias
+
+#### 1. Sincronização do Módulo Profissional
+- **Padronização**: Os modais `ProfissionalDetailModal` e `ProfissionalFormModal` foram sincronizados com o módulo Recrutadora.
+- **Preview Robusto**: Implementado renderizador de preview baseado em estado (`previewHtml`), garantindo que templates HTML/CSS complexos sejam exibidos corretamente.
+- **Dados Enriquecidos**: Normalização dos dados enviados para o motor de templates (camelCase -> snake_case) e inclusão de campos de contato da unidade e responsável.
+
+#### 2. Otimização de Performance (DocumentTemplatesService)
+- **Queries Únicas**: Refatorada a busca de templates para utilizar uma única query SQL com fallback inteligente (Prioridade Unidade > Global), reduzindo latência e carga no banco.
+
+### 🔧 Correções Técnicas
+
+#### 3. Fix RLS: Document Templates (Auth Customizado)
+- **Problema**: Políticas de RLS baseadas em `auth.uid()` estavam bloqueando o acesso pois o sistema utiliza autenticação customizada via tabelas.
+- **Solução**: Desabilitado RLS na tabela `document_templates` para restaurar o fluxo de carregamento de templates globais e customizados.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo todas as melhorias do sistema de documentos e correções de segurança.
+
+---
+
+## [2026-01-27] - Relatórios de Clientes e Fix RLS Comercial Admin
+
+### ✨ Novas Funcionalidades
+
+#### 1. Download de Relatórios no Módulo Clientes
+- **Funcionalidade**: Adicionado suporte para exportação de dados nos formatos PDF, XLSX, XLS e CSV UTF-8.
+- **Dinamicidade**: As colunas do relatório se adaptam automaticamente à métrica ativa (Atenção, Mês, Recorrentes ou Total). No modo "Atenção", inclui histórico dos últimos 3 meses e ações sugeridas.
+- **Service**: Criado `services/utils/export.service.ts` utilizando `jspdf-autotable` e `xlsx`.
+
+### 🔧 Correções Técnicas
+
+#### 2. Fix RLS: Criação de Leads no Comercial Admin
+- **Problema**: Usuários Super Admin não conseguiam criar leads devido a uma política de segurança restrita ao papel `anon`.
+- **Solução**: Atualizada a política RLS da tabela `comercial_admin` para permitir acesso total a usuários autenticados com o perfil de `super_admin`.
+
+#### 3. Correção de React Hooks (ClientsPage)
+- **Fix**: Resolvida a violação das regras do React onde um `useMemo` estava dentro de um bloco condicional, prevenindo crashes de renderização.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as novas funcionalidades de exportação e correções de segurança.
+
+---
+
+## [2026-01-23] - Busca de Profissionais com Conflito e Pesquisa Clerk
+
+### ✨ Novas Funcionalidades
+
+#### 1. Autocomplete de Profissionais com Validação de Conflito
+- **Componente**: Criado `components/ui/ProfessionalAutocomplete.tsx` para busca dinâmica de profissionais.
+- **Lógica de Conflito**: Implementada busca inteligente em `profissionais.service.ts` que valida:
+  - Disponibilidade no dia específico.
+  - Sobreposição de horários (4h, 6h ou 8h).
+  - Unidade correta.
+- **UX**: Retorno imediato apenas de profissionais disponíveis para facilitar o agendamento manual.
+
+#### 2. Pesquisa de Integração Clerk + Supabase
+- **Docs**: Criados guias de integração e gerenciamento customizado para substituição do Auth atual por Clerk.
+- **Customização**: Demonstração de componentes Clerk estilizados com a identidade visual do DromeFlow.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada refletindo as melhorias de busca e novos componentes de UI.
+
+---
+
+## [2026-01-22] - Recuperação de Dados (MB Londrina) e Melhoria no Upload
+
+### ✨ Novas Funcionalidades
+
+#### 1. Priorização de Cadastro no Upload
+- **Banco de Dados**: Modificada a RPC `process_xlsx_upload` para priorizar informações do diretório de clientes (`unit_clients`).
+- **Lógica**: Se um cliente já possui telefone cadastrado no sistema, o upload de planilha **não mais sobrescreve** esse dado, preservando a informação oficial e evitando números desatualizados na visão de atendimentos.
+
+### 🔧 Correções e Recuperação
+
+#### 2. Restauração MB Londrina
+- **Status**: Recuperados **1.071 registros** de status que haviam sido resetados para `PENDENTE` devido a um upload massivo.
+- **Telefones**: Restaurados **4.908 números de telefone** na tabela `processed_data` através do cruzamento com o cadastro mestre de clientes.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` refletindo as melhorias de backend e integridade de dados.
+
+---
+
+## [2026-01-20] - Dashboard N8N, Sidebar Otimizada e Visão Super Admin
+
+### ✨ Novas Funcionalidades
+
+#### 1. Integração com API do N8N
+- **Service**: Criado `services/n8n/n8n.service.ts` para consumo da API v1 do n8n.
+- **Dashboard**: Refatoração da aba N8N no Dashboard de Sistema para exibir execuções reais, duração e links diretos para o bot.
+- **Métricas**: Novos cards de métricas (Total, Sucesso, Erros, Taxa) com fallback automático para logs do banco caso a API falhe.
+- **Agrupamento de Erros**: Nova visão detalhada de erros agrupados por workflow para facilitar o troubleshooting.
+
+#### 2. Visão Admin para Super Admin
+- **View Mode Toggle**: Implementado seletor "Sistema" vs "Unidades" na Sidebar exclusivo para Super Admins.
+- **Unidades Dinâmicas**: Super Admin agora pode selecionar qualquer unidade e visualizar o sistema exatamente como um Admin daquela unidade verá (módulos, dados e permissões).
+
+#### 3. Melhorias na Sidebar e Navegação
+- **Logo Toggle**: O botão de recolher a sidebar agora fica invisível sobre a logo, aparecendo apenas no hover.
+- **User Management**: Módulo de usuários movido para as Configurações (aba Usuários), unificando a gestão e limpando o menu lateral.
+- **Dropdown no Collapse**: Menu de usuário agora funciona corretamente mesmo com a sidebar recolhida.
+
+### 🔧 Correções Técnicas
+- **Fix Erro 406**: Resolvido erro de RLS e Payload no salvamento de versões em `VersionFormModal.tsx`.
+- **JSX Health**: Corrigidos erros estruturais de JSX no `DashboardSistemaPage.tsx` que causavam falhas de renderização.
+
+## [2026-01-19] - Sincronização em Tempo Real (Realtime) e Build de Produção
+
+### 🔧 Correções Técnicas
+
+#### 1. Robustez em IDs do Realtime
+- **Problema**: Inconsistência entre IDs numéricos (JS) e strings (Supabase Realtime) causava falha na atualização de tabelas.
+- **Solução**: Implementada conversão explícita para `String()` em todas as comparações de ID no Realtime (`AppointmentsPage.tsx`, `DataPage.tsx`).
+
+#### 2. Correção de Fuso Horário (Timezone Bug)
+- **Problema**: Uso de `new Date()` em filtros de Realtime deslocava datas para o dia anterior, ignorando atualizações em bordas de mês.
+- **Solução**: Substituída lógica de data por comparação direta de strings (`split('-')`) em `DataPage.tsx` e `DashboardMetricsPage.tsx`.
+
+#### 3. Tipagem e Consistência de Dados
+- **Interface**: Adicionados campos `unidade_code` e `reagendou` ao `DataRecord` no `types.ts`.
+- **Upload**: Mapeamento garantido do campo `STATUS` (para RPC do banco) no `upload.service.ts`.
+
+### 🚀 Build
+- **dist**: Pasta de produção atualizada via `npm run build` com todas as correções aplicadas.
+
+---
+
 ## [2025-11-07] - Padronização de Modais: UX/UI Otimizado
 
 ### 🎨 UI/UX Enhancement

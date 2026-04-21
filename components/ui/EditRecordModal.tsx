@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { DataRecord } from '../../types';
+import { activityLogger } from '../../services/utils/activityLogger.service';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from './Icon';
 
 interface EditRecordModalProps {
@@ -15,7 +18,9 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
   record,
   onSave,
 }) => {
-  const [formData, setFormData] = useState<Partial<DataRecord>>({});
+  const { profile } = useAuth();
+  const { selectedUnit } = useAppContext();
+  const [formData, setFormData] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -27,7 +32,7 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
         CLIENTE: record.CLIENTE || '',
         VALOR: record.VALOR || 0,
         status: record.status || '',
-        orcamento: record.orcamento || '',
+        orcamento: (record as any).orcamento || '',
       });
     }
   }, [record]);
@@ -53,7 +58,7 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm() || !record) return;
 
     setIsLoading(true);
@@ -64,21 +69,56 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
         CLIENTE: formData.CLIENTE!,
         VALOR: formData.VALOR!,
         status: formData.status || '',
-        orcamento: formData.orcamento || '',
       };
 
+      // Adiciona orcamento se existir no formData, prevenindo erro de tipagem
+      if ((formData as any).orcamento) {
+        (updatedRecord as any).orcamento = (formData as any).orcamento;
+      }
+
       await onSave(updatedRecord);
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
+
+      // Logar sucesso
+      if (profile && selectedUnit) {
+        const actionCode = record ? 'update_atend' : 'create_atend';
+        activityLogger.logActivity({
+          actionCode: actionCode,
+          moduleName: 'Formulário / Edição',
+          unitId: (selectedUnit as any)?.id || '',
+          unitCode: (selectedUnit as any)?.unit_code || '',
+          userIdentifier: profile.email || profile.full_name || 'user',
+          status: 'success',
+          atendId: formData.ATENDIMENTO_ID || '',
+          metadata: { fields_updated: Object.keys(formData).join(',') }
+        });
+      }
+
+    } catch (err) {
+      console.error('Erro ao salvar:', err);
+      setErrors({ submit: err instanceof Error ? err.message : 'Erro ao salvar registro' });
+
+      // Registrar erro ao salvar
+      if (profile && selectedUnit && formData.ATENDIMENTO_ID) {
+        const actionCode = record ? 'update_atend' : 'create_atend';
+        activityLogger.logActivity({
+          actionCode: actionCode,
+          moduleName: 'Formulário / Edição',
+          unitId: (selectedUnit as any)?.id || '',
+          unitCode: (selectedUnit as any)?.unit_code || '',
+          userIdentifier: profile.email || profile.full_name || 'user',
+          status: 'error',
+          atendId: formData.ATENDIMENTO_ID,
+          metadata: { error_message: err instanceof Error ? err.message : 'Erro desconhecido' }
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   };
-
   const handleInputChange = (field: keyof DataRecord, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+    if (errors[field as string]) {
+      setErrors(prev => ({ ...prev, [field as string]: '' }));
     }
   };
 
@@ -99,15 +139,15 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
   if (!isOpen || !record) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header compacto com status */}
         <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-bold text-text-primary">
               Editar Atendimento
             </h2>
-            
+
             <div className="flex items-center gap-3">
               {/* Status ao lado do botão fechar */}
               <label className="flex flex-col gap-1.5 min-w-[160px]">
@@ -125,9 +165,9 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
                   <option value="Esperar">Esperar</option>
                 </select>
               </label>
-              
-              <button 
-                onClick={onClose} 
+
+              <button
+                onClick={onClose}
                 className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
                 aria-label="Fechar"
               >
@@ -168,8 +208,8 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({
                 <span className="text-xs font-medium text-text-secondary">Orçamento</span>
                 <input
                   type="text"
-                  value={formData.orcamento || ''}
-                  onChange={(e) => handleInputChange('orcamento', e.target.value)}
+                  value={(formData as any).orcamento || ''}
+                  onChange={(e) => handleInputChange('orcamento' as any, e.target.value)}
                   className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all font-mono"
                   placeholder="Número do orçamento"
                 />

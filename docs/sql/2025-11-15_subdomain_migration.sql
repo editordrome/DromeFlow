@@ -1,7 +1,7 @@
 -- =====================================================
 -- Migração: Adiciona campo slug na tabela units
 -- Data: 2025-11-15
--- Descrição: Suporte a subdomínios por unidade (ex: mb-joinville.dromeboard.com.br)
+-- Descrição: Suporte a subdomínios por unidade (ex: mb-joinville.dromeflow.com)
 -- =====================================================
 
 BEGIN;
@@ -327,7 +327,7 @@ SELECT
   unit_name, 
   unit_code,
   slug,
-  'https://' || slug || '.dromeboard.com.br' as url_exemplo
+  'https://' || slug || '.dromeflow.com' as url_exemplo
 FROM public.units 
 ORDER BY unit_name;
 
@@ -338,7 +338,7 @@ SELECT
   code,
   view_id,
   is_active,
-  'https://[unit-slug].dromeboard.com.br/' || code as url_exemplo
+  'https://[unit-slug].dromeflow.com/' || code as url_exemplo
 FROM public.modules 
 WHERE is_active = true
 ORDER BY position;

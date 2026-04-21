@@ -55,9 +55,8 @@ const ComercialPage: React.FC = () => {
   
   // Para super_admin, usa unidade MB-Drome (ID fixo); caso contrário, usa selectedUnitId
   const MB_DROME_UNIT_ID = 'af4dd770-31c2-4780-90b4-83cca8416ab6';
-  const effectiveUnitId = profile?.role === 'super_admin' 
-    ? MB_DROME_UNIT_ID
-    : selectedUnitId;
+  // Agora respeitamos a unidade selecionada mesmo para super_admin
+  const effectiveUnitId = selectedUnitId;
   
   // Botão habilitado se:
   // - Para super_admin: SEMPRE habilitado (usa MB_DROME_UNIT_ID fixo)
@@ -110,14 +109,7 @@ const ComercialPage: React.FC = () => {
       setColumns(cols.filter(c => c.is_active));
 
       // Para super_admin, SEMPRE carrega apenas da unidade MB-Drome (ignora isAllUnits)
-      if (profile?.role === 'super_admin') {
-        const [cardList, m] = await Promise.all([
-          fetchComercialCards(MB_DROME_UNIT_ID),
-          fetchComercialMetrics(MB_DROME_UNIT_ID),
-        ]);
-        setCards(cardList);
-        setMetrics(m);
-      } else if (isAllUnits) {
+      if (isAllUnits) {
         // Para outros usuários: modo "Todas as Unidades"
         if (!userUnits || userUnits.length === 0) {
           setCards([]);

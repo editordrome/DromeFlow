@@ -6,6 +6,13 @@ import DataDetailModal from './DataDetailModal';
 import { fetchDataRecordById } from '../../services/data/dataTable.service';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { generateAditamentoHTML } from '../documents/utils/generateAditamentoHTML';
+import { generateContratoHTML } from '../documents/utils/generateContratoHTML';
+import { generateDistratoHTML } from '../documents/utils/generateDistratoHTML';
+import { generateTermoHTML } from '../documents/utils/generateTermoHTML';
+import { generateNotificacaoHTML } from '../documents/utils/generateNotificacaoHTML';
+import { getDocumentTemplate } from '../documents/utils/templateHelpers';
+import { Unit } from '../../types';
 
 interface Props {
   isOpen: boolean;
@@ -20,6 +27,7 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
   const { selectedUnit } = useAppContext();
   const isCreating = !profissional;
   const unitCode = (selectedUnit as any)?.unit_code || null;
+  const unidade = (selectedUnit as any)?.unit_name || '';
 
   const [activeTab, setActiveTab] = useState<TabType>('dados');
   const [formData, setFormData] = useState({
@@ -34,12 +42,13 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
     nome_recado: '',
     tel_recado: '',
     observacao: '',
+    assinatura: '',
     status: 'Ativa',
   });
 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Estado para modo edição
   const [editMode, setEditMode] = useState(false);
 
@@ -54,10 +63,10 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
 
   // Estados para pós-venda
-  const [metrics, setMetrics] = useState<{ geral: number | null; comercial: number | null; residencial: number | null }>({ 
-    geral: null, 
-    comercial: null, 
-    residencial: null 
+  const [metrics, setMetrics] = useState<{ geral: number | null; comercial: number | null; residencial: number | null }>({
+    geral: null,
+    comercial: null,
+    residencial: null
   });
 
   // Estados para auto-save observação
@@ -67,7 +76,11 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
 
   // Estados para preview PDF
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string>('');
+  const [documentName, setDocumentName] = useState('Documento');
   const previewRef = useRef<HTMLDivElement>(null);
+  // Disponibilidade de documentos
+  const [availableDocuments, setAvailableDocuments] = useState<Set<string>>(new Set(['aditamento', 'contrato', 'termo', 'notificacao', 'distrato']));
 
   // Inicializa ou reseta o formulário
   useEffect(() => {
@@ -85,6 +98,7 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
           nome_recado: profissional.nome_recado || '',
           tel_recado: profissional.tel_recado || '',
           observacao: profissional.observacao || '',
+          assinatura: profissional.assinatura || '',
           status: profissional.status || 'Ativa',
         });
         prevObservacaoRef.current = profissional.observacao || '';
@@ -103,6 +117,7 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
           nome_recado: '',
           tel_recado: '',
           observacao: '',
+          assinatura: '',
           status: 'Ativa',
         });
         prevObservacaoRef.current = '';
@@ -157,7 +172,7 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
 
   const handleOpenDetail = async (recordId: number) => {
     try {
-      const rec = await fetchDataRecordById(recordId);
+      const rec = await fetchDataRecordById(String(recordId));
       setDetailRecord(rec);
       setDetailOpen(true);
     } catch (err) {
@@ -171,10 +186,10 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
     // Evita salvar quando não houve mudança
     if (formData.observacao === prevObservacaoRef.current) return;
     if (autoSavingObs) return;
-    
+
     setAutoSavingObs(true);
     setAutoSaveObsMsg(null);
-    
+
     try {
       await updateProfissional(profissional.id, { observacao: formData.observacao });
       prevObservacaoRef.current = formData.observacao;
@@ -188,13 +203,51 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
     }
   };
 
+  // Carrega disponibilidade de documentos
+  useEffect(() => {
+    if (!isOpen || !selectedUnit || typeof selectedUnit === 'string' || selectedUnit.id === 'ALL') return;
+
+    const loadDocumentAvailability = async () => {
+      try {
+        const { documentTemplatesService } = await import('../../services/documentTemplates.service');
+        const templates = ['aditamento', 'contrato', 'termo', 'notificacao', 'distrato'] as const;
+        const available = new Set<string>();
+
+        for (const templateName of templates) {
+          try {
+            const template = await documentTemplatesService.getTemplate(selectedUnit.id, templateName);
+            // Verifica se o template está disponível para profissional
+            if (template && template.available_in && template.available_in.includes('profissional')) {
+              available.add(templateName);
+            } else if (template && !template.available_in) {
+              // Se não tem available_in, assume que está disponível (backward compatibility)
+              available.add(templateName);
+            }
+          } catch (error) {
+            // Se não encontrar template, assume que está disponível (usará fallback)
+            available.add(templateName);
+          }
+        }
+
+        setAvailableDocuments(available);
+        console.log('[ProfissionalFormModal] Available documents for profissional:', Array.from(available));
+      } catch (error) {
+        console.error('[ProfissionalFormModal] Error loading document availability:', error);
+        // Em caso de erro, mantém todos disponíveis
+        setAvailableDocuments(new Set(['aditamento', 'contrato', 'termo', 'notificacao', 'distrato']));
+      }
+    };
+
+    loadDocumentAvailability();
+  }, [isOpen, selectedUnit]);
+
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.nome.trim()) {
       setError('Nome é obrigatório');
       return;
@@ -204,29 +257,35 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
     setError('');
 
     try {
+      // Prepara o payload sanitizando datas vazias
+      const payload: any = { ...formData };
+      if (!payload.data_nasc) payload.data_nasc = null;
+      if (!payload.assinatura) payload.assinatura = null;
+
+
       if (isCreating) {
         // Criar nova profissional
         const newProfissional = {
-          ...formData,
+          ...payload,
           status: 'Ativa',
           unit_id: selectedUnit && selectedUnit.unit_code !== 'ALL' ? (selectedUnit as any).id : null,
         };
-        
+
         await createProfissional(newProfissional);
       } else {
         // Atualizar profissional existente
         if (!profissional?.id) {
           throw new Error('ID da profissional não encontrado');
         }
-        
-        await updateProfissional(profissional.id, formData);
-        
+
+        await updateProfissional(profissional.id, payload);
+
         // Desativa o modo de edição após salvar com sucesso
         setEditMode(false);
       }
 
       onSave();
-      
+
       // Só fecha o modal se estiver criando uma nova profissional
       if (isCreating) {
         onClose();
@@ -241,9 +300,9 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
 
   const handleStatusChange = async (newStatus: string) => {
     if (!profissional || isCreating) return;
-    
+
     setFormData(prev => ({ ...prev, status: newStatus }));
-    
+
     try {
       await updateProfissional(profissional.id, { status: newStatus });
       // Atualiza localmente sem recarregar
@@ -252,6 +311,60 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
       // Reverte em caso de erro
       setFormData(prev => ({ ...prev, status: profissional.status || 'Ativa' }));
     }
+  };
+
+  // Funções para geração de documentos
+  const generateTemplateDocument = (templateHtml: string, filename: string) => {
+    setDocumentName(filename);
+    setPreviewHtml(templateHtml);
+    setPreviewOpen(true);
+  };
+
+  const printPreview = () => {
+    if (!previewRef.current) return;
+    const doc = previewRef.current.innerHTML;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.open();
+    w.document.write(doc);
+    w.document.close();
+    w.focus();
+    try { w.print(); } catch { }
+  };
+
+  const downloadPreviewPdf = async () => {
+    if (!previewRef.current) return;
+    const container = previewRef.current.querySelector('html') || previewRef.current;
+
+    const canvas = await html2canvas(container as HTMLElement, {
+      scale: window.devicePixelRatio || 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * (imgWidth / canvas.width);
+
+    if (imgHeight <= pageHeight) {
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+    } else {
+      let pos = 0;
+      let heightLeft = imgHeight;
+      while (heightLeft > 0) {
+        pdf.addImage(imgData, 'PNG', 0, pos, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+        if (heightLeft > 0) {
+          pdf.addPage();
+          pos = - (imgHeight - heightLeft);
+        }
+      }
+    }
+    const cleanFilename = `${documentName}_${(formData.nome || profissional?.nome || 'sem_nome').replace(/\s+/g, '_')}.pdf`;
+    pdf.save(cleanFilename);
   };
 
   const generatePdf = () => {
@@ -268,13 +381,13 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
         b: parseInt(result[3], 16)
       } : { r: 0, g: 0, b: 0 };
     };
-    
+
     const getContrast = (hex: string) => {
       const { r, g, b } = hexToRgb(hex);
       const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
       return yiq >= 128 ? '#000000' : '#ffffff';
     };
-    
+
     const { r, g, b } = hexToRgb(accent);
     const accentText = getContrast(accent);
     const accentLight = `rgba(${r}, ${g}, ${b}, 0.12)`;
@@ -283,7 +396,7 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
       if (v === null || v === undefined || v === '') return '-';
       return String(v).trim() || '-';
     };
-    
+
     const yesNo = (v: string) => {
       if (!v || v === '') return 'Não informado';
       return v === 'Sim' ? 'Sim' : v === 'Não' ? 'Não' : v;
@@ -438,607 +551,850 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
     }, 0);
   };
 
-  const printPreview = () => {
-    if (!previewRef.current) return;
-    const doc = previewRef.current.innerHTML;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.open();
-    w.document.write(doc);
-    w.document.close();
-    w.focus();
-    try { w.print(); } catch {}
-  };
-
-  const downloadPreviewPdf = async () => {
-    if (!previewRef.current) return;
-    const container = previewRef.current.querySelector('html') || previewRef.current;
-    const target = container as HTMLElement;
-
-    const canvas = await html2canvas(target as HTMLElement, {
-      scale: window.devicePixelRatio || 2,
-      useCORS: true,
-      backgroundColor: '#ffffff'
-    });
-    
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-
-    const imgWidth = pageWidth;
-    const imgHeight = canvas.height * (imgWidth / canvas.width);
-    let y = 0;
-    
-    if (imgHeight <= pageHeight) {
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-    } else {
-      let heightLeft = imgHeight;
-      while (heightLeft > 0) {
-        pdf.addImage(imgData, 'PNG', 0, y, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-        if (heightLeft > 0) {
-          pdf.addPage();
-          y -= pageHeight;
-        }
-      }
-    }
-    
-    const filename = `Ficha_${(formData.nome || profissional?.nome || 'sem_nome').replace(/\s+/g,'_')}.pdf`;
-    pdf.save(filename);
-  };
 
   if (!isOpen) return null;
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-4xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden">
-        {/* Header compacto com gradiente */}
-        <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-text-primary">
-                {isCreating ? 'Nova Profissional' : 'Profissional'}
-              </h2>
-              <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                <Icon name="User" className="w-3.5 h-3.5" />
-                <span>{isCreating ? 'Cadastro' : formData.tipo || 'Profissional'}</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              {/* Status ao lado do botão fechar */}
-              {!isCreating && (
-                <label className="flex flex-col gap-1.5 min-w-[120px]">
-                  <span className="text-xs font-medium text-text-secondary">Status</span>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => handleStatusChange(e.target.value)}
-                    className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                  >
-                    <option value="Ativa">Ativa</option>
-                    <option value="Inativa">Inativa</option>
-                  </select>
-                </label>
-              )}
-              
-              <button 
-                onClick={onClose} 
-                className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5" 
-                aria-label="Fechar"
-                disabled={isSaving}
-              >
-                <Icon name="X" className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs - apenas no modo edição */}
-        {!isCreating && (
-          <div className="border-b border-border-secondary bg-bg-tertiary/30">
-            <div className="flex items-center px-5">
-              <button
-                onClick={() => setActiveTab('dados')}
-                className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === 'dados'
-                    ? 'text-accent-primary border-b-2 border-accent-primary'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Dados
-              </button>
-              <button
-                onClick={() => setActiveTab('atendimentos')}
-                className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === 'atendimentos'
-                    ? 'text-accent-primary border-b-2 border-accent-primary'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Atendimentos
-              </button>
-              <button
-                onClick={() => setActiveTab('observacao')}
-                className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === 'observacao'
-                    ? 'text-accent-primary border-b-2 border-accent-primary'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Observação
-              </button>
-              <button
-                onClick={() => setActiveTab('documentos')}
-                className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === 'documentos'
-                    ? 'text-accent-primary border-b-2 border-accent-primary'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Documentos
-              </button>
-              <button
-                onClick={() => setActiveTab('posvendas')}
-                className={`px-3 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === 'posvendas'
-                    ? 'text-accent-primary border-b-2 border-accent-primary'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Pós-Venda
-              </button>
-              
-              {/* Navegação de período para aba Atendimentos */}
-              {activeTab === 'atendimentos' && (
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md p-1.5 text-text-secondary hover:bg-bg-tertiary transition-colors"
-                    title="Mês anterior"
-                    onClick={() => {
-                      if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return;
-                      const [y, m] = selectedPeriod.split('-').map(Number);
-                      const d = new Date(Date.UTC(y, m - 1, 1));
-                      d.setUTCMonth(d.getUTCMonth() - 1);
-                      const ny = d.getUTCFullYear();
-                      const nm = d.getUTCMonth() + 1;
-                      setSelectedPeriod(`${ny}-${String(nm).padStart(2, '0')}`);
-                    }}
-                  >
-                    <Icon name="ChevronLeft" className="w-4 h-4" />
-                  </button>
-                  <span className="text-xs text-text-secondary min-w-[140px] text-center font-medium">
-                    {(() => {
-                      const label = (p?: string) => {
-                        if (!p || !/^\d{4}-\d{2}$/.test(p)) return '-';
-                        const [yy, mm] = p.split('-').map(Number);
-                        const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-                        return `${meses[Math.max(1, Math.min(12, mm)) - 1]} ${yy}`;
-                      };
-                      return label(selectedPeriod);
-                    })()}
-                  </span>
-                  <button
-                    type="button"
-                    className="rounded-md p-1.5 text-text-secondary hover:bg-bg-tertiary transition-colors"
-                    title="Próximo mês"
-                    onClick={() => {
-                      if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return;
-                      const [y, m] = selectedPeriod.split('-').map(Number);
-                      const d = new Date(Date.UTC(y, m - 1, 1));
-                      d.setUTCMonth(d.getUTCMonth() + 1);
-                      const ny = d.getUTCFullYear();
-                      const nm = d.getUTCMonth() + 1;
-                      const now = new Date();
-                      const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                      const next = `${ny}-${String(nm).padStart(2, '0')}`;
-                      if (next > currentPeriod) return;
-                      setSelectedPeriod(next);
-                    }}
-                  >
-                    <Icon name="ChevronRight" className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Body com scroll */}
-        <div className="max-h-[65vh] overflow-y-auto px-5 py-3">
-          {error && (
-            <div className="mb-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 flex items-start gap-2">
-              <Icon name="alert" className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
-              <span className="text-xs text-danger">{error}</span>
-            </div>
-          )}
-
-          {/* ABA DADOS */}
-          {activeTab === 'dados' && (
-            <div className="space-y-2.5">
-              {/* Linha 1: Nome e WhatsApp */}
-              <div className="grid grid-cols-12 gap-2.5">
-                <div className="col-span-12 md:col-span-8">
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 flex items-center gap-1">
-                    Nome <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.nome}
-                    onChange={(e) => handleChange('nome', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    required
-                    disabled={isSaving || (!isCreating && !editMode)}
-                    readOnly={!isCreating && !editMode}
-                    placeholder="Nome completo"
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 block">WhatsApp</label>
-                  <input
-                    type="text"
-                    value={formData.whatsapp}
-                    onChange={(e) => handleChange('whatsapp', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    disabled={isSaving || (!isCreating && !editMode)}
-                    readOnly={!isCreating && !editMode}
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-              </div>
-
-              {/* Linha 2: CPF, RG, Data Nasc, Estado Civil */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
-                <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 block">CPF</label>
-                  <input
-                    type="text"
-                    value={formData.cpf}
-                    onChange={(e) => handleChange('cpf', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    disabled={isSaving || (!isCreating && !editMode)}
-                    readOnly={!isCreating && !editMode}
-                    placeholder="000.000.000-00"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 block">RG</label>
-                  <input
-                    type="text"
-                    value={formData.rg}
-                    onChange={(e) => handleChange('rg', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    disabled={isSaving || (!isCreating && !editMode)}
-                    readOnly={!isCreating && !editMode}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 block">Data Nasc.</label>
-                  <input
-                    type="date"
-                    value={formData.data_nasc}
-                    onChange={(e) => handleChange('data_nasc', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    disabled={isSaving || (!isCreating && !editMode)}
-                    readOnly={!isCreating && !editMode}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 block">Estado Civil</label>
-                  <input
-                    type="text"
-                    value={formData.estado_civil}
-                    onChange={(e) => handleChange('estado_civil', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    disabled={isSaving || (!isCreating && !editMode)}
-                    readOnly={!isCreating && !editMode}
-                  />
-                </div>
-              </div>
-
-              {/* Linha 3: Endereço (full width) */}
-              <div>
-                <label className="text-xs font-medium text-text-secondary mb-1.5 block">Endereço</label>
-                <input
-                  type="text"
-                  value={formData.endereco}
-                  onChange={(e) => handleChange('endereco', e.target.value)}
-                  className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                  disabled={isSaving || (!isCreating && !editMode)}
-                  readOnly={!isCreating && !editMode}
-                  placeholder="Rua, número, bairro..."
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+        <div className="w-full max-w-4xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          {/* Header compacto com gradiente */}
+          <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-4 w-4 rounded-full border-2 border-white shadow-md"
+                  style={{ backgroundColor: '#4ade80' }}
                 />
+                <h2 className="text-lg font-bold text-text-primary">
+                  {isCreating ? 'Nova Profissional' : (formData.nome || 'Profissional')}
+                </h2>
+                <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                  <Icon name="building" className="w-3.5 h-3.5" />
+                  <span>{unidade}</span>
+                </div>
               </div>
 
-              {/* Linha 4: Tipo (apenas ao criar) */}
-              {isCreating && (
-                <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 flex items-center gap-1">
-                    Tipo <span className="text-danger">*</span>
+              <div className="flex items-center gap-3">
+                {/* Status ao lado do botão fechar */}
+                {!isCreating && (
+                  <label className="flex flex-col gap-1.5 min-w-[150px]">
+                    <span className="text-xs font-medium text-text-secondary">Status</span>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => handleStatusChange(e.target.value)}
+                      className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
+                    >
+                      <option value="Ativa">Ativa</option>
+                      <option value="Inativa">Inativa</option>
+                      <option value="Pendente">Pendente</option>
+                    </select>
                   </label>
-                  <input
-                    type="text"
-                    value={formData.tipo}
-                    onChange={(e) => handleChange('tipo', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    disabled={isSaving}
-                    placeholder="Ex: Prestadora, Diarista..."
-                  />
-                </div>
-              )}
-            </div>
-          )}
+                )}
 
-          {/* ABA ATENDIMENTOS */}
-          {activeTab === 'atendimentos' && (
-            <div className="space-y-2.5">
-              {loadingHist ? (
-                <div className="flex items-center justify-center py-6 text-text-secondary text-sm">
-                  <Icon name="Loader2" className="w-4 h-4 animate-spin mr-2" />
-                  Carregando…
-                </div>
-              ) : history.length === 0 ? (
-                <div className="text-center py-6 text-text-secondary text-sm">
-                  Nenhum atendimento neste período
-                </div>
-              ) : (
-                <div className="overflow-auto border border-border-secondary rounded-lg">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-bg-tertiary text-text-secondary">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium">ID</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium">Data</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium">Dia</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium">Cliente</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium">Período</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium">Pós-venda</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map((h, idx) => {
-                        const periodo = (h as any)['PERÍODO'] || (h as any)['PERIODO'];
-                        
-                        return (
-                          <tr 
-                            key={h.id || idx} 
-                            className="border-t border-border-secondary/50 hover:bg-accent-primary/5 cursor-pointer transition-colors" 
-                            onDoubleClick={() => {
-                              if (h.id) {
-                                handleOpenDetail(h.id);
-                              }
-                            }}
-                            title="Duplo clique para ver detalhes"
-                          >
-                            <td className="px-3 py-2 text-text-primary font-mono text-xs">{h.ATENDIMENTO_ID || '-'}</td>
-                            <td className="px-3 py-2 text-text-primary">
-                              {h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
-                            </td>
-                            <td className="px-3 py-2 text-text-secondary">{h.DIA || '-'}</td>
-                            <td className="px-3 py-2 text-text-primary">{h.CLIENTE || '-'}</td>
-                            <td className="px-3 py-2 text-text-secondary">{periodo ? `${periodo} horas` : '-'}</td>
-                            <td className="px-3 py-2">
-                              <span className={`inline-block px-2 py-0.5 rounded text-xs ${
-                                (h['pos vendas'] || '').toLowerCase() === 'contatado' ? 'bg-success-color/20 text-success-color' :
-                                (h['pos vendas'] || '').toLowerCase() === 'pendente' ? 'bg-yellow-500/20 text-yellow-500' :
-                                (h['pos vendas'] || '').toLowerCase() === 'sim' ? 'bg-success-color/20 text-success-color' :
-                                (h['pos vendas'] || '').toLowerCase() === 'não' ? 'bg-danger/20 text-danger' :
-                                'text-text-tertiary'
-                              }`}>
-                                {h['pos vendas'] || '-'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ABA PÓS-VENDA */}
-          {activeTab === 'posvendas' && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="p-3 bg-bg-tertiary rounded-lg border border-border-secondary text-center">
-                  <div className="text-2xl font-bold text-text-primary">
-                    {metrics.geral !== null ? `${(metrics.geral * 100).toFixed(0)}%` : '-'}
-                  </div>
-                  <div className="text-xs text-text-secondary mt-1">Geral</div>
-                </div>
-                <div className="p-3 bg-bg-tertiary rounded-lg border border-border-secondary text-center">
-                  <div className="text-2xl font-bold text-text-primary">
-                    {metrics.comercial !== null ? `${(metrics.comercial * 100).toFixed(0)}%` : '-'}
-                  </div>
-                  <div className="text-xs text-text-secondary mt-1">Comercial</div>
-                </div>
-                <div className="p-3 bg-bg-tertiary rounded-lg border border-border-secondary text-center">
-                  <div className="text-2xl font-bold text-text-primary">
-                    {metrics.residencial !== null ? `${(metrics.residencial * 100).toFixed(0)}%` : '-'}
-                  </div>
-                  <div className="text-xs text-text-secondary mt-1">Residencial</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 justify-center text-xs text-text-secondary">
-                <Icon name="info" className="w-3 h-3" />
-                <span>Percentual de clientes que responderam "SIM" no pós-venda</span>
-              </div>
-            </div>
-          )}
-
-          {/* ABA OBSERVAÇÃO */}
-          {activeTab === 'observacao' && (
-            <div className="space-y-2.5">
-              {/* Contato de Recado */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 block">Nome Recado</label>
-                  <input
-                    type="text"
-                    value={formData.nome_recado}
-                    onChange={(e) => handleChange('nome_recado', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    disabled={isSaving || (!isCreating && !editMode)}
-                    readOnly={!isCreating && !editMode}
-                    placeholder="Nome do contato para recados"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1.5 block">Tel Recado</label>
-                  <input
-                    type="text"
-                    value={formData.tel_recado}
-                    onChange={(e) => handleChange('tel_recado', e.target.value)}
-                    className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all"
-                    disabled={isSaving || (!isCreating && !editMode)}
-                    readOnly={!isCreating && !editMode}
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-              </div>
-
-              {/* Observações */}
-              <div>
-                <label className="text-xs font-medium text-text-secondary mb-1.5 block">Observações Gerais</label>
-                <textarea
-                  value={formData.observacao}
-                  onChange={(e) => handleChange('observacao', e.target.value)}
-                  onBlur={handleAutoSaveObservacao}
-                  rows={10}
-                  className="w-full rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all resize-none"
-                  disabled={isSaving || autoSavingObs || (!isCreating && !editMode)}
-                  readOnly={!isCreating && !editMode}
-                  placeholder="Anotações importantes sobre a profissional..."
-                />
-              </div>
-              
-              {autoSaveObsMsg && (
-                <div className={`flex items-center gap-2 text-xs ${autoSaveObsMsg.includes('Falha') ? 'text-danger' : 'text-success'}`}>
-                  <Icon name={autoSaveObsMsg.includes('Falha') ? 'AlertCircle' : 'CheckCircle'} className="w-3 h-3" />
-                  <span>{autoSaveObsMsg}</span>
-                </div>
-              )}
-              
-              <div className="flex items-center gap-2 text-xs text-text-secondary">
-                <Icon name="info" className="w-3 h-3" />
-                <span>As alterações nas observações são salvas automaticamente ao sair do campo</span>
-              </div>
-            </div>
-          )}
-
-          {/* ABA DOCUMENTOS */}
-          {activeTab === 'documentos' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-text-primary">Ficha Completa da Profissional</h3>
-                  <p className="text-xs text-text-secondary mt-1">Visualize e imprima a ficha com todas as informações</p>
-                </div>
                 <button
-                  onClick={generatePdf}
-                  className="px-3 py-1.5 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-all flex items-center gap-2 text-sm font-medium shadow-lg shadow-accent-primary/20"
+                  onClick={onClose}
+                  className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
+                  aria-label="Fechar"
+                  disabled={isSaving}
                 >
-                  <Icon name="FileText" className="w-4 h-4" />
-                  Gerar Ficha
+                  <Icon name="X" className="w-5 h-5" />
                 </button>
               </div>
-              
-              <div className="p-4 bg-bg-tertiary rounded-lg border border-border-secondary text-center">
-                <Icon name="FileText" className="w-12 h-12 mx-auto text-text-secondary mb-2" />
-                <p className="text-sm text-text-secondary">
-                  Clique em "Gerar Ficha" para visualizar o documento completo
-                </p>
+            </div>
+          </div>
+
+          {/* Tabs - apenas no modo edição */}
+          {!isCreating && (
+            <div className="border-b border-border-secondary bg-bg-tertiary/30">
+              <div className="flex items-center px-5">
+                <button
+                  onClick={() => setActiveTab('dados')}
+                  className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'dados'
+                    ? 'text-accent-primary border-b-2 border-accent-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                >
+                  Dados
+                </button>
+                <button
+                  onClick={() => setActiveTab('atendimentos')}
+                  className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'atendimentos'
+                    ? 'text-accent-primary border-b-2 border-accent-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                >
+                  Atendimentos
+                </button>
+                <button
+                  onClick={() => setActiveTab('observacao')}
+                  className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'observacao'
+                    ? 'text-accent-primary border-b-2 border-accent-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                >
+                  Observação
+                </button>
+                <button
+                  onClick={() => setActiveTab('documentos')}
+                  className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'documentos'
+                    ? 'text-accent-primary border-b-2 border-accent-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                >
+                  Documentos
+                </button>
+                <button
+                  onClick={() => setActiveTab('posvendas')}
+                  className={`px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === 'posvendas'
+                    ? 'text-accent-primary border-b-2 border-accent-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                >
+                  Pós-Venda
+                </button>
+
+                {/* Navegação de período para aba Atendimentos */}
+                {activeTab === 'atendimentos' && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-text-secondary hover:bg-bg-tertiary transition-colors"
+                      title="Mês anterior"
+                      onClick={() => {
+                        if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return;
+                        const [y, m] = selectedPeriod.split('-').map(Number);
+                        const d = new Date(Date.UTC(y, m - 1, 1));
+                        d.setUTCMonth(d.getUTCMonth() - 1);
+                        const ny = d.getUTCFullYear();
+                        const nm = d.getUTCMonth() + 1;
+                        setSelectedPeriod(`${ny}-${String(nm).padStart(2, '0')}`);
+                      }}
+                    >
+                      <Icon name="ChevronLeft" className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs text-text-secondary min-w-[140px] text-center font-medium">
+                      {(() => {
+                        const label = (p?: string) => {
+                          if (!p || !/^\d{4}-\d{2}$/.test(p)) return '-';
+                          const [yy, mm] = p.split('-').map(Number);
+                          const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                          return `${meses[Math.max(1, Math.min(12, mm)) - 1]} ${yy}`;
+                        };
+                        return label(selectedPeriod);
+                      })()}
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-text-secondary hover:bg-bg-tertiary transition-colors"
+                      title="Próximo mês"
+                      onClick={() => {
+                        if (!selectedPeriod || !/^\d{4}-\d{2}$/.test(selectedPeriod)) return;
+                        const [y, m] = selectedPeriod.split('-').map(Number);
+                        const d = new Date(Date.UTC(y, m - 1, 1));
+                        d.setUTCMonth(d.getUTCMonth() + 1);
+                        const ny = d.getUTCFullYear();
+                        const nm = d.getUTCMonth() + 1;
+                        const now = new Date();
+                        const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                        const next = `${ny}-${String(nm).padStart(2, '0')}`;
+                        if (next > currentPeriod) return;
+                        setSelectedPeriod(next);
+                      }}
+                    >
+                      <Icon name="ChevronRight" className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-        </div>
-        
-        {/* Footer compacto */}
-        <div className="flex items-center justify-between border-t border-border-secondary bg-bg-tertiary px-5 py-3">
-          <div className="flex items-center gap-1 text-xs text-text-secondary">
-            <Icon name="info" className="w-3 h-3" />
-            <span>
-              {activeTab === 'dados' ? '* Obrigatório' : ''}
-              {activeTab === 'atendimentos' ? 'Duplo clique para detalhes' : ''}
-            </span>
+          {/* Body com scroll */}
+          <div className="max-h-[65vh] overflow-y-auto px-5 py-3">
+            {error && (
+              <div className="mb-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 flex items-start gap-2">
+                <Icon name="alert" className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
+                <span className="text-xs text-danger">{error}</span>
+              </div>
+            )}
+
+            {/* ABA DADOS */}
+            {activeTab === 'dados' && (
+              <div className="space-y-3">
+                {/* Linha 1: Nome (4) | Data Nasc (3) | WhatsApp (3) */}
+                <div className="grid grid-cols-1 md:grid-cols-10 gap-3">
+                  <div className="md:col-span-4">
+                    <label className="block text-xs font-medium text-text-secondary mb-1">
+                      Nome <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.nome}
+                      onChange={(e) => handleChange('nome', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      placeholder="Nome completo"
+                      required
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-xs font-medium text-text-secondary mb-1">Data Nascimento</label>
+                    <input
+                      type="date"
+                      value={formData.data_nasc}
+                      onChange={(e) => handleChange('data_nasc', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-xs font-medium text-text-secondary mb-1">WhatsApp</label>
+                    <input
+                      type="text"
+                      value={formData.whatsapp}
+                      onChange={(e) => handleChange('whatsapp', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      placeholder="(00) 00000-0000"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                </div>
+
+                {/* Linha 2: RG | CPF | Estado Civil | Tipo */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-1">RG</label>
+                    <input
+                      type="text"
+                      value={formData.rg}
+                      onChange={(e) => handleChange('rg', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-1">CPF</label>
+                    <input
+                      type="text"
+                      value={formData.cpf}
+                      onChange={(e) => handleChange('cpf', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      placeholder="000.000.000-00"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-1">Estado Civil</label>
+                    <input
+                      type="text"
+                      value={formData.estado_civil}
+                      onChange={(e) => handleChange('estado_civil', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-1">Tipo</label>
+                    <input
+                      type="text"
+                      value={formData.tipo}
+                      onChange={(e) => handleChange('tipo', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                </div>
+
+                {/* Linha 3: Endereço */}
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">Endereço</label>
+                  <input
+                    type="text"
+                    value={formData.endereco}
+                    onChange={(e) => handleChange('endereco', e.target.value)}
+                    className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                    placeholder="Rua, número, bairro, cidade"
+                    disabled={isSaving || (!isCreating && !editMode)}
+                    readOnly={!isCreating && !editMode}
+                  />
+                </div>
+
+                {/* Linha 4: Recado */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-1">Nome Recado</label>
+                    <input
+                      type="text"
+                      value={formData.nome_recado}
+                      onChange={(e) => handleChange('nome_recado', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-1">Tel Recado</label>
+                    <input
+                      type="text"
+                      value={formData.tel_recado}
+                      onChange={(e) => handleChange('tel_recado', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ABA ATENDIMENTOS */}
+            {activeTab === 'atendimentos' && (
+              <div className="space-y-3">
+                {loadingHist ? (
+                  <div className="flex items-center justify-center py-6 text-text-secondary text-sm">
+                    <Icon name="Loader2" className="w-4 h-4 animate-spin mr-2" />
+                    Carregando…
+                  </div>
+                ) : history.length === 0 ? (
+                  <div className="text-center py-6 text-text-secondary text-sm">
+                    Nenhum atendimento neste período
+                  </div>
+                ) : (
+                  <div className="overflow-auto border border-border-secondary rounded-md">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-bg-tertiary text-text-secondary">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium">ID</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium">Data</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium">Dia</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium">Cliente</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium">Período</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium">Pós-venda</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.map((h, idx) => {
+                          const periodo = (h as any)['PERÍODO'] || (h as any)['PERIODO'];
+
+                          return (
+                            <tr
+                              key={h.id || idx}
+                              className="border-t border-border-secondary hover:bg-bg-tertiary/50 cursor-pointer transition-colors"
+                              onDoubleClick={() => {
+                                if (h.id) {
+                                  handleOpenDetail(h.id);
+                                }
+                              }}
+                              title="Duplo clique para ver detalhes"
+                            >
+                              <td className="px-3 py-2 text-text-primary font-mono text-xs">{h.ATENDIMENTO_ID || '-'}</td>
+                              <td className="px-3 py-2 text-text-primary">
+                                {h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+                              </td>
+                              <td className="px-3 py-2 text-text-secondary">{h.DIA || '-'}</td>
+                              <td className="px-3 py-2 text-text-primary">{h.CLIENTE || '-'}</td>
+                              <td className="px-3 py-2 text-text-secondary">{periodo ? `${periodo} horas` : '-'}</td>
+                              <td className="px-3 py-2">
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs ${(h['pos vendas'] || '').toLowerCase() === 'contatado' ? 'bg-success-color/20 text-success-color' :
+                                  (h['pos vendas'] || '').toLowerCase() === 'pendente' ? 'bg-yellow-500/20 text-yellow-500' :
+                                    (h['pos vendas'] || '').toLowerCase() === 'sim' ? 'bg-success-color/20 text-success-color' :
+                                      (h['pos vendas'] || '').toLowerCase() === 'não' ? 'bg-danger/20 text-danger' :
+                                        'text-text-tertiary'
+                                  }`}>
+                                  {h['pos vendas'] || '-'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ABA PÓS-VENDA */}
+            {activeTab === 'posvendas' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 bg-bg-tertiary rounded-lg border border-border-secondary text-center">
+                    <div className="text-2xl font-bold text-text-primary">
+                      {metrics.geral !== null ? `${(metrics.geral * 100).toFixed(0)}%` : '-'}
+                    </div>
+                    <div className="text-xs text-text-secondary mt-1">Geral</div>
+                  </div>
+                  <div className="p-3 bg-bg-tertiary rounded-lg border border-border-secondary text-center">
+                    <div className="text-2xl font-bold text-text-primary">
+                      {metrics.comercial !== null ? `${(metrics.comercial * 100).toFixed(0)}%` : '-'}
+                    </div>
+                    <div className="text-xs text-text-secondary mt-1">Comercial</div>
+                  </div>
+                  <div className="p-3 bg-bg-tertiary rounded-lg border border-border-secondary text-center">
+                    <div className="text-2xl font-bold text-text-primary">
+                      {metrics.residencial !== null ? `${(metrics.residencial * 100).toFixed(0)}%` : '-'}
+                    </div>
+                    <div className="text-xs text-text-secondary mt-1">Residencial</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 justify-center text-xs text-text-secondary">
+                  <Icon name="info" className="w-3 h-3" />
+                  <span>Percentual de clientes que responderam "SIM" no pós-venda</span>
+                </div>
+              </div>
+            )}
+
+            {/* ABA OBSERVAÇÃO */}
+            {activeTab === 'observacao' && (
+              <div className="space-y-3">
+                {/* Contato de Recado */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-text-secondary mb-1 block">Nome Recado</label>
+                    <input
+                      type="text"
+                      value={formData.nome_recado}
+                      onChange={(e) => handleChange('nome_recado', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                      placeholder="Nome do contato para recados"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-text-secondary mb-1 block">Tel Recado</label>
+                    <input
+                      type="text"
+                      value={formData.tel_recado}
+                      onChange={(e) => handleChange('tel_recado', e.target.value)}
+                      className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all"
+                      disabled={isSaving || (!isCreating && !editMode)}
+                      readOnly={!isCreating && !editMode}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                </div>
+
+                {/* Observações */}
+                <div>
+                  <label className="text-xs font-medium text-text-secondary mb-1 block">Observações Gerais</label>
+                  <textarea
+                    value={formData.observacao}
+                    onChange={(e) => handleChange('observacao', e.target.value)}
+                    onBlur={handleAutoSaveObservacao}
+                    rows={10}
+                    className="w-full rounded-md border border-border-secondary bg-bg-tertiary/50 px-3 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/20 transition-all resize-none"
+                    disabled={isSaving || autoSavingObs || (!isCreating && !editMode)}
+                    readOnly={!isCreating && !editMode}
+                    placeholder="Anotações importantes sobre a profissional..."
+                  />
+                </div>
+
+                {autoSaveObsMsg && (
+                  <div className={`flex items-center gap-2 text-xs ${autoSaveObsMsg.includes('Falha') ? 'text-danger' : 'text-success'}`}>
+                    <Icon name={autoSaveObsMsg.includes('Falha') ? 'AlertCircle' : 'CheckCircle'} className="w-3 h-3" />
+                    <span>{autoSaveObsMsg}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 text-xs text-text-secondary">
+                  <Icon name="info" className="w-3 h-3" />
+                  <span>As alterações nas observações são salvas automaticamente ao sair do campo</span>
+                </div>
+              </div>
+            )}
+
+            {/* ABA DOCUMENTOS */}
+            {activeTab === 'documentos' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-4 p-3 bg-bg-tertiary rounded-lg border border-border-secondary">
+                  <div className="text-sm text-text-secondary">
+                    Data de assinatura do contrato agenciamento:
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={formData.assinatura}
+                      onChange={(e) => handleChange('assinatura', e.target.value)}
+                      disabled={!editMode && !isCreating}
+                      className="px-3 py-1.5 rounded bg-bg-secondary text-text-primary border border-border-secondary focus:outline-none text-sm disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
+
+                  {/* Contrato de Agenciamento */}
+                  {availableDocuments.has('contrato') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                            assinatura: formData.assinatura || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                            unitCode: unit.unit_code || '',
+                            responsavel: unit.responsavel || '',
+                            contato: unit.contato || '',
+                            email: unit.email || '',
+                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                          },
+                          contrato: {
+                            percentualProfissional: 55,
+                            dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+                          },
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'contrato', documentData, 'profissional');
+                          generateTemplateDocument(html, 'Contrato_Agenciamento');
+                        } catch (error) {
+                          console.error('[Contrato] Error loading template:', error);
+                          const html = generateContratoHTML(documentData);
+                          generateTemplateDocument(html, 'Contrato_Agenciamento');
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-green-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Contrato</div>
+                      <div className="text-xs text-text-secondary text-center">Agenciamento</div>
+                    </button>
+                  )}
+
+                  {/* Aditamento Contratual */}
+                  {availableDocuments.has('aditamento') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                            assinatura: formData.assinatura || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                            unitCode: unit.unit_code || '',
+                            responsavel: unit.responsavel || '',
+                            contato: unit.contato || '',
+                            email: unit.email || '',
+                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                          },
+                          contrato: {
+                            percentualProfissional: 55,
+                            dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+                          },
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'aditamento', documentData, 'profissional');
+                          generateTemplateDocument(html, `Aditamento_${(formData.nome || 'sem_nome').replace(/\s+/g, '_')}`);
+                        } catch (error) {
+                          console.error('[Aditamento] Error loading template:', error);
+                          const html = generateAditamentoHTML(documentData);
+                          generateTemplateDocument(html, `Aditamento_${(formData.nome || 'sem_nome').replace(/\s+/g, '_')}`);
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-blue-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Aditamento</div>
+                      <div className="text-xs text-text-secondary text-center">Contrato</div>
+                    </button>
+                  )}
+
+                  {/* Termo de Confidencialidade */}
+                  {availableDocuments.has('termo') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                            assinatura: formData.assinatura || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                            unitCode: unit.unit_code || '',
+                            responsavel: unit.responsavel || '',
+                            contato: unit.contato || '',
+                            email: unit.email || '',
+                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                          },
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'termo', documentData, 'profissional');
+                          generateTemplateDocument(html, 'Termo_Confidencialidade');
+                        } catch (error) {
+                          console.error('[Termo] Error loading template:', error);
+                          const html = generateTermoHTML(documentData);
+                          generateTemplateDocument(html, 'Termo_Confidencialidade');
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-purple-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Termo</div>
+                      <div className="text-xs text-text-secondary text-center">Confidencialidade</div>
+                    </button>
+                  )}
+
+                  {/* Notificação de Recisão */}
+                  {availableDocuments.has('notificacao') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                            assinatura: formData.assinatura || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                            unitCode: unit.unit_code || '',
+                            responsavel: unit.responsavel || '',
+                            contato: unit.contato || '',
+                            email: unit.email || '',
+                            uniformValue: (unit as any).uniform_value || (unit as any).uniformValue,
+                          },
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'notificacao', documentData, 'profissional');
+                          generateTemplateDocument(html, 'Notificacao_Rescisao');
+                        } catch (error) {
+                          console.error('[Notificação] Error loading template:', error);
+                          const html = generateNotificacaoHTML(documentData);
+                          generateTemplateDocument(html, 'Notificacao_Rescisao');
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-orange-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Notificação</div>
+                      <div className="text-xs text-text-secondary text-center">Rescisão</div>
+                    </button>
+                  )}
+
+                  {/* Distrato */}
+                  {availableDocuments.has('distrato') && (
+                    <button
+                      onClick={async () => {
+                        if (!selectedUnit || (selectedUnit as any).id === 'ALL') {
+                          alert('Por favor, selecione uma unidade específica.');
+                          return;
+                        }
+                        const unit = selectedUnit as Unit;
+                        const documentData = {
+                          profissional: {
+                            nome: formData.nome || '',
+                            cpf: formData.cpf || '',
+                            rg: formData.rg || '',
+                            dataNascimento: formData.data_nasc || '',
+                            estadoCivil: formData.estado_civil || '',
+                            endereco: formData.endereco || '',
+                            whatsapp: formData.whatsapp || '',
+                          },
+                          unidade: {
+                            razaoSocial: unit.razao_social || '',
+                            cnpj: unit.cnpj || '',
+                            endereco: unit.endereco || (unit as any).address || '',
+                            unitName: unit.unit_name || '',
+                          },
+                          contrato: {
+                            dataAssinatura: formData.assinatura ? new Date(formData.assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+                          }
+                        };
+                        try {
+                          const html = await getDocumentTemplate(unit.id, 'distrato', documentData, 'profissional');
+                          generateTemplateDocument(html, 'Distrato_Parceria');
+                        } catch (error) {
+                          console.error('[Distrato] Error loading template:', error);
+                          const html = generateDistratoHTML(documentData);
+                          generateTemplateDocument(html, 'Distrato_Parceria');
+                        }
+                      }}
+                      className="flex-shrink-0 flex flex-col items-center gap-2 p-4 border border-border-secondary rounded-lg hover:bg-bg-tertiary hover:border-accent-primary/50 transition-all group min-w-[140px]"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                        <Icon name="FileText" className="w-6 h-6 text-red-500" />
+                      </div>
+                      <div className="text-sm font-medium text-text-primary text-center">Distrato</div>
+                      <div className="text-xs text-text-secondary text-center">Parceria</div>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
           </div>
-          
-          {activeTab === 'dados' && (
-            <button
-              type="button"
-              onClick={() => {
-                if (!isCreating && !editMode) {
-                  setEditMode(true);
-                } else {
-                  handleSubmit(new Event('submit') as any);
-                }
-              }}
-              disabled={isSaving || (editMode && !formData.nome.trim())}
-              className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
-              title={isSaving ? "Salvando..." : (!isCreating && !editMode) ? "Editar" : "Salvar"}
-            >
-              {isSaving ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              ) : (
-                <Icon name={(!isCreating && !editMode) ? "edit" : "Check"} className="w-4 h-4" />
-              )}
-            </button>
-          )}
+
+          {/* Footer compacto */}
+          <div className="flex items-center justify-between border-t border-border-secondary bg-bg-tertiary px-5 py-3">
+            <div className="flex items-center gap-1 text-xs text-text-secondary">
+              <Icon name="info" className="w-3 h-3" />
+              <span>
+                {activeTab === 'dados' ? '* Obrigatório' : ''}
+                {activeTab === 'atendimentos' ? 'Duplo clique para detalhes' : ''}
+              </span>
+            </div>
+
+            {activeTab === 'dados' && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isCreating && !editMode) {
+                    setEditMode(true);
+                  } else {
+                    handleSubmit(new Event('submit') as any);
+                  }
+                }}
+                disabled={isSaving || (editMode && !formData.nome.trim())}
+                className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
+                title={isSaving ? "Salvando..." : (!isCreating && !editMode) ? "Editar" : "Salvar"}
+              >
+                {isSaving ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <Icon name={(!isCreating && !editMode) ? "edit" : "Check"} className="w-4 h-4" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
 
-    {/* Modal de detalhe do atendimento */}
-    {detailOpen && detailRecord && (
-      <DataDetailModal
-        isOpen={detailOpen}
-        onClose={() => {
-          setDetailOpen(false);
-          setDetailRecord(null);
-        }}
-        record={detailRecord}
-      />
-    )}
+      {/* Modal de detalhe do atendimento */}
+      {detailOpen && detailRecord && (
+        <DataDetailModal
+          isOpen={detailOpen}
+          onClose={() => {
+            setDetailOpen(false);
+            setDetailRecord(null);
+          }}
+          record={detailRecord}
+        />
+      )}
 
-    {/* Modal de preview PDF */}
-    {previewOpen && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 px-4" onClick={() => setPreviewOpen(false)}>
-        <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border-secondary bg-bg-tertiary">
-            <h3 className="text-lg font-bold text-text-primary">Pré-visualização da Ficha</h3>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={printPreview}
-                className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-all flex items-center gap-2 text-sm font-medium"
-              >
-                <Icon name="Printer" className="w-4 h-4" />
-                Imprimir
-              </button>
-              <button
-                onClick={downloadPreviewPdf}
-                className="px-4 py-2 bg-brand-cyan text-white rounded-lg hover:bg-brand-cyan/90 transition-all flex items-center gap-2 text-sm font-medium"
-              >
-                <Icon name="Download" className="w-4 h-4" />
-                Baixar PDF
-              </button>
-              <button
-                onClick={() => setPreviewOpen(false)}
-                className="p-2 rounded-lg hover:bg-bg-secondary text-text-secondary transition-colors"
-              >
-                <Icon name="X" className="w-5 h-5" />
-              </button>
+      {/* Modal de Preview (A4) */}
+      {previewOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4" onClick={() => setPreviewOpen(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-3 py-2 border-b">
+              <div className="font-semibold text-sm">Pré-visualização (A4)</div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={printPreview}
+                  className="p-2 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+                  title="Imprimir"
+                >
+                  <Icon name="Printer" className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={downloadPreviewPdf}
+                  className="px-3 py-1.5 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary text-sm font-medium transition-colors"
+                  title="Baixar PDF"
+                >
+                  Baixar PDF
+                </button>
+                <button
+                  onClick={() => setPreviewOpen(false)}
+                  className="p-2 rounded border border-border-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+                  title="Fechar"
+                >
+                  <Icon name="close" className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto bg-gray-100">
+              <div className="mx-auto my-4 bg-white shadow-sm" style={{ width: '210mm', minHeight: '297mm' }}>
+                <div
+                  ref={previewRef}
+                  className="p-0"
+                  dangerouslySetInnerHTML={{
+                    __html: (previewHtml && previewHtml.includes('<!doctype html>'))
+                      ? (() => {
+                        const bodyMatch = previewHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+                        const styleMatch = previewHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+                        const styles = styleMatch ? styleMatch.join('\n') : '';
+                        return styles + (bodyMatch ? bodyMatch[1] : previewHtml);
+                      })()
+                      : previewHtml
+                  }}
+                />
+              </div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-6 bg-gray-100">
-            <div ref={previewRef} className="bg-white shadow-lg mx-auto" style={{ maxWidth: '210mm' }}></div>
-          </div>
         </div>
-      </div>
-    )}
+      )}
     </>
   );
 };

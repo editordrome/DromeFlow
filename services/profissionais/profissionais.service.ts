@@ -30,6 +30,7 @@ export type Profissional = {
   dias_livres: string | null;
   dias_semana: string | null;
   fumante: string | null;
+  assinatura: string | null; // ISO date
   created_at: string;
   updated_at: string;
 };
@@ -41,7 +42,166 @@ export const fetchProfissionais = async (unitId?: string): Promise<Profissional[
   }
   const { data, error } = await q;
   if (error) throw error;
+
+  console.log('[fetchProfissionais] Dados retornados do Supabase:', data);
+  if (data && data.length > 0) {
+    console.log('[fetchProfissionais] Primeiro profissional:', data[0]);
+    console.log('[fetchProfissionais] Campo assinatura do primeiro:', data[0].assinatura);
+  }
+
   return (data as Profissional[]) || [];
+};
+
+/**
+ * Converte horário (HH:MM ou HH:MM:SS) para minutos desde meia-noite
+ */
+function timeToMinutes(time: string): number {
+  const parts = time.split(':');
+  const hours = parseInt(parts[0] || '0', 10);
+  const minutes = parseInt(parts[1] || '0', 10);
+  return hours * 60 + minutes;
+}
+
+/**
+ * Verifica se dois períodos de tempo se sobrepõem
+ */
+function checkTimeConflict(
+  time1: string,
+  duration1: number,
+  time2: string,
+  duration2: number
+): boolean {
+  const start1 = timeToMinutes(time1);
+  const end1 = start1 + (duration1 * 60);
+  const start2 = timeToMinutes(time2);
+  const end2 = start2 + (duration2 * 60);
+  return start1 < end2 && start2 < end1;
+}
+
+/**
+ * Obtém o unit_code a partir do unit_id
+ */
+async function getUnitCodeById(unitId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('units')
+    .select('unit_code')
+    .eq('id', unitId)
+    .single();
+  if (error || !data) {
+    console.error('[getUnitCodeById] Erro:', error);
+    return null;
+  }
+  return data.unit_code;
+}
+
+/**
+ * Busca profissionais por nome com filtro de conflito de horário
+ * @param unitId - ID da unidade
+ * @param searchTerm - Termo de busca (mínimo 2 caracteres)
+ * @param currentAppointment - Atendimento atual para verificar conflitos
+ * @param limit - Limite de resultados (padrão: 10)
+ * @returns Lista de profissionais disponíveis (sem conflitos)
+ */
+export const searchProfissionaisByName = async (
+  unitId: string,
+  searchTerm: string,
+  currentAppointment: {
+    data: string | null;
+    horario: string;
+    periodo: string | null;
+    atendimentoId?: string;
+  },
+  limit: number = 10
+): Promise<Profissional[]> => {
+  const trimmedSearch = (searchTerm || '').trim();
+
+  // 1. Buscar profissionais ativas
+  let query = supabase
+    .from('profissionais')
+    .select('id, nome, status, unit_id')
+    .in('status', ['Ativa', 'Ativo', 'ativo', 'TRUE'])
+    .order('nome', { ascending: true })
+    .limit(limit || 50);
+
+  if (trimmedSearch.length > 0) {
+    query = query.ilike('nome', `%${trimmedSearch}%`);
+  }
+
+  if (unitId && unitId !== 'ALL') {
+    query = query.eq('unit_id', unitId);
+  }
+
+  const { data: profissionais, error } = await query;
+
+  if (error || !profissionais) {
+    console.error('[searchProfissionaisByName] Erro:', error);
+    return [];
+  }
+
+  // 2. Se não há data/horário/período, retornar todas (sem filtro de conflito)
+  if (!currentAppointment.data || !currentAppointment.horario || !currentAppointment.periodo) {
+    return (profissionais as Profissional[]).slice(0, limit);
+  }
+
+  // 3. Buscar atendimentos do mesmo dia na unidade
+  const unitCode = await getUnitCodeById(unitId);
+  if (!unitCode) {
+    return (profissionais as Profissional[]).slice(0, limit);
+  }
+
+  const { data: appointments, error: apptError } = await supabase
+    .from('processed_data')
+    .select('PROFISSIONAL, HORARIO, "PERÍODO", ATENDIMENTO_ID')
+    .eq('unidade_code', unitCode)
+    .eq('DATA', currentAppointment.data)
+    .not('PROFISSIONAL', 'is', null);
+
+  if (apptError || !appointments) {
+    console.error('[searchProfissionaisByName] Erro ao buscar atendimentos:', apptError);
+    return (profissionais as Profissional[]).slice(0, limit);
+  }
+
+  // 4. Filtrar profissionais com conflito
+  const unavailableProfessionals = new Set<string>();
+
+  for (const appt of appointments) {
+    // Ignorar o atendimento atual
+    if (currentAppointment.atendimentoId && appt.ATENDIMENTO_ID === currentAppointment.atendimentoId) {
+      continue;
+    }
+
+    const profName = appt.PROFISSIONAL?.trim();
+    if (!profName) continue;
+
+    const periodo = (appt as any)['PERÍODO']?.trim();
+
+    // Regra 1: Período de 8h = dia inteiro ocupado
+    if (periodo === '8') {
+      unavailableProfessionals.add(profName);
+      continue;
+    }
+
+    // Regra 2: Verificar sobreposição de horários (4h ou 6h)
+    if (periodo === '4' || periodo === '6') {
+      const hasConflict = checkTimeConflict(
+        currentAppointment.horario,
+        parseInt(currentAppointment.periodo || '0'),
+        appt.HORARIO,
+        parseInt(periodo)
+      );
+
+      if (hasConflict) {
+        unavailableProfessionals.add(profName);
+      }
+    }
+  }
+
+  // 5. Filtrar profissionais disponíveis
+  const availableProfessionals = profissionais.filter(
+    prof => !unavailableProfessionals.has(prof.nome?.trim() || '')
+  );
+
+  return (availableProfessionals as Profissional[]).slice(0, limit);
 };
 
 // Histórico de atendimentos por profissional (em processed_data)
@@ -139,7 +299,7 @@ export const fetchProfessionalPosVendaMetrics = async (
       if (item.ATENDIMENTO_ID && notaMap.has(item.ATENDIMENTO_ID)) {
         const nota = notaMap.get(item.ATENDIMENTO_ID)!;
         const tipo = (item.TIPO || '').toLowerCase();
-        
+
         if (tipo.includes('comercial')) {
           comercialNotas.push(nota);
         } else if (tipo.includes('residencial')) {
@@ -188,6 +348,8 @@ export const updateProfissional = async (
     | 'nome_recado'
     | 'tel_recado'
     | 'observacao'
+    | 'status'
+    | 'assinatura'
   >>
 ): Promise<Profissional | null> => {
   if (!id) return null;
@@ -198,9 +360,9 @@ export const updateProfissional = async (
     .eq('id', id)
     .select('*')
     .single();
-  
+
   console.log('profissionais.service: Resposta do Supabase:', { data, error });
-  
+
   if (error) {
     console.error('profissionais.service: Erro do Supabase:', error);
     throw new Error(`Erro ao atualizar profissional: ${error.message} (Código: ${error.code})`);
@@ -213,20 +375,20 @@ export const createProfissional = async (
   profissionalData: Partial<Omit<Profissional, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<Profissional | null> => {
   console.log('profissionais.service: Criando profissional:', profissionalData);
-  
+
   const { data, error } = await supabase
     .from('profissionais')
     .insert(profissionalData)
     .select('*')
     .single();
-  
+
   console.log('profissionais.service: Resposta do INSERT:', { data, error });
-  
+
   if (error) {
     console.error('profissionais.service: Erro ao criar profissional:', error);
     throw new Error(`Erro ao criar profissional: ${error.message} (Código: ${error.code})`);
   }
-  
+
   return (data as Profissional) || null;
 };
 

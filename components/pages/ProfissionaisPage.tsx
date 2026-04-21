@@ -92,24 +92,24 @@ const ProfissionaisPage: React.FC = () => {
   const handleToggleStatus = async (profissional: Profissional, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!profissional.id || updatingStatusId) return;
-    
+
     const currentStatus = (profissional.status || '').toLowerCase().trim();
     const isCurrentlyActive = currentStatus === 'ativa' || currentStatus === 'ativo';
     const newStatus: 'Ativa' | 'Inativa' = isCurrentlyActive ? 'Inativa' : 'Ativa';
-    
+
     setUpdatingStatusId(profissional.id);
-    
+
     // Atualização otimista
-    setRows(prev => prev.map(r => 
+    setRows(prev => prev.map(r =>
       r.id === profissional.id ? { ...r, status: newStatus } : r
     ));
-    
+
     try {
       await updateProfissionalStatus(profissional.id, newStatus);
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       // Reverter em caso de erro
-      setRows(prev => prev.map(r => 
+      setRows(prev => prev.map(r =>
         r.id === profissional.id ? { ...r, status: profissional.status } : r
       ));
       setError('Erro ao atualizar status da profissional');
@@ -128,7 +128,7 @@ const ProfissionaisPage: React.FC = () => {
     if (end > totalPages) { end = totalPages; start = Math.max(1, end - windowSize + 1); }
     const pages = [] as number[];
     for (let i = start; i <= end; i++) pages.push(i);
-    
+
     return (
       <div className="flex items-center justify-between mt-4 text-xs text-text-secondary">
         <div>Mostrando {start + 1} - {Math.min(end, filteredRows.length)} de {filteredRows.length}</div>
@@ -212,11 +212,10 @@ const ProfissionaisPage: React.FC = () => {
                       type="button"
                       onClick={() => setStatusTab(tab.key)}
                       aria-pressed={isActive}
-                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${
-                        isActive
-                          ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
-                          : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
-                      }`}
+                      className={`flex-1 px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition text-center truncate border ${isActive
+                        ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                        : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                        }`}
                     >
                       {tab.label} ({tab.count})
                     </button>
@@ -224,92 +223,90 @@ const ProfissionaisPage: React.FC = () => {
                 })}
               </div>
             </div>
-            
+
             {/* Tabela */}
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-            <table className="min-w-full text-sm">
-              <colgroup>
-                <col style={{ width: '40%' }} />
-                <col style={{ width: '35%' }} />
-                <col style={{ width: '25%' }} />
-              </colgroup>
-              <thead className="sticky top-0 z-10 bg-bg-tertiary text-text-secondary shadow-sm">
-                <tr>
-                  <th className="px-6 py-3 text-left font-semibold">Nome</th>
-                  <th className="px-6 py-3 text-left font-semibold">WhatsApp</th>
-                  <th className="px-6 py-3 text-center font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedRows.length === 0 ? (
+              <table className="min-w-full text-sm">
+                <colgroup>
+                  <col style={{ width: '40%' }} />
+                  <col style={{ width: '35%' }} />
+                  <col style={{ width: '25%' }} />
+                </colgroup>
+                <thead className="sticky top-0 z-10 bg-bg-tertiary text-text-secondary shadow-sm">
                   <tr>
-                    <td className="px-6 py-10 text-center text-text-secondary" colSpan={3}>
-                      {searchTerm ? 'Nenhuma profissional encontrada para a busca.' : 'Nenhuma profissional encontrada.'}
-                    </td>
+                    <th className="px-6 py-3 text-left font-semibold">Nome</th>
+                    <th className="px-6 py-3 text-left font-semibold">WhatsApp</th>
+                    <th className="px-6 py-3 text-center font-semibold">Status</th>
                   </tr>
-                ) : (
-                  paginatedRows.map((r) => {
-                    const normalizedStatus = (r.status || '').toLowerCase().trim();
-                    const isAtiva = normalizedStatus === 'ativa' || normalizedStatus === 'ativo';
-                    const isUpdating = updatingStatusId === r.id;
-                    
-                    return (
-                      <tr 
-                        key={r.id} 
-                        className="border-t border-border-secondary hover:bg-bg-tertiary cursor-pointer"
-                        onDoubleClick={() => handleRowDoubleClick(r)}
-                      >
-                        <td className="px-6 py-3 text-text-primary">
-                          {r.nome || '-'}
-                        </td>
-                        <td className="px-6 py-3 text-text-primary">
-                          {r.whatsapp || '-'}
-                        </td>
-                        <td className="px-6 py-3">
-                          <div className="flex items-center justify-center gap-3">
-                            <span className={`text-xs font-medium ${isAtiva ? 'text-green-600' : 'text-red-600'}`}>
-                              {isAtiva ? 'Ativa' : 'Inativa'}
-                            </span>
-                            <button
-                              onClick={(e) => handleToggleStatus(r, e)}
-                              disabled={isUpdating}
-                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 ${
-                                isUpdating ? 'opacity-50 cursor-wait' : 'cursor-pointer'
-                              } ${isAtiva ? 'bg-green-500' : 'bg-gray-400'}`}
-                              title={isAtiva ? 'Clique para inativar' : 'Clique para ativar'}
-                              role="switch"
-                              aria-checked={isAtiva}
-                            >
-                              {isUpdating ? (
-                                <span className="absolute inset-0 flex items-center justify-center">
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                </span>
-                              ) : (
-                                <span
-                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    isAtiva ? 'translate-x-6' : 'translate-x-1'
-                                  }`}
-                                />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paginatedRows.length === 0 ? (
+                    <tr>
+                      <td className="px-6 py-10 text-center text-text-secondary" colSpan={3}>
+                        {searchTerm ? 'Nenhuma profissional encontrada para a busca.' : 'Nenhuma profissional encontrada.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedRows.map((r) => {
+                      const normalizedStatus = (r.status || '').toLowerCase().trim();
+                      const isAtiva = normalizedStatus === 'ativa' || normalizedStatus === 'ativo';
+                      const isUpdating = updatingStatusId === r.id;
+
+                      return (
+                        <tr
+                          key={r.id}
+                          className="border-t border-border-secondary hover:bg-bg-tertiary cursor-pointer"
+                          onDoubleClick={() => handleRowDoubleClick(r)}
+                        >
+                          <td className="px-6 py-3 text-text-primary">
+                            {r.nome || '-'}
+                          </td>
+                          <td className="px-6 py-3 text-text-primary">
+                            {r.whatsapp || '-'}
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="flex items-center justify-center gap-3">
+                              <span className={`text-xs font-medium ${isAtiva ? 'text-green-600' : 'text-red-600'}`}>
+                                {isAtiva ? 'Ativa' : 'Inativa'}
+                              </span>
+                              <button
+                                onClick={(e) => handleToggleStatus(r, e)}
+                                disabled={isUpdating}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 ${isUpdating ? 'opacity-50 cursor-wait' : 'cursor-pointer'
+                                  } ${isAtiva ? 'bg-green-500' : 'bg-gray-400'}`}
+                                title={isAtiva ? 'Clique para inativar' : 'Clique para ativar'}
+                                role="switch"
+                                aria-checked={isAtiva}
+                              >
+                                {isUpdating ? (
+                                  <span className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAtiva ? 'translate-x-6' : 'translate-x-1'
+                                      }`}
+                                  />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <Pagination />
         </>
       )}
 
-      <ProfissionalDetailModal 
-        isOpen={modalOpen} 
-        onClose={() => setModalOpen(false)} 
+      <ProfissionalDetailModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
         profissional={selected}
         onEdit={(updated) => {
           // Atualiza a lista local com os dados atualizados

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable, DropResult, DragUpdate } from '@hello-pangea/dnd';
 import { useAuth } from '../../contexts/AuthContext';
@@ -9,6 +9,9 @@ import RecrutadoraCardModal from '../ui/RecrutadoraCardModal';
 import { Icon } from '../ui/Icon';
 import { startOfTodayISO, startOfWeekISO, startOfMonthISO } from '../../services/utils/dates';
 import { supabase } from '../../services/supabaseClient';
+import { activityLogger } from '../../services/utils/activityLogger.service';
+
+const RecrutadoraDashboard = lazy(() => import('./RecrutadoraDashboard'));
 
 const RecrutadoraPage: React.FC = () => {
   const { profile, userUnits } = useAuth();
@@ -30,11 +33,45 @@ const RecrutadoraPage: React.FC = () => {
   // URL da recrutadora para copiar
   const [recrutadoraUrl, setRecrutadoraUrl] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [viewMode, setViewMode] = useState<'kanban' | 'dashboard'>('kanban');
+  const [recrutadoraWebhook, setRecrutadoraWebhook] = useState<string | null>(null);
+  const [sendingWebhook, setSendingWebhook] = useState<Set<number>>(new Set());
+  const [webhookFeedback, setWebhookFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm.trim().toLowerCase()), 350);
     return () => clearTimeout(t);
   }, [searchTerm]);
+
+  // Limpa feedback de webhook após alguns segundos
+  useEffect(() => {
+    if (webhookFeedback) {
+      const t = setTimeout(() => setWebhookFeedback(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [webhookFeedback]);
+
+  // Busca webhook do módulo recrutadora quando a unidade mudar
+  const { getModulesForUnit } = useAuth();
+  useEffect(() => {
+    const loadWebhook = async () => {
+      // Usamos getModulesForUnit com a unidade selecionada ou null para ALL
+      // Quando ALL, o webhook é buscado do módulo base do usuário
+      const unitId = (selectedUnit as any)?.id === 'ALL' ? null : (selectedUnit as any)?.id;
+      try {
+        const modules = await getModulesForUnit(unitId);
+        const module = modules.find(m => 
+          m.view_id === 'recrutadora' || 
+          m.name.toLowerCase().includes('recrutadora')
+        );
+        setRecrutadoraWebhook(module?.webhook_url || null);
+      } catch (error) {
+        console.error('[RecrutadoraPage] Erro ao carregar webhook:', error);
+        setRecrutadoraWebhook(null);
+      }
+    };
+    loadWebhook();
+  }, [selectedUnit, getModulesForUnit]);
 
   // Escolhe cor de texto com bom contraste sobre o fundo fornecido (hex)
   const getTextContrastClass = (bg?: string | null) => {
@@ -82,8 +119,8 @@ const RecrutadoraPage: React.FC = () => {
             .eq('unit_id', selectedUnit.id)
             .eq('is_active', true)
             .limit(1)
-            .single();
-          
+            .maybeSingle();
+
           setRecrutadoraUrl(unitKeyData?.recrutadora || null);
         } else {
           setRecrutadoraUrl(null);
@@ -154,7 +191,7 @@ const RecrutadoraPage: React.FC = () => {
     }
     // garantir ordenação local por position
     for (const k of Object.keys(map)) {
-      map[k].sort((a,b) => a.position - b.position || (a.created_at < b.created_at ? 1 : -1));
+      map[k].sort((a, b) => a.position - b.position || (a.created_at < b.created_at ? 1 : -1));
     }
     return map;
   }, [visibleCards]);
@@ -223,7 +260,7 @@ const RecrutadoraPage: React.FC = () => {
     // normalização simples apenas para visual; quando ALL recarregamos após sucesso
     const normalize = (status: string) => {
       let i = 1;
-      for (const c of nextCards.filter(x => x.status === status).sort((a,b)=>a.position-b.position)) {
+      for (const c of nextCards.filter(x => x.status === status).sort((a, b) => a.position - b.position)) {
         c.position = i++;
       }
     };
@@ -251,6 +288,22 @@ const RecrutadoraPage: React.FC = () => {
 
       await moveCard(profile.id, moving.id, destStatus, newPosition);
 
+      // Logar a atividade
+      activityLogger.logActivity({
+        actionCode: 'update_recrutadora',
+        moduleName: 'Recrutadora',
+        unitId: moving.unit_id,
+        unitCode: isAllUnits ? 'ALL' : (selectedUnit as any)?.unit_code || 'ALL',
+        userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+        status: 'success',
+        metadata: { 
+          card_id: moving.id, 
+          nome: moving.nome, 
+          status_anterior: sourceStatus, 
+          novo_status: destStatus 
+        }
+      });
+
       // Quando ALL, recarrega do servidor para garantir ordenação por unidade correta
       if (isAllUnits) {
         if (userUnits && userUnits.length > 0) {
@@ -261,8 +314,23 @@ const RecrutadoraPage: React.FC = () => {
         }
       }
     } catch (e: any) {
+      // Logar erro
+      activityLogger.logActivity({
+        actionCode: 'update_recrutadora',
+        moduleName: 'Recrutadora',
+        unitId: moving.unit_id,
+        unitCode: isAllUnits ? 'ALL' : (selectedUnit as any)?.unit_code || 'ALL',
+        userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+        status: 'error',
+        metadata: { 
+          card_id: moving.id, 
+          nome: moving.nome,
+          error_message: e.message 
+        }
+      });
+
       // reverte
-      setError('Falha ao mover card: ' + (e.message || '')); 
+      setError('Falha ao mover card: ' + (e.message || ''));
       // força reload
       if (selectedUnit) {
         const cols = await fetchColumns(selectedUnit.id as any);
@@ -282,6 +350,106 @@ const RecrutadoraPage: React.FC = () => {
     }
     // limpar indicador visual
     setDragIndicator(null);
+  };
+
+  const handleSendWebhook = async (card: RecrutadoraCard) => {
+    if (!recrutadoraWebhook) {
+      setWebhookFeedback({ type: 'error', message: 'Webhook não configurado para este módulo' });
+      return;
+    }
+
+    if (!card.nome || !card.whatsapp) {
+      setWebhookFeedback({ type: 'error', message: 'Nome e WhatsApp são obrigatórios para o envio' });
+      return;
+    }
+
+    setSendingWebhook(prev => new Set(prev).add(card.id));
+
+    try {
+      // Identifica o unit_code da unidade do card
+      let unitCode = '';
+      if (isAllUnits) {
+        const unit = userUnits?.find(u => u.id === card.unit_id);
+        unitCode = unit?.unit_code || '';
+      } else {
+        unitCode = (selectedUnit as any)?.unit_code || '';
+      }
+
+      const payload = {
+        action: 'recrutadora_envio',
+        nome: card.nome,
+        whatsapp: card.whatsapp,
+        unitCode: unitCode,
+        timestamp: new Date().toISOString(),
+        usuario_email: profile?.email || null
+      };
+
+      let usedFallback = false;
+      try {
+        const resp = await fetch(recrutadoraWebhook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          throw new Error(`Falha HTTP ${resp.status}${text ? ' - ' + text.slice(0, 140) : ''}`);
+        }
+        setWebhookFeedback({ type: 'success', message: 'Dados enviados com sucesso!' });
+        
+        // Logar atividade
+        activityLogger.logActivity({
+          actionCode: 'notify_client', // Ou outro código mapeado em actions, ex: recrutadora_envio
+          moduleName: 'Recrutadora',
+          unitId: card.unit_id,
+          unitCode: unitCode,
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { nome: card.nome, whatsapp: card.whatsapp, action: 'recrutadora_envio' }
+        });
+      } catch (primaryErr: any) {
+        const msg = primaryErr?.message || '';
+        if (msg.includes('Failed to fetch') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('TypeError')) {
+          usedFallback = true;
+        } else {
+          throw primaryErr;
+        }
+      }
+
+      if (usedFallback) {
+        const url = new URL(recrutadoraWebhook);
+        url.searchParams.set('action', 'recrutadora_envio');
+        url.searchParams.set('nome', payload.nome);
+        url.searchParams.set('whatsapp', payload.whatsapp);
+        url.searchParams.set('uc', payload.unit_code);
+        url.searchParams.set('ts', payload.timestamp);
+        if (profile?.email) url.searchParams.set('ue', profile.email);
+        
+        const r = await fetch(url.toString(), { method: 'GET' });
+        if (!r.ok) throw new Error(`Fallback GET falhou HTTP ${r.status}`);
+        setWebhookFeedback({ type: 'success', message: 'Dados enviados via fallback (GET)!' });
+
+        // Logar atividade
+        activityLogger.logActivity({
+          actionCode: 'notify_client',
+          moduleName: 'Recrutadora',
+          unitId: card.unit_id,
+          unitCode: unitCode,
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { nome: card.nome, whatsapp: card.whatsapp, action: 'recrutadora_envio_fallback' }
+        });
+      }
+    } catch (err: any) {
+      console.error('Erro ao enviar webhook recrutadora:', err);
+      setWebhookFeedback({ type: 'error', message: err?.message || 'Erro ao enviar dados para o webhook' });
+    } finally {
+      setSendingWebhook(prev => {
+        const next = new Set(prev);
+        next.delete(card.id);
+        return next;
+      });
+    }
   };
 
   const onDragUpdate = (update: DragUpdate) => {
@@ -334,10 +502,10 @@ const RecrutadoraPage: React.FC = () => {
     <div className="flex flex-col h-full space-y-6">
       {/* Cabeçalho Principal */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-text-primary">Recrutadora</h1>
-          {recrutadoraUrl && !isAllUnits && (
-            <div className="relative">
+        <div className="flex items-center gap-3 flex-1">
+          <h1 className="text-2xl font-bold text-text-primary shrink-0">Recrutadora</h1>
+          {recrutadoraUrl && !isAllUnits && viewMode === 'kanban' && (
+            <div className="relative shrink-0">
               <button
                 type="button"
                 onClick={handleCopyUrl}
@@ -353,6 +521,29 @@ const RecrutadoraPage: React.FC = () => {
               )}
             </div>
           )}
+          {/* Toggle Seleção / Dashboard — estilo Financeiro */}
+          <div className="flex gap-2 mx-auto">
+            {([
+              { id: 'kanban' as const, label: 'Seleção' },
+              { id: 'dashboard' as const, label: 'Dashboard' },
+            ]).map(tab => {
+              const isActive = viewMode === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setViewMode(tab.id)}
+                  className={`min-w-[120px] px-5 py-2 rounded-md text-sm font-medium transition text-center border
+                    ${isActive
+                      ? 'bg-accent-primary text-text-on-accent border-accent-primary shadow'
+                      : 'bg-bg-tertiary text-text-secondary border-border-secondary hover:text-text-primary hover:shadow'
+                    }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -389,11 +580,10 @@ const RecrutadoraPage: React.FC = () => {
                   key={metric.key}
                   type="button"
                   onClick={() => setActivePeriod(prev => (prev === metric.key ? 'all' : metric.key))}
-                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                    isActive
-                      ? 'border-accent-primary bg-accent-primary text-text-on-accent'
-                      : 'border-border-secondary bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/70'
-                  }`}
+                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${isActive
+                    ? 'border-accent-primary bg-accent-primary text-text-on-accent'
+                    : 'border-border-secondary bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/70'
+                    }`}
                   aria-pressed={isActive}
                 >
                   <Icon name={metric.icon as any} className={`h-4 w-4 ${isActive ? 'text-text-on-accent' : metric.color}`} />
@@ -406,110 +596,142 @@ const RecrutadoraPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Área das Colunas Kanban */}
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
-        <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
-          <div className="flex-1 min-h-0 overflow-x-auto pb-2 pr-1">
-            <div className="inline-flex gap-4 h-full">
-            {renderColumns.map((col: any) => {
-              const droppableId = col._unitForQual ? `qualificadas|${col._unitForQual.id}` : col.code;
-              const columnCards = col._unitForQual
-                ? visibleCards.filter(c => c.status === 'qualificadas' && c.unit_id === col._unitForQual.id)
-                : (cardsByStatus[col.code] || []);
-              return (
-                <div key={col.id} className="bg-bg-tertiary rounded-lg border border-border-secondary flex flex-col h-full w-[320px] min-w-[320px] shrink-0">
-                  <div className="p-0 h-[100px] md:h-[120px] rounded-t-lg border-b border-border-secondary relative overflow-hidden" style={{ backgroundColor: col.color || undefined }}>
-                    {col.image_url && (
-                      <div
-                        aria-label={col.name}
-                        className="absolute inset-0 bg-center bg-no-repeat bg-cover"
-                        style={{ backgroundImage: `url(${col.image_url})` }}
-                      />
-                    )}
-                    {isAllUnits && col._unitForQual && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs font-semibold px-2 py-1 text-center">
-                        {col._unitForQual.unit_name}
-                      </div>
-                    )}
-                    <span className={`absolute top-1 right-1 z-10 ${getBadgeClasses(col.color)}`}>
-                      {col._unitForQual ? columnCards.length : (cardsByStatus[col.code] || []).length}
-                    </span>
-                  </div>
-                  <Droppable droppableId={droppableId}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={`flex-1 overflow-y-auto p-3 space-y-3 transition-colors ${snapshot.isDraggingOver ? 'bg-accent-primary/5 ring-1 ring-accent-primary/30' : ''}`}
-                      >
-                        {columnCards.map((card: RecrutadoraCard, index: number, arr: RecrutadoraCard[]) => {
-                          const elements: React.ReactNode[] = [];
-                          const shouldShowIndicator = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === index;
-                          if (shouldShowIndicator) {
-                            elements.push(
-                              <div
-                                key={`drop-indicator-${droppableId}-${index}`}
-                                className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
-                              />
-                            );
-                          }
-                          elements.push(
-                            <Draggable key={card.id} draggableId={String(card.id)} index={index}>
-                              {(dragProvided, dragSnapshot) => {
-                                const content = (
-                                  <div
-                                    ref={dragProvided.innerRef}
-                                    {...dragProvided.draggableProps}
-                                    {...dragProvided.dragHandleProps}
-                                    className={`bg-bg-secondary rounded-md p-3 text-text-primary border border-border-secondary transition-shadow cursor-pointer ${dragSnapshot.isDragging ? 'shadow-2xl ring-2 ring-accent-primary/50 bg-bg-tertiary' : 'shadow-sm hover:bg-bg-tertiary'}`}
-                                    style={{
-                                      ...dragProvided.draggableProps.style,
-                                      borderLeft: `4px solid ${isAllUnits ? (unitColorMap[card.unit_id] || '#4ade80') : (card.color_card || '#4ade80')}`,
-                                    }}
-                                    onClick={() => { setEditingCard(card); setModalStatus(card.status); setModalOpen(true); }}
-                                  >
-                                    <div className="font-semibold leading-snug truncate">{card.nome || 'Sem nome'}</div>
-                                    <div className="text-xs text-text-secondary mt-1">Cadastrado em: {new Date(card.created_at).toLocaleDateString('pt-BR')}</div>
-                                  </div>
-                                );
-                                return dragSnapshot.isDragging ? createPortal(content, document.body) : content;
-                              }}
-                            </Draggable>
-                          );
-                          // indicador no final da coluna
-                          const isLast = index === arr.length - 1;
-                          const shouldShowAtEnd = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === arr.length && isLast;
-                          if (shouldShowAtEnd) {
-                            elements.push(
-                              <div
-                                key={`drop-indicator-${droppableId}-end`}
-                                className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
-                              />
-                            );
-                          }
-                          return elements;
-                        })}
-                        {provided.placeholder}
-                        {columnCards.length === 0 && (
-                          <>
-                            {dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === 0 && (
-                              <div className="h-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none mb-3" />
-                            )}
-                            <div className="text-xs text-text-secondary text-center py-6 border border-dashed border-border-secondary rounded">
-                              Nenhum card nesta coluna
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </Droppable>
-                </div>
-              );
-            })}
-          </div>
+      {/* Feedback de Webhook */}
+      {webhookFeedback && (
+        <div className={`flex items-center gap-3 p-4 rounded-lg border shadow-sm animate-in fade-in slide-in-from-top-4 duration-300 ${
+          webhookFeedback.type === 'success' ? 'bg-brand-green/10 border-brand-green/30 text-brand-green' : 'bg-danger/10 border-danger/30 text-danger'
+        }`}>
+          <Icon name={webhookFeedback.type === 'success' ? 'check' : 'alert'} className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm font-medium">{webhookFeedback.message}</span>
+          <button onClick={() => setWebhookFeedback(null)} className="ml-auto hover:opacity-70 transition-opacity">
+            <Icon name="close" className="w-4 h-4" />
+          </button>
         </div>
-      </DragDropContext>
-      </div>
+      )}
+
+      {/* Dashboard ou Kanban */}
+      {viewMode === 'dashboard' ? (
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-64">
+            <div className="w-12 h-12 border-4 border-gray-200 rounded-full animate-spin border-t-accent-primary" />
+          </div>
+        }>
+          <RecrutadoraDashboard />
+        </Suspense>
+      ) : (
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-lg bg-bg-secondary p-4 shadow-md">
+          <DragDropContext onDragEnd={onDragEnd} onDragUpdate={onDragUpdate}>
+            <div className="flex-1 min-h-0 overflow-x-auto pb-2 pr-1">
+              <div className="inline-flex gap-4 h-full">
+                {renderColumns.map((col: any) => {
+                  const droppableId = col._unitForQual ? `qualificadas|${col._unitForQual.id}` : col.code;
+                  const columnCards = col._unitForQual
+                    ? visibleCards.filter(c => c.status === 'qualificadas' && c.unit_id === col._unitForQual.id)
+                    : (cardsByStatus[col.code] || []);
+                  return (
+                    <div key={col.id} className="bg-bg-tertiary rounded-lg border border-border-secondary flex flex-col h-full w-[320px] min-w-[320px] shrink-0">
+                      <div className="p-0 h-[100px] md:h-[120px] rounded-t-lg border-b border-border-secondary relative overflow-hidden" style={{ backgroundColor: col.color || undefined }}>
+                        {col.image_url && (
+                          <div
+                            aria-label={col.name}
+                            className="absolute inset-0 bg-center bg-no-repeat bg-cover"
+                            style={{ backgroundImage: `url(${col.image_url})` }}
+                          />
+                        )}
+                        {isAllUnits && col._unitForQual && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs font-semibold px-2 py-1 text-center">
+                            {col._unitForQual.unit_name}
+                          </div>
+                        )}
+                        <span className={`absolute top-1 right-1 z-10 ${getBadgeClasses(col.color)}`}>
+                          {col._unitForQual ? columnCards.length : (cardsByStatus[col.code] || []).length}
+                        </span>
+                      </div>
+                      <Droppable droppableId={droppableId}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={`flex-1 overflow-y-auto p-3 space-y-3 transition-colors ${snapshot.isDraggingOver ? 'bg-accent-primary/5 ring-1 ring-accent-primary/30' : ''}`}
+                          >
+                            {columnCards.map((card: RecrutadoraCard, index: number, arr: RecrutadoraCard[]) => {
+                              const elements: React.ReactNode[] = [];
+                              const shouldShowIndicator = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === index;
+                              if (shouldShowIndicator) {
+                                elements.push(
+                                  <div
+                                    key={`drop-indicator-${droppableId}-${index}`}
+                                    className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
+                                  />
+                                );
+                              }
+                              const draggableElement = (
+                                <Draggable draggableId={String(card.id)} index={index}>
+                                  {(dragProvided, dragSnapshot) => {
+                                    const content = (
+                                      <div
+                                        ref={dragProvided.innerRef}
+                                        {...dragProvided.draggableProps}
+                                        {...dragProvided.dragHandleProps}
+                                        className={`bg-bg-secondary rounded-md p-3 text-text-primary border border-border-secondary transition-shadow cursor-pointer ${dragSnapshot.isDragging ? 'shadow-2xl ring-2 ring-accent-primary/50 bg-bg-tertiary' : 'shadow-sm hover:bg-bg-tertiary'}`}
+                                        style={{
+                                          ...dragProvided.draggableProps.style,
+                                          opacity: dragSnapshot.isDragging ? 0.8 : 1,
+                                          borderLeft: `4px solid ${isAllUnits ? (unitColorMap[card.unit_id] || '#4ade80') : (card.color_card || '#4ade80')}`,
+                                        }}
+                                        onClick={() => { setEditingCard(card); setModalStatus(card.status); setModalOpen(true); }}
+                                      >
+                                        <div className="font-semibold leading-snug truncate">{card.nome || 'Sem nome'}</div>
+                                        <div className="mt-1">
+                                          <div className="text-xs text-text-secondary">Cadastrado em: {new Date(card.created_at).toLocaleDateString('pt-BR')}</div>
+                                          {card.observacao && card.observacao.trim() && (
+                                            <div className="text-xs text-text-secondary opacity-70 truncate mt-0.5">
+                                              {card.observacao.split('\n')[0]}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                    return dragSnapshot.isDragging ? createPortal(content, document.body) : content;
+                                  }}
+                                </Draggable>
+                              );
+                              elements.push(React.cloneElement(draggableElement, { key: card.id }));
+                              // indicador no final da coluna
+                              const isLast = index === arr.length - 1;
+                              const shouldShowAtEnd = dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === arr.length && isLast;
+                              if (shouldShowAtEnd) {
+                                elements.push(
+                                  <div
+                                    key={`drop-indicator-${droppableId}-end`}
+                                    className="h-16 -mb-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none"
+                                  />
+                                );
+                              }
+                              return elements;
+                            })}
+                            {provided.placeholder}
+                            {columnCards.length === 0 && (
+                              <>
+                                {dragIndicator && dragIndicator.droppableId === droppableId && dragIndicator.index === 0 && (
+                                  <div className="h-16 rounded-md ring-2 ring-accent-primary/50 bg-accent-primary/10 shadow-lg pointer-events-none mb-3" />
+                                )}
+                                <div className="text-xs text-text-secondary text-center py-6 border border-dashed border-border-secondary rounded">
+                                  Nenhum card nesta coluna
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </DragDropContext>
+        </div>
+      )}
 
       <RecrutadoraCardModal
         isOpen={modalOpen}
@@ -537,11 +759,11 @@ const RecrutadoraPage: React.FC = () => {
             setMetrics(m);
           }
         }}
-  unidade={selectedUnit.unit_name}
+        unidade={selectedUnit.unit_name}
         defaultStatus={editingCard ? undefined : modalStatus}
         initialCard={editingCard}
         onCreate={async (payload) => {
-          await createCard({ ...payload, unit_id: selectedUnit.id, unidade: selectedUnit.unit_name });
+          await createCard({ ...payload, unitId: selectedUnit.id, unidade: selectedUnit.unit_name });
         }}
         onUpdate={async (id, payload) => {
           await updateCard(id, payload);
@@ -549,6 +771,8 @@ const RecrutadoraPage: React.FC = () => {
         onDelete={async (id) => {
           await deleteCard(id);
         }}
+        onSendWebhook={handleSendWebhook}
+        isSendingWebhook={editingCard ? sendingWebhook.has(editingCard.id) : false}
       />
     </div>
   );
