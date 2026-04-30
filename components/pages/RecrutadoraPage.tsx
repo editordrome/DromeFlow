@@ -379,7 +379,7 @@ const RecrutadoraPage: React.FC = () => {
         action: 'recrutadora_envio',
         nome: card.nome,
         whatsapp: card.whatsapp,
-        unitCode: unitCode,
+        unit_id: unitCode, // Mantendo o valor do code mas enviando como unit_id por padrão do sistema
         timestamp: new Date().toISOString(),
         usuario_email: profile?.email || null
       };
@@ -421,7 +421,7 @@ const RecrutadoraPage: React.FC = () => {
         url.searchParams.set('action', 'recrutadora_envio');
         url.searchParams.set('nome', payload.nome);
         url.searchParams.set('whatsapp', payload.whatsapp);
-        url.searchParams.set('uc', payload.unit_code);
+        url.searchParams.set('unit_id', payload.unit_id);
         url.searchParams.set('ts', payload.timestamp);
         if (profile?.email) url.searchParams.set('ue', profile.email);
         
@@ -763,7 +763,7 @@ const RecrutadoraPage: React.FC = () => {
         defaultStatus={editingCard ? undefined : modalStatus}
         initialCard={editingCard}
         onCreate={async (payload) => {
-          await createCard({ ...payload, unitId: selectedUnit.id, unidade: selectedUnit.unit_name });
+          await createCard({ ...payload, unit_id: selectedUnit.id, unidade: selectedUnit.unit_name });
         }}
         onUpdate={async (id, payload) => {
           await updateCard(id, payload);

@@ -211,9 +211,9 @@ const DataPage: React.FC = () => {
         if (!multiUnits.includes(record.unidade_code)) return false;
       }
       // Filtrar por período usando comparação robusta de string (evita bug de timezone)
-      if (record.DATA) {
+      if (record.data) {
         const [targetYear, targetMonth] = selectedPeriod.split('-');
-        const dateStr = typeof record.DATA === 'string' ? record.DATA.split('T')[0] : '';
+        const dateStr = typeof record.data === 'string' ? record.data.split('T')[0] : '';
         const [rYear, rMonth] = dateStr.split('-');
         if (rYear !== targetYear || rMonth !== targetMonth) return false;
       }
@@ -497,7 +497,7 @@ const DataPage: React.FC = () => {
                         className="px-4 py-4 text-sm whitespace-nowrap text-text-primary cursor-pointer"
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
-                        {formatDate(row.DATA)}
+                        {formatDate(row.data)}
                       </td>
                       <td
                         className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary font-mono cursor-pointer"
@@ -508,19 +508,19 @@ const DataPage: React.FC = () => {
                       </td>
                       <td
                         className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-primary cursor-pointer"
-                        title={row.CLIENTE}
+                        title={row.cliente}
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
                         <div className="flex items-center gap-1.5">
                           {row.is_verified && <Icon name="CheckCircle" className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
-                          <span>{row.CLIENTE}</span>
+                          <span>{row.cliente}</span>
                         </div>
                       </td>
                       <td
                         className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary cursor-pointer"
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
-                        {Number(row.VALOR ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {Number(row.valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
                       <td className="px-4 py-4 text-center cursor-pointer" onDoubleClick={() => handleOpenDetailModal(row)}>
                         {(() => {
@@ -535,16 +535,16 @@ const DataPage: React.FC = () => {
                       </td>
                       <td
                         className="px-4 py-4 text-sm truncate whitespace-nowrap text-text-secondary cursor-pointer"
-                        title={row.PROFISSIONAL}
+                        title={row.profissional}
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
-                        {row.PROFISSIONAL}
+                        {row.profissional}
                       </td>
                       <td
                         className="px-4 py-4 text-sm whitespace-nowrap text-text-secondary cursor-pointer"
                         onDoubleClick={() => handleOpenDetailModal(row)}
                       >
-                        {Number(row.REPASSE ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {Number(row.repasse ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
                     </tr>
                   ))}
@@ -631,7 +631,7 @@ const DataPage: React.FC = () => {
               </div>
               <div className="mb-6">
                 <p className="text-text-secondary">
-                  Tem certeza que deseja excluir o atendimento de <strong>{deleteConfirmRecord.CLIENTE}</strong>?
+                  Tem certeza que deseja excluir o atendimento de <strong>{deleteConfirmRecord.cliente}</strong>?
                 </p>
                 <p className="text-sm text-red-600 mt-2">
                   Esta ação não pode ser desfeita.

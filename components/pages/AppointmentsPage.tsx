@@ -58,7 +58,7 @@ const AppointmentsPage: React.FC = () => {
   // Clientes verificados
   const [verifiedClients, setVerifiedClients] = useState<Set<string>>(new Set());
 
-  const recordKey = (r: DataRecord) => String((r as any).id ?? r.ATENDIMENTO_ID);
+  const recordKey = (r: DataRecord) => String(r.id ?? r.atendimento_id);
 
   // Localiza webhook do módulo de atendimentos (heurística: nome contém 'atend' ou view_id === 'appointments')
   const appointmentsWebhook = useMemo(() => {
@@ -208,7 +208,7 @@ const AppointmentsPage: React.FC = () => {
       return next;
     });
     try {
-      const atendimentoId = String(((rec as any).ATENDIMENTO_ID || (rec as any).id) ?? '');
+      const atendimentoId = String(rec.atendimento_id || rec.id || '');
       // Envia apenas este atendimento específico
       const result = await sendWebhookPayload([rec], 1, 'cliente', atendimentoId);
       if (result?.ok) {
@@ -227,7 +227,7 @@ const AppointmentsPage: React.FC = () => {
           unitCode: selectedUnit.unit_code,
           userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
           status: 'success',
-          metadata: { atendimento_id: atendimentoId, cliente: rec.CLIENTE }
+          metadata: { atendimento_id: atendimentoId, cliente: rec.cliente }
         });
       }
     } catch (err: any) {
@@ -370,7 +370,7 @@ const AppointmentsPage: React.FC = () => {
     filter: (record: any) => {
       // Filtro client-side adicional (apenas para a data ativa)
       if (!activeDate) return false;
-      const recordDate = record.DATA?.split('T')[0] || record.DATA;
+      const recordDate = record.data?.split('T')[0] || record.data;
       return recordDate === activeDate;
     },
     callbacks: {
@@ -378,7 +378,7 @@ const AppointmentsPage: React.FC = () => {
         console.log('[Realtime] Novo agendamento inserido:', newRecord);
         setAppointments(prev => {
           // Evita duplicatas usando comparação segura de string para IDs (BigInt fix)
-          const exists = prev.find(r => String((r as any).id) === String(newRecord.id));
+          const exists = prev.find(r => String(r.id) === String(newRecord.id));
           if (exists) return prev;
           return [...prev, newRecord as DataRecord];
         });
@@ -386,12 +386,12 @@ const AppointmentsPage: React.FC = () => {
       onUpdate: (updatedRecord: any) => {
         console.log('[Realtime] Agendamento atualizado:', updatedRecord);
         setAppointments(prev =>
-          prev.map(r => (String((r as any).id) === String(updatedRecord.id) ? updatedRecord as DataRecord : r))
+          prev.map(r => (String(r.id) === String(updatedRecord.id) ? updatedRecord as DataRecord : r))
         );
       },
       onDelete: (deletedRecord: any) => {
         console.log('[Realtime] Agendamento deletado:', deletedRecord);
-        setAppointments(prev => prev.filter(r => String((r as any).id) !== String(deletedRecord.id)));
+        setAppointments(prev => prev.filter(r => String(r.id) !== String(deletedRecord.id)));
       }
     }
   });
@@ -402,8 +402,8 @@ const AppointmentsPage: React.FC = () => {
 
   const sortedAppointments = useMemo(() => {
     return [...appointments].sort((a, b) => {
-      const ah = a.HORARIO || '';
-      const bh = b.HORARIO || '';
+      const ah = a.horario || '';
+      const bh = b.horario || '';
       return ah.localeCompare(bh);
     });
   }, [appointments]);
@@ -415,8 +415,8 @@ const AppointmentsPage: React.FC = () => {
     // Filtro por métrica (card)
     if (activeMetricFilter !== 'all') {
       result = result.filter(a => {
-        const tipo = (a.TIPO || '').toLowerCase();
-        const rawStatus = (a as any).STATUS || (a as any).status || '';
+        const tipo = (a.tipo || '').toLowerCase();
+        const rawStatus = a.status || '';
         const st = String(rawStatus).trim().toUpperCase();
         switch (activeMetricFilter) {
           case 'comercial':
@@ -443,10 +443,10 @@ const AppointmentsPage: React.FC = () => {
     if (searchTerm.trim()) {
       const search = searchTerm.toLowerCase();
       result = result.filter(a => {
-        const cliente = (a.CLIENTE || '').toLowerCase();
-        const profissional = (a.PROFISSIONAL || '').toLowerCase();
-        const tipo = (a.TIPO || '').toLowerCase();
-        const horario = (a.HORARIO || '').toLowerCase();
+        const cliente = (a.cliente || '').toLowerCase();
+        const profissional = (a.profissional || '').toLowerCase();
+        const tipo = (a.tipo || '').toLowerCase();
+        const horario = (a.horario || '').toLowerCase();
         return cliente.includes(search) ||
           profissional.includes(search) ||
           tipo.includes(search) ||
@@ -481,7 +481,7 @@ const AppointmentsPage: React.FC = () => {
   const metrics = useMemo(() => {
     // Filtra apenas registros originais (não derivados da expansão multi-profissional)
     const originalRecords = appointments.filter(a => {
-      const isDivisao = (a.IS_DIVISAO || '').toUpperCase();
+      const isDivisao = (a.is_divisao || '').toUpperCase();
       return isDivisao !== 'SIM';
     });
 
@@ -494,10 +494,10 @@ const AppointmentsPage: React.FC = () => {
     let recusado = 0;
     let esperar = 0;
     originalRecords.forEach(a => {
-      const tipo = (a.TIPO || '').toLowerCase();
+      const tipo = (a.tipo || '').toLowerCase();
       if (tipo.includes('comercial')) comercial++;
       if (tipo.includes('residencial')) residencial++;
-      const rawStatus = (a as any).STATUS || (a as any).status || '';
+      const rawStatus = a.status || '';
       const st = String(rawStatus).trim().toUpperCase();
       if (st === 'PENDENTE') pendente++;
       else if (st === 'AGUARDANDO') aguardando++;
@@ -774,11 +774,11 @@ const AppointmentsPage: React.FC = () => {
               ) : (
                 filteredAppointments.map(rec => (
                   <tr
-                    key={rec.id || rec.ATENDIMENTO_ID}
+                    key={rec.id || rec.atendimento_id}
                     className="border-t border-border-secondary hover:bg-bg-tertiary cursor-pointer"
                     onClick={() => setSelectedRecord(rec)}
                   >
-                    <td className="px-4 py-2 text-text-primary truncate" title={rec.ATENDIMENTO_ID}>{rec.ATENDIMENTO_ID}</td>
+                    <td className="px-4 py-2 text-text-primary truncate" title={rec.atendimento_id}>{rec.atendimento_id}</td>
                     <td className="px-2 py-2 text-center text-text-secondary">
                       {(() => {
                         const st = rec.pagto || rec.payment_status;
@@ -801,28 +801,28 @@ const AppointmentsPage: React.FC = () => {
                         }
                       })()}
                     </td>
-                    <td className="px-4 py-2 font-medium text-text-primary">{formatDisplayHour(rec.HORARIO)}</td>
-                    <td className="px-4 py-2 text-text-primary truncate" title={rec.CLIENTE}>
+                    <td className="px-4 py-2 font-medium text-text-primary">{formatDisplayHour(rec.horario)}</td>
+                    <td className="px-4 py-2 text-text-primary truncate" title={rec.cliente}>
                       <div className="flex items-center gap-1">
-                        {verifiedClients.has(rec.CLIENTE) && (
+                        {verifiedClients.has(rec.cliente || '') && (
                           <div title="Cliente verificado">
                             <Icon name="BadgeCheck" className="w-4 h-4 text-brand-cyan flex-shrink-0" />
                           </div>
                         )}
-                        <span>{rec.CLIENTE}</span>
+                        <span>{rec.cliente}</span>
                       </div>
                     </td>
                     <td className="px-4 py-2 text-text-secondary text-center">{(() => {
-                      const periodo = (rec as any)['PERÍODO'];
+                      const periodo = rec.periodo;
                       if (!periodo) return '-';
                       // Exibir no formato '8 horas'
                       return `${periodo} horas`;
                     })()}</td>
-                    <td className="px-4 py-2 text-text-secondary text-center truncate" title={rec.TIPO || ''}>{rec.TIPO || '-'}</td>
-                    <td className="px-4 py-2 text-text-secondary truncate" title={rec.PROFISSIONAL}>{rec.PROFISSIONAL}</td>
+                    <td className="px-4 py-2 text-text-secondary text-center truncate" title={rec.tipo || ''}>{rec.tipo || '-'}</td>
+                    <td className="px-4 py-2 text-text-secondary truncate" title={rec.profissional || ''}>{rec.profissional}</td>
                     <td className="px-4 py-2 text-center">
                       {(() => {
-                        const raw = (rec as any).STATUS || (rec as any).status;
+                        const raw = (rec as any).status;
                         if (!raw) return <span className="text-text-tertiary text-xs">—</span>;
                         const value = String(raw).toUpperCase();
                         let base = 'inline-flex items-center justify-center rounded-md text-xs font-semibold px-3 h-7 tracking-wide border focus:outline-none focus:ring-2 focus:ring-offset-1 transition shadow-sm';
@@ -846,7 +846,7 @@ const AppointmentsPage: React.FC = () => {
                               onClick={(e) => { e.stopPropagation(); handleSendSingleConfirmed(rec); }}
                               disabled={isDisabled}
                               className={`${base} ${confirmedStyle} ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-success/90'}`}
-                              aria-label={`Enviar atendimento CONFIRMADO (${rec.CLIENTE})`}
+                              aria-label={`Enviar atendimento CONFIRMADO (${rec.cliente})`}
                               title={wasSent ? 'Enviado' : 'Enviar este atendimento'}
                             >
                               {isRowSending ? 'Enviando...' : value}
@@ -883,7 +883,7 @@ const AppointmentsPage: React.FC = () => {
             const rId = r.id != null ? String(r.id) : null;
             const uId = updated.id != null ? String(updated.id) : null;
             const sameId = (rId != null && uId != null && rId === uId);
-            const sameKey = r.ATENDIMENTO_ID && updated.ATENDIMENTO_ID && r.ATENDIMENTO_ID === updated.ATENDIMENTO_ID;
+            const sameKey = r.atendimento_id && updated.atendimento_id && r.atendimento_id === updated.atendimento_id;
             return (sameId || sameKey) ? { ...r, ...updated } as any : r;
           }));
           setSelectedRecord(prev => prev ? ({ ...(prev as any), ...updated } as any) : prev);

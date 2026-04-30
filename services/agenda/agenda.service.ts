@@ -203,15 +203,22 @@ export const saveDisponibilidades = async (
 
   // Busca agendamentos nessa unidade/profissional nas datas selecionadas
   // Aqui assumimos que processed_data usa o NOME da profissional na coluna PROFISSIONAL
-  const { data: atendimentosData } = await supabase
+  const { data: rawAtendimentosData } = await supabase
     .from('processed_data')
-    .select('DATA, "SERVIÇO", HORARIO, "PERÍODO", STATUS')
+    .select('data, servico, horario, periodo, status')
     .eq('unit_id', unitId)
-    .eq('PROFISSIONAL', profissionalNome)
-    .in('DATA', datas);
+    .eq('profissional', profissionalNome)
+    .in('data', datas);
 
   const atendimentosMap = new Map<string, any[]>();
-  if (atendimentosData) {
+  if (rawAtendimentosData) {
+    const atendimentosData = rawAtendimentosData.map(r => ({
+      DATA: r.data,
+      'SERVIÇO': r.servico,
+      HORARIO: r.horario,
+      'PERÍODO': r.periodo,
+      STATUS: r.status
+    }));
     atendimentosData.forEach((atendimento: any) => {
       // Ajuste para formato YYYY-MM-DD caso não esteja
       // Se 'DATA' já for YYYY-MM-DD apenas coloca no MAP
@@ -419,18 +426,23 @@ export const syncProfissionalAvailability = async (
     if (currentDisp.is_manual) return;
 
     // 2. Busca atendimentos vigentes em processed_data
-    const { data: ats, error: atsError } = await supabase
+    const { data: atsRaw, error: atsError } = await supabase
       .from('processed_data')
-      .select('HORARIO, "PERÍODO", STATUS')
+      .select('horario, periodo, status')
       .eq('unit_id', unitId)
-      .eq('PROFISSIONAL', profissionalNome)
-      .eq('DATA', dataStr);
+      .eq('profissional', profissionalNome)
+      .eq('data', dataStr);
 
     if (atsError) throw atsError;
 
     let ocupaManha = false;
     let ocupaTarde = false;
-    const atendimentosAtivos = (ats || []).filter(at => at.STATUS !== 'CANCELADO' && at.STATUS !== 'REAGENDADO');
+    const ats = (atsRaw || []).map(r => ({
+      HORARIO: r.horario,
+      'PERÍODO': r.periodo,
+      STATUS: r.status
+    }));
+    const atendimentosAtivos = ats.filter(at => at.STATUS !== 'CANCELADO' && at.STATUS !== 'REAGENDADO');
 
     atendimentosAtivos.forEach(at => {
       if (at.HORARIO) {

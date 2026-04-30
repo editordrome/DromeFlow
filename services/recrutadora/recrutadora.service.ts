@@ -96,50 +96,30 @@ export const ensureDefaultColumnsForUnit = async (_unitId: string, _unitName?: s
 };
 
 export const fetchCards = async (unitId: string): Promise<RecrutadoraCard[]> => {
-  const selAll = 'id, created_at, unit_id, unidade, status, position, nome, whatsapp, color_card, data_nasc, fumante, estado_civil, filhos, qto_filhos, rotina_filhos, endereco:"endereço", rg, cpf, dias_livres, dias_semana, exp_residencial, ref_residencial, exp_comercial, ref_comercial, sit_atual, motivo_cadastro, transporte, observacao';
-  let q = supabase.from('recrutadora').select(selAll).eq('unit_id', unitId)
+  const selAll = 'id, created_at, unit_id, unidade, status, position, nome, whatsapp, color_card, data_nasc, fumante, estado_civil, filhos, qto_filhos, rotina_filhos, endereco, rg, cpf, dias_livres, dias_semana, exp_residencial, ref_residencial, exp_comercial, ref_comercial, sit_atual, motivo_cadastro, transporte, observacao, assinatura, updated_at';
+  let { data, error } = await supabase
+    .from('recrutadora')
+    .select(selAll)
+    .eq('unit_id', unitId)
     .order('status', { ascending: true })
     .order('position', { ascending: true })
     .order('created_at', { ascending: false });
-  let { data, error } = await q;
-  if (error && (error as any).code === '42703') {
-    // Fallback para colunas básicas até migrar schema
-    const res = await supabase
-      .from('recrutadora')
-      .select('id, created_at, unit_id, unidade, status, position, nome, whatsapp, color_card')
-      .eq('unit_id', unitId)
-      .order('status', { ascending: true })
-      .order('position', { ascending: true })
-      .order('created_at', { ascending: false });
-    if (res.error) throw res.error;
-    return (res.data as any) || [];
-  }
+    
   if (error) throw error;
   return (data as any) || [];
 };
 
 export const fetchCardsForUnits = async (unitIds: string[]): Promise<RecrutadoraCard[]> => {
   if (!unitIds || unitIds.length === 0) return [];
-  const selAll = 'id, created_at, unit_id, unidade, status, position, nome, whatsapp, color_card, data_nasc, fumante, estado_civil, filhos, qto_filhos, rotina_filhos, endereco:"endereço", rg, cpf, dias_livres, dias_semana, exp_residencial, ref_residencial, exp_comercial, ref_comercial, sit_atual, motivo_cadastro, transporte, observacao';
-  let q = supabase
+  const selAll = 'id, created_at, unit_id, unidade, status, position, nome, whatsapp, color_card, data_nasc, fumante, estado_civil, filhos, qto_filhos, rotina_filhos, endereco, rg, cpf, dias_livres, dias_semana, exp_residencial, ref_residencial, exp_comercial, ref_comercial, sit_atual, motivo_cadastro, transporte, observacao, assinatura, updated_at';
+  let { data, error } = await supabase
     .from('recrutadora')
     .select(selAll)
     .in('unit_id', unitIds)
     .order('status', { ascending: true })
     .order('position', { ascending: true })
     .order('created_at', { ascending: false });
-  let { data, error } = await q;
-  if (error && (error as any).code === '42703') {
-    const res = await supabase
-      .from('recrutadora')
-      .select('id, created_at, unit_id, unidade, status, position, nome, whatsapp, color_card')
-      .in('unit_id', unitIds)
-      .order('status', { ascending: true })
-      .order('position', { ascending: true })
-      .order('created_at', { ascending: false });
-    if (res.error) throw res.error;
-    return (res.data as any) || [];
-  }
+
   if (error) throw error;
   return (data as any) || [];
 };
@@ -149,72 +129,66 @@ export type RecrutadoraPeriodMetrics = { today: number; week: number; month: num
 
 export const fetchRecrutadoraMetrics = async (unitId: string): Promise<RecrutadoraPeriodMetrics> => {
   const [todayStart, weekStart, monthStart] = [startOfTodayISO(), startOfWeekISO(), startOfMonthISO()];
-  const base = supabase.from('recrutadora').select('id, created_at', { count: 'exact', head: true }).eq('unit_id', unitId);
-
-  const { count: todayCount, error: e1 } = await base.gte('created_at', todayStart);
+  
+  const { count: todayCount, error: e1 } = await supabase
+    .from('recrutadora')
+    .select('id', { count: 'exact', head: true })
+    .eq('unit_id', unitId)
+    .gte('created_at', todayStart);
   if (e1) throw e1;
+
   const { count: weekCount, error: e2 } = await supabase
-    .from('recrutadora').select('id, created_at', { count: 'exact', head: true })
-    .eq('unit_id', unitId).gte('created_at', weekStart);
+    .from('recrutadora')
+    .select('id', { count: 'exact', head: true })
+    .eq('unit_id', unitId)
+    .gte('created_at', weekStart);
   if (e2) throw e2;
+
   const { count: monthCount, error: e3 } = await supabase
-    .from('recrutadora').select('id, created_at', { count: 'exact', head: true })
-    .eq('unit_id', unitId).gte('created_at', monthStart);
+    .from('recrutadora')
+    .select('id', { count: 'exact', head: true })
+    .eq('unit_id', unitId)
+    .gte('created_at', monthStart);
   if (e3) throw e3;
+
   return { today: todayCount || 0, week: weekCount || 0, month: monthCount || 0 };
 };
 
 export const fetchRecrutadoraMetricsForUnits = async (unitIds: string[]): Promise<RecrutadoraPeriodMetrics> => {
   if (!unitIds || unitIds.length === 0) return { today: 0, week: 0, month: 0 };
   const [todayStart, weekStart, monthStart] = [startOfTodayISO(), startOfWeekISO(), startOfMonthISO()];
+  
   const { count: todayCount, error: e1 } = await supabase
-    .from('recrutadora').select('id, created_at', { count: 'exact', head: true })
-    .in('unit_id', unitIds).gte('created_at', todayStart);
+    .from('recrutadora')
+    .select('id', { count: 'exact', head: true })
+    .in('unit_id', unitIds)
+    .gte('created_at', todayStart);
   if (e1) throw e1;
+
   const { count: weekCount, error: e2 } = await supabase
-    .from('recrutadora').select('id, created_at', { count: 'exact', head: true })
-    .in('unit_id', unitIds).gte('created_at', weekStart);
+    .from('recrutadora')
+    .select('id', { count: 'exact', head: true })
+    .in('unit_id', unitIds)
+    .gte('created_at', weekStart);
   if (e2) throw e2;
+
   const { count: monthCount, error: e3 } = await supabase
-    .from('recrutadora').select('id, created_at', { count: 'exact', head: true })
-    .in('unit_id', unitIds).gte('created_at', monthStart);
+    .from('recrutadora')
+    .select('id', { count: 'exact', head: true })
+    .in('unit_id', unitIds)
+    .gte('created_at', monthStart);
   if (e3) throw e3;
+
   return { today: todayCount || 0, week: weekCount || 0, month: monthCount || 0 };
 };
 
 export const createCard = async (payload: Partial<RecrutadoraCard>) => {
-  let { error } = await supabase.from('recrutadora').insert(payload);
-  if (error && (error as any).code === '42703') {
-    const basic: any = {
-      nome: (payload as any).nome ?? null,
-      whatsapp: (payload as any).whatsapp ?? null,
-      color_card: (payload as any).color_card ?? null,
-      status: (payload as any).status,
-      unit_id: (payload as any).unit_id,
-      unidade: (payload as any).unidade,
-      position: (payload as any).position ?? null,
-    };
-    const res = await supabase.from('recrutadora').insert(basic);
-    if (res.error) throw res.error;
-    return;
-  }
+  const { error } = await supabase.from('recrutadora').insert(payload);
   if (error) throw error;
 };
 
 export const updateCard = async (id: number, payload: Partial<RecrutadoraCard>) => {
-  let { error } = await supabase.from('recrutadora').update(payload).eq('id', id);
-  if (error && (error as any).code === '42703') {
-    const basic: any = {
-      nome: (payload as any).nome ?? null,
-      whatsapp: (payload as any).whatsapp ?? null,
-      color_card: (payload as any).color_card ?? null,
-      status: (payload as any).status,
-      position: (payload as any).position,
-    };
-    const res = await supabase.from('recrutadora').update(basic).eq('id', id);
-    if (res.error) throw res.error;
-    return;
-  }
+  const { error } = await supabase.from('recrutadora').update(payload).eq('id', id);
   if (error) throw error;
 };
 

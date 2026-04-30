@@ -11,13 +11,13 @@ export const fetchRepasseAnalysisData = async (
   const endDate = new Date(year, month, 0).toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('processed_data')
-    .select('PROFISSIONAL, REPASSE')
+    .select('profissional, repasse')
     .eq('unidade_code', unitCode)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate);
+    .gte('data', startDate)
+    .lte('data', endDate);
   if (error) throw error;
-  return ((data as RepasseAnalysisRecord[]) || []).filter(
-    (r) => r.PROFISSIONAL && r.PROFISSIONAL.trim() !== ''
+  return ((data as any[]) || []).map(r => ({ profissional: r.profissional, repasse: r.repasse })).filter(
+    (r: any) => r.profissional && r.profissional.trim() !== ''
   );
 };
 
@@ -27,6 +27,7 @@ export type RepasseMonthlySubmetrics = {
   averagePerService: number;
   averagePerWeek: number;
   averagePerProfessional: number;
+  year?: number;
 };
 
 // Função para buscar submétricas mensais de repasse (seguindo padrão de Services/Clients)
@@ -58,10 +59,10 @@ export const fetchRepasseMonthlySubmetrics = async (
 
     const { data, error } = await supabase
       .from('processed_data')
-      .select('PROFISSIONAL, REPASSE, ATENDIMENTO_ID, IS_DIVISAO')
+      .select('profissional, repasse, atendimento_id, is_divisao')
       .eq('unidade_code', unitCode)
-      .gte('DATA', startDate)
-      .lt('DATA', endDate);
+      .gte('data', startDate)
+      .lt('data', endDate);
       
     if (error) {
       results.push({ 
@@ -77,11 +78,11 @@ export const fetchRepasseMonthlySubmetrics = async (
     const records = (data as any[]) || [];
     
     // Total de repasse (soma todos os registros incluindo derivados)
-    const totalRepasse = records.reduce((sum, r) => sum + (r.REPASSE || 0), 0);
+    const totalRepasse = records.reduce((sum, r) => sum + (r.repasse || 0), 0);
     
     // Total de serviços únicos (apenas registros originais)
-    const originalRecords = records.filter(r => r.IS_DIVISAO !== 'SIM');
-    const uniqueServices = new Set(originalRecords.map(r => r.ATENDIMENTO_ID).filter(Boolean)).size;
+    const originalRecords = records.filter(r => r.is_divisao !== 'SIM');
+    const uniqueServices = new Set(originalRecords.map(r => r.atendimento_id).filter(Boolean)).size;
     
     // Média por serviço
     const averagePerService = uniqueServices > 0 ? totalRepasse / uniqueServices : 0;
@@ -95,7 +96,7 @@ export const fetchRepasseMonthlySubmetrics = async (
     // Profissionais únicos (apenas registros com PROFISSIONAL válido)
     const uniqueProfessionals = new Set(
       records
-        .map(r => r.PROFISSIONAL)
+        .map(r => r.profissional)
         .filter(p => p && typeof p === 'string' && p.trim() !== '')
         .map(p => p.trim())
     ).size;
@@ -145,10 +146,10 @@ export const fetchRepasseMonthlySubmetricsMulti = async (
 
     const { data, error } = await supabase
       .from('processed_data')
-      .select('PROFISSIONAL, REPASSE, ATENDIMENTO_ID, IS_DIVISAO')
+      .select('profissional, repasse, atendimento_id, is_divisao')
       .in('unidade_code', unitCodes)
-      .gte('DATA', startDate)
-      .lt('DATA', endDate);
+      .gte('data', startDate)
+      .lt('data', endDate);
       
     if (error) {
       results.push({ 
@@ -164,11 +165,11 @@ export const fetchRepasseMonthlySubmetricsMulti = async (
     const records = (data as any[]) || [];
     
     // Total de repasse
-    const totalRepasse = records.reduce((sum, r) => sum + (r.REPASSE || 0), 0);
+    const totalRepasse = records.reduce((sum, r) => sum + (r.repasse || 0), 0);
     
     // Total de serviços únicos
-    const originalRecords = records.filter(r => r.IS_DIVISAO !== 'SIM');
-    const uniqueServices = new Set(originalRecords.map(r => r.ATENDIMENTO_ID).filter(Boolean)).size;
+    const originalRecords = records.filter(r => r.is_divisao !== 'SIM');
+    const uniqueServices = new Set(originalRecords.map(r => r.atendimento_id).filter(Boolean)).size;
     
     const averagePerService = uniqueServices > 0 ? totalRepasse / uniqueServices : 0;
     
@@ -181,7 +182,7 @@ export const fetchRepasseMonthlySubmetricsMulti = async (
     // Profissionais únicos
     const uniqueProfessionals = new Set(
       records
-        .map(r => r.PROFISSIONAL)
+        .map(r => r.profissional)
         .filter(p => p && typeof p === 'string' && p.trim() !== '')
         .map(p => p.trim())
     ).size;

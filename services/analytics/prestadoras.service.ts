@@ -30,8 +30,8 @@ export const countProcessedDataForPeriod = async (unitCodes: string[], period: s
     .from('processed_data')
     .select('id', { count: 'exact', head: true })
     .in('unidade_code', unitCodes)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate);
+    .gte('data', startDate)
+    .lte('data', endDate);
   if (error) throw error;
   return count || 0;
 };
@@ -55,19 +55,19 @@ export const getMonthlyActivitySummary = async (unitCodes: string[], period: str
   // Busca somente colunas necessárias para reduzir payload
   const { data, error, count } = await supabase
     .from('processed_data')
-    .select('REPASSE, PROFISSIONAL', { count: 'exact' })
+    .select('repasse, profissional', { count: 'exact' })
     .in('unidade_code', unitCodes)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate);
+    .gte('data', startDate)
+    .lte('data', endDate);
   if (error) throw error;
 
   const atendimentos = count || (data?.length || 0);
   const profSet = new Set<string>();
   let totalRepasse = 0;
   for (const r of (data as any[]) || []) {
-    const prof = (r as any).PROFISSIONAL as string | null;
+    const prof = (r as any).profissional as string | null;
     if (prof && String(prof).trim() !== '') profSet.add(String(prof).trim());
-    const rep = Number((r as any).REPASSE);
+    const rep = Number((r as any).repasse);
     if (!Number.isNaN(rep)) totalRepasse += rep;
   }
   const profissionaisAtuantes = profSet.size;
@@ -90,18 +90,18 @@ export const getProfessionalMonthlyStats = async (unitCodes: string[], period: s
 
   const { data, error } = await supabase
     .from('processed_data')
-    .select('PROFISSIONAL, REPASSE')
+    .select('profissional, repasse')
     .in('unidade_code', unitCodes)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate);
+    .gte('data', startDate)
+    .lte('data', endDate);
   if (error) throw error;
 
   const map = new Map<string, { atend: number; repasse: number }>();
   for (const r of (data as any[]) || []) {
-    const profRaw = (r as any).PROFISSIONAL as string | null;
+    const profRaw = (r as any).profissional as string | null;
     const prof = profRaw ? String(profRaw).trim() : '';
     if (!prof) continue;
-    const rep = Number((r as any).REPASSE);
+    const rep = Number((r as any).repasse);
     const curr = map.get(prof) || { atend: 0, repasse: 0 };
     curr.atend += 1;
     if (!Number.isNaN(rep)) curr.repasse += rep;
@@ -114,12 +114,12 @@ export const getProfessionalMonthlyStats = async (unitCodes: string[], period: s
 };
 
 export type ProfessionalAppointment = {
-  DATA: string; // YYYY-MM-DD
-  CLIENTE: string | null;
-  MOMENTO?: string | null; // período
-  HORARIO?: string | null; // fallback
-  REPASSE: number | null;
-  PROFISSIONAL: string;
+  data: string; // YYYY-MM-DD
+  cliente: string | null;
+  momento?: string | null; // período
+  horario?: string | null; // fallback
+  repasse: number | null;
+  profissional: string;
 };
 
 export const getProfessionalAppointmentsForPeriod = async (
@@ -132,17 +132,17 @@ export const getProfessionalAppointmentsForPeriod = async (
   const startDate = `${year}-${String(month).padStart(2,'0')}-01`;
   const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
 
-  const baseSelect = 'DATA, CLIENTE, MOMENTO, HORARIO, REPASSE, PROFISSIONAL';
+  const baseSelect = 'data, cliente, momento, horario, repasse, profissional';
 
   // 1) tentativa com igualdade exata (case-insensitive)
   let { data, error } = await supabase
     .from('processed_data')
     .select(baseSelect)
     .in('unidade_code', unitCodes)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate)
-    .ilike('PROFISSIONAL', profissional)
-    .order('DATA', { ascending: true });
+    .gte('data', startDate)
+    .lte('data', endDate)
+    .ilike('profissional', profissional)
+    .order('data', { ascending: true });
   if (error) throw error;
 
   // 2) fallback: se vier vazio (possíveis espaços/trimming), busca ampla e filtra no cliente por trim
@@ -151,14 +151,21 @@ export const getProfessionalAppointmentsForPeriod = async (
       .from('processed_data')
       .select(baseSelect)
       .in('unidade_code', unitCodes)
-      .gte('DATA', startDate)
-      .lte('DATA', endDate)
-      .order('DATA', { ascending: true });
+      .gte('data', startDate)
+      .lte('data', endDate)
+      .order('data', { ascending: true });
     if (resp.error) throw resp.error;
-    data = (resp.data || []).filter((r: any) => String(r.PROFISSIONAL || '').trim() === profissional.trim());
+    data = (resp.data || []).filter((r: any) => String(r.profissional || '').trim() === profissional.trim());
   }
 
-  return (data as ProfessionalAppointment[]) || [];
+  return ((data as any[]) || []).map(r => ({
+    data: r.data,
+    cliente: r.cliente,
+    momento: r.momento,
+    horario: r.horario,
+    repasse: r.repasse,
+    profissional: r.profissional
+  })) as ProfessionalAppointment[];
 };
 
 export type RecrutadoraMonthlyMetrics = {
@@ -251,12 +258,12 @@ export const getLastAppointmentByProfessional = async (
     // Buscar todos os atendimentos das unidades
     const { data, error } = await supabase
       .from('processed_data')
-      .select('PROFISSIONAL, DATA')
+      .select('profissional, data')
       .in('unidade_code', unitCodes)
-      .not('PROFISSIONAL', 'is', null)
-      .not('PROFISSIONAL', 'eq', '')
-      .not('DATA', 'is', null)
-      .order('DATA', { ascending: false });
+      .not('profissional', 'is', null)
+      .not('profissional', 'eq', '')
+      .not('data', 'is', null)
+      .order('data', { ascending: false });
 
     if (error) {
       console.error('Erro ao buscar último atendimento:', error);
@@ -268,12 +275,12 @@ export const getLastAppointmentByProfessional = async (
     
     if (data && Array.isArray(data)) {
       data.forEach((row: any) => {
-        const profKey = (row.PROFISSIONAL || '').toLowerCase().trim();
+        const profKey = (row.profissional || '').toLowerCase().trim();
         if (!profKey) return;
         
         // Se ainda não temos registro dessa profissional, ou se esta data é mais recente
         if (!result[profKey]) {
-          result[profKey] = row.DATA;
+          result[profKey] = row.data;
         }
       });
     }

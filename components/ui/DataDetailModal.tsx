@@ -32,30 +32,30 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
-    const [profissionalSel, setProfissionalSel] = useState<string>(record.PROFISSIONAL || '');
-    const [statusSel, setStatusSel] = useState<string>(String((record as any).status ?? (record as any).STATUS ?? '') || '');
+    const [profissionalSel, setProfissionalSel] = useState<string>(record.profissional || '');
+    const [statusSel, setStatusSel] = useState<string>(record.status || '');
     const [savingHeader, setSavingHeader] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
     // Estados para campos editáveis
-    const [editData, setEditData] = useState<string>(record.DATA || '');
-    const [editHorario, setEditHorario] = useState<string>(record.HORARIO || '');
-    const [editCliente, setEditCliente] = useState<string>(record.CLIENTE || '');
-    const [editEndereco, setEditEndereco] = useState<string>((record as any)['ENDEREÇO'] || '');
-    const [editTipo, setEditTipo] = useState<string>(record.TIPO || '');
-    const [editPeriodo, setEditPeriodo] = useState<string>((record as any)['PERÍODO'] || (record as any)['PERIODO'] || '');
-    const [editValor, setEditValor] = useState<string>(String(record.VALOR || ''));
-    const [editRepasse, setEditRepasse] = useState<string>(String(record.REPASSE || ''));
+    const [editData, setEditData] = useState<string>(record.data || '');
+    const [editHorario, setEditHorario] = useState<string>(record.horario || '');
+    const [editCliente, setEditCliente] = useState<string>(record.cliente || '');
+    const [editEndereco, setEditEndereco] = useState<string>(record.endereco || '');
+    const [editTipo, setEditTipo] = useState<string>(record.tipo || '');
+    const [editPeriodo, setEditPeriodo] = useState<string>(record.periodo || '');
+    const [editValor, setEditValor] = useState<string>(String(record.valor || ''));
+    const [editRepasse, setEditRepasse] = useState<string>(String(record.repasse || ''));
     const hasHeaderChanges = useMemo(() => {
-        // STATUS e PROFISSIONAL agora têm auto-save, não entram aqui
+        // status e profissional agora têm auto-save, não entram aqui
         return (
-            editData !== (record.DATA || '') ||
-            editHorario !== (record.HORARIO || '') ||
-            editCliente !== (record.CLIENTE || '') ||
-            editEndereco !== ((record as any)['ENDEREÇO'] || '') ||
-            editTipo !== (record.TIPO || '') ||
-            editPeriodo !== ((record as any)['PERÍODO'] || (record as any)['PERIODO'] || '') ||
-            editValor !== String(record.VALOR || '') ||
-            editRepasse !== String(record.REPASSE || '')
+            editData !== (record.data || '') ||
+            editHorario !== (record.horario || '') ||
+            editCliente !== (record.cliente || '') ||
+            editEndereco !== (record.endereco || '') ||
+            editTipo !== (record.tipo || '') ||
+            editPeriodo !== (record.periodo || '') ||
+            editValor !== String(record.valor || '') ||
+            editRepasse !== String(record.repasse || '')
         );
     }, [editData, editHorario, editCliente, editEndereco, editTipo, editPeriodo, editValor, editRepasse, record]);
 
@@ -63,15 +63,15 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
 
     // Carrega histórico do cliente quando a aba historico é ativada ou o período muda
     useEffect(() => {
-        if (activeTab === 'historico' && record && record.CLIENTE && selectedUnit) {
+        if (activeTab === 'historico' && record && record.cliente && selectedUnit) {
             setCurrentPage(1); // Reset página ao mudar período
             const loadHistory = async () => {
                 setLoadingHistory(true);
                 try {
                     const unitCode = (selectedUnit as any)?.unit_code || '';
-                    console.log('Carregando histórico para:', { cliente: record.CLIENTE, unitCode, period: selectedPeriod });
+                    console.log('Carregando histórico para:', { cliente: record.cliente, unitCode, period: selectedPeriod });
                     const history = await fetchClientHistory(
-                        record.CLIENTE,
+                        record.cliente,
                         unitCode,
                         record.id,
                         200,
@@ -92,16 +92,16 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
     // ressincroniza valores ao trocar de registro/abrir
     useEffect(() => {
         if (record) {
-            setProfissionalSel(record.PROFISSIONAL || '');
-            setStatusSel(String((record as any).status ?? (record as any).STATUS ?? '') || '');
-            setEditData(record.DATA || '');
-            setEditHorario(record.HORARIO || '');
-            setEditCliente(record.CLIENTE || '');
-            setEditEndereco((record as any)['ENDEREÇO'] || '');
-            setEditTipo(record.TIPO || '');
-            setEditPeriodo((record as any)['PERÍODO'] || (record as any)['PERIODO'] || '');
-            setEditValor(String(record.VALOR || ''));
-            setEditRepasse(String(record.REPASSE || ''));
+            setProfissionalSel(record.profissional || '');
+            setStatusSel(record.status || '');
+            setEditData(record.data || '');
+            setEditHorario(record.horario || '');
+            setEditCliente(record.cliente || '');
+            setEditEndereco(record.endereco || '');
+            setEditTipo(record.tipo || '');
+            setEditPeriodo(record.periodo || '');
+            setEditValor(String(record.valor || ''));
+            setEditRepasse(String(record.repasse || ''));
             setIsEditing(false);
             setSavingHeader('idle');
         }
@@ -117,7 +117,7 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
                 unitCode: (selectedUnit as any)?.unit_code || '',
                 userIdentifier: profile.email || profile.full_name || 'user',
                 status: status,
-                atendId: record.ATENDIMENTO_ID || '',
+                atendId: record.atendimento_id || '',
                 metadata: status === 'success' 
                   ? { fields_updated: fieldsUpdated } 
                   : { error_message: errorMsg || 'Erro desconhecido' }
@@ -126,7 +126,7 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
     };
 
     // Auto-save para STATUS e PROFISSIONAL
-    const handleAutoSave = async (field: 'STATUS' | 'PROFISSIONAL', newValue: string) => {
+    const handleAutoSave = async (field: 'status' | 'profissional', newValue: string) => {
         try {
             setSavingHeader('saving');
             const payload: any = {};
@@ -214,21 +214,21 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
     };
 
     const fieldMap: { key: keyof DataRecord; label: string }[] = [
-        { key: 'ATENDIMENTO_ID', label: 'ID do Atendimento' },
-        { key: 'DATA', label: 'Data' },
-        { key: 'HORARIO', label: 'Horário' },
-        { key: 'MOMENTO', label: 'Momento' },
-        { key: 'DIA', label: 'Dia da Semana' },
-        { key: 'TIPO', label: 'Tipo' },
-        { key: 'VALOR', label: 'Valor (R$)' },
-        { key: 'REPASSE', label: 'Repasse (R$)' },
-        { key: 'CLIENTE', label: 'Cliente' },
+        { key: 'atendimento_id', label: 'ID do Atendimento' },
+        { key: 'data', label: 'Data' },
+        { key: 'horario', label: 'Horário' },
+        { key: 'momento', label: 'Momento' },
+        { key: 'dia', label: 'Dia da Semana' },
+        { key: 'tipo', label: 'Tipo' },
+        { key: 'valor', label: 'Valor (R$)' },
+        { key: 'repasse', label: 'Repasse (R$)' },
+        { key: 'cliente', label: 'Cliente' },
         { key: 'whatscliente', label: 'WhatsApp Cliente' },
-        { key: 'PROFISSIONAL', label: 'Profissional' },
-        { key: 'ENDEREÇO', label: 'Endereço' },
-        { key: 'ORIGEM', label: 'Origem' },
-        { key: 'CUPOM', label: 'Cupom' },
-        { key: 'CADASTRO', label: 'Data de Cadastro' },
+        { key: 'profissional', label: 'Profissional' },
+        { key: 'endereco', label: 'Endereço' },
+        { key: 'origem', label: 'Origem' },
+        { key: 'cupom', label: 'Cupom' },
+        { key: 'cadastro', label: 'Data de Cadastro' },
         { key: 'unidade', label: 'Unidade' },
         { key: 'status', label: 'Status' },
     ];
@@ -250,9 +250,8 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         if (record) {
             setObs(record.observacao || '');
             setComent(record.comentario || '');
-            const pv = (record as any)['pos vendas'] ?? '';
-            setPosVenda(pv ? String(pv) : '');
-            setReagendou((record as any).reagendou === true || (record as any).reagendou === 'true');
+            setPosVenda(record.pos_vendas || '');
+            setReagendou(record.reagendou === true);
             setSavingObs('idle');
             setSavingComent('idle');
             setSavingPosVenda('idle');
@@ -302,15 +301,15 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         if (!record || record.id == null) return;
         try {
             setSavingPosVenda('saving');
-            const payload: any = { ['pos vendas']: value || null };
+            const payload: any = { pos_vendas: value || null };
             const updated = await updateDataRecord(String(record.id), payload);
-            setPosVenda((updated as any)['pos vendas'] ? String((updated as any)['pos vendas']) : '');
+            setPosVenda(updated.pos_vendas || '');
             setSavingPosVenda('saved');
-            logHelper('success', 'pos vendas');
+            logHelper('success', 'pos_vendas');
         } catch (e) {
-            console.error('Falha ao salvar pos vendas:', e);
+            console.error('Falha ao salvar pos_vendas:', e);
             setSavingPosVenda('error');
-            logHelper('error', 'pos vendas', e instanceof Error ? e.message : 'Falha ao salvar');
+            logHelper('error', 'pos_vendas', e instanceof Error ? e.message : 'Falha ao salvar');
         }
     };
 
@@ -365,14 +364,14 @@ const DataDetailModal: React.FC<DataDetailModalProps> = ({ isOpen, onClose, reco
         return t.split(/\s+/)[0];
     };
     const buildCopyText = (rec: DataRecord) => {
-        const prof = firstName(rec.PROFISSIONAL);
-        const data = formatBRDate(rec.DATA || null);
-        const dia = rec.DIA || '-';
-        const inicio = formatTimeHM(rec.HORARIO);
-        const cliente = rec.CLIENTE || '-';
-        const servico = (rec as any)['SERVIÇO'] || (rec as any)['SERVICO'] || (rec as any).TIPO || '-';
-        const periodo = (rec as any)['PERÍODO'] || (rec as any)['PERIODO'] || (rec as any).MOMENTO || '-';
-        const local = (rec as any)['ENDEREÇO'] || '-';
+        const prof = firstName(rec.profissional);
+        const data = formatBRDate(rec.data || null);
+        const dia = rec.dia || '-';
+        const inicio = formatTimeHM(rec.horario);
+        const cliente = rec.cliente || '-';
+        const servico = rec.servico || rec.tipo || '-';
+        const periodo = rec.periodo || rec.momento || '-';
+        const local = rec.endereco || '-';
         return (
             `Olá ${prof}, segue as informações do seu próximo atendimento:
 
@@ -394,12 +393,12 @@ Digite o *número* da resposta desejada.`
 
     // Texto para confirmação ao cliente (ícone no título)
     const buildClientCopyText = (rec: DataRecord) => {
-        const data = formatBRDate(rec.DATA || null);
-        const dia = rec.DIA || '-';
-        const servico = (rec as any)['SERVIÇO'] || (rec as any)['SERVICO'] || (rec as any).TIPO || '-';
-        const inicio = formatTimeHM(rec.HORARIO);
-        const periodo = (rec as any)['PERÍODO'] || (rec as any)['PERIODO'] || (rec as any).MOMENTO || '-';
-        const prof = rec.PROFISSIONAL || '-';
+        const data = formatBRDate(rec.data || null);
+        const dia = rec.dia || '-';
+        const servico = rec.servico || rec.tipo || '-';
+        const inicio = formatTimeHM(rec.horario);
+        const periodo = rec.periodo || rec.momento || '-';
+        const prof = rec.profissional || '-';
         return (
             `🧽*CONFIRMAÇÃO DE AGENDAMENTO* 🧹
 
@@ -461,14 +460,14 @@ Obrigada e tenha um ótimo atendimento😊`
                 <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
                     <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                            <h2 className="text-lg font-bold text-text-primary truncate" title={`${record.ATENDIMENTO_ID ? `ID ${record.ATENDIMENTO_ID} - ` : ''}${record.CLIENTE || 'Detalhes do Atendimento'}`}>
-                                {record.ATENDIMENTO_ID ? (
+                            <h2 className="text-lg font-bold text-text-primary truncate" title={`${record.atendimento_id ? `ID ${record.atendimento_id} - ` : ''}${record.cliente || 'Detalhes do Atendimento'}`}>
+                                {record.atendimento_id ? (
                                     <>
-                                        <span className="text-text-secondary mr-2">ID {record.ATENDIMENTO_ID}</span>
-                                        <span className="text-text-primary">- {record.CLIENTE || 'Detalhes do Atendimento'}</span>
+                                        <span className="text-text-secondary mr-2">ID {record.atendimento_id}</span>
+                                        <span className="text-text-primary">- {record.cliente || 'Detalhes do Atendimento'}</span>
                                     </>
-                                ) : (
-                                    <>{record.CLIENTE && record.CLIENTE.trim() !== '' ? record.CLIENTE : 'Detalhes do Atendimento'}</>
+                               ) : (
+                                    <>{record.cliente && record.cliente.trim() !== '' ? record.cliente : 'Detalhes do Atendimento'}</>
                                 )}
                             </h2>
                             {/* Botão copiar confirmação para cliente */}
@@ -540,14 +539,14 @@ Obrigada e tenha um ótimo atendimento😊`
                                     value={profissionalSel}
                                     onChange={(nome) => {
                                         setProfissionalSel(nome);
-                                        handleAutoSave('PROFISSIONAL', nome);
+                                        handleAutoSave('profissional', nome);
                                     }}
                                     className="flex-1"
                                     appointmentData={{
-                                        data: record.DATA,
-                                        horario: record.HORARIO,
-                                        periodo: (record as any)['PERÍODO'],
-                                        atendimentoId: record.ATENDIMENTO_ID
+                                        data: record.data,
+                                        horario: record.horario,
+                                        periodo: record.periodo,
+                                        atendimentoId: record.atendimento_id
                                     }}
                                 />
                             </div>
@@ -558,7 +557,7 @@ Obrigada e tenha um ótimo atendimento😊`
                                 onChange={(e) => {
                                     const newValue = e.target.value;
                                     setStatusSel(newValue);
-                                    handleAutoSave('STATUS', newValue);
+                                    handleAutoSave('status', newValue);
                                 }}
                                 className="rounded-lg border border-border-secondary bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/20 transition-all min-w-[120px]"
                             >
@@ -623,7 +622,7 @@ Obrigada e tenha um ótimo atendimento😊`
                             <div className="grid grid-cols-6 gap-3 mb-3">
                                 {renderEditableField('Data', editData, setEditData, 'date')}
                                 {renderEditableField('Horário', editHorario, setEditHorario, 'time')}
-                                {renderDetail('Dia da Semana', record.DIA)}
+                                {renderDetail('Dia da Semana', record.dia)}
                                 {renderEditableField('Período', editPeriodo, setEditPeriodo, 'number')}
                                 {renderEditableField('Tipo', editTipo, setEditTipo, 'text')}
                                 {renderEditableField('Valor (R$)', editValor, setEditValor, 'number')}
@@ -793,20 +792,20 @@ Obrigada e tenha um ótimo atendimento😊`
                                                         const paginatedHistory = clientHistory.slice(startIndex, endIndex);
 
                                                         return paginatedHistory.map((histRecord, idx) => {
-                                                            const periodo = (histRecord as any)['PERÍODO'] || (histRecord as any)['PERIODO'];
-                                                            const posVendaNota = (histRecord as any).pos_vendas_nota || (histRecord as any)['pos vendas'] || '-';
+                                                            const periodo = histRecord.periodo;
+                                                            const posVendaNota = histRecord.pos_vendas || '-';
 
                                                             return (
                                                                 <tr
                                                                     key={histRecord.id || idx}
                                                                     className="border-t border-border-secondary/50 hover:bg-accent-primary/5 cursor-pointer transition-colors"
                                                                 >
-                                                                    <td className="px-3 py-2 text-text-primary font-mono text-xs">{histRecord.ATENDIMENTO_ID || '-'}</td>
+                                                                    <td className="px-3 py-2 text-text-primary font-mono text-xs">{histRecord.atendimento_id || '-'}</td>
                                                                     <td className="px-3 py-2 text-text-primary">
-                                                                        {histRecord.DATA ? new Date(histRecord.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+                                                                        {histRecord.data ? new Date(histRecord.data + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
                                                                     </td>
-                                                                    <td className="px-3 py-2 text-text-secondary">{histRecord.DIA || '-'}</td>
-                                                                    <td className="px-3 py-2 text-text-primary">{histRecord.PROFISSIONAL || '-'}</td>
+                                                                    <td className="px-3 py-2 text-text-secondary">{histRecord.dia || '-'}</td>
+                                                                    <td className="px-3 py-2 text-text-primary">{histRecord.profissional || '-'}</td>
                                                                     <td className="px-3 py-2 text-text-secondary">{periodo ? `${periodo} horas` : '-'}</td>
                                                                     <td className="px-3 py-2">
                                                                         <span className={`inline-block px-2 py-0.5 rounded text-xs ${posVendaNota === 'contatado' ? 'bg-success-color/20 text-success-color' :
@@ -915,15 +914,15 @@ Obrigada e tenha um ótimo atendimento😊`
                                         setSavingHeader('saving');
                                         const payload: any = {};
 
-                                        // Campos básicos (STATUS e PROFISSIONAL agora têm auto-save)
-                                        if (editData !== (record.DATA || '')) payload['DATA'] = editData;
-                                        if (editHorario !== (record.HORARIO || '')) payload['HORARIO'] = editHorario;
-                                        if (editCliente !== (record.CLIENTE || '')) payload['CLIENTE'] = editCliente;
-                                        if (editEndereco !== ((record as any)['ENDEREÇO'] || '')) payload['ENDEREÇO'] = editEndereco;
-                                        if (editTipo !== (record.TIPO || '')) payload['TIPO'] = editTipo;
-                                        if (editPeriodo !== ((record as any)['PERÍODO'] || (record as any)['PERIODO'] || '')) payload['PERÍODO'] = editPeriodo;
-                                        if (editValor !== String(record.VALOR || '')) payload['VALOR'] = parseFloat(editValor) || 0;
-                                        if (editRepasse !== String(record.REPASSE || '')) payload['REPASSE'] = parseFloat(editRepasse) || 0;
+                                        // Campos básicos (status e profissional agora têm auto-save)
+                                        if (editData !== (record.data || '')) payload['data'] = editData;
+                                        if (editHorario !== (record.horario || '')) payload['horario'] = editHorario;
+                                        if (editCliente !== (record.cliente || '')) payload['cliente'] = editCliente;
+                                        if (editEndereco !== (record.endereco || '')) payload['endereco'] = editEndereco;
+                                        if (editTipo !== (record.tipo || '')) payload['tipo'] = editTipo;
+                                        if (editPeriodo !== (record.periodo || '')) payload['periodo'] = editPeriodo;
+                                        if (editValor !== String(record.valor || '')) payload['valor'] = parseFloat(editValor) || 0;
+                                        if (editRepasse !== String(record.repasse || '')) payload['repasse'] = parseFloat(editRepasse) || 0;
 
                                         if (Object.keys(payload).length > 0) {
                                             const updated = await updateDataRecord(String(record.id), payload);

@@ -94,17 +94,27 @@ const RegistrationPage: React.FC = () => {
         setStep(2);
     };
 
+    const formatCNPJ = (val: string) => {
+        const numbers = val.replace(/\D/g, '');
+        if (numbers.length <= 2) return numbers;
+        if (numbers.length <= 5) return `${numbers.slice(0, 2)}.${numbers.slice(2)}`;
+        if (numbers.length <= 8) return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5)}`;
+        if (numbers.length <= 12) return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}/${numbers.slice(8)}`;
+        return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}/${numbers.slice(8, 12)}-${numbers.slice(12, 14)}`;
+    };
+
     const handleCnpjLookup = async (cnpj: string) => {
         const cleanCnpj = cnpj.replace(/\D/g, '');
         if (cleanCnpj.length !== 14) return;
 
         setCnpjLoading(true);
         try {
-            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
-            if (!response.ok) throw new Error('CNPJ não encontrado');
-
+            // Atualizado para ReceitaWS conforme solicitado
+            const response = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
             const data = await response.json();
             
+            if (data.status === 'ERROR') throw new Error(data.message || 'CNPJ não encontrado');
+
             const updatedUnits = [...unitsData];
             const current = updatedUnits[currentUnitIndex];
             
@@ -117,8 +127,9 @@ const RegistrationPage: React.FC = () => {
                     .join(' ');
             };
             
-            current.razao_social = formatText(data.razao_social || '');
-            current.cep = data.cep || '';
+            // Mapeamento ReceitaWS: nome, logradouro, municipio, uf, etc.
+            current.razao_social = formatText(data.nome || '');
+            current.cep = (data.cep || '').replace(/\D/g, '');
             current.cidade = formatText(data.municipio || '');
             current.estado = data.uf || '';
             current.bairro = formatText(data.bairro || '');
@@ -348,15 +359,33 @@ const RegistrationPage: React.FC = () => {
                                             value={unitsData[currentUnitIndex].cnpj}
                                             onChange={e => {
                                                 const val = e.target.value;
+                                                const numbersOnly = val.replace(/\D/g, '').slice(0, 14);
+                                                const formatted = formatCNPJ(numbersOnly);
+                                                
                                                 const copy = [...unitsData];
-                                                copy[currentUnitIndex].cnpj = val;
+                                                copy[currentUnitIndex].cnpj = formatted;
                                                 setUnitsData(copy);
-                                                if (val.replace(/\D/g, '').length === 14) handleCnpjLookup(val);
+                                                
+                                                if (numbersOnly.length === 14) handleCnpjLookup(numbersOnly);
                                             }}
                                             placeholder="00.000.000/0000-00" 
-                                            className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 focus:border-accent-primary focus:outline-none transition-all" 
+                                            className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 focus:border-accent-primary focus:outline-none transition-all pr-12" 
                                         />
-                                        {cnpjLoading && <div className="absolute right-3 top-3.5"><Icon name="Loader2" className="w-5 h-5 animate-spin text-accent-primary" /></div>}
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                            {cnpjLoading ? (
+                                                <Icon name="Loader2" className="w-5 h-5 animate-spin text-accent-primary" />
+                                            ) : (
+                                                unitsData[currentUnitIndex].cnpj.replace(/\D/g, '').length === 14 && (
+                                                    <button 
+                                                        onClick={() => handleCnpjLookup(unitsData[currentUnitIndex].cnpj)}
+                                                        className="p-1.5 hover:bg-white/10 rounded-md text-accent-primary transition-colors"
+                                                        title="Refazer busca"
+                                                    >
+                                                        <Icon name="Search" className="w-4 h-4" />
+                                                    </button>
+                                                )
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 

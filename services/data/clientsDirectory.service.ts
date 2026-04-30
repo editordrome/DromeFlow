@@ -146,9 +146,9 @@ export async function updateClientNameInAppointments(
 
   const { data, error } = await supabase
     .from('processed_data')
-    .update({ CLIENTE: newName })
+    .update({ cliente: newName })
     .eq('unidade_code', unitCode)
-    .eq('CLIENTE', oldName)
+    .eq('cliente', oldName)
     .select('id');
 
   if (error) {

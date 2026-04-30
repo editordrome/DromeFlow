@@ -213,55 +213,50 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSucc
                     const horasValor = horasIdx !== undefined ? String(row[horasIdx] || '').trim() : '';
 
                     const record: RawDataRecordForUpload = {
-                        ATENDIMENTO_ID: numeroTrimmed,  // Usa a coluna "Número" como ATENDIMENTO_ID
-                        DATA: formatarData(dataOriginal),
-                        HORARIO: String(row[headerMap['horário']] || '').trim(),
-                        VALOR: formatarMoeda(valorOriginal),
-                        SERVIÇO: servicoOriginal,
-                        TIPO: String(row[headerMap['tipo']] || '').trim(),
-                        // MOMENTO com fallbacks e normalização: aceita 'Período', 'Periodo', 'Momento' (qualquer acentuação / caixa)
-                        MOMENTO: (() => {
+                        atendimento_id: numeroTrimmed,
+                        data: formatarData(dataOriginal),
+                        horario: String(row[headerMap['horário']] || '').trim(),
+                        valor: formatarMoeda(valorOriginal),
+                        servico: servicoOriginal,
+                        tipo: String(row[headerMap['tipo']] || '').trim(),
+                        momento: (() => {
                             const directIdx = headerMap['período'] ?? headerMap['periodo'] ?? headerMap['momento'];
                             if (directIdx !== undefined) return String(row[directIdx] || '').trim();
                             const idxNorm = normalizedHeaderMap['periodo'] ?? normalizedHeaderMap['momento'];
                             return idxNorm !== undefined ? String(row[idxNorm] || '').trim() : '';
                         })(),
-                        // Novo mapeamento: coluna "Horas" (H) do XLSX -> campo 'PERÍODO'
-                        'PERÍODO': horasValor || null,
-                        CLIENTE: clienteNome,
-                        // Fix: Converter string vazia em null para compatibilidade com UNIQUE constraint
-                        PROFISSIONAL: (() => {
+                        periodo: horasValor || null,
+                        cliente: clienteNome,
+                        profissional: (() => {
                             const val = String(row[headerMap['profissionais']] || '').trim();
                             return val === '' ? null : val;
                         })(),
-                        ENDEREÇO: String(row[headerMap['local de atendimento']] || '').trim(),
-                        DIA: String(row[headerMap['dia da semana']] || '').trim(),
-                        REPASSE: String(row[headerMap['repasse (r$)']] || row[headerMap['repasse']] || '0').trim(), // Passa o valor bruto (string)
+                        endereco: String(row[headerMap['local de atendimento']] || '').trim(),
+                        dia: String(row[headerMap['dia da semana']] || '').trim(),
+                        repasse: String(row[headerMap['repasse (r$)']] || row[headerMap['repasse']] || '0').trim(),
                         whatscliente,
-                        CUPOM: String(row[headerMap['cupom de desconto']] || row[headerMap['descontos']] || '').trim(),
-                        ORIGEM: String(row[headerMap['origem']] || '').trim(),
-                        CADASTRO: formatarData(String(row[headerMap['data de cadastro']] || '').trim()),
-                        // Campo IS_DIVISAO será definido no backend durante processamento multi-profissional
-                        IS_DIVISAO: '',
-                        // Campos padrão
-                        ACAO: null,
+                        cupom: String(row[headerMap['cupom de desconto']] || row[headerMap['descontos']] || '').trim(),
+                        origem: String(row[headerMap['origem']] || '').trim(),
+                        cadastro: formatarData(String(row[headerMap['data de cadastro']] || '').trim()),
+                        is_divisao: '',
+                        acao: null,
                         confirmacao: null,
                         status: null,
                         unidade: unit.unit_name,
                         observacao: null,
-                        'pos vendas': null,
+                        pos_vendas: null,
                         comentario: null,
                         unidade_code: unit.unit_code,
                     };
                     recordsToUpload.push(record);
                     if (recordsToUpload.length === 1) {
                         console.log('[UPLOAD] Primeiro registro mapeado (diagnóstico):', {
-                            HORARIO: record.HORARIO,
-                            'PERÍODO': (record as any)['PERÍODO'],
-                            MOMENTO: record.MOMENTO,
+                            horario: record.horario,
+                            periodo: record.periodo,
+                            momento: record.momento,
                             headers: Object.keys(headerMap)
                         });
-                        if (!record.MOMENTO) {
+                        if (!record.momento) {
                             console.warn('[UPLOAD][AVISO] Campo MOMENTO vazio. Verifique se a coluna E possui cabeçalho "Período", "Periodo" ou "Momento".');
                         }
                     }

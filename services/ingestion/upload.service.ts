@@ -4,11 +4,10 @@
  */
 import { supabase } from '../supabaseClient';
 import { syncUnitClientsFromProcessed } from '../data/clientsDirectory.service';
+import { toSnakeCasePayload, toFrontendRecord } from '../data/processedDataMapper';
 import { DataRecord, UploadMetrics } from '../../types';
 
-// Fix: Create a helper type to corretamente tipar dados brutos do XLSX onde REPASSE pode ser string.
-// Removido 'orcamento' e 'NÚMERO' - agora usa apenas ATENDIMENTO_ID
-export type RawDataRecordForUpload = Omit<DataRecord, 'REPASSE' | 'orcamento' | 'NÚMERO'> & { REPASSE: string | number };
+export type RawDataRecordForUpload = Omit<DataRecord, 'repasse' | 'orcamento' | 'NÚMERO'> & { repasse: string | number };
 
 // Função auxiliar: Processa valores de repasse corretamente
 const processRepasseValues = (repasseOriginal: any, profissionaisCount: number): number[] => {
@@ -40,50 +39,48 @@ const processRepasseValues = (repasseOriginal: any, profissionaisCount: number):
 	return repasseValues;
 };
 
-// Expansão multi-profissional e normalização
-// ATENDIMENTO_ID agora recebe sufixos (_1, _2...) para registros derivados
 const processMultipleProfessionalsRecords = (records: RawDataRecordForUpload[]): DataRecord[] => {
 	const finalRecords: DataRecord[] = [];
 	records.forEach((record) => {
-		const originalAtendimentoId = String(record.ATENDIMENTO_ID || '').trim();
-		// Preserva null quando PROFISSIONAL é null (não converte para string vazia)
-		const professionalValue = record.PROFISSIONAL;
+		const originalAtendimentoId = String(record.atendimento_id || '').trim();
+		// Preserva null quando profissional é null (não converte para string vazia)
+		const professionalValue = record.profissional;
 		const professionalString = professionalValue === null ? '' : String(professionalValue).trim();
 		if (professionalString.includes(';')) {
 			const professionals = professionalString
 				.split(';')
 				.map((p) => p.trim())
 				.filter(Boolean);
-			const repasses = processRepasseValues(record.REPASSE, professionals.length);
+			const repasses = processRepasseValues(record.repasse, professionals.length);
 			if (professionals.length > 0) {
 				professionals.forEach((professional, index) => {
 					const isFirst = index === 0;
 					finalRecords.push({
 						...record,
-						PROFISSIONAL: professional,
-						REPASSE: repasses[index] || 0,
-						VALOR: isFirst ? record.VALOR : 0,
-						// ATENDIMENTO_ID com sufixo para derivados (ex: 12345_1, 12345_2)
-						ATENDIMENTO_ID: isFirst ? originalAtendimentoId : `${originalAtendimentoId}_${index}`,
-						IS_DIVISAO: isFirst ? 'NAO' : 'SIM',
+						profissional: professional,
+						repasse: repasses[index] || 0,
+						valor: isFirst ? record.valor : 0,
+						// atendimento_id com sufixo para derivados (ex: 12345_1, 12345_2)
+						atendimento_id: isFirst ? originalAtendimentoId : `${originalAtendimentoId}_${index}`,
+						is_divisao: isFirst ? 'NAO' : 'SIM',
 					});
 				});
 			} else {
 				finalRecords.push({
 					...record,
-					PROFISSIONAL: professionalString || null, // Mantém null se vazio
-					REPASSE: parseFloat(String(record.REPASSE).replace(',', '.')) || 0,
-					ATENDIMENTO_ID: originalAtendimentoId,
-					IS_DIVISAO: 'NAO',
+					profissional: professionalString || null, // Mantém null se vazio
+					repasse: parseFloat(String(record.repasse).replace(',', '.')) || 0,
+					atendimento_id: originalAtendimentoId,
+					is_divisao: 'NAO',
 				});
 			}
 		} else {
 			finalRecords.push({
 				...record,
-				PROFISSIONAL: professionalString || null, // Mantém null se vazio
-				REPASSE: parseFloat(String(record.REPASSE).replace(',', '.')) || 0,
-				ATENDIMENTO_ID: originalAtendimentoId,
-				IS_DIVISAO: 'NAO',
+				profissional: professionalString || null, // Mantém null se vazio
+				repasse: parseFloat(String(record.repasse).replace(',', '.')) || 0,
+				atendimento_id: originalAtendimentoId,
+				is_divisao: 'NAO',
 			});
 		}
 	});
@@ -101,9 +98,9 @@ const applyWaitStatusByOrder = (records: DataRecord[]): DataRecord[] => {
 	const groupedByProfessionalDate = new Map<string, DataRecord[]>();
 
 	records.forEach((record) => {
-		if (!record.PROFISSIONAL || !record.DATA) return;
+		if (!record.profissional || !record.data) return;
 
-		const key = `${record.PROFISSIONAL}|${record.DATA}`;
+		const key = `${record.profissional}|${record.data}`;
 		if (!groupedByProfessionalDate.has(key)) {
 			groupedByProfessionalDate.set(key, []);
 		}
@@ -118,26 +115,26 @@ const applyWaitStatusByOrder = (records: DataRecord[]): DataRecord[] => {
 	groupedByProfessionalDate.forEach((recordsGroup, key) => {
 		if (recordsGroup.length > 1) {
 			// Profissional tem múltiplos atendimentos no mesmo dia
-			// Ordenar por HORARIO (crescente) - normaliza para comparação
+			// Ordenar por horario (crescente) - normaliza para comparação
 			recordsGroup.sort((a, b) => {
-				const horarioA = String(a.HORARIO || '00:00').trim();
-				const horarioB = String(b.HORARIO || '00:00').trim();
+				const horarioA = String(a.horario || '00:00').trim();
+				const horarioB = String(b.horario || '00:00').trim();
 				return horarioA.localeCompare(horarioB);
 			});
 
 			console.log(`[applyWaitStatusByOrder] Processing ${recordsGroup.length} appointments for ${key}`);
 
-			// Aplicar STATUS baseado na posição
+			// Aplicar status baseado na posição
 			recordsGroup.forEach((record, index) => {
 				if (index === 0) {
 					// Primeiro atendimento do dia
-					(record as any).STATUS = 'PENDENTE';
-					console.log(`  → [${record.HORARIO}] ${record.ATENDIMENTO_ID}: PENDENTE (1º)`);
+					record.status = 'PENDENTE';
+					console.log(`  → [${record.horario}] ${record.atendimento_id}: PENDENTE (1º)`);
 				} else {
 					// Demais atendimentos
-					(record as any).STATUS = 'ESPERAR';
+					record.status = 'ESPERAR';
 					statusChangedCount++;
-					console.log(`  → [${record.HORARIO}] ${record.ATENDIMENTO_ID}: ESPERAR (${index + 1}º)`);
+					console.log(`  → [${record.horario}] ${record.atendimento_id}: ESPERAR (${index + 1}º)`);
 				}
 			});
 		}
@@ -161,10 +158,10 @@ const removeObsoleteRecords = async (
 
 	const { data: existingRecords, error: fetchError } = await supabase
 		.from('processed_data')
-		.select('ATENDIMENTO_ID, IS_DIVISAO')
+		.select('atendimento_id, is_divisao')
 		.eq('unidade_code', unitCode)
-		.gte('DATA', startDate)
-		.lte('DATA', endDate);
+		.gte('data', startDate)
+		.lte('data', endDate);
 
 	if (fetchError) {
 		console.error('[removeObsoleteRecords] Error fetching existing records:', fetchError);
@@ -189,7 +186,7 @@ const removeObsoleteRecords = async (
 	const baseToAtendimentosMap = new Map<string, string[]>();
 
 	existingRecords.forEach((r: any) => {
-		const atendimentoId = String(r.ATENDIMENTO_ID || '').trim();
+		const atendimentoId = String(r.atendimento_id || '').trim();
 		if (!atendimentoId) return;
 
 		const base = baseFromAtendimento(atendimentoId);
@@ -233,7 +230,7 @@ const removeObsoleteRecords = async (
 		.from('processed_data')
 		.delete({ count: 'exact' })
 		.eq('unidade_code', unitCode)
-		.in('ATENDIMENTO_ID', atendimentosToRemove);
+		.in('atendimento_id', atendimentosToRemove);
 
 	if (deleteError) {
 		console.error('[removeObsoleteRecords] Error deleting records:', deleteError);
@@ -268,8 +265,8 @@ export const uploadXlsxData = async (
 	let minDate: Date | null = null;
 	let maxDate: Date | null = null;
 	processedRecords.forEach((record) => {
-		if (record.DATA) {
-			const [year, month, day] = record.DATA.split('-').map(Number);
+		if (record.data) {
+			const [year, month, day] = record.data.split('-').map(Number);
 			const currentDate = new Date(year, month - 1, day);
 			if (!isNaN(currentDate.getTime())) {
 				if (!minDate || currentDate < minDate) minDate = currentDate;
@@ -280,7 +277,7 @@ export const uploadXlsxData = async (
 
 	if (minDate && maxDate) {
 		const baseAtendimentosInFile = new Set(
-			processedRecords.filter((r) => r.IS_DIVISAO === 'NAO').map((r) => r.ATENDIMENTO_ID).filter(Boolean)
+			processedRecords.filter((r) => r.is_divisao === 'NAO').map((r) => r.atendimento_id).filter(Boolean)
 		);
 		const startDate = minDate.toISOString().split('T')[0];
 		const endDate = maxDate.toISOString().split('T')[0];
@@ -297,12 +294,12 @@ export const uploadXlsxData = async (
 		const uploadBatchSize = 500;
 		for (let i = 0; i < processedRecords.length; i += uploadBatchSize) {
 			const batch = processedRecords.slice(i, i + uploadBatchSize);
-			const batchForRpc = batch.map((r) => ({
-				...sanitizeRecord(r),
-				profissional: (r as any).PROFISSIONAL ?? '',
-				// Prioriza STATUS (uppercase) definido pela lógica de esperar
-				STATUS: (r as any).STATUS || 'PENDENTE'
-			}));
+			const batchForRpc = batch.map((r) => {
+				return {
+					...toSnakeCasePayload(r),
+					status: r.status || 'PENDENTE',
+				};
+			});
 
 			const { data, error } = await supabase.rpc('process_xlsx_upload', {
 				unit_code_arg: unitCode,
@@ -328,20 +325,19 @@ export const uploadXlsxData = async (
 			const endDate = maxDate.toISOString().split('T')[0];
 			const { data: existing } = await supabase
 				.from('processed_data')
-				.select('id, ATENDIMENTO_ID')
+				.select('id, atendimento_id')
 				.eq('unidade_code', unitCode)
-				.gte('DATA', startDate)
-				.lte('DATA', endDate);
+				.gte('data', startDate)
+				.lte('data', endDate);
 			(existing || []).forEach((r: any) => {
-				if (r.ATENDIMENTO_ID) existingMap.set(r.ATENDIMENTO_ID, { id: r.id });
+				if (r.atendimento_id) existingMap.set(r.atendimento_id, { id: r.id });
 			});
 		}
 		const toInsert: any[] = [];
 		const toUpdate: any[] = [];
 		processedRecords.forEach((r) => {
-			const clean = sanitizeRecord(r);
-			if (clean.ATENDIMENTO_ID && existingMap.has(clean.ATENDIMENTO_ID)) toUpdate.push(clean);
-			else toInsert.push(clean);
+			if (r.atendimento_id && existingMap.has(r.atendimento_id)) toUpdate.push(r);
+			else toInsert.push(r);
 		});
 		let inserted = 0,
 			updated = 0,
@@ -350,25 +346,25 @@ export const uploadXlsxData = async (
 		for (let i = 0; i < toInsert.length; i += insertBatchSize) {
 			const slice = toInsert
 				.slice(i, i + insertBatchSize)
-				.map((r) => ({ ...sanitizeRecord(r), unidade_code: unitCode }));
+				.map((r) => ({ ...toSnakeCasePayload(r), unidade_code: unitCode }));
 			const { error: insErr } = await supabase.from('processed_data').insert(slice);
 			if (insErr) throw new Error(`Falha na inserção fallback: ${insErr.message}`);
 			inserted += slice.length;
 		}
 		for (const r of toUpdate) {
-			const updPayload: any = {
-				DATA: r.DATA,
-				CLIENTE: r.CLIENTE,
-				VALOR: r.VALOR,
-				REPASSE: r.REPASSE,
-				IS_DIVISAO: r.IS_DIVISAO,
-				PROFISSIONAL: (r as any).PROFISSIONAL,
-			};
+			const updPayload = toSnakeCasePayload({
+				data: r.data,
+				cliente: r.cliente,
+				valor: r.valor,
+				repasse: r.repasse,
+				is_divisao: r.is_divisao,
+				profissional: r.profissional,
+			});
 			const { error: upErr } = await supabase
 				.from('processed_data')
 				.update(updPayload)
 				.eq('unidade_code', unitCode)
-				.eq('ATENDIMENTO_ID', r.ATENDIMENTO_ID);
+				.eq('atendimento_id', r.atendimento_id);
 			if (upErr) throw new Error(`Falha no update fallback: ${upErr.message}`);
 			updated += 1;
 		}

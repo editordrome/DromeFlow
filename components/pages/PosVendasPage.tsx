@@ -428,7 +428,7 @@ const PosVendasPage: React.FC = () => {
     const term = searchTerm.toLowerCase();
     return pendentesProfissional.filter(record => 
       (record.nome?.toLowerCase() || '').includes(term) ||
-      (record.ATENDIMENTO_ID?.toLowerCase() || '').includes(term) ||
+      (record.atendimento_id?.toLowerCase() || '').includes(term) ||
       (record.profissional?.toLowerCase() || '').includes(term)
     );
   }, [pendentesProfissional, searchTerm]);
@@ -485,7 +485,7 @@ const PosVendasPage: React.FC = () => {
       return;
     }
 
-    if (!record.ATENDIMENTO_ID) {
+    if (!record.atendimento_id) {
       setWebhookFeedback({ type: 'error', message: 'ATENDIMENTO_ID não disponível' });
       return;
     }
@@ -502,7 +502,7 @@ const PosVendasPage: React.FC = () => {
 
       const payload = {
         action: 'pos_vendas',
-        ATENDIMENTO_ID: record.ATENDIMENTO_ID,
+        ATENDIMENTO_ID: record.atendimento_id,
         unitId: record.unit_id,
         conexao,
         usuario_email: profile?.email || null,
@@ -530,7 +530,7 @@ const PosVendasPage: React.FC = () => {
           unitCode: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
           userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
           status: 'success',
-          metadata: { atendimento_id: record.ATENDIMENTO_ID }
+          metadata: { atendimento_id: record.atendimento_id }
         });
       } catch (primaryErr: any) {
         const msg = primaryErr?.message || '';
@@ -544,7 +544,7 @@ const PosVendasPage: React.FC = () => {
       if (usedFallback) {
         const url = new URL(posVendasWebhook);
         url.searchParams.set('action', 'pos_vendas');
-        url.searchParams.set('aid', record.ATENDIMENTO_ID);
+        url.searchParams.set('aid', record.atendimento_id);
         url.searchParams.set('uid', record.unit_id || '');
         url.searchParams.set('cx', conexao || '');
         if (profile?.email) url.searchParams.set('ue', profile.email);
@@ -587,7 +587,7 @@ const PosVendasPage: React.FC = () => {
       const { updatePosVenda, createPosVenda, getPosVendasByAtendimento } = await import('../../services/posVendas/posVendas.service');
       
       // 1. Persistir no Banco de Dados
-      const existingRecords = await getPosVendasByAtendimento(schedulingRecord.ATENDIMENTO_ID || '');
+      const existingRecords = await getPosVendasByAtendimento(schedulingRecord.atendimento_id || '');
       
       if (existingRecords && existingRecords.length > 0) {
         await updatePosVenda(existingRecords[0].id, {
@@ -597,7 +597,7 @@ const PosVendasPage: React.FC = () => {
         });
       } else {
         await createPosVenda({
-          ATENDIMENTO_ID: schedulingRecord.ATENDIMENTO_ID,
+          ATENDIMENTO_ID: schedulingRecord.atendimento_id,
           chat_id: schedulingRecord.chat_id,
           nome: schedulingRecord.nome,
           contato: schedulingRecord.contato,
@@ -620,7 +620,7 @@ const PosVendasPage: React.FC = () => {
           
           const payload = {
             action: 'agendado',
-            ATENDIMENTO_ID: schedulingRecord.ATENDIMENTO_ID,
+            ATENDIMENTO_ID: schedulingRecord.atendimento_id,
             unitCode: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
             conexao,
             data_agendamento: dataAgendamento,
@@ -646,7 +646,7 @@ const PosVendasPage: React.FC = () => {
           if (usedFallback) {
             const url = new URL(posVendasWebhook);
             url.searchParams.set('action', 'agendado');
-            url.searchParams.set('aid', schedulingRecord.ATENDIMENTO_ID || '');
+            url.searchParams.set('aid', schedulingRecord.atendimento_id || '');
             url.searchParams.set('uc', typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL');
             url.searchParams.set('dag', dataAgendamento);
             url.searchParams.set('hag', horarioAgendamento);
@@ -661,7 +661,7 @@ const PosVendasPage: React.FC = () => {
             unitCode: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
             userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
             status: 'success',
-            metadata: { atendimento_id: schedulingRecord.ATENDIMENTO_ID, acao: 'agendar' }
+            metadata: { atendimento_id: schedulingRecord.atendimento_id, acao: 'agendar' }
           });
         } catch (webhookErr) {
           console.error('Erro ao notificar webhook de agendamento:', webhookErr);
@@ -688,7 +688,7 @@ const PosVendasPage: React.FC = () => {
       const { updatePosVenda, getPosVendasByAtendimento } = await import('../../services/posVendas/posVendas.service');
       
       // Verifica se o registro existe na tabela pos_vendas
-      const existingRecords = await getPosVendasByAtendimento(record.ATENDIMENTO_ID || '');
+      const existingRecords = await getPosVendasByAtendimento(record.atendimento_id || '');
       
       if (existingRecords && existingRecords.length > 0) {
         await updatePosVenda(existingRecords[0].id, {
@@ -791,7 +791,7 @@ const PosVendasPage: React.FC = () => {
                   {formatDate(record.data)}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary font-mono">
-                  {record.ATENDIMENTO_ID || '-'}
+                  {record.atendimento_id || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
                   <div>
@@ -866,7 +866,7 @@ const PosVendasPage: React.FC = () => {
                   {formatDate(record.data)}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary font-mono">
-                  {record.ATENDIMENTO_ID || '-'}
+                  {record.atendimento_id || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
                   <p className="font-medium">{(record as any).CLIENTE || record.nome || '-'}</p>
@@ -948,8 +948,8 @@ const PosVendasPage: React.FC = () => {
                 <td className="px-4 py-3 text-sm text-text-primary">
                   <div>
                     <p className="font-medium">{(record as any).CLIENTE || record.nome || '-'}</p>
-                    {record.ATENDIMENTO_ID && (
-                      <p className="text-xs text-text-secondary">ID: {record.ATENDIMENTO_ID}</p>
+                    {record.atendimento_id && (
+                      <p className="text-xs text-text-secondary">ID: {record.atendimento_id}</p>
                     )}
                   </div>
                 </td>
@@ -1483,7 +1483,7 @@ const PosVendasPage: React.FC = () => {
                         {formatDate(record.data)}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-sm text-text-secondary">
-                        {record.ATENDIMENTO_ID || '-'}
+                        {record.atendimento_id || '-'}
                       </td>
                       <td className="px-3 py-2 text-sm text-text-primary">
                         <div>
@@ -1579,7 +1579,7 @@ const PosVendasPage: React.FC = () => {
                       <div className="flex-1">
                         <p className="font-semibold text-sm text-text-primary">{record.nome || '-'}</p>
                         <p className="text-xs text-text-secondary mt-0.5">
-                          ID: {record.ATENDIMENTO_ID || '-'}
+                          ID: {record.atendimento_id || '-'}
                         </p>
                       </div>
                       <span className="px-2 py-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 text-xs rounded-full">
@@ -1749,7 +1749,7 @@ const PosVendasPage: React.FC = () => {
                           {formatDate(record.data)}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-sm text-text-secondary">
-                          {record.ATENDIMENTO_ID || '-'}
+                          {record.atendimento_id || '-'}
                         </td>
                         <td className="px-3 py-2 text-sm text-text-primary">
                           <div>
@@ -1814,7 +1814,7 @@ const PosVendasPage: React.FC = () => {
                       <div className="flex-1">
                         <p className="font-semibold text-sm text-text-primary">{record.nome || '-'}</p>
                         <p className="text-xs text-text-secondary mt-0.5">
-                          ID: {record.ATENDIMENTO_ID || '-'}
+                          ID: {record.atendimento_id || '-'}
                         </p>
                       </div>
                       <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 text-xs rounded-full">
@@ -1940,7 +1940,7 @@ const ScheduleModal: React.FC<{
             {/* Info do Cliente */}
             <div className="bg-bg-tertiary/50 rounded-lg p-3 border border-border-secondary/50">
               <p className="text-sm font-medium text-text-primary">{record.nome || '-'}</p>
-              <p className="text-xs text-text-secondary mt-1">ID: {record.ATENDIMENTO_ID || '-'}</p>
+              <p className="text-xs text-text-secondary mt-1">ID: {record.atendimento_id || '-'}</p>
               {record.profissional && (
                 <p className="text-xs text-text-secondary">Profissional: {record.profissional}</p>
               )}

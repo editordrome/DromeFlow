@@ -65,6 +65,9 @@ export interface UnitKey {
   pos_vendas: string | null;
   conexao: string | null;
   id_recruta: string | null;
+  key_umbler: string | null;
+  google: string | null;
+  triggerPos: string | null;
   main_email?: string | null;
 }
 
@@ -182,35 +185,30 @@ export interface BatchUpdateResult {
 export interface DataRecord {
   id?: number;
   created_at?: string;
-  // Removido: orcamento e NÚMERO (agora usa apenas ATENDIMENTO_ID)
-  DATA: string | null;
-  HORARIO: string;
-  VALOR: number;
-  // Fix: Added missing 'SERVIÇO' property to fix type error during data upload.
-  SERVIÇO: string;
-  TIPO: string;
-  // Campo renomeado: agora apenas MOMENTO (antes PERÍODO)
-  MOMENTO?: string;
-  // Novo campo com acento 'PERÍODO' para armazenar coluna Horas (coluna H do XLSX)
-  'PERÍODO'?: string | null;
-  CLIENTE: string;
-  PROFISSIONAL: string | null; // Aceita null quando não há profissional atribuído
-  ENDEREÇO: string;
-  DIA: string;
-  REPASSE: number;
+  data?: string | null;
+  horario?: string;
+  valor?: number;
+  servico?: string;
+  tipo?: string;
+  momento?: string;
+  periodo?: string | null;
+  cliente?: string;
+  profissional?: string | null;
+  endereco?: string;
+  dia?: string;
+  repasse?: number;
   whatscliente: string;
-  CUPOM: string;
-  ORIGEM: string;
-  ATENDIMENTO_ID: string;
-  IS_DIVISAO: string;
-  CADASTRO: string | null;
-  ACAO: string | null;
-  // Novas colunas
+  cupom?: string;
+  origem?: string;
+  atendimento_id?: string;
+  is_divisao?: string;
+  cadastro?: string | null;
+  acao?: string | null;
   confirmacao: boolean | null;
   status: string | null;
   unidade: string | null;
   observacao: string | null;
-  'pos vendas': string | null;
+  pos_vendas: string | null;
   comentario: string | null;
   reagendou?: boolean | null;
   unidade_code: string;
@@ -236,23 +234,23 @@ export interface UploadMetrics {
 }
 
 export interface ServiceAnalysisRecord {
-  CADASTRO: string | null;
-  DATA: string | null;
-  DIA: string;
-  ATENDIMENTO_ID: string;
-  IS_DIVISAO?: string;
+  cadastro: string | null;
+  data: string | null;
+  dia: string;
+  atendimento_id: string;
+  is_divisao?: string;
 }
 
 
 export interface ClientAnalysisData {
   currentMonthClients: Set<string>;
   allPreviousClients: Set<string>;
-  clientDetails: { CLIENTE: string, PERÍODO: string, TIPO: string }[];
+  clientDetails: { cliente: string, periodo: string, tipo: string }[];
 }
 
 export interface RepasseAnalysisRecord {
-  PROFISSIONAL: string | null; // Aceita null quando não há profissional
-  REPASSE: number;
+  profissional: string | null;
+  repasse: number;
 }
 
 // Diretório de Clientes por Unidade
@@ -286,24 +284,22 @@ export interface RecrutadoraColumn {
 export interface RecrutadoraCard {
   id: number;
   created_at: string;
-  unit_id: string; // chave de unidade atual
-  unidade?: string;  // textual opcional
+  unit_id: string;
+  unidade?: string;
   status: string;
   position: number;
   nome: string | null;
   whatsapp: string | null;
   color_card: string | null;
-  // Campos adicionais (pessoais)
-  data_nascimento?: string | null; // ISO date (legado UI)
-  data_nasc?: string | null; // ISO date (coluna DB)
-  fumante?: boolean | null;
+  
+  // Campos pessoais (snake_case padrão)
+  data_nasc?: string | null;
+  fumante?: string | null;
   estado_civil?: string | null;
-  filhos?: boolean | null;
-  qtos_filhos?: number | null; // legado UI
-  qto_filhos?: number | null; // coluna DB
+  filhos?: string | null;
+  qto_filhos?: number | null;
   rotina_filhos?: string | null;
-  endereco?: string | null; // legado UI
-  'endereço'?: string | null; // coluna DB com acento
+  endereco?: string | null;
   rg?: string | null;
   cpf?: string | null;
 
@@ -311,20 +307,17 @@ export interface RecrutadoraCard {
   dias_livres?: string | null;
   dias_semana?: string | null;
   exp_residencial?: string | null;
-  ref_residencial?: string | null; // legado UI
-  ref_redidencial?: string | null; // coluna DB (grafia fornecida)
+  ref_residencial?: string | null;
   exp_comercial?: string | null;
   ref_comercial?: string | null;
-  sit_atual?: string | null; // situação atual
-  motivo_cadastro?: string | null; // legado UI
-  motivo_cadstro?: string | null; // coluna DB (grafia fornecida)
+  sit_atual?: string | null;
+  motivo_cadastro?: string | null;
   transporte?: string | null;
 
-  // Observação
+  // Observação e Metadados
   observacao?: string | null;
-
-  // Data de assinatura do contrato
   assinatura?: string | null;
+  updated_at?: string;
 }
 
 // Comercial (Kanban)
@@ -405,7 +398,8 @@ export interface ComercialAdminCard {
 // Pós-Vendas
 export interface PosVenda {
   id: string;
-  ATENDIMENTO_ID: string | null;
+  atendimento_id: string | null;
+  ATENDIMENTO_ID?: string | null; // Mantido para compatibilidade temporária
   chat_id: string | null;
   nome: string | null;
   contato: string | null;
@@ -424,7 +418,8 @@ export interface PosVenda {
 }
 
 export interface PosVendaFormData {
-  ATENDIMENTO_ID?: string | null;
+  atendimento_id?: string | null;
+  ATENDIMENTO_ID?: string | null; // Mantido para compatibilidade temporária
   chat_id?: string | null;
   nome?: string | null;
   contato?: string | null;
@@ -470,11 +465,12 @@ export interface UnitPayment {
 }
 
 export interface AtendimentoSearchResult {
-  ATENDIMENTO_ID: string;
-  CLIENTE: string;
-  DATA: string;
-  SERVICO: string;
-  ENDERECO: string;
+  atendimento_id: string;
+  cliente: string;
+  data: string;
+  servico: string;
+  endereco: string;
+  profissional: string | null;
 }
 
 export interface PaymentRecord {

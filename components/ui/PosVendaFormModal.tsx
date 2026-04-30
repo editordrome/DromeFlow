@@ -21,7 +21,7 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
   const { selectedUnit } = useAppContext();
 
   const [formData, setFormData] = useState<PosVendaFormData>({
-    ATENDIMENTO_ID: record?.ATENDIMENTO_ID || null,
+    atendimento_id: record?.atendimento_id || null,
     chat_id: record?.chat_id || null,
     nome: record?.nome || null,
     contato: record?.contato || null,
@@ -43,8 +43,8 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
 
   // Carregar atendimento selecionado ao editar
   useEffect(() => {
-    if (record?.ATENDIMENTO_ID) {
-      loadAtendimento(record.ATENDIMENTO_ID);
+    if (record?.atendimento_id) {
+      loadAtendimento(record.atendimento_id);
     }
   }, [record]);
 
@@ -53,7 +53,7 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
       const atendimento = await getAtendimentoById(atendimentoId);
       if (atendimento) {
         setSelectedAtendimento(atendimento);
-        setSearchTerm(`${(atendimento as any).ORCAMENTO} - ${atendimento.CLIENTE}`);
+        setSearchTerm(`${atendimento.atendimento_id} - ${atendimento.cliente}`);
       }
     } catch (error) {
       console.error('Erro ao carregar atendimento:', error);
@@ -80,14 +80,14 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
 
   const handleSelectAtendimento = (atendimento: AtendimentoSearchResult) => {
     setSelectedAtendimento(atendimento);
-    setSearchTerm(`${(atendimento as any).ORCAMENTO} - ${atendimento.CLIENTE}`);
+    setSearchTerm(`${atendimento.atendimento_id} - ${atendimento.cliente}`);
     setShowSearchResults(false);
     setFormData(prev => ({
       ...prev,
-      ATENDIMENTO_ID: atendimento.ATENDIMENTO_ID,
-      nome: prev.nome || atendimento.CLIENTE,
+      atendimento_id: atendimento.atendimento_id,
+      nome: prev.nome || atendimento.cliente,
       contato: prev.contato,
-      profissional: (atendimento as any).PROFISSIONAL || null
+      profissional: atendimento.profissional || null
     }));
   };
 
@@ -171,12 +171,12 @@ const PosVendaFormModal: React.FC<PosVendaFormModalProps> = ({ record, onClose }
             {/* Campos Fixos do Atendimento */}
             <div className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* ATENDIMENTO_ID - FIXO */}
+                {/* atendimento_id - FIXO */}
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-medium text-text-secondary">ID Atendimento</span>
                   <input
                     type="text"
-                    value={formData.ATENDIMENTO_ID || '-'}
+                    value={formData.atendimento_id || '-'}
                     readOnly
                     className="rounded-lg border border-border-secondary/50 bg-bg-tertiary/50 px-3 py-2 text-sm text-text-secondary cursor-not-allowed"
                   />

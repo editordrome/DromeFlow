@@ -18,7 +18,7 @@ export const ClientDetailModal: React.FC<{
   const [activeTab, setActiveTab] = useState<'dados' | 'atendimentos'>('dados');
   const [loading, setLoading] = useState(false);
   const [unitClient, setUnitClient] = useState<UnitClient | null>(null);
-  const [history, setHistory] = useState<Array<{ id?: number; DATA: string | null; DIA: string; PROFISSIONAL: string; 'pos vendas': string | null }>>([]);
+  const [history, setHistory] = useState<Array<{ id?: number; data: string | null; dia: string; profissional: string; pos_vendas: string | null; atendimento_id?: string; periodo?: string }>>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>(currentPeriod);
@@ -373,37 +373,33 @@ export const ClientDetailModal: React.FC<{
                   {(!history || history.length === 0) ? (
                     <tr><td colSpan={6} className="px-3 py-8 text-center text-text-secondary text-sm">Sem atendimentos registrados.</td></tr>
                   ) : (
-                    history.map((h, idx) => {
-                      const periodo = (h as any)['PERÍODO'] || (h as any)['PERIODO'];
-
-                      return (
+                    history.map((h, idx) => (
                         <tr
                           key={h.id || idx}
                           className="border-t border-border-secondary/50 hover:bg-accent-primary/5 cursor-pointer transition-colors"
                           onDoubleClick={async () => {
                             if (!h.id) return;
-                            const rec = await fetchDataRecordById(h.id as number);
+                            const rec = await fetchDataRecordById(String(h.id));
                             setDetailRecord(rec);
                             setDetailOpen(true);
                           }}
                           title="Duplo clique para ver detalhes"
                         >
-                          <td className="px-3 py-2 text-text-primary font-mono text-xs">{(h as any).ATENDIMENTO_ID || '-'}</td>
-                          <td className="px-3 py-2 text-text-primary">{h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
-                          <td className="px-3 py-2 text-text-secondary">{h.DIA || '-'}</td>
-                          <td className="px-3 py-2 text-text-primary">{h.PROFISSIONAL || '-'}</td>
-                          <td className="px-3 py-2 text-text-secondary">{periodo ? `${periodo} horas` : '-'}</td>
+                          <td className="px-3 py-2 text-text-primary font-mono text-xs">{h.atendimento_id || '-'}</td>
+                          <td className="px-3 py-2 text-text-primary">{h.data ? new Date(h.data + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
+                          <td className="px-3 py-2 text-text-secondary">{h.dia || '-'}</td>
+                          <td className="px-3 py-2 text-text-primary">{h.profissional || '-'}</td>
+                          <td className="px-3 py-2 text-text-secondary">{h.periodo ? `${h.periodo} horas` : '-'}</td>
                           <td className="px-3 py-2">
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${(h as any)['pos vendas'] === 'contatado' ? 'bg-success-color/20 text-success-color' :
-                              (h as any)['pos vendas'] === 'pendente' ? 'bg-yellow-500/20 text-yellow-500' :
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${h.pos_vendas === 'contatado' ? 'bg-success-color/20 text-success-color' :
+                              h.pos_vendas === 'pendente' ? 'bg-yellow-500/20 text-yellow-500' :
                                 'text-text-tertiary'
                               }`}>
-                              {(h as any)['pos vendas'] || '-'}
+                              {h.pos_vendas || '-'}
                             </span>
                           </td>
                         </tr>
-                      );
-                    })
+                      ))
                   )}
                 </tbody>
               </table>

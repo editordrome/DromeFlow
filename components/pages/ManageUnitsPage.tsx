@@ -82,25 +82,25 @@ const UnitFormModal: React.FC<{
     setError('');
 
     try {
-      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
-      if (!response.ok) throw new Error('CNPJ não encontrado');
-
+      const response = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
       const data = await response.json();
+
+      if (data.status === 'ERROR') throw new Error(data.message || 'CNPJ não encontrado');
+
       const enderecoPartes = [
-        toTitleCase(data.descricao_tipo_de_logradouro),
         toTitleCase(data.logradouro),
         data.numero,
         toTitleCase(data.complemento),
         toTitleCase(data.bairro),
         toTitleCase(data.municipio),
         data.uf?.toUpperCase(),
-        data.cep
+        (data.cep || '').replace(/\D/g, '')
       ].filter(Boolean);
       const endereco = enderecoPartes.join(', ');
 
       setFormData(prev => ({
         ...prev,
-        razao_social: toTitleCase(data.razao_social) || prev.razao_social,
+        razao_social: toTitleCase(data.nome) || prev.razao_social,
         endereco: endereco || prev.endereco,
       }));
     } catch (err) {
@@ -878,7 +878,7 @@ const KeyListItem: React.FC<{
 }> = ({ unitId, item, expanded: expandedProp = false, autoFocusField, hintLabel, onUpdated, onDeleted }) => {
   const [expanded, setExpanded] = useState(expandedProp);
   useEffect(() => { setExpanded(expandedProp); }, [expandedProp]);
-  const anyValue = !!(item.umbler || item.whats_profi || item.whats_client || item.botID || item.organizationID || item.trigger || item.description);
+  const anyValue = !!(item.umbler || item.contato_profissionais || item.contato_atend || item.botID || item.organizationID || item.triggerName || item.istancia);
   return (
     <div className="border border-border-secondary rounded-md bg-bg-secondary/60">
       <div className="p-3 flex items-start justify-between gap-3">
@@ -887,12 +887,14 @@ const KeyListItem: React.FC<{
             <div className="col-span-1 md:col-span-2 text-xs italic text-text-secondary">Nova key: {hintLabel}</div>
           )}
           <FieldRow label="umbler" value={item.umbler || undefined} />
-          <FieldRow label="whats_profi" value={item.whats_profi || undefined} />
-          <FieldRow label="whats_client" value={item.whats_client || undefined} />
+          <FieldRow label="contato_profissionais" value={item.contato_profissionais || undefined} />
+          <FieldRow label="contato_atend" value={item.contato_atend || undefined} />
           <FieldRow label="botID" value={item.botID || undefined} />
           <FieldRow label="organizationID" value={item.organizationID || undefined} />
-          <FieldRow label="trigger" value={item.trigger || undefined} />
-          {/* Campo 'description' removido da UI enquanto a coluna não existir no schema */}
+          <FieldRow label="triggerName" value={item.triggerName || undefined} />
+          <FieldRow label="istancia" value={item.istancia || undefined} />
+          <FieldRow label="recrutadora" value={item.recrutadora || undefined} />
+          <FieldRow label="id_recruta" value={item.id_recruta || undefined} />
         </div>
         <div className="shrink-0 flex items-center gap-2">
           <span className={`text-[10px] px-2 py-0.5 rounded ${item.is_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-gray-500/10 text-gray-400'}`}>{item.is_active ? 'ATIVA' : 'INATIVA'}</span>
@@ -999,12 +1001,17 @@ const KeyItemForm: React.FC<{
   const formEl = useRef<HTMLFormElement | null>(null);
   const [form, setForm] = useState<Partial<UnitKey>>({
     umbler: initial?.umbler ?? '',
-    whats_profi: initial?.whats_profi ?? '',
-    whats_client: initial?.whats_client ?? '',
+    contato_profissionais: initial?.contato_profissionais ?? '',
+    contato_atend: initial?.contato_atend ?? '',
     botID: initial?.botID ?? '',
     organizationID: initial?.organizationID ?? '',
-    trigger: initial?.trigger ?? '',
-    description: initial?.description ?? '',
+    triggerName: initial?.triggerName ?? '',
+    istancia: initial?.istancia ?? '',
+    recrutadora: initial?.recrutadora ?? '',
+    id_recruta: initial?.id_recruta ?? '',
+    key_umbler: initial?.key_umbler ?? '',
+    google: initial?.google ?? '',
+    triggerPos: initial?.triggerPos ?? '',
     is_active: initial?.is_active ?? true,
   });
   const [error, setError] = useState<string>('');
@@ -1018,17 +1025,22 @@ const KeyItemForm: React.FC<{
   useEffect(() => {
     const next = {
       umbler: initial?.umbler ?? '',
-      whats_profi: initial?.whats_profi ?? '',
-      whats_client: initial?.whats_client ?? '',
+      contato_profissionais: initial?.contato_profissionais ?? '',
+      contato_atend: initial?.contato_atend ?? '',
       botID: initial?.botID ?? '',
       organizationID: initial?.organizationID ?? '',
-      trigger: initial?.trigger ?? '',
-      description: initial?.description ?? '',
+      triggerName: initial?.triggerName ?? '',
+      istancia: initial?.istancia ?? '',
+      recrutadora: initial?.recrutadora ?? '',
+      id_recruta: initial?.id_recruta ?? '',
+      key_umbler: initial?.key_umbler ?? '',
+      google: initial?.google ?? '',
+      triggerPos: initial?.triggerPos ?? '',
       is_active: initial?.is_active ?? true,
     };
     setForm(next);
     setSnapshot(JSON.stringify(next));
-  }, [initial?.umbler, initial?.whats_profi, initial?.whats_client, initial?.botID, initial?.organizationID, initial?.trigger, initial?.description, initial?.is_active]);
+  }, [initial?.umbler, initial?.contato_profissionais, initial?.contato_atend, initial?.botID, initial?.organizationID, initial?.triggerName, initial?.istancia, initial?.recrutadora, initial?.id_recruta, initial?.key_umbler, initial?.google, initial?.triggerPos, initial?.is_active]);
 
   useEffect(() => {
     const current = JSON.stringify(form);
@@ -1067,12 +1079,12 @@ const KeyItemForm: React.FC<{
           <input name="umbler" value={form.umbler as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-text-secondary">whats_profi</label>
-          <input name="whats_profi" value={form.whats_profi as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+          <label className="block text-sm font-medium text-text-secondary">contato_profissionais</label>
+          <input name="contato_profissionais" value={form.contato_profissionais as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-text-secondary">whats_client</label>
-          <input name="whats_client" value={form.whats_client as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+          <label className="block text-sm font-medium text-text-secondary">contato_atend</label>
+          <input name="contato_atend" value={form.contato_atend as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
         </div>
         <div>
           <label className="block text-sm font-medium text-text-secondary">botID</label>
@@ -1083,13 +1095,37 @@ const KeyItemForm: React.FC<{
           <input name="organizationID" value={form.organizationID as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-text-secondary">trigger</label>
-          <input name="trigger" value={form.trigger as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+          <label className="block text-sm font-medium text-text-secondary">triggerName</label>
+          <input name="triggerName" value={form.triggerName as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">istancia</label>
+          <input name="istancia" value={form.istancia as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">recrutadora</label>
+          <input name="recrutadora" value={form.recrutadora as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">id_recruta</label>
+          <input name="id_recruta" value={form.id_recruta as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">key_umbler</label>
+          <input name="key_umbler" value={form.key_umbler as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">google</label>
+          <input name="google" value={form.google as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-secondary">triggerPos</label>
+          <input name="triggerPos" value={form.triggerPos as string} onChange={handleChange} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-secondary">Descrição</label>
-        <textarea name="description" value={(form.description as string) || ''} onChange={handleChange} rows={2} className="w-full px-3 py-2 mt-1 border rounded-md bg-bg-secondary border-border-secondary focus:ring-accent-primary focus:border-accent-primary" />
+        <label className="block text-sm font-medium text-text-secondary">is_active</label>
+        <input type="checkbox" name="is_active" checked={!!form.is_active} onChange={handleChange} className="mt-1" />
       </div>
       <label className="inline-flex items-center gap-2 text-sm text-text-secondary">
         <input type="checkbox" name="is_active" checked={!!form.is_active} onChange={handleChange} />
@@ -1520,7 +1556,7 @@ const ManageUnitsPage: React.FC = () => {
 
     try {
       if (editingKey) {
-        await updateUnitKey(editingKey.id, keyData);
+        await updateUnitKey(String(editingKey.id), keyData);
       } else {
         await createUnitKey(selectedUnit.id, keyData);
       }
@@ -2447,7 +2483,7 @@ const ManageUnitsPage: React.FC = () => {
             isOpen={isKeyModalOpen}
             onClose={handleCloseKeyModal}
             onSave={handleSaveKey}
-            onDelete={editingKey ? () => handleDeleteKey(editingKey.id) : undefined}
+            onDelete={editingKey ? () => handleDeleteKey(String(editingKey.id)) : undefined}
             keyData={editingKey}
           />
         )

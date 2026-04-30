@@ -51,13 +51,13 @@ const RecrutadoraCardModal: React.FC<Props> = ({
   const [color, setColor] = useState<string | null>('#4ade80');
   const [statusLabel, setStatusLabel] = useState<string | undefined>(undefined);
   // Pessoais
-  const [dataNascimento, setDataNascimento] = useState<string>(''); // UI; envia em data_nasc
+  const [dataNasc, setDataNasc] = useState<string>('');
   const [fumante, setFumante] = useState<boolean | null>(null);
   const [estadoCivil, setEstadoCivil] = useState<string>('');
   const [filhos, setFilhos] = useState<boolean | null>(null);
-  const [qtosFilhos, setQtosFilhos] = useState<number | ''>(''); // UI; envia em qto_filhos
+  const [qtoFilhos, setQtoFilhos] = useState<number | ''>('');
   const [rotinaFilhos, setRotinaFilhos] = useState<string>('');
-  const [endereco, setEndereco] = useState<string>(''); // UI; envia em endereço
+  const [endereco, setEndereco] = useState<string>('');
   const [rg, setRg] = useState<string>('');
   const [cpf, setCpf] = useState<string>('');
   // Profissionais
@@ -105,32 +105,32 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       setWhatsapp(initialCard.whatsapp || '');
       setColor(initialCard.color_card || '#4ade80');
       // pessoais
-      setDataNascimento(initialCard.data_nasc || initialCard.data_nascimento || '');
-      setFumante(initialCard.fumante ?? null);
+      setDataNasc(initialCard.data_nasc || '');
+      setFumante(initialCard.fumante === 'sim' ? true : initialCard.fumante === 'nao' ? false : null);
       setEstadoCivil(initialCard.estado_civil || '');
-      setFilhos(initialCard.filhos ?? null);
+      setFilhos(initialCard.filhos === 'sim' ? true : initialCard.filhos === 'nao' ? false : null);
       {
-        const raw = (initialCard.qto_filhos ?? (initialCard as any).qtos_filhos) as any;
-        if (raw === null || raw === undefined || raw === '') {
-          setQtosFilhos('');
+        const raw = initialCard.qto_filhos;
+        if (raw === null || raw === undefined) {
+          setQtoFilhos('');
         } else {
           const n = Number(raw);
-          setQtosFilhos(isNaN(n) ? '' : n);
+          setQtoFilhos(isNaN(n) ? '' : n);
         }
       }
       setRotinaFilhos(initialCard.rotina_filhos || '');
-      setEndereco((initialCard.endereco as any) || (initialCard['endereço'] as any) || '');
+      setEndereco(initialCard.endereco || '');
       setRg(initialCard.rg || '');
       setCpf(initialCard.cpf || '');
       // profissionais
       setDiasLivres(initialCard.dias_livres || '');
       setDiasSemana(initialCard.dias_semana || '');
       setExpResidencial(initialCard.exp_residencial || '');
-      setRefResidencial(initialCard.ref_residencial || (initialCard as any).ref_redidencial || '');
+      setRefResidencial(initialCard.ref_residencial || '');
       setExpComercial(initialCard.exp_comercial || '');
       setRefComercial(initialCard.ref_comercial || '');
       setSitAtual(initialCard.sit_atual || '');
-      setMotivoCadastro(initialCard.motivo_cadastro || (initialCard as any).motivo_cadstro || '');
+      setMotivoCadastro(initialCard.motivo_cadastro || '');
       setTransporte(initialCard.transporte || '');
       setAssinatura(initialCard.assinatura || '');
       // observação
@@ -141,11 +141,11 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       setNome('');
       setWhatsapp('');
       setColor('#4ade80');
-      setDataNascimento('');
+      setDataNasc('');
       setFumante(null);
       setEstadoCivil('');
       setFilhos(null);
-      setQtosFilhos('');
+      setQtoFilhos('');
       setRotinaFilhos('');
       setEndereco('');
       setRg('');
@@ -224,13 +224,13 @@ const RecrutadoraCardModal: React.FC<Props> = ({
         nome,
         whatsapp,
         color_card: color,
-        data_nasc: dataNascimento || null,
-        fumante: fumante === null ? null : (fumante ? 'sim' : 'nao') as any,
+        data_nasc: dataNasc || null,
+        fumante: fumante === null ? null : (fumante ? 'sim' : 'nao'),
         estado_civil: estadoCivil || null,
-        filhos: filhos === null ? null : (filhos ? 'sim' : 'nao') as any,
-        qto_filhos: qtosFilhos === '' ? null : Number(qtosFilhos),
+        filhos: filhos === null ? null : (filhos ? 'sim' : 'nao'),
+        qto_filhos: qtoFilhos === '' ? null : Number(qtoFilhos),
         rotina_filhos: rotinaFilhos || null,
-        ['endereço']: endereco || null as any,
+        endereco: endereco || null,
         rg: rg || null,
         cpf: cpf || null,
         dias_livres: diasLivres || null,
@@ -383,7 +383,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       return s === '' ? 'Não informado' : s;
     };
     const yesNo = (v: boolean | null) => v === null ? 'Não informado' : (v ? 'Sim' : 'Não');
-    const filhosQtde = qtosFilhos === '' ? 'Não informado' : String(qtosFilhos);
+    const filhosQtde = qtoFilhos === '' ? 'Não informado' : String(qtoFilhos);
 
     const nomeDisplay = val(nome || initialCard?.nome);
     const statusDisplay = statusLabel ? String(statusLabel).toUpperCase() : '';
@@ -459,7 +459,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
       <section class="avoid-break">
         <h2 class="section-title">Informações Pessoais</h2>
         <div class="grid grid-3">
-          <div class="card"><div class="label">Data de Nascimento</div><div class="value">${val(dataNascimento)}</div></div>
+          <div class="card"><div class="label">Data de Nascimento</div><div class="value">${val(dataNasc)}</div></div>
           <div class="card"><div class="label">WhatsApp</div><div class="value">${val(whatsapp)}</div></div>
           <div class="card"><div class="label">RG</div><div class="value">${val(rg)}</div></div>
           <div class="card"><div class="label">CPF</div><div class="value">${val(cpf)}</div></div>
@@ -756,7 +756,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     </div>
                     <div className="md:col-span-3">
                       <div className="text-xs text-text-secondary mb-1">Data Nascimento</div>
-                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{dataNascimento || '-'}</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{dataNasc || '-'}</div>
                     </div>
                     <div className="md:col-span-3">
                       <div className="text-xs text-text-secondary mb-1">WhatsApp</div>
@@ -795,7 +795,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     </div>
                     <div>
                       <div className="text-xs text-text-secondary mb-1">Qtde. filhos</div>
-                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{qtosFilhos === '' ? '-' : qtosFilhos}</div>
+                      <div className="border border-border-secondary rounded-md p-2 bg-bg-tertiary/30 text-sm text-text-primary">{qtoFilhos === '' ? '-' : qtoFilhos}</div>
                     </div>
                     <div>
                       <div className="text-xs text-text-secondary mb-1">Rotina filhos</div>
@@ -814,7 +814,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-sm mb-1 text-text-secondary">Data Nascimento</label>
-                      <input type="date" value={dataNascimento} onChange={(e) => setDataNascimento(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
+                      <input type="date" value={dataNasc} onChange={(e) => setDataNasc(e.target.value)} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-sm mb-1 text-text-secondary">WhatsApp</label>
@@ -861,7 +861,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                     </div>
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Qtde. filhos</label>
-                      <input type="number" min={0} value={qtosFilhos} onChange={(e) => setQtosFilhos(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
+                      <input type="number" min={0} value={qtoFilhos} onChange={(e) => setQtoFilhos(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-3 py-1.5 rounded bg-bg-tertiary text-text-primary border border-border-secondary focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-sm mb-1 text-text-secondary">Rotina filhos</label>
@@ -1056,11 +1056,11 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                       const profissionalData: any = {
                         nome,
                         whatsapp,
-                        data_nasc: dataNascimento,
+                        data_nasc: dataNasc,
                         estado_civil: estadoCivil,
                         fumante: fumante ? 'sim' : 'nao',
                         filhos: filhos ? 'sim' : 'nao',
-                        qto_filhos: qtosFilhos,
+                        qto_filhos: qtoFilhos,
                         rotina_filhos: rotinaFilhos,
                         endereco,
                         rg,
@@ -1125,7 +1125,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
 
                       const unit = unitData as Unit;
                       const profissionalData: any = {
-                        nome, cpf, rg, data_nasc: dataNascimento, estado_civil: estadoCivil, endereco, whatsapp, assinatura
+                        nome, cpf, rg, data_nasc: dataNasc, estado_civil: estadoCivil, endereco, whatsapp, assinatura
                       };
                       const fullDocumentData = prepareDocumentData(profissionalData, unit);
                       fullDocumentData.contrato.dataAssinatura = assinatura ? new Date(assinatura + 'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
@@ -1172,7 +1172,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
 
                       const unit = unitData as Unit;
                       const profissionalData: any = {
-                        nome, cpf, rg, data_nasc: dataNascimento, estado_civil: estadoCivil, endereco, whatsapp, assinatura
+                        nome, cpf, rg, data_nasc: dataNasc, estado_civil: estadoCivil, endereco, whatsapp, assinatura
                       };
                       const fullDocumentData = prepareDocumentData(profissionalData, unit);
                       try {
@@ -1221,7 +1221,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                           nome,
                           cpf,
                           rg,
-                          dataNascimento,
+                          dataNascimento: dataNasc,
                           estadoCivil,
                           endereco,
                           whatsapp,
@@ -1284,7 +1284,7 @@ const RecrutadoraCardModal: React.FC<Props> = ({
                           nome,
                           cpf,
                           rg,
-                          dataNascimento,
+                          dataNascimento: dataNasc,
                           estadoCivil,
                           endereco,
                           whatsapp,

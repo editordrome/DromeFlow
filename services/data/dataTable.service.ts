@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { DataRecord } from '../../types';
+import { toFrontendRecord, toSnakeCasePayload } from './processedDataMapper';
 
 export const fetchDataTable = async (
   unitCode: string,
@@ -21,15 +22,15 @@ export const fetchDataTable = async (
     const [year, month] = period.split('-').map(Number);
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-    query = query.gte('DATA', startDate).lte('DATA', endDate);
+    query = query.gte('data', startDate).lte('data', endDate);
   }
 
   if (searchTerm && searchColumn) {
-    const columnName = searchColumn === 'cliente' ? 'CLIENTE' : 'ATENDIMENTO_ID';
+    const columnName = searchColumn === 'cliente' ? 'cliente' : 'atendimento_id';
     query = query.ilike(columnName, `%${searchTerm}%`);
   }
 
-  query = query.order('DATA', { ascending: false }).range(from, to);
+  query = query.order('data', { ascending: false }).range(from, to);
 
   const { data, error, count } = await query;
   if (error) {
@@ -37,7 +38,8 @@ export const fetchDataTable = async (
     throw error;
   }
 
-  const enrichedData = await enrichWithVerification((data as DataRecord[]) || []);
+  const mappedData = ((data || []) as any[]).map(toFrontendRecord);
+  const enrichedData = await enrichWithVerification(mappedData);
   const fullyEnrichedData = await enrichWithPayments(enrichedData);
   return { data: fullyEnrichedData, count: count || 0 };
 };
@@ -63,15 +65,15 @@ export const fetchDataTableMulti = async (
     const [year, month] = period.split('-').map(Number);
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-    query = query.gte('DATA', startDate).lte('DATA', endDate);
+    query = query.gte('data', startDate).lte('data', endDate);
   }
 
   if (searchTerm && searchColumn) {
-    const columnName = searchColumn === 'cliente' ? 'CLIENTE' : 'ATENDIMENTO_ID';
+    const columnName = searchColumn === 'cliente' ? 'cliente' : 'atendimento_id';
     query = query.ilike(columnName, `%${searchTerm}%`);
   }
 
-  query = query.order('DATA', { ascending: false }).range(from, to);
+  query = query.order('data', { ascending: false }).range(from, to);
 
   const { data, error, count } = await query;
   if (error) {
@@ -79,7 +81,8 @@ export const fetchDataTableMulti = async (
     throw error;
   }
 
-  const enrichedData = await enrichWithVerification((data as DataRecord[]) || []);
+  const mappedData = ((data || []) as any[]).map(toFrontendRecord);
+  const enrichedData = await enrichWithVerification(mappedData);
   const fullyEnrichedData = await enrichWithPayments(enrichedData);
   return { data: fullyEnrichedData, count: count || 0 };
 };
@@ -95,7 +98,7 @@ export const fetchDataRecordById = async (id: string): Promise<DataRecord | null
   const { data: dataByAtendimentoId, error: errorByAtendimentoId } = await supabase
     .from('processed_data')
     .select('*')
-    .eq('ATENDIMENTO_ID', id)
+    .eq('atendimento_id', id)
     .single();
 
   if (dataByAtendimentoId) {
@@ -129,7 +132,8 @@ export const fetchDataRecordById = async (id: string): Promise<DataRecord | null
     return null;
   }
 
-  const enriched = await enrichWithVerification([record]);
+  const mappedRecord = toFrontendRecord(record);
+  const enriched = await enrichWithVerification([mappedRecord]);
   const fullyEnriched = await enrichWithPayments(enriched);
   return fullyEnriched[0] || null;
 };
@@ -147,7 +151,7 @@ async function enrichWithVerification(records: DataRecord[]): Promise<DataRecord
 
   const unitMap = new Map(units.map(u => [u.unit_code, u.id]));
 
-  const names = [...new Set(records.map(r => r.CLIENTE).filter(Boolean))];
+  const names = [...new Set(records.map(r => r.cliente).filter(Boolean))];
   const unitIds = units.map(u => u.id);
 
   if (names.length === 0) return records;
@@ -167,7 +171,7 @@ async function enrichWithVerification(records: DataRecord[]): Promise<DataRecord
 
   return records.map(r => {
     const uId = unitMap.get((r as any).unidade_code || '');
-    if (uId && verifiedSet.has(`${uId}:${r.CLIENTE}`)) {
+    if (uId && verifiedSet.has(`${uId}:${r.cliente}`)) {
       return { ...r, is_verified: true };
     }
     return r;
@@ -183,8 +187,8 @@ async function enrichWithPayments(records: DataRecord[]): Promise<DataRecord[]> 
   const allPossibleIds = new Set<string>();
 
   records.forEach(r => {
-    if (r.ATENDIMENTO_ID) {
-      const s = String(r.ATENDIMENTO_ID);
+    if (r.atendimento_id) {
+      const s = String(r.atendimento_id);
       allPossibleIds.add(s); // Original
       allPossibleIds.add(s.replace(/\D/g, '')); // Numérico
     }
@@ -226,13 +230,13 @@ async function enrichWithPayments(records: DataRecord[]): Promise<DataRecord[]> 
   return records.map(r => {
     let status = null;
 
-    // Tenta match exato pelo ATENDIMENTO_ID Visual
-    if (r.ATENDIMENTO_ID && paymentMap.has(r.ATENDIMENTO_ID)) {
-      status = paymentMap.get(r.ATENDIMENTO_ID);
+    // Tenta match exato pelo atendimento_id Visual
+    if (r.atendimento_id && paymentMap.has(r.atendimento_id)) {
+      status = paymentMap.get(r.atendimento_id);
     }
-    // Tenta match normalizado pelo ATENDIMENTO_ID Visual (ex: #123 -> 123)
-    else if (r.ATENDIMENTO_ID) {
-      const norm = String(r.ATENDIMENTO_ID).replace(/\D/g, '');
+    // Tenta match normalizado pelo atendimento_id Visual (ex: #123 -> 123)
+    else if (r.atendimento_id) {
+      const norm = String(r.atendimento_id).replace(/\D/g, '');
       if (paymentMap.has(norm)) {
         status = paymentMap.get(norm);
       }
@@ -262,13 +266,13 @@ export const fetchAppointments = async (
     .from('processed_data')
     .select('*')
     .eq('unidade_code', unitCode)
-    .eq('DATA', date)
-    .order('HORARIO', { ascending: true });
+    .eq('data', date)
+    .order('horario', { ascending: true });
   if (error) {
     console.error('Erro ao buscar agendamentos:', error);
     throw error;
   }
-  return (data as DataRecord[]) || [];
+  return ((data || []) as any[]).map(toFrontendRecord);
 };
 
 export const fetchAppointmentsMulti = async (
@@ -281,13 +285,13 @@ export const fetchAppointmentsMulti = async (
     .from('processed_data')
     .select('*')
     .in('unidade_code', unitCodes)
-    .eq('DATA', date)
-    .order('HORARIO', { ascending: true });
+    .eq('data', date)
+    .order('horario', { ascending: true });
   if (error) {
     console.error('Erro ao buscar agendamentos (multi):', error);
     throw error;
   }
-  return (data as DataRecord[]) || [];
+  return ((data || []) as any[]).map(toFrontendRecord);
 };
 
 export const fetchAppointmentsRange = async (
@@ -300,57 +304,23 @@ export const fetchAppointmentsRange = async (
     .from('processed_data')
     .select('*')
     .eq('unidade_code', unitCode)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate)
-    .order('DATA', { ascending: true })
-    .order('HORARIO', { ascending: true });
+    .gte('data', startDate)
+    .lte('data', endDate)
+    .order('data', { ascending: true })
+    .order('horario', { ascending: true });
   if (error) {
     console.error('Erro ao buscar agendamentos (range):', error);
     throw error;
   }
-  return (data as DataRecord[]) || [];
+  return ((data || []) as any[]).map(toFrontendRecord);
 };
 
 export const updateDataRecord = async (
   recordId: string,
   updatedData: Partial<DataRecord>
 ): Promise<DataRecord> => {
-  // Mapeamento de chaves do frontend para colunas do banco (mantendo compatibilidade com maiúsculas/acentos)
-  const mapping: { [key: string]: string } = {
-    'DATA': 'DATA',
-    'CLIENTE': 'CLIENTE',
-    'VALOR': 'VALOR',
-    'HORARIO': 'HORARIO',
-    'HORÁRIO': 'HORARIO',
-    'TIPO': 'TIPO',
-    'PROFISSIONAL': 'PROFISSIONAL',
-    'ENDEREÇO': 'ENDEREÇO',
-    'DIA': 'DIA',
-    'REPASSE': 'REPASSE',
-    'ATENDIMENTO_ID': 'ATENDIMENTO_ID',
-    'observacao': 'observacao',
-    'comentario': 'comentario',
-    'status': 'STATUS',
-    'STATUS': 'STATUS',
-    'PERÍODO': 'PERÍODO',
-    'PERIODO': 'PERÍODO',
-    'MOMENTO': 'MOMENTO',
-    'SERVIÇO': 'SERVIÇO',
-    'SERVICO': 'SERVIÇO',
-    'pos vendas': 'pos vendas',
-    'reagendou': 'reagendou'
-  };
-
-  const updatePayload: { [key: string]: any } = {};
-
-  // Inclui apenas campos que foram explicitamente passados (não undefined)
-  Object.keys(updatedData).forEach(key => {
-    const value = (updatedData as any)[key];
-    if (value !== undefined) {
-      const dbKey = mapping[key] || key;
-      updatePayload[dbKey] = value;
-    }
-  });
+  // Converte as propriedades frontend (UPPERCASE) para as do banco (snake_case)
+  const updatePayload = toSnakeCasePayload(updatedData);
 
   if (Object.keys(updatePayload).length === 0) {
     throw new Error('Nenhum dado fornecido para atualização.');
@@ -367,7 +337,7 @@ export const updateDataRecord = async (
     console.error('Erro ao atualizar registro:', error);
     throw error;
   }
-  return data as DataRecord;
+  return toFrontendRecord(data);
 };
 
 export const deleteDataRecord = async (recordId: string): Promise<void> => {
@@ -409,9 +379,9 @@ export const fetchAvailableYearsFromProcessedData = async (unitCode: string | st
   try {
     let query = supabase
       .from('processed_data')
-      .select('DATA')
-      .not('DATA', 'is', null)
-      .order('DATA', { ascending: false })
+      .select('data')
+      .not('data', 'is', null)
+      .order('data', { ascending: false })
       .limit(1000);
 
     if (unitCodes.length === 1) {
@@ -429,8 +399,8 @@ export const fetchAvailableYearsFromProcessedData = async (unitCode: string | st
     // Extrai anos únicos dos dados
     const yearsSet = new Set<number>();
     data.forEach((record: any) => {
-      if (record.DATA) {
-        const year = new Date(record.DATA).getFullYear();
+      if (record.data) {
+        const year = new Date(record.data).getFullYear();
         if (year >= 2020 && year <= new Date().getFullYear() + 1) {
           yearsSet.add(year);
         }

@@ -19,7 +19,8 @@ export const UserFormModal: React.FC<{
   onSave: (user: UserDataPayload) => void;
   user: FullUser | null;
   currentAdminProfile?: Profile | null;
-}> = ({ isOpen, onClose, onSave, user, currentAdminProfile }) => {
+  forceUnitId?: string;
+}> = ({ isOpen, onClose, onSave, user, currentAdminProfile, forceUnitId }) => {
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -59,6 +60,9 @@ export const UserFormModal: React.FC<{
           const { unit_ids, module_ids } = await fetchUserAssignments(user.id);
           setSelectedUnits(new Set(unit_ids));
           setSelectedModules(new Set(module_ids));
+        } else if (forceUnitId) {
+          setSelectedUnits(new Set([forceUnitId]));
+          setSelectedModules(new Set());
         } else {
           setSelectedUnits(new Set());
           setSelectedModules(new Set());

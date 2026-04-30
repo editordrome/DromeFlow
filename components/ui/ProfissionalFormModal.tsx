@@ -882,7 +882,7 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
                       </thead>
                       <tbody>
                         {history.map((h, idx) => {
-                          const periodo = (h as any)['PERÍODO'] || (h as any)['PERIODO'];
+                          const periodo = h.periodo;
 
                           return (
                             <tr
@@ -895,21 +895,21 @@ export const ProfissionalFormModal: React.FC<Props> = ({ isOpen, onClose, profis
                               }}
                               title="Duplo clique para ver detalhes"
                             >
-                              <td className="px-3 py-2 text-text-primary font-mono text-xs">{h.ATENDIMENTO_ID || '-'}</td>
+                              <td className="px-3 py-2 text-text-primary font-mono text-xs">{h.atendimento_id || '-'}</td>
                               <td className="px-3 py-2 text-text-primary">
-                                {h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+                                {h.data ? new Date(h.data + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
                               </td>
-                              <td className="px-3 py-2 text-text-secondary">{h.DIA || '-'}</td>
-                              <td className="px-3 py-2 text-text-primary">{h.CLIENTE || '-'}</td>
+                              <td className="px-3 py-2 text-text-secondary">{h.dia || '-'}</td>
+                              <td className="px-3 py-2 text-text-primary">{h.cliente || '-'}</td>
                               <td className="px-3 py-2 text-text-secondary">{periodo ? `${periodo} horas` : '-'}</td>
                               <td className="px-3 py-2">
-                                <span className={`inline-block px-2 py-0.5 rounded text-xs ${(h['pos vendas'] || '').toLowerCase() === 'contatado' ? 'bg-success-color/20 text-success-color' :
-                                  (h['pos vendas'] || '').toLowerCase() === 'pendente' ? 'bg-yellow-500/20 text-yellow-500' :
-                                    (h['pos vendas'] || '').toLowerCase() === 'sim' ? 'bg-success-color/20 text-success-color' :
-                                      (h['pos vendas'] || '').toLowerCase() === 'não' ? 'bg-danger/20 text-danger' :
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs ${(h.pos_vendas || '').toLowerCase() === 'contatado' ? 'bg-success-color/20 text-success-color' :
+                                  (h.pos_vendas || '').toLowerCase() === 'pendente' ? 'bg-yellow-500/20 text-yellow-500' :
+                                    (h.pos_vendas || '').toLowerCase() === 'sim' ? 'bg-success-color/20 text-success-color' :
+                                      (h.pos_vendas || '').toLowerCase() === 'não' ? 'bg-danger/20 text-danger' :
                                         'text-text-tertiary'
                                   }`}>
-                                  {h['pos vendas'] || '-'}
+                                  {h.pos_vendas || '-'}
                                 </span>
                               </td>
                             </tr>

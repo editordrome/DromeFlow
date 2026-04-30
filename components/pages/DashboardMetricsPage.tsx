@@ -570,7 +570,7 @@ const DashboardMetricsPage: React.FC = () => {
                     for (const unitCode of multiUnits) {
                         const periodData = await fetchServicePeriodAnalysisData(unitCode, periodKey);
                         periodData.forEach(item => {
-                            const periodo = item.PERÍODO?.trim() || 'Não especificado';
+                            const periodo = (item as any).periodo?.trim() || 'Não especificado';
                             periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
                         });
                     }
@@ -588,7 +588,7 @@ const DashboardMetricsPage: React.FC = () => {
 
                     const periodCounts: { [period: string]: number } = {};
                     periodData.forEach(item => {
-                        const periodo = item.PERÍODO?.trim() || 'Não especificado';
+                        const periodo = (item as any).periodo?.trim() || 'Não especificado';
                         periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
                     });
 
@@ -613,18 +613,18 @@ const DashboardMetricsPage: React.FC = () => {
             const records = await fetchServiceAnalysisData(selectedUnit.unit_code, selectedPeriod);
 
             // Filtrar registros de divisão
-            const originalRecords = records.filter(r => r.IS_DIVISAO !== 'SIM');
+            const originalRecords = records.filter(r => r.is_divisao !== 'SIM');
 
             const uniqueAppointments = Array.from(
-                new Map(originalRecords.map(record => [record.ATENDIMENTO_ID, record])).values()
+                new Map(originalRecords.map(record => [record.atendimento_id, record])).values()
             );
 
             const periodStartDate = new Date(`${selectedPeriod}-01T12:00:00Z`);
             let startOfMonthCount = 0;
             let evolutionCount = 0;
             uniqueAppointments.forEach(r => {
-                if (r.CADASTRO) {
-                    const cadastroDate = new Date(`${r.CADASTRO}T12:00:00Z`);
+                if (r.cadastro) {
+                    const cadastroDate = new Date(`${r.cadastro}T12:00:00Z`);
                     if (!isNaN(cadastroDate.getTime())) {
                         if (cadastroDate < periodStartDate) startOfMonthCount++;
                         else evolutionCount++;
@@ -635,7 +635,7 @@ const DashboardMetricsPage: React.FC = () => {
 
             const dailyCounts: { [date: string]: number } = {};
             records.forEach(r => {
-                if (r.DATA) dailyCounts[r.DATA] = (dailyCounts[r.DATA] || 0) + 1;
+                if (r.data) dailyCounts[r.data] = (dailyCounts[r.data] || 0) + 1;
             });
             const daysWithMoreThan5Services = Object.values(dailyCounts).filter(count => count > 5).length;
             const averagePerDay = daysWithMoreThan5Services > 0
@@ -645,11 +645,11 @@ const DashboardMetricsPage: React.FC = () => {
             const dayOfWeekCounts: { [day: string]: number } = {};
             const dayOfWeekDates: { [day: string]: Set<string> } = {}; // Track unique dates for each day
             records.forEach(r => {
-                if (r.DIA) {
-                    dayOfWeekCounts[r.DIA] = (dayOfWeekCounts[r.DIA] || 0) + 1;
-                    if (r.DATA) {
-                        if (!dayOfWeekDates[r.DIA]) dayOfWeekDates[r.DIA] = new Set();
-                        dayOfWeekDates[r.DIA].add(r.DATA);
+                if (r.dia) {
+                    dayOfWeekCounts[r.dia] = (dayOfWeekCounts[r.dia] || 0) + 1;
+                    if (r.data) {
+                        if (!dayOfWeekDates[r.dia]) dayOfWeekDates[r.dia] = new Set();
+                        dayOfWeekDates[r.dia].add(r.data);
                     }
                 }
             });
@@ -666,17 +666,17 @@ const DashboardMetricsPage: React.FC = () => {
             const dailyData: { [day: string]: { old: Set<string>; new: Set<string> } } = {};
 
             records.forEach(r => {
-                if (r.DATA && r.ATENDIMENTO_ID) {
-                    const day = r.DATA.split('-')[2];
+                if (r.data && r.atendimento_id) {
+                    const day = r.data.split('-')[2];
                     if (!dailyData[day]) dailyData[day] = { old: new Set(), new: new Set() };
 
-                    if (r.CADASTRO) {
-                        const cadastroDate = new Date(`${r.CADASTRO}T12:00:00Z`);
+                    if (r.cadastro) {
+                        const cadastroDate = new Date(`${r.cadastro}T12:00:00Z`);
                         if (!isNaN(cadastroDate.getTime())) {
                             if (cadastroDate < periodStartDate) {
-                                dailyData[day].old.add(r.ATENDIMENTO_ID);
+                                dailyData[day].old.add(r.atendimento_id);
                             } else {
-                                dailyData[day].new.add(r.ATENDIMENTO_ID);
+                                dailyData[day].new.add(r.atendimento_id);
                             }
                         }
                     }
@@ -705,8 +705,8 @@ const DashboardMetricsPage: React.FC = () => {
             const periodByType: { [key: string]: { comercial: number; residencial: number } } = {};
 
             periodData.forEach(item => {
-                const periodo = item.PERÍODO?.trim() || 'Não especificado';
-                const tipo = item.TIPO?.trim().toLowerCase() || 'não especificado';
+                const periodo = (item as any).periodo?.trim() || 'Não especificado';
+                const tipo = (item as any).tipo?.trim().toLowerCase() || 'não especificado';
 
                 periodCounts[periodo] = (periodCounts[periodo] || 0) + 1;
 
@@ -785,8 +785,8 @@ const DashboardMetricsPage: React.FC = () => {
             const clientTypeMap: { [clientKey: string]: { [tipo: string]: number } } = {};
 
             currentData.clientDetails.forEach((detail) => {
-                const clientKey = `${detail.CLIENTE || 'sem-nome'}`;
-                const tipo = detail.TIPO?.trim() || 'Não especificado';
+                const clientKey = `${detail.cliente || 'sem-nome'}`;
+                const tipo = detail.tipo?.trim() || 'Não especificado';
 
                 if (!clientTypeMap[clientKey]) {
                     clientTypeMap[clientKey] = {};
@@ -839,7 +839,7 @@ const DashboardMetricsPage: React.FC = () => {
             const records = await fetchRepasseAnalysisData(selectedUnit.unit_code, selectedPeriod);
 
             // Calcula o total de repasse a partir dos dados brutos para consistência
-            const totalRepasseFromRecords = records.reduce((sum, record) => sum + (record.REPASSE || 0), 0);
+            const totalRepasseFromRecords = records.reduce((sum, record) => sum + (record.repasse || 0), 0);
 
             const averagePerService = metrics.totalServices > 0 ? totalRepasseFromRecords / metrics.totalServices : 0;
 
@@ -850,8 +850,8 @@ const DashboardMetricsPage: React.FC = () => {
 
             const professionalTotals = new Map<string, number>();
             records.forEach(record => {
-                const currentTotal = professionalTotals.get(record.PROFISSIONAL) || 0;
-                professionalTotals.set(record.PROFISSIONAL, currentTotal + (record.REPASSE || 0));
+                const currentTotal = professionalTotals.get(record.profissional) || 0;
+                professionalTotals.set(record.profissional, currentTotal + (record.repasse || 0));
             });
 
             const uniqueProfessionals = professionalTotals.size;
@@ -919,9 +919,9 @@ const DashboardMetricsPage: React.FC = () => {
         }
 
         // Filtrar por período (recarrega métricas do mês atual)
-        if (record.DATA) {
+        if (record.data) {
             const [targetYear, targetMonth] = selectedPeriod.split('-');
-            const dateStr = typeof record.DATA === 'string' ? record.DATA.split('T')[0] : '';
+            const dateStr = typeof record.data === 'string' ? record.data.split('T')[0] : '';
             const [rYear, rMonth] = dateStr.split('-');
             if (rYear === targetYear && rMonth === targetMonth) return true;
         }
@@ -1845,7 +1845,7 @@ const DashboardMetricsPage: React.FC = () => {
                                     <MonthlyComparisonChart
                                         data={
                                             selectedMetric === 'totalServices' && selectedServicesSubMetric !== 'none'
-                                                ? monthlyData.map((m) => {
+                                                ? monthlyData.map((m: any) => {
                                                     const s = servicesMonthlyData.find(x => x.month === m.month && (!m.year || x.year === m.year));
                                                     return {
                                                         ...m,
@@ -1856,7 +1856,7 @@ const DashboardMetricsPage: React.FC = () => {
                                                     } as MonthlyChartData;
                                                 })
                                                 : selectedMetric === 'uniqueClients' && selectedClientsSubMetric !== 'none'
-                                                    ? monthlyData.map((m) => {
+                                                    ? monthlyData.map((m: any) => {
                                                         const c = clientsMonthlyData.find(x => x.month === m.month && (!m.year || x.year === m.year));
                                                         return {
                                                             ...m,
@@ -1868,7 +1868,7 @@ const DashboardMetricsPage: React.FC = () => {
                                                     })
                                                     : selectedMetric === 'totalRepasse' && selectedRepasseSubMetric !== 'none'
                                                         ? (() => {
-                                                            const mappedData = monthlyData.map((m) => {
+                                                            const mappedData = monthlyData.map((m: any) => {
                                                                 const r = repasseMonthlyData.find(x => x.month === m.month && (!m.year || x.year === m.year));
                                                                 return {
                                                                     ...m,
@@ -2334,9 +2334,9 @@ const DashboardMetricsPage: React.FC = () => {
                                                             </thead>
                                                             <tbody className="divide-y divide-border-primary">
                                                                 {monthlyData.map((monthData) => {
-                                                                    const serviceData = servicesMonthlyData.find(s => s.month === monthData.month && (!monthData.year || s.year === monthData.year));
+                                                                    const serviceData = servicesMonthlyData.find(s => s.month === monthData.month && (!(monthData as any).year || s.year === (monthData as any).year));
                                                                     const currentYear = parseInt(selectedPeriod.split('-')[0], 10);
-                                                                    const dataYear = chartRange === 'year' ? currentYear : (monthData.year || currentYear);
+                                                                    const dataYear = chartRange === 'year' ? currentYear : ((monthData as any).year || currentYear);
                                                                     const monthKey = `${dataYear}-${monthData.month}`;
                                                                     const monthPeriods = monthlyPeriods[monthKey] || {};
 

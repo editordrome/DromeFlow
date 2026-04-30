@@ -110,13 +110,13 @@ export const searchAtendimentos = async (
 ): Promise<AtendimentoSearchResult[]> => {
   let query = supabase
     .from('processed_data')
-    .select('ATENDIMENTO_ID, CLIENTE, DATA, SERVIÇO, ENDEREÇO')
-    .or(`ATENDIMENTO_ID.ilike.%${searchTerm}%,CLIENTE.ilike.%${searchTerm}%,DATA.ilike.%${searchTerm}%`)
-    .order('DATA', { ascending: false })
+    .select('atendimento_id, cliente, data, servico, endereco, profissional')
+    .or(`atendimento_id.ilike.%${searchTerm}%,cliente.ilike.%${searchTerm}%,data.ilike.%${searchTerm}%`)
+    .order('data', { ascending: false })
     .limit(20);
 
   if (unit_id) {
-    query = query.eq('unidade', unit_id);
+    query = query.eq('unidade_code', unit_id);
   }
 
   const { data, error } = await query;
@@ -127,11 +127,12 @@ export const searchAtendimentos = async (
   }
 
   return (data || []).map((item: any) => ({
-    ATENDIMENTO_ID: item.ATENDIMENTO_ID,
-    CLIENTE: item.CLIENTE,
-    DATA: item.DATA,
-    SERVICO: item['SERVIÇO'],
-    ENDERECO: item['ENDEREÇO']
+    atendimento_id: item.atendimento_id,
+    cliente: item.cliente,
+    data: item.data,
+    servico: item.servico,
+    endereco: item.endereco,
+    profissional: item.profissional || null
   }));
 };
 
@@ -141,8 +142,8 @@ export const searchAtendimentos = async (
 export const getAtendimentoById = async (atendimentoId: string): Promise<AtendimentoSearchResult | null> => {
   const { data, error } = await supabase
     .from('processed_data')
-    .select('ATENDIMENTO_ID, CLIENTE, DATA, SERVIÇO, ENDEREÇO')
-    .eq('ATENDIMENTO_ID', atendimentoId)
+    .select('atendimento_id, cliente, data, servico, endereco, profissional')
+    .eq('atendimento_id', atendimentoId)
     .single();
 
   if (error) {
@@ -154,22 +155,48 @@ export const getAtendimentoById = async (atendimentoId: string): Promise<Atendim
 
   const row = data as any;
   return {
-    ATENDIMENTO_ID: row.ATENDIMENTO_ID,
-    CLIENTE: row.CLIENTE,
-    DATA: row.DATA,
-    SERVICO: row['SERVIÇO'],
-    ENDERECO: row['ENDEREÇO']
+    atendimento_id: row.atendimento_id,
+    cliente: row.cliente,
+    data: row.data,
+    servico: row.servico,
+    endereco: row.endereco,
+    profissional: row.profissional || null
   };
+};
+
+/**
+ * Mapeia os dados do formulário (que podem conter ATENDIMENTO_ID) para os nomes de colunas do banco (atendimento_id)
+ */
+const mapToDbRecord = (formData: Partial<PosVendaFormData>) => {
+  const record: Record<string, any> = { ...formData };
+  
+  if (formData.ATENDIMENTO_ID !== undefined) {
+    record.atendimento_id = formData.ATENDIMENTO_ID;
+    delete record.ATENDIMENTO_ID;
+  }
+  
+  // Se atendimento_id (lowercase) já estiver presente, garante que ele prevaleça
+  if (formData.atendimento_id !== undefined) {
+    record.atendimento_id = formData.atendimento_id;
+  }
+
+  // Remove campos que não pertencem à tabela pos_vendas se necessário
+  delete record.PROFISSIONAL;
+  delete record.data_finalizacao;
+
+  return record;
 };
 
 /**
  * Cria um novo registro de pós-venda
  */
 export const createPosVenda = async (data: PosVendaFormData): Promise<PosVenda> => {
+  const dbRecord = mapToDbRecord(data);
+  
   const { data: newRecord, error } = await supabase
     .from('pos_vendas')
     .insert({
-      ...data,
+      ...dbRecord,
       reagendou: data.reagendou ?? false
     })
     .select()
@@ -187,9 +214,11 @@ export const createPosVenda = async (data: PosVendaFormData): Promise<PosVenda> 
  * Atualiza um registro existente de pós-venda
  */
 export const updatePosVenda = async (id: string, data: Partial<PosVendaFormData>): Promise<PosVenda> => {
+  const dbRecord = mapToDbRecord(data);
+
   const { data: updatedRecord, error } = await supabase
     .from('pos_vendas')
-    .update(data)
+    .update(dbRecord)
     .eq('id', id)
     .select()
     .single();
@@ -224,7 +253,7 @@ export const getPosVendasByAtendimento = async (atendimentoId: string): Promise<
   const { data, error } = await supabase
     .from('pos_vendas')
     .select('*')
-    .eq('ATENDIMENTO_ID', atendimentoId)
+    .eq('atendimento_id', atendimentoId)
     .order('data', { ascending: false });
 
   if (error) {

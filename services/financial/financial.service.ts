@@ -70,12 +70,12 @@ export const fetchClientAppointments = async (
 
     const { data, error } = await supabase
         .from('processed_data')
-        .select('id, DATA, HORARIO, STATUS, TIPO, ATENDIMENTO_ID, DIA, "PERÍODO"') // Select necessary fields
+        .select('id, data, horario, status, tipo, atendimento_id, dia, periodo') // Select necessary fields
         .eq('unidade_code', unitCode)
-        .ilike('CLIENTE', `%${clientName}%`) // Fuzzy match name
-        .gte('DATA', startDate)
-        .lte('DATA', endDate)
-        .order('DATA', { ascending: false });
+        .ilike('cliente', `%${clientName}%`) // Fuzzy match name
+        .gte('data', startDate)
+        .lte('data', endDate)
+        .order('data', { ascending: false });
 
     if (error) {
         console.error('Erro ao buscar agendamentos do cliente:', error);
@@ -84,13 +84,13 @@ export const fetchClientAppointments = async (
 
     return (data || []).map(d => ({
         id: String(d.id),
-        atendimento_id: d.ATENDIMENTO_ID, // Use ATENDIMENTO_ID for display if available
-        date: d.DATA,
-        time: d.HORARIO,
-        status: d.STATUS || '',
-        day: d.DIA || '',
-        period: d['PERÍODO'] || '',
-        tipo: d.TIPO
+        atendimento_id: d.atendimento_id, // Use ATENDIMENTO_ID for display if available
+        date: d.data,
+        time: d.horario,
+        status: d.status || '',
+        day: d.dia || '',
+        period: d.periodo || '',
+        tipo: d.tipo
     }));
 };
 

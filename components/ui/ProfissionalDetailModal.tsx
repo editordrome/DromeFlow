@@ -47,7 +47,7 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
     return `${y}-${m}`;
   });
   const [loadingHist, setLoadingHist] = useState(false);
-  const [history, setHistory] = useState<Array<{ id?: number; DATA: string | null; DIA: string; CLIENTE: string; 'pos vendas': string | null }>>([]);
+  const [history, setHistory] = useState<Array<{ id?: number; data: string | null; dia: string; cliente: string; pos_vendas: string | null }>>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
   const [metrics, setMetrics] = useState<{ geral: number | null; comercial: number | null; residencial: number | null }>({ geral: null, comercial: null, residencial: null });
@@ -1037,10 +1037,10 @@ const ProfissionalDetailModal: React.FC<Props> = ({ isOpen, onClose, profissiona
                                 setDetailOpen(true);
                               }}
                             >
-                              <td className="px-3 py-2">{h.DATA ? new Date(h.DATA + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
-                              <td className="px-3 py-2">{h.DIA || '-'}</td>
-                              <td className="px-3 py-2">{h.CLIENTE || '-'}</td>
-                              <td className="px-3 py-2">{(h as any)['pos vendas'] || '-'}</td>
+                              <td className="px-3 py-2">{h.data ? new Date(h.data + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
+                              <td className="px-3 py-2">{h.dia || '-'}</td>
+                              <td className="px-3 py-2">{h.cliente || '-'}</td>
+                              <td className="px-3 py-2">{h.pos_vendas || '-'}</td>
                             </tr>
                           ))
                         )}

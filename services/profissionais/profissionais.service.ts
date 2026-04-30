@@ -151,10 +151,10 @@ export const searchProfissionaisByName = async (
 
   const { data: appointments, error: apptError } = await supabase
     .from('processed_data')
-    .select('PROFISSIONAL, HORARIO, "PERÍODO", ATENDIMENTO_ID')
+    .select('profissional, horario, periodo, atendimento_id')
     .eq('unidade_code', unitCode)
-    .eq('DATA', currentAppointment.data)
-    .not('PROFISSIONAL', 'is', null);
+    .eq('data', currentAppointment.data)
+    .not('profissional', 'is', null);
 
   if (apptError || !appointments) {
     console.error('[searchProfissionaisByName] Erro ao buscar atendimentos:', apptError);
@@ -166,14 +166,14 @@ export const searchProfissionaisByName = async (
 
   for (const appt of appointments) {
     // Ignorar o atendimento atual
-    if (currentAppointment.atendimentoId && appt.ATENDIMENTO_ID === currentAppointment.atendimentoId) {
+    if (currentAppointment.atendimentoId && appt.atendimento_id === currentAppointment.atendimentoId) {
       continue;
     }
 
-    const profName = appt.PROFISSIONAL?.trim();
+    const profName = appt.profissional?.trim();
     if (!profName) continue;
 
-    const periodo = (appt as any)['PERÍODO']?.trim();
+    const periodo = (appt as any).periodo?.trim();
 
     // Regra 1: Período de 8h = dia inteiro ocupado
     if (periodo === '8') {
@@ -186,7 +186,7 @@ export const searchProfissionaisByName = async (
       const hasConflict = checkTimeConflict(
         currentAppointment.horario,
         parseInt(currentAppointment.periodo || '0'),
-        appt.HORARIO,
+        appt.horario,
         parseInt(periodo)
       );
 
@@ -210,13 +210,13 @@ export const fetchProfessionalHistory = async (
   profissionalNome: string,
   limit: number = 200,
   period?: string // YYYY-MM
-): Promise<Array<{ id?: number; ATENDIMENTO_ID?: string; DATA: string | null; DIA: string; CLIENTE: string; PERÍODO?: string; 'pos vendas': string | null }>> => {
+): Promise<Array<{ id?: number; atendimento_id?: string; data: string | null; dia: string; cliente: string; periodo?: string; pos_vendas: string | null }>> => {
   if (!unitCode || !profissionalNome) return [];
   let query = supabase
     .from('processed_data')
-    .select('id, ATENDIMENTO_ID, DATA, DIA, CLIENTE, PERÍODO, "pos vendas"')
+    .select('id, atendimento_id, data, dia, cliente, periodo, pos_vendas')
     .eq('unidade_code', unitCode)
-    .ilike('PROFISSIONAL', `%${profissionalNome}%`);
+    .ilike('profissional', `%${profissionalNome}%`);
 
   if (period && /^\d{4}-\d{2}$/.test(period)) {
     const [yearStr, monthStr] = period.split('-');
@@ -224,10 +224,10 @@ export const fetchProfessionalHistory = async (
     const month = parseInt(monthStr, 10);
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-    query = query.gte('DATA', startDate).lte('DATA', endDate);
+    query = query.gte('data', startDate).lte('data', endDate);
   }
 
-  const { data, error } = await query.order('DATA', { ascending: false }).limit(limit);
+  const { data, error } = await query.order('data', { ascending: false }).limit(limit);
   if (error) return [];
   return (data as any[]) || [];
 };
@@ -243,10 +243,10 @@ export const fetchProfessionalPosVendaMetrics = async (
 
   try {
     // Buscar avaliações da tabela pos_vendas juntamente com dados de processed_data
-    // usando ATENDIMENTO_ID como chave de ligação
+    // usando atendimento_id como chave de ligação
     const { data: posVendasData, error: posVendasError } = await supabase
       .from('pos_vendas')
-      .select('ATENDIMENTO_ID, nota, status')
+      .select('atendimento_id, nota, status')
       .eq('status', 'finalizado')
       .not('nota', 'is', null);
 
@@ -259,20 +259,20 @@ export const fetchProfessionalPosVendaMetrics = async (
       return { geral: null, comercial: null, residencial: null };
     }
 
-    // Obter ATENDIMENTO_IDs das avaliações
-    const atendimentoIds = posVendasData.map(pv => pv.ATENDIMENTO_ID).filter(Boolean);
+    // Obter atendimento_ids das avaliações
+    const atendimentoIds = posVendasData.map(pv => pv.atendimento_id).filter(Boolean);
 
     if (atendimentoIds.length === 0) {
       return { geral: null, comercial: null, residencial: null };
     }
 
-    // Buscar dados de processed_data para obter TIPO e PROFISSIONAL
+    // Buscar dados de processed_data para obter tipo e profissional
     const { data: processedData, error: processedError } = await supabase
       .from('processed_data')
-      .select('ATENDIMENTO_ID, TIPO, PROFISSIONAL')
+      .select('atendimento_id, tipo, profissional')
       .eq('unidade_code', unitCode)
-      .ilike('PROFISSIONAL', `%${profissionalNome}%`)
-      .in('ATENDIMENTO_ID', atendimentoIds);
+      .ilike('profissional', `%${profissionalNome}%`)
+      .in('atendimento_id', atendimentoIds);
 
     if (processedError) {
       console.error('Erro ao buscar processed_data:', processedError);
@@ -283,11 +283,11 @@ export const fetchProfessionalPosVendaMetrics = async (
       return { geral: null, comercial: null, residencial: null };
     }
 
-    // Criar mapa de ATENDIMENTO_ID -> nota
+    // Criar mapa de atendimento_id -> nota
     const notaMap = new Map<string, number>();
     posVendasData.forEach(pv => {
-      if (pv.ATENDIMENTO_ID && pv.nota) {
-        notaMap.set(pv.ATENDIMENTO_ID, pv.nota);
+      if (pv.atendimento_id && pv.nota) {
+        notaMap.set(pv.atendimento_id, pv.nota);
       }
     });
 
@@ -296,13 +296,13 @@ export const fetchProfessionalPosVendaMetrics = async (
     const residencialNotas: number[] = [];
 
     processedData.forEach(item => {
-      if (item.ATENDIMENTO_ID && notaMap.has(item.ATENDIMENTO_ID)) {
-        const nota = notaMap.get(item.ATENDIMENTO_ID)!;
-        const tipo = (item.TIPO || '').toLowerCase();
+      if (item.atendimento_id && notaMap.has(item.atendimento_id)) {
+        const nota = notaMap.get(item.atendimento_id)!;
+        const tipoStr = (item.tipo || '').toLowerCase();
 
-        if (tipo.includes('comercial')) {
+        if (tipoStr.includes('comercial')) {
           comercialNotas.push(nota);
-        } else if (tipo.includes('residencial')) {
+        } else if (tipoStr.includes('residencial')) {
           residencialNotas.push(nota);
         }
       }

@@ -103,25 +103,25 @@ const ConfiguracoesPage: React.FC = () => {
         setSaveMessage(null);
 
         try {
-            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
-            if (!response.ok) throw new Error('CNPJ não encontrado');
-
+            const response = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
             const data = await response.json();
+
+            if (data.status === 'ERROR') throw new Error(data.message || 'CNPJ não encontrado');
+
             const enderecoPartes = [
-                toTitleCase(data.descricao_tipo_de_logradouro),
                 toTitleCase(data.logradouro),
                 data.numero,
                 toTitleCase(data.complemento),
                 toTitleCase(data.bairro),
                 toTitleCase(data.municipio),
                 data.uf?.toUpperCase(),
-                data.cep
+                (data.cep || '').replace(/\D/g, '')
             ].filter(Boolean);
             const endereco = enderecoPartes.join(', ');
 
             setFormData(prev => ({
                 ...prev,
-                razao_social: toTitleCase(data.razao_social) || prev.razao_social,
+                razao_social: toTitleCase(data.nome) || prev.razao_social,
                 endereco: endereco || prev.endereco,
             }));
         } catch (err) {
@@ -544,7 +544,7 @@ const ConfiguracoesPage: React.FC = () => {
                                                 <tr key={service.id} className="border-b border-border-secondary last:border-0 hover:bg-white/5">
                                                     <td className="py-3 px-4 text-text-primary">{service.name}</td>
                                                     <td className="py-3 px-4 text-text-primary font-medium">
-                                                        {formatCurrency(service.repasse_value)}
+                                                        {formatCurrency(Number(service.repasse_value))}
                                                     </td>
                                                     <td className="py-3 px-4 text-right">
                                                         <button

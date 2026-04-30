@@ -20,18 +20,18 @@ A aplicação está organizada da seguinte forma:
   
 ### Upload de XLSX - Comportamento de Atendimentos Existentes
 
-**Chave Única**: `(unidade_code, ATENDIMENTO_ID)`
+**Chave Única**: `(unidade_code, atendimento_id)`
 
-Quando um arquivo XLSX é enviado, o sistema identifica atendimentos existentes pela combinação de unidade + ATENDIMENTO_ID:
+Quando um arquivo XLSX é enviado, o sistema identifica atendimentos existentes pela combinação de unidade + atendimento_id:
 
-- **Registro Novo** (`INSERT`): Se o `ATENDIMENTO_ID` não existir para aquela unidade, cria um novo registro.
-- **Registro Existente** (`UPDATE`): Se já existir, atualiza todos os campos (DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade), preservando `id` e `created_at`.
-  - **STATUS condicional**: Preservado se PROFISSIONAL não mudou; atualizado se PROFISSIONAL mudou (permite reatribuição de atendimentos).
-- **Limpeza de Obsoletos**: Após o upload, `removeObsoleteRecords()` remove registros cujo `ATENDIMENTO_ID` base (sem sufixos) não está mais presente no arquivo, limitado ao período (min/max DATA) e unidade do arquivo.
+- **Registro Novo** (`INSERT`): Se o `atendimento_id` não existir para aquela unidade, cria um novo registro.
+- **Registro Existente** (`UPDATE`): Se já existir, atualiza todos os campos (data, horario, valor, serviço, tipo, período, momento, cliente, profissional, endereço, dia, repasse, whatscliente, cupom, origem, is_divisao, cadastro, unidade), preservando `id` e `created_at`.
+  - **STATUS condicional**: Preservado se profissional não mudou; atualizado se profissional mudou (permite reatribuição de atendimentos).
+- **Limpeza de Obsoletos**: Após o upload, `removeObsoleteRecords()` remove registros cujo `atendimento_id` base (sem sufixos) não está mais presente no arquivo, limitado ao período (min/max data) e unidade do arquivo.
 
 **STATUS Automático**: A função `applyWaitStatusForAfternoonShifts()` marca `STATUS="esperar"` para atendimentos onde `MOMENTO` contém "tarde" quando a mesma profissional tem múltiplos atendimentos no mesmo dia.
 
-**Sufixos para Multi-Profissionais**: Registros derivados (quando múltiplos profissionais atendem o mesmo serviço) recebem sufixos `_1`, `_2`, etc. no `ATENDIMENTO_ID` para garantir unicidade.
+**Sufixos para Multi-Profissionais**: Registros derivados (quando múltiplos profissionais atendem o mesmo serviço) recebem sufixos `_1`, `_2`, etc. no `atendimento_id` para garantir unicidade.
 - **`/components/`**: Onde residem todos os componentes React.
   - `/layout/`: Componentes estruturais como `Sidebar` e `ContentArea`.
   - `/pages/`: Componentes que representam as telas principais de cada módulo (Dashboard, Dados, Gerenciamento de Usuários, etc.).
@@ -83,14 +83,14 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   Fonte de Dados: Tabela `processed_data`.
   -   Lógica: `services/analytics/dashboard.service.ts` recalcula localmente serviços (originais), receita, ticket, repasse (originais + derivados) e clientes.
   -   Submétricas clicáveis: os cards de Faturamento, Atendimentos e Clientes alternam o gráfico anual para submétricas específicas (Média por Atendimento, Margem, Margem por Atendimento; Início do Mês, Evolução, Média/Dia Produtivo; Recorrentes, Atend. por Cliente, Churn). Estados e mapeamento em `components/pages/DashboardMetricsPage.tsx`.
-  -   Gráfico mensal: `components/ui/MonthlyComparisonChart.tsx` aceita métricas estendidas e calcula campos derivados (`margin`, `marginPerService`); alterna Line/Bar conforme tipo.
+  -   Gráfico mensal: `components/ui/MonthlyComparisonChart.tsx` aceita métricas estendidas e calcula campos derivados (`margin`, `margin_per_service`); alterna Line/Bar conforme tipo.
 -   Dados:
   -   Fonte de Dados: Tabela `processed_data`.
-  -   Chave Única: `(unidade_code, ATENDIMENTO_ID)` — garante que uploads subsequentes atualizem registros existentes em vez de duplicá-los.
+  -   Chave Única: `(unidade_code, atendimento_id)` — garante que uploads subsequentes atualizem registros existentes em vez de duplicá-los.
   -   Upload (XLSX):
     1.  `UploadModal.tsx` lê arquivo com SheetJS.
-    2.  `uploadXlsxData` executa: expansão multi-profissional (sufixos `_N` no ATENDIMENTO_ID), divisão de repasse (`processRepasseValues`), normalização de horários/datas, aplicação de STATUS automático (`applyWaitStatusForAfternoonShifts`), limpeza seletiva (`removeObsoleteRecords`) usando ATENDIMENTO_ID base.
-    3.  Envio em lotes (500) para RPC `process_xlsx_upload` com `ON CONFLICT (unidade_code, ATENDIMENTO_ID) DO UPDATE`.
+    2.  `uploadXlsxData` executa: expansão multi-profissional (sufixos `_N` no atendimento_id), divisão de repasse (`processRepasseValues`), normalização de horários/datas, aplicação de status automático (`applyWaitStatusForAfternoonShifts`), limpeza seletiva (`removeObsoleteRecords`) usando atendimento_id base.
+    3.  Envio em lotes (500) para RPC `process_xlsx_upload` com `ON CONFLICT (unidade_code, atendimento_id) DO UPDATE`.
 -   Módulos de Administração:
   -   Usuários, Módulos, Unidades: Interfaces de CRUD que interagem com `profiles`, `modules`, `units` via serviços segmentados.
   -   Permissões: Atribuições em `user_units` e `user_modules` pelo modal de "Editar Usuário".
@@ -99,11 +99,11 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
   -   **Triggers Bidirecionais**:
     - `auto_create_pos_vendas_from_processed`: Cria registros em `pos_vendas` ao inserir em `processed_data` (AFTER INSERT).
     - `sync_pos_vendas_status`: Atualiza coluna `"pos vendas"` em `processed_data` quando `status` muda (AFTER UPDATE).
-  -   **Chave Lógica**: `ATENDIMENTO_ID` (UNIQUE constraint em `pos_vendas`).
+  -   **Chave Lógica**: `atendimento_id` (UNIQUE constraint em `pos_vendas`).
   -   **Status Padrão**: Novos registros criados com `status = 'pendente'` e `reagendou = false`.
   -   **Serviço**: `services/posVendas/posVendas.service.ts` (CRUD + métricas).
   -   **UI**: `components/pages/PosVendasPage.tsx` com cards filtráveis, tabelas paginadas e webhook opcional.
-  -   **Performance**: Trigger usa `ON CONFLICT DO NOTHING` para evitar duplicações; índice em `ATENDIMENTO_ID`.
+  -   **Performance**: Trigger usa `ON CONFLICT DO NOTHING` para evitar duplicações; índice em `atendimento_id`.
   -   Ícones e Visibilidade de Módulos: Em "Gerenciar Módulos", define ícone (lucide) e `allowed_profiles`.
 
 -   Recrutadora:
@@ -180,7 +180,7 @@ Para operações que exigem cálculos complexos ou permissões elevadas, a aplic
 - Dashboard: Agrega por múltiplas unidades respeitando o período ativo; serviços e clientes são conjuntos únicos unificados entre unidades; receita e repasse são somas diretas (ticket médio recalculado). As submétricas mensais de Atendimentos e Clientes possuem variantes multi-unidade dedicadas nos serviços de análise mensal.
 - Dados: `fetchDataTableMulti` aplica `.in('unidade_code', ...)` e filtros de período/paginação de forma unificada.
 -   **Agendamentos (Realtime)**:
-  -   **Fonte de Dados**: Tabela `processed_data` filtrada por data (`DATA`) e unidade (`unidade_code`).
+  -   **Fonte de Dados**: Tabela `processed_data` filtrada por data (`data`) e unidade (`unidade_code`).
   -   **Atualização em Tempo Real**: Implementado via `useRealtimeSubscription` hook.
   -   **Eventos Monitorados**:
     - INSERT: Novos agendamentos aparecem automaticamente na lista
@@ -281,15 +281,15 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 | Ordenação de Módulos | Drag & Drop persistente | `@hello-pangea/dnd` + `updateModulesOrder` reatribui `position` denso (1..n). |
 | Mescla de Módulos | Consolidação no `AuthContext` | União de módulos atribuídos (`user_modules`) + permitidos (`allowed_profiles`) sem duplicação. |
 | Sidebar | Estado colapsado padrão | Inicia recolhida (`isCollapsed = true`) e footer adaptado (avatar + logout). |
-| Upload XLSX | Chave lógica | Usa `ATENDIMENTO_ID` como identificador único (com sufixos `_N` para derivados). |
-| Expansão Multi-profissional | Aprimorada | Sufixos `_N` + controle via `IS_DIVISAO`. Registro original mantém `VALOR`; derivados recebem `VALOR = 0`. |
+| Upload XLSX | Chave lógica | Usa `atendimento_id` como identificador único (com sufixos `_N` para derivados). |
+| Expansão Multi-profissional | Aprimorada | Sufixos `_N` + controle via `is_divisao`. Registro original mantém `valor`; derivados recebem `valor = 0`. |
 | Repasse | Recalculo consistente | Dashboard e gráficos usam soma de todos os registros (originais + derivados). |
 | Métricas Dashboard | Reimplementadas localmente | Reconta orçamentos originais únicos, repasse soma todos registros. |
 | Clientes x Dashboard | Paridade de recorrentes/churn | Recorrentes pela interseção entre `M` e `M-1`; churn como `M-1` menos `M`; chaves de cliente brutas. |
 | Clientes – Atenção | Tabela com série de 3 meses | Colunas `M`, `M-1`, `M-2` com cabeçalhos `Abrev/AAAA` e metadados `tipo`/`lastAttendance`. |
 | Segurança (Provisório) | Policies permissivas | Backend aceita operações amplas (MVP) – reforço planejado. |
 | Edição de Usuário | Módulos fora de escopo | Exibidos como somente leitura quando pertencem ao usuário mas não ao admin atual. |
-| Limpeza de Dados | Remoção seletiva | `removeObsoleteRecords` identifica ATENDIMENTO_ID base ausentes (originais) e remove derivados correlatos. |
+| Limpeza de Dados | Remoção seletiva | `removeObsoleteRecords` identifica atendimento_id base ausentes (originais) e remove derivados correlatos. |
 | Webhook Agendamentos | POST + Fallback GET | Envia JSON completo (inclui `endereco`); se falha rede/CORS, usa GET chunkado até 3000 chars com payload compactado. |
 | Comercial | DnD sem reload + fix 400 | Persistência por `update` individual (sem `upsert`), atualização silenciosa em ALL e stripe lateral com `border-left`. |
 | Recrutadora | Métricas rápidas por período | Chips inline (Hoje/Semana/Mês) no cabeçalho; serviços em `services/recrutadora/recrutadora.service.ts` com `services/utils/dates.ts`. |
@@ -299,16 +299,17 @@ Enquanto as policies estão permissivas (anon CRUD), qualquer cliente com a chav
 | Dashboard – Submétricas | Cliques alternam o gráfico anual | Estados de submétrica em `DashboardMetricsPage.tsx`; serviços mensais single/multi em `serviceAnalysis.service.ts`; gráfico `MonthlyComparisonChart.tsx` calcula margem e alterna Line/Bar. |
 | Comercial Admin | Kanban Dinâmico | Status carregados de `comercial_admin_columns`; seletor movido para o modal; inclusão de atalho para WhatsApp. |
 | DB Comercial Admin | Remoção de Constraint | Removida `comercial_admin_status_check` para suportar status Customizados via colunas dinâmicas. |
+| DB Normalização | Padronização snake_case | Auditoria completa de todos os módulos (Atendimentos, Clientes, Profissionais, Comercial, Analytics). Normalização total da tabela `processed_data` e serviços associados. |
 
 ---
 ## 8. Convenções Atuais de Dados
 
 | Conceito | Regra |
 |----------|------|
-| ATENDIMENTO_ID Base | Registro sem sufixo, `IS_DIVISAO = 'NAO'`. |
-| Derivado (Divisão) | `ATENDIMENTO_ID` com sufixo `_N`, `IS_DIVISAO = 'SIM'`. |
+| atendimento_id Base | Registro sem sufixo, `is_divisao = 'NAO'`. |
+| Derivado (Divisão) | `atendimento_id` com sufixo `_N`, `is_divisao = 'SIM'`. |
 | Repasse Derivado | Distribuído por valor individual ou divisão igual. |
-| Contagem de Serviços | Número de ATENDIMENTO_ID base únicos no período. |
+| Contagem de Serviços | Número de atendimento_id base únicos no período. |
 | Ticket Médio | Receita (somente originais) / Serviços. |
 | Endereço (Agendamentos) | Incluído em payload webhook (`endereco` / chave compacta `e`). |
 | Webhook Fallback | GET com `payload` JSON compactado + chunking adaptativo. |
@@ -333,7 +334,7 @@ Ao adicionar nova feature:
 - Centralize a interação com Supabase nos serviços segmentados em `services/*/*.service.ts`.
 - Reuse as convenções de expansão de profissionais (não duplique lógica em componentes).
 - Mantenha ordenação de módulos consistente (sempre atualizar `position`).
-- Use `ATENDIMENTO_ID` como chave lógica de sincronização (com sufixos `_N` para derivados).
+- Use `atendimento_id` como chave lógica de sincronização (com sufixos `_N` para derivados).
 
 ## 11. Guia Rápido para Novos Módulos
 

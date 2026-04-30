@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import { DashboardMetrics } from '../../types';
+import { DashboardMetrics, DataRecord } from '../../types';
 
 export interface MonthlyChartData {
   month: string;
@@ -9,6 +9,7 @@ export interface MonthlyChartData {
   uniqueClients: number;
   averageTicket: number;
   totalRepasse: number;
+  year?: number;
 }
 
 export const fetchDashboardMetrics = async (
@@ -50,31 +51,31 @@ export const fetchDashboardMetrics = async (
     );
   }
 
-  const { data: periodRecords, error: periodError } = await supabase
+  const { data: rawRecords, error: periodError } = await supabase
     .from('processed_data')
-    .select('VALOR, CLIENTE, REPASSE, IS_DIVISAO, ATENDIMENTO_ID')
+    .select('valor, cliente, repasse, is_divisao, atendimento_id')
     .eq('unidade_code', unitCode)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate);
+    .gte('data', startDate)
+    .lte('data', endDate);
   if (periodError) throw periodError;
 
-  const allRecords = periodRecords || [];
-  const originalRecords = allRecords.filter((r: any) => r.IS_DIVISAO !== 'SIM');
+  const allRecords = (rawRecords || []) as DataRecord[];
+  const originalRecords = allRecords.filter((r: any) => r.is_divisao !== 'SIM');
 
   const uniqueBudgets = new Set(
-    originalRecords.map((r: any) => r.ATENDIMENTO_ID).filter(Boolean)
+    originalRecords.map((r: any) => r.atendimento_id).filter(Boolean)
   );
   const totalServices = uniqueBudgets.size;
   const totalRevenue = originalRecords.reduce(
-    (sum: number, r: any) => sum + (r.VALOR || 0),
+    (sum: number, r: any) => sum + (r.valor || 0),
     0
   );
   const uniqueClients = new Set(
-    originalRecords.map((r: any) => r.CLIENTE).filter(Boolean)
+    originalRecords.map((r: any) => r.cliente).filter(Boolean)
   ).size;
   const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
   const totalRepasse = allRecords.reduce(
-    (sum: number, r: any) => sum + (r.REPASSE || 0),
+    (sum: number, r: any) => sum + (r.repasse || 0),
     0
   );
 
@@ -127,10 +128,10 @@ export const fetchDashboardMetricsMulti = async (
   // Para serviços únicos (atendimentos originais) e clientes únicos, calcula no conjunto combinado com filtro do período
   let query = supabase
     .from('processed_data')
-    .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID, unidade_code', { head: false })
+    .select('cliente, is_divisao, atendimento_id, unidade_code', { head: false })
     .in('unidade_code', unitCodes);
   if (startDate && endDate) {
-    query = query.gte('DATA', startDate).lte('DATA', endDate);
+    query = query.gte('data', startDate).lte('data', endDate);
   }
   const { data: multiRecords, error: multiErr } = await query;
   const allClients = new Set<string>();
@@ -140,12 +141,12 @@ export const fetchDashboardMetricsMulti = async (
     const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
     return { totalRevenue, totalServices, uniqueClients: 0, averageTicket, totalRepasse };
   }
-  const combined = (multiRecords as any[]) || [];
+  const combined = (multiRecords || []) as DataRecord[];
   combined
-    .filter((r) => r.IS_DIVISAO !== 'SIM')
+    .filter((r) => r.is_divisao !== 'SIM')
     .forEach((r: any) => {
-      if (r.ATENDIMENTO_ID) allBudgets.add(r.ATENDIMENTO_ID);
-      if (r.CLIENTE) allClients.add(r.CLIENTE);
+      if (r.atendimento_id) allBudgets.add(r.atendimento_id);
+      if (r.cliente) allClients.add(r.cliente);
     });
   totalServices = allBudgets.size;
   const uniqueClients = allClients.size;
@@ -182,12 +183,12 @@ export const fetchMonthlyChartData = async (
       const nextYear = month.value === '12' ? year + 1 : year;
       const endDate = `${nextYear}-${nextMonth}-01`;
 
-      const { data, error } = await supabase
+      const { data: rawData, error } = await supabase
         .from('processed_data')
-        .select('VALOR, CLIENTE, DATA, IS_DIVISAO, REPASSE, PROFISSIONAL, ATENDIMENTO_ID')
+        .select('valor, cliente, data, is_divisao, repasse, profissional, atendimento_id')
         .eq('unidade_code', unitCode)
-        .gte('DATA', startDate)
-        .lt('DATA', endDate);
+        .gte('data', startDate)
+        .lt('data', endDate);
 
       if (error) {
         monthlyData.push({
@@ -202,12 +203,12 @@ export const fetchMonthlyChartData = async (
         continue;
       }
 
-      const allRecords = (data as any[]) || [];
-      const originalRecords = allRecords.filter((record) => record.IS_DIVISAO !== 'SIM');
+      const allRecords = (rawData || []) as DataRecord[];
+      const originalRecords = allRecords.filter((record) => record.is_divisao !== 'SIM');
 
       const atendimentoGroups = new Map<string, any[]>();
       originalRecords.forEach((record) => {
-        const atendimentoKey = record.ATENDIMENTO_ID || 'unknown';
+        const atendimentoKey = record.atendimento_id || 'unknown';
         if (!atendimentoGroups.has(atendimentoKey)) {
           atendimentoGroups.set(atendimentoKey, []);
         }
@@ -219,7 +220,7 @@ export const fetchMonthlyChartData = async (
       atendimentoGroups.forEach((records, atendimentoKey) => {
         const firstRecord = records[0];
         uniqueRecords.push(firstRecord);
-        revenueByAtendimento.set(atendimentoKey, firstRecord.VALOR || 0);
+        revenueByAtendimento.set(atendimentoKey, firstRecord.valor || 0);
       });
 
       const totalRevenue = Array.from(revenueByAtendimento.values()).reduce(
@@ -227,10 +228,10 @@ export const fetchMonthlyChartData = async (
         0
       );
       const totalServices = atendimentoGroups.size;
-      const uniqueClients = new Set(uniqueRecords.map((record) => record.CLIENTE)).size;
+      const uniqueClients = new Set(uniqueRecords.map((record) => record.cliente)).size;
       const averageTicket = totalServices > 0 ? totalRevenue / totalServices : 0;
       const totalRepasse = allRecords.reduce(
-        (sum, record) => sum + (record.REPASSE || 0),
+        (sum, record) => sum + (record.repasse || 0),
         0
       );
 

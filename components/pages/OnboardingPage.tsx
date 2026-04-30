@@ -122,9 +122,10 @@ export default function OnboardingPage() {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjValue.replace(/\D/g, '')}`);
-      if (!response.ok) throw new Error('Cnpj não encontrado');
+      const response = await fetch(`https://receitaws.com.br/v1/cnpj/${cnpjValue.replace(/\D/g, '')}`);
       const data = await response.json();
+
+      if (data.status === 'ERROR') throw new Error(data.message || 'CNPJ não encontrado');
       
       setUnitData(prev => ({
         ...prev,
@@ -136,7 +137,7 @@ export default function OnboardingPage() {
         neighborhood: formatToCapitalized(data.bairro),
         city: formatToCapitalized(data.municipio),
         state: data.uf,
-        cep: data.cep
+        cep: (data.cep || '').replace(/\D/g, '')
       }));
       toast.success('Dados da empresa recuperados!');
     } catch (error) {

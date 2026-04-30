@@ -50,7 +50,7 @@ Requisitos de backend:
 ## Pós-Vendas - Sincronização Automática
 
 ### Fluxo Bidirecional
-- **processed_data → pos_vendas**: Trigger `auto_create_pos_vendas_from_processed` cria registros automaticamente ao inserir novos atendimentos com `ATENDIMENTO_ID`.
+- **processed_data → pos_vendas**: Trigger `auto_create_pos_vendas_from_processed` cria registros automaticamente ao inserir novos atendimentos com `atendimento_id`.
 - **pos_vendas → processed_data**: Trigger `sync_pos_vendas_status` atualiza coluna `"pos vendas"` quando `status` muda.
 
 ### Realtime
@@ -67,11 +67,11 @@ Os seguintes módulos implementam atualizações em tempo real via Supabase Real
 ### Campos Mapeados
 | pos_vendas | ← | processed_data |
 |-----------|---|----------------|
-| `ATENDIMENTO_ID` | ← | `ATENDIMENTO_ID` |
-| `nome` | ← | `CLIENTE` |
+| `atendimento_id` | ← | `atendimento_id` |
+| `nome` | ← | `cliente` |
 | `contato` | ← | `whatscliente` |
 | `unit_id` | ← | `units.id` (via `unidade_code`) |
-| `data` | ← | `DATA` |
+| `data` | ← | `data` |
 | `status` | ← | `'pendente'` (padrão) |
 | `reagendou` | ← | `false` (padrão) |
 
@@ -202,7 +202,7 @@ O sistema aplica automaticamente `STATUS = "esperar"` apenas em casos específic
 - **Rastreamento de acesso a módulos**: Sistema automático que registra cada acesso em `activity_logs` com sincronização via triggers.
 - Dashboard com métricas recalculadas localmente (repasse, ticket médio real).
 - Upload de planilhas XLSX com expansão de múltiplos profissionais e sincronização por período.
-- **Lógica inteligente de STATUS**: Aplica "esperar" apenas quando todos os atendimentos do dia são à Tarde.
+- **Lógica inteligente de status**: Aplica "esperar" apenas quando todos os atendimentos do dia são à Tarde.
 - **Controle de acesso baseado em unidades**: Sistema hierárquico de permissões com `unit_modules` e `user_modules`.
 - **Logs N8N dedicados**: Tabela `n8n_logs` separada para receber webhooks externos de workflows.
 - Visualização multi-unidade ("Todos") em módulos selecionados com agregações corretas por período.
@@ -578,32 +578,32 @@ Notas adicionais:
 `uploadXlsxData` em `services/ingestion/upload.service.ts`:
 
 1. **Leitura**: Arquivo XLSX lido no browser com SheetJS.
-2. **Expansão Multi-Profissionais**: Registros com `PROFISSIONAL` contendo `;` são expandidos:
-   - Registro original mantém `ATENDIMENTO_ID` sem sufixo, `VALOR` integral, `IS_DIVISAO='NAO'`
-   - Derivados recebem sufixos `_1`, `_2`, etc. no `ATENDIMENTO_ID`, `VALOR=0`, `IS_DIVISAO='SIM'`, repasse proporcional
+2. **Expansão Multi-Profissionais**: Registros com `profissional` contendo `;` são expandidos:
+   - Registro original mantém `atendimento_id` sem sufixo, `valor` integral, `is_divisao='NAO'`
+   - Derivados recebem sufixos `_1`, `_2`, etc. no `atendimento_id`, `valor=0`, `is_divisao='SIM'`, repasse proporcional
 3. **Divisão de Repasse**: `processRepasseValues` divide valores múltiplos ou aplica divisão equitativa.
 4. **STATUS Automático**: `applyWaitStatusForAfternoonShifts` marca `STATUS="esperar"` para atendimentos "Tarde" quando profissional tem múltiplos atendimentos no mesmo dia.
-5. **Limpeza de Obsoletos**: `removeObsoleteRecords` remove registros cujo `ATENDIMENTO_ID` base não está mais no arquivo (escopo: período do arquivo + unidade).
+5. **Limpeza de Obsoletos**: `removeObsoleteRecords` remove registros cujo `atendimento_id` base não está mais no arquivo (escopo: período do arquivo + unidade).
 6. **Envio em Lotes**: Dados enviados em batches de 500 para RPC `process_xlsx_upload`.
 7. **Agregação de Métricas**: Retorna contadores (`inserted`, `updated`, `ignored`, `deleted`).
 
 ### 7.2 Comportamento de Atendimentos Existentes
 
-**Chave Única**: `(unidade_code, ATENDIMENTO_ID)`
+**Chave Única**: `(unidade_code, atendimento_id)`
 
 | Situação | Ação | Descrição |
 |----------|------|-----------|
-| **Novo ATENDIMENTO_ID** | `INSERT` | Cria novo registro com todos os campos |
-| **ATENDIMENTO_ID existente** | `UPDATE` | Atualiza DATA, HORARIO, VALOR, SERVIÇO, TIPO, PERÍODO, MOMENTO, CLIENTE, PROFISSIONAL, ENDEREÇO, DIA, REPASSE, whatscliente, CUPOM, ORIGEM, IS_DIVISAO, CADASTRO, unidade. **STATUS** é preservado se PROFISSIONAL não mudou; atualizado se PROFISSIONAL mudou |
+| **Novo atendimento_id** | `INSERT` | Cria novo registro com todos os campos |
+| **atendimento_id existente** | `UPDATE` | Atualiza data, horario, valor, serviço, tipo, período, momento, cliente, profissional, endereço, dia, repasse, whatscliente, cupom, origem, is_divisao, cadastro, unidade. **STATUS** é preservado se profissional não mudou; atualizado se profissional mudou |
 | **ID não está mais no arquivo** | `DELETE` | Removido por `removeObsoleteRecords()` (limitado ao período do arquivo) |
 | **Multi-profissionais** | `INSERT múltiplos` | Original sem sufixo + derivados com `_1`, `_2`, etc. |
 
 **Campos Preservados no UPDATE**: `id`, `created_at` (garante idempotência - re-upload não duplica)
 
-**RPC**: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)` usa `ON CONFLICT (unidade_code, ATENDIMENTO_ID) DO UPDATE`.
+**RPC**: `process_xlsx_upload(unit_code_arg text, records_arg jsonb)` usa `ON CONFLICT (unidade_code, atendimento_id) DO UPDATE`.
 
 Convenções:
-- Registros derivados recebem sufixo `_N` em `ATENDIMENTO_ID` e `IS_DIVISAO = 'SIM'`.
+- Registros derivados recebem sufixo `_N` em `atendimento_id` and `is_divisao = 'SIM'`.
 - Métricas usam apenas originais para receita/contagem; repasse soma todos.
 
 ---
