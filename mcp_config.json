@@ -1,17 +1,25 @@
 {
     "mcpServers": {
         "supabase-data": {
-            "comment": "DromeFlow - Projeto Principal (uframhbsgtxckdxttofo)",
-            "description": "Banco de dados transacional principal: autenticação, usuários, unidades, módulos, atendimentos (processed_data), profissionais, comercial, pós-vendas, clientes, configurações (unit_keys), controle de acesso (RLS policies), activity logs, error logs.",
-            "command": "npx",
+            "command": "sh",
             "args": [
-                "-y",
-                "@supabase/mcp-server-supabase@latest",
-                "--project-ref=uframhbsgtxckdxttofo"
-            ],
-            "env": {
-                "SUPABASE_ACCESS_TOKEN": "sbp_7d1de4075f1906b17646d818e6b571d220a6ef9e"
-            }
+                "-c",
+                "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH && npx -y @modelcontextprotocol/server-postgres postgresql://postgres:[SUA_SENHA]@db.uframhbsgtxckdxttofo.supabase.co:5432/postgres"
+            ]
+        },
+        "memory": {
+            "command": "sh",
+            "args": [
+                "-c",
+                "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH && npx -y @modelcontextprotocol/server-memory"
+            ]
+        },
+        "filesystem": {
+            "command": "sh",
+            "args": [
+                "-c",
+                "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH && npx -y @modelcontextprotocol/server-filesystem \"/Users/jeanpetri/Ag. Dromedario/Sistema - MB Dromeflow/DromeFlow\""
+            ]
         }
     }
 }
