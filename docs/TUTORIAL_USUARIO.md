@@ -9,10 +9,10 @@
 1. [Entrando no Sistema](#1-entrando-no-sistema)
 2. [A Tela Principal](#2-a-tela-principal)
 3. [Escolhendo sua Unidade](#3-escolhendo-sua-unidade)
-4. [📊 Dashboard — Meu Painel](#4--dashboard--meu-painel)
+4. [📊 Dashboard 2 — Faturamento](#4--dashboard-2--faturamento)
 5. [📋 Dados — Importar Atendimentos](#5--dados--importar-atendimentos)
-6. [📅 Agenda — Escala de Profissionais](#6--agenda--escala-de-profissionais)
-7. [🗓️ Agendamentos — Ver o Dia de Hoje](#7-️-agendamentos--ver-o-dia-de-hoje)
+6. [📅 Agenda Profissionais — Escala de Profissionais](#6--agenda-profissionais--escala-de-profissionais)
+7. [🗓️ Atendimentos — Ver o Dia de Hoje](#7-️-atendimentos--ver-o-dia-de-hoje)
 8. [👥 Clientes — Quem Voltou e Quem Sumiu](#8--clientes--quem-voltou-e-quem-sumiu)
 9. [📒 Base de Clientes](#9--base-de-clientes)
 10. [💼 Comercial — Acompanhar Leads](#10--comercial--acompanhar-leads)
@@ -72,7 +72,7 @@ No topo do menu lateral há um **seletor de unidade**. Se você tem acesso a mai
 
 ---
 
-## 4. 📊 Dashboard — Meu Painel
+## 4. 📊 Dashboard 2 — Faturamento
 
 > **Para que serve:** Ver o desempenho da unidade em um só lugar — faturamento, número de atendimentos, clientes novos e repasse das profissionais.
 
@@ -131,7 +131,7 @@ Clique no botão **"Exportar"** para baixar os dados filtrados em formato Excel.
 
 ---
 
-## 6. 📅 Agenda — Escala de Profissionais
+## 6. 📅 Agenda Profissionais — Escala de Profissionais
 
 > **Para que serve:** Organizar a escala do dia — ver quais profissionais estão disponíveis e atribuí-las aos atendimentos.
 
@@ -179,7 +179,7 @@ As respostas aparecem automaticamente na aba **Gestão** em tempo real.
 
 ---
 
-## 7. 🗓️ Agendamentos — Ver o Dia de Hoje
+## 7. 🗓️ Atendimentos — Ver o Dia de Hoje
 
 > **Para que serve:** Ver rapidamente todos os atendimentos de um dia específico com informações completas.
 
@@ -192,6 +192,16 @@ As respostas aparecem automaticamente na aba **Gestão** em tempo real.
    - Horário
    - Endereço
    - Status atual
+
+### Filtros e status
+
+- Use os filtros **Total**, **Comercial** e **Residencial** para restringir a lista.
+- Os atalhos **Hoje**, **Amanhã** e os próximos dois dias facilitam a navegação.
+- **Pendente:** atendimento carregado, ainda não enviado à profissional.
+- **Aguardando:** convite enviado e aguardando resposta.
+- **Esperar:** envio retido quando a profissional possui mais de um atendimento no dia.
+- **Recusado:** convite recusado; é necessário designar outra profissional.
+- **Confirmado:** profissional aceitou e o fluxo pode enviar os dados ao cliente.
 
 > 💡 Esta tela atualiza **automaticamente** — se um atendimento novo for cadastrado, ele aparece sem precisar recarregar a página.
 
@@ -340,6 +350,9 @@ Dê **duplo clique** em qualquer linha para abrir o cadastro. Você verá 3 abas
 ### Cadastrar nova profissional
 Clique no botão **"Novo Cadastro"** no canto superior direito. Preencha os dados obrigatórios (nome e WhatsApp) e salve.
 
+### Excluir uma profissional
+Dê duplo clique na profissional para abrir o cadastro e clique no botão vermelho de exclusão no rodapé. Confirme a operação para remover o registro.
+
 ---
 
 ## 14. 📈 Prestadoras — Desempenho da Equipe
@@ -455,4 +468,4 @@ Sim, selecione **"Todas as Unidades"** no seletor de unidade. Nem todos os módu
 
 > 📩 **Precisa de ajuda adicional?** Entre em contato com o suporte da MB Dromedário.
 
-*Guia do Usuário DromeFlow — versão 1.2.0 (Março 2026)*
+*Guia do Usuário DromeFlow — versão 2.0.8 (Outubro 2026)*

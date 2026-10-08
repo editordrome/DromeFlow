@@ -1,6 +1,6 @@
 # 📘 Tutorial Explicativo — Módulos do DromeFlow
 
-> **Versão:** 1.2.0 — Março 2026  
+> **Versão:** 2.0.8 — Outubro 2026
 > **Público-alvo:** Usuários administrativos, gestores de unidade e equipe de suporte
 
 ---
@@ -10,10 +10,10 @@
 1. [Como o Sistema Funciona](#1-como-o-sistema-funciona)
 2. [Acesso e Perfis de Usuário](#2-acesso-e-perfis-de-usuário)
 3. [Navegação e Seleção de Unidade](#3-navegação-e-seleção-de-unidade)
-4. [Dashboard — Painel de Métricas](#4-dashboard--painel-de-métricas)
+4. [Dashboard 2 — Faturamento](#4-dashboard-2--faturamento)
 5. [Dados — Importação e Gestão](#5-dados--importação-e-gestão)
-6. [Agenda — Gestão de Disponibilidade](#6-agenda--gestão-de-disponibilidade)
-7. [Agendamentos — Visualização do Dia](#7-agendamentos--visualização-do-dia)
+6. [Agenda Profissionais — Gestão de Disponibilidade](#6-agenda-profissionais--gestão-de-disponibilidade)
+7. [Atendimentos — Gestão Operacional](#7-atendimentos--gestão-operacional)
 8. [Clientes — Análise de Base](#8-clientes--análise-de-base)
 9. [Base de Clientes](#9-base-de-clientes)
 10. [Comercial — CRM de Leads](#10-comercial--crm-de-leads)
@@ -105,14 +105,16 @@ A unidade selecionada é **persistida no localStorage** e restaurada automaticam
 
 ---
 
-## 4. Dashboard — Painel de Métricas
+## 4. Dashboard 2 — Faturamento
 
 **View ID:** `dashboard`  
 **Arquivo:** `DashboardMetricsPage.tsx`  
 **Fonte de dados:** Tabela `processed_data` via RPC `get_dashboard_metrics`
 
 ### O que é
-O painel principal de métricas operacionais da unidade. Mostra o desempenho financeiro e de atendimentos do período selecionado.
+O painel principal de faturamento e métricas operacionais da unidade. Mostra o desempenho financeiro e de atendimentos do período selecionado.
+
+O manual publicado apresenta quatro indicadores principais: faturamento total, quantidade de serviços realizados, clientes atendidos e repasse das profissionais.
 
 ### Métricas principais (cards superiores)
 
@@ -165,6 +167,15 @@ Painel expansível com:
 ### Filtro de Período
 Dropdown com seleção de **mês/ano**. Os anos disponíveis são buscados diretamente dos dados reais da unidade.
 
+### Indicadores de rentabilidade
+Ao selecionar Faturamento, o painel detalha:
+- Lucro bruto, calculado como Faturamento menos Repasse
+- Ticket médio por atendimento
+- Lucro médio por atendimento
+
+### Tabela de Métricas Mensais
+Na parte inferior, a tabela mensal permite conferir faturamento, repasses, margens e médias do período selecionado.
+
 ### Realtime
 O Dashboard possui integração com Supabase Realtime — quando um novo registro é inserido em `processed_data`, os dados são atualizados automaticamente sem reload de página.
 
@@ -212,7 +223,7 @@ A chave lógica é **`(unidade_code, ATENDIMENTO_ID)`**. Ao reimportar:
 
 ---
 
-## 6. Agenda — Gestão de Disponibilidade
+## 6. Agenda Profissionais — Gestão de Disponibilidade
 
 **View ID:** `agenda`  
 **Arquivo:** `AgendaPage.tsx`  
@@ -256,20 +267,31 @@ Acessível via subdomínio `agenda.` ou rota `/p/agenda/`. Interface mobile simp
 
 ---
 
-## 7. Agendamentos — Visualização do Dia
+## 7. Atendimentos — Gestão Operacional
 
 **View ID:** `appointments`  
 **Arquivo:** `AppointmentsPage.tsx`  
 **Fonte de dados:** Tabela `processed_data` filtrada por data e unidade
 
 ### O que é
-Lista de todos os atendimentos de um dia específico. Foco na operação diária.
+Lista de todos os atendimentos de um dia específico. Foco na operação diária, confirmação das profissionais e envio das informações aos clientes.
 
 ### Funcionalidades
 - Seleção de data via calendário
 - Lista todos os atendimentos com status, cliente, profissional, horário e endereço
+- Filtros rápidos por Total, Comercial e Residencial
+- Atalhos para Hoje, Amanhã e os próximos dois dias
+- Ações manuais de envio e atualização no detalhe do atendimento
+- Status Pendente, Aguardando, Esperar, Recusado e Confirmado
 - **Realtime:** novos atendimentos aparecem automaticamente (INSERT/UPDATE/DELETE monitorados via Supabase Realtime)
 - **Webhook:** disparo manual para integração com automações externas (desabilitado em modo ALL)
+
+### Status operacionais
+- **Pendente:** atendimento carregado, ainda não enviado à profissional
+- **Aguardando:** convite enviado e aguardando resposta
+- **Esperar:** envio retido quando a profissional possui mais de um atendimento no dia
+- **Recusado:** convite recusado e necessita de nova atribuição
+- **Confirmado:** profissional aceitou; o envio ao cliente pode ser acionado conforme o fluxo
 
 ---
 
@@ -408,6 +430,7 @@ CRUD completo da base de profissionais prestadoras de serviço.
 - **Toggle de status:** switch para ativar/inativar diretamente na lista (sem abrir modal)
 - **Novo Cadastro:** botão abre modal de criação
 - **Edição:** duplo clique na linha abre `ProfissionalDetailModal` com 3 abas:
+- **Exclusão:** o botão vermelho no rodapé do modal exclui a profissional após confirmação
 
 | Aba | Conteúdo |
 |---|---|
@@ -552,6 +575,16 @@ Módulo de programa de fidelidade para clientes. Gerencia pontos, resgates e cam
 ### O que é
 Painel de configurações gerais da unidade acessível ao `admin`. Centraliza ajustes operacionais da unidade que não exigem acesso `super_admin`.
 
+### Manuais publicados
+Na Central de Ajuda, Configurações é organizada nos seguintes manuais:
+- 🔐 **Primeiro Acesso:** alteração da senha provisória pelo menu do perfil
+- 🏢 **Configurações 1 — Dados da Empresa:** cadastro e informações principais da unidade
+- 💸 **Configurações 1.2 — Serviços e Repasses:** serviços oferecidos e regras de repasse
+- 👥 **Configurações 1.3 — Gestão de Usuários:** administração de usuários e permissões
+- 📄 **Configurações 1.4 — Gestão de Documentos:** modelos e documentos da unidade
+
+> A central publicada referencia o recurso `Config Unidade.gif`. No ambiente verificado, esse recurso apresentou falha de resolução no Supabase e precisa ser corrigido na origem da mídia.
+
 ---
 
 ## 21. Módulos Administrativos (Super Admin)
@@ -653,4 +686,4 @@ Quando o usuário seleciona **"Todas as Unidades"** no seletor:
 
 ---
 
-*Documento gerado com base no código-fonte do DromeFlow — v1.2.0 (Março 2026)*
+*Documento gerado com base no código-fonte do DromeFlow — v2.0.8 (Outubro 2026)*
