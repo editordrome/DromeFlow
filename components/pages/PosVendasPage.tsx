@@ -2,6 +2,19 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from '../ui/Icon';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  BarChart as RechartsBarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend
+} from 'recharts';
 import type { PosVenda } from '../../types';
 import {
   fetchPosVendas,
@@ -12,6 +25,7 @@ import {
 import PosVendaFormModal from '../ui/PosVendaFormModal';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { fetchAvailableYearsFromProcessedData } from '../../services/data/dataTable.service';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 
 type ActiveCard = 'geral' | 'pendente' | 'agendado' | 'contatado' | 'finalizados';
 
@@ -40,8 +54,8 @@ const PeriodSelector: React.FC<{
   ];
 
   // Usa os anos disponíveis dos dados
-  const years = availableYears && availableYears.length > 0 
-    ? availableYears 
+  const years = availableYears && availableYears.length > 0
+    ? availableYears
     : [new Date().getFullYear()];
 
   // Gera opções para todos os anos disponíveis
@@ -82,9 +96,8 @@ const PeriodSelector: React.FC<{
                     onChange(option.value);
                     setIsOpen(false);
                   }}
-                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${
-                    value === option.value ? 'bg-primary text-white' : 'text-text-primary'
-                  }`}
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-bg-tertiary ${value === option.value ? 'bg-primary text-white' : 'text-text-primary'
+                    }`}
                 >
                   {option.label}
                 </button>
@@ -105,7 +118,7 @@ const PosVendasPage: React.FC = () => {
   const [contatadosRecords, setContatadosRecords] = useState<PosVenda[]>([]);
   const [finalizadosRecords, setFinalizadosRecords] = useState<PosVenda[]>([]);
   const [agendadosRecords, setAgendadosRecords] = useState<PosVenda[]>([]);
-  const [pendentesProfissional, setPendentesProfissional] = useState<Array<PosVenda & { PROFISSIONAL: string | null }>>([]);
+  const [pendentesProfissional, setPendentesProfissional] = useState<Array<PosVenda>>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PosVenda | null>(null);
@@ -116,7 +129,7 @@ const PosVendasPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [specificDate, setSpecificDate] = useState<string>(''); // Filtro de data específica
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [schedulingRecord, setSchedulingRecord] = useState<(PosVenda & { PROFISSIONAL: string | null }) | null>(null);
+  const [schedulingRecord, setSchedulingRecord] = useState<PosVenda | null>(null);
   const [posVendasWebhook, setPosVendasWebhook] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 25;
 
@@ -131,14 +144,14 @@ const PosVendasPage: React.FC = () => {
       try {
         const modules = await getModulesForUnit(selectedUnit.id);
         console.log('[PosVendasPage] Módulos da unidade:', modules);
-        
+
         const module = modules.find(m => {
           const nameMatch = m.name.toLowerCase().includes('pós') || m.name.toLowerCase().includes('vendas');
           const viewMatch = m.view_id === 'pos_vendas';
           console.log('[PosVendasPage] Verificando módulo:', m.name, 'nameMatch:', nameMatch, 'viewMatch:', viewMatch, 'webhook_url:', m.webhook_url);
           return nameMatch || viewMatch;
         });
-        
+
         console.log('[PosVendasPage] Módulo encontrado:', module);
         console.log('[PosVendasPage] Webhook URL:', module?.webhook_url);
         setPosVendasWebhook(module?.webhook_url || null);
@@ -185,7 +198,7 @@ const PosVendasPage: React.FC = () => {
         setAvailableYears([new Date().getFullYear()]);
         return;
       }
-      
+
       try {
         const years = await fetchAvailableYearsFromProcessedData(selectedUnit.unit_code);
         setAvailableYears(years);
@@ -205,7 +218,7 @@ const PosVendasPage: React.FC = () => {
     setLoading(true);
     try {
       const filters: any = {};
-      
+
       // Sempre filtrar pela unidade selecionada (exceto super_admin sem unidade)
       if (selectedUnit && selectedUnit.id !== 'ALL') {
         filters.unit_id = selectedUnit.id;
@@ -226,12 +239,25 @@ const PosVendasPage: React.FC = () => {
 
       // Filtrar pelo mês/ano selecionado
       const [year, month] = selectedPeriod.split('-');
-      const startDate = `${year}-${month}-01`;
+      const paddedMonth = month.padStart(2, '0');
+      const startDate = `${year}-${paddedMonth}-01`;
       const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-      const endDate = `${year}-${month}-${lastDay}`;
+      const paddedLastDay = String(lastDay).padStart(2, '0');
+      const endDate = `${year}-${paddedMonth}-${paddedLastDay}`;
 
       filters.startDate = startDate;
       filters.endDate = endDate;
+
+      // Filtro específico para pendentes: até hoje (se for o mês atual) ou fim do mês
+      const hoje = new Date();
+      const hojeIso = hoje.toISOString().split('T')[0];
+      const selectedMonthStr = `${year}-${month}`;
+      const currentMonthStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+      const pendenteFilters = {
+        ...filters,
+        endDate: selectedMonthStr === currentMonthStr && hojeIso < endDate ? hojeIso : endDate
+      };
 
       // Buscar contatados, finalizados e agendados do mês (baseado na data do atendimento)
       const contatadosFilters = { ...filters, status: 'contatado' };
@@ -241,7 +267,7 @@ const PosVendasPage: React.FC = () => {
       const [data, metricsData, pendenteData, contatadosData, finalizadosData, agendadosData] = await Promise.all([
         fetchPosVendas(filters),
         getMetrics(filters),
-        fetchPendenteWithProfissional(filters), // Já vem filtrado do início do mês até ontem
+        fetchPendenteWithProfissional(pendenteFilters), // Filtrado do início do mês até o dia ativo
         fetchPosVendas(contatadosFilters),
         fetchPosVendas(finalizadosFilters),
         fetchPosVendas(agendadosFilters)
@@ -249,7 +275,7 @@ const PosVendasPage: React.FC = () => {
 
       // Aplicar filtro de data específica se fornecido
       let pendentesFiltrados = pendenteData;
-      
+
       if (specificDate) {
         pendentesFiltrados = pendenteData.filter(record => {
           if (!record.data) return false;
@@ -272,33 +298,40 @@ const PosVendasPage: React.FC = () => {
     }
   }, [selectedUnit, selectedPeriod, specificDate, profile]);
 
+  // ✅ Otimização: Filtro server-side p/ reduzir carga
+  const realtimeFilterQuery = useMemo(() => {
+    if (!selectedUnit || selectedUnit.id === 'ALL') return undefined;
+    return `unit_id=eq.${selectedUnit.id}`;
+  }, [selectedUnit]);
+
   // Realtime Subscription para pos_vendas
   useRealtimeSubscription<PosVenda>({
     table: 'pos_vendas',
+    filterQuery: realtimeFilterQuery,
     filter: (record) => {
       // Filtrar por unidade (se não for super_admin sem unidade)
       if (selectedUnit && selectedUnit.id !== 'ALL' && record.unit_id !== selectedUnit.id) {
         return false;
       }
-      
+
       // Filtrar por período
       if (record.data) {
         const [year, month] = selectedPeriod.split('-');
         const recordDate = new Date(record.data);
         const recordMonth = recordDate.getMonth() + 1;
         const recordYear = recordDate.getFullYear();
-        
+
         if (recordYear !== parseInt(year) || recordMonth !== parseInt(month)) {
           return false;
         }
       }
-      
+
       return true;
     },
     callbacks: {
       onInsert: (newRecord) => {
         setAllRecords(prev => [...prev, newRecord]);
-        
+
         // Se for pendente, adicionar à lista de pendentes com profissional
         if (newRecord.status === 'pendente') {
           loadData(); // Recarregar para pegar o join com profissional
@@ -306,12 +339,12 @@ const PosVendasPage: React.FC = () => {
       },
       onUpdate: (updatedRecord) => {
         setAllRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
-        
+
         // Atualizar também na lista de pendentes se aplicável
-        setPendentesProfissional(prev => 
+        setPendentesProfissional(prev =>
           prev.map(r => r.id === updatedRecord.id ? { ...r, ...updatedRecord } : r)
         );
-        
+
         // Atualizar contatados e finalizados
         if (updatedRecord.status === 'contatado') {
           setContatadosRecords(prev => {
@@ -357,28 +390,27 @@ const PosVendasPage: React.FC = () => {
   // Filtrar pendentes apenas até o dia anterior (ontem) E dentro do mês selecionado
   const getPendentesFiltrados = (): PosVenda[] => {
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Zera as horas para comparar apenas a data
-    
-    // Extrair ano e mês do período selecionado
+    const hojeIso = hoje.toISOString().split('T')[0];
+
     const [year, month] = selectedPeriod.split('-');
-    const startOfMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
-    startOfMonth.setHours(0, 0, 0, 0);
-    
-    const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
-    endOfMonth.setHours(23, 59, 59, 999);
-    
+    const startDateStr = `${year}-${month.padStart(2, '0')}-01`;
+    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+    const endDateStr = `${year}-${month.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
     return getRecordsByStatus('pendente').filter(record => {
       if (!record.data) return false;
-      // Criar data sem conversão de timezone
-      const recordDate = new Date(record.data + 'T00:00:00');
-      recordDate.setHours(0, 0, 0, 0);
-      
-      // Retorna apenas registros:
-      // 1. Dentro do mês selecionado
-      // 2. Com data anterior a hoje
-      return recordDate >= startOfMonth && 
-             recordDate <= endOfMonth && 
-             recordDate < hoje;
+      const recordDateStr = record.data; // Formato YYYY-MM-DD
+
+      const currentMonthStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+      const isCurrentMonth = selectedPeriod === currentMonthStr;
+
+      if (isCurrentMonth) {
+        // No mês atual, limitar até hoje
+        return recordDateStr >= startDateStr && recordDateStr <= hojeIso;
+      }
+
+      // Meses anteriores: estritamente dentro do mês selecionado
+      return recordDateStr >= startDateStr && recordDateStr <= endDateStr;
     });
   };
 
@@ -391,12 +423,12 @@ const PosVendasPage: React.FC = () => {
   // Filtrar pela busca (aplicado à lista de pendentes com profissional)
   const pendentesFiltradosPorBusca = useMemo(() => {
     if (!searchTerm.trim()) return pendentesProfissional;
-    
+
     const term = searchTerm.toLowerCase();
-    return pendentesProfissional.filter(record => 
+    return pendentesProfissional.filter(record =>
       (record.nome?.toLowerCase() || '').includes(term) ||
-      (record.ATENDIMENTO_ID?.toLowerCase() || '').includes(term) ||
-      (record.PROFISSIONAL?.toLowerCase() || '').includes(term)
+      (record.atendimento_id?.toLowerCase() || '').includes(term) ||
+      (record.profissional?.toLowerCase() || '').includes(term)
     );
   }, [pendentesProfissional, searchTerm]);
 
@@ -446,14 +478,14 @@ const PosVendasPage: React.FC = () => {
     setEditingRecord(null);
   };
 
-  const handleSendWebhook = async (record: PosVenda & { PROFISSIONAL: string | null }) => {
+  const handleSendWebhook = async (record: PosVenda) => {
     if (!posVendasWebhook) {
       setWebhookFeedback({ type: 'error', message: 'Webhook não configurado para este módulo' });
       return;
     }
 
-    if (!record.ATENDIMENTO_ID) {
-      setWebhookFeedback({ type: 'error', message: 'ATENDIMENTO_ID não disponível' });
+    if (!record.atendimento_id) {
+      setWebhookFeedback({ type: 'error', message: 'atendimento_id não disponível' });
       return;
     }
 
@@ -469,7 +501,8 @@ const PosVendasPage: React.FC = () => {
 
       const payload = {
         action: 'pos_vendas',
-        ATENDIMENTO_ID: record.ATENDIMENTO_ID,
+        keyword: 'pos_vendas',
+        atendimento_id: record.atendimento_id,
         unit_id: record.unit_id,
         conexao,
         usuario_email: profile?.email || null,
@@ -488,6 +521,17 @@ const PosVendasPage: React.FC = () => {
           throw new Error(`Falha HTTP ${resp.status}${text ? ' - ' + text.slice(0, 140) : ''}`);
         }
         setWebhookFeedback({ type: 'success', message: 'Pós venda enviado com sucesso!' });
+
+        // Logar a atividade
+        activityLogger.logActivity({
+          actionCode: 'notify_client',
+          moduleName: 'Pós Vendas',
+          unitId: record.unit_id,
+          unitCode: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { atendimento_id: record.atendimento_id }
+        });
       } catch (primaryErr: any) {
         const msg = primaryErr?.message || '';
         if (msg.includes('Failed to fetch') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('TypeError')) {
@@ -500,7 +544,8 @@ const PosVendasPage: React.FC = () => {
       if (usedFallback) {
         const url = new URL(posVendasWebhook);
         url.searchParams.set('action', 'pos_vendas');
-        url.searchParams.set('aid', record.ATENDIMENTO_ID);
+        url.searchParams.set('keyword', 'pos_vendas');
+        url.searchParams.set('aid', record.atendimento_id);
         url.searchParams.set('uid', record.unit_id || '');
         url.searchParams.set('cx', conexao || '');
         if (profile?.email) url.searchParams.set('ue', profile.email);
@@ -526,7 +571,7 @@ const PosVendasPage: React.FC = () => {
     }
   };
 
-  const handleOpenScheduleModal = (record: PosVenda & { PROFISSIONAL: string | null }) => {
+  const handleOpenScheduleModal = (record: PosVenda) => {
     setSchedulingRecord(record);
     setIsScheduleModalOpen(true);
   };
@@ -541,21 +586,19 @@ const PosVendasPage: React.FC = () => {
 
     try {
       const { updatePosVenda, createPosVenda, getPosVendasByAtendimento } = await import('../../services/posVendas/posVendas.service');
-      
-      // Verifica se o registro já existe na tabela pos_vendas
-      const existingRecords = await getPosVendasByAtendimento(schedulingRecord.ATENDIMENTO_ID || '');
-      
+
+      // 1. Persistir no Banco de Dados
+      const existingRecords = await getPosVendasByAtendimento(schedulingRecord.atendimento_id || '');
+
       if (existingRecords && existingRecords.length > 0) {
-        // Atualiza registro existente com status "agendado"
         await updatePosVenda(existingRecords[0].id, {
           data_agendamento: dataAgendamento,
           horario_agendamento: horarioAgendamento,
           status: 'agendado'
         });
       } else {
-        // Cria novo registro com agendamento e status "agendado"
         await createPosVenda({
-          ATENDIMENTO_ID: schedulingRecord.ATENDIMENTO_ID,
+          atendimento_id: schedulingRecord.atendimento_id,
           chat_id: schedulingRecord.chat_id,
           nome: schedulingRecord.nome,
           contato: schedulingRecord.contato,
@@ -570,11 +613,71 @@ const PosVendasPage: React.FC = () => {
         });
       }
 
-      setWebhookFeedback({ 
-        type: 'success', 
-        message: `Agendamento salvo: ${new Date(dataAgendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às ${horarioAgendamento}` 
+      // 2. Disparar Webhook (se configurado)
+      if (posVendasWebhook) {
+        try {
+          const { fetchConexao } = await import('../../services/units/unitKeys.service');
+          const conexao = selectedUnit && (selectedUnit as any).id !== 'ALL' ? await fetchConexao((selectedUnit as any).id) : null;
+
+          const payload = {
+            action: 'agendado',
+            keyword: 'pos_vendas',
+            atendimento_id: schedulingRecord.atendimento_id,
+            unit_id: schedulingRecord.unit_id,
+            conexao,
+            data_agendamento: dataAgendamento,
+            horario_agendamento: horarioAgendamento,
+            dateSendAtUTC: `${dataAgendamento}T${horarioAgendamento}:00Z`,
+            usuario_email: profile?.email || null,
+            timestamp: new Date().toISOString()
+          };
+
+          // Tentar POST robusto
+          let usedFallback = false;
+          try {
+            const resp = await fetch(posVendasWebhook, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          } catch (e) {
+            usedFallback = true;
+          }
+
+          // Fallback GET se POST falhar (comum em n8n sem CORS configurado)
+          if (usedFallback) {
+            const url = new URL(posVendasWebhook);
+            url.searchParams.set('action', 'agendado');
+            url.searchParams.set('keyword', 'pos_vendas');
+            url.searchParams.set('aid', schedulingRecord.atendimento_id || '');
+            url.searchParams.set('uid', schedulingRecord.unit_id || '');
+            url.searchParams.set('dag', dataAgendamento);
+            url.searchParams.set('hag', horarioAgendamento);
+            url.searchParams.set('cx', conexao || '');
+            url.searchParams.set('dsat', `${dataAgendamento}T${horarioAgendamento}:00Z`);
+            await fetch(url.toString(), { method: 'GET' }).catch(err => console.error('Fallback GET failed:', err));
+          }
+
+          activityLogger.logActivity({
+            actionCode: 'update_posvendas',
+            moduleName: 'Pós Vendas',
+            unitId: schedulingRecord.unit_id,
+            unitCode: typeof selectedUnit === 'string' ? selectedUnit : (selectedUnit as any)?.unit_code || 'ALL',
+            userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+            status: 'success',
+            metadata: { atendimento_id: schedulingRecord.atendimento_id, acao: 'agendar' }
+          });
+        } catch (webhookErr) {
+          console.error('Erro ao notificar webhook de agendamento:', webhookErr);
+        }
+      }
+
+      setWebhookFeedback({
+        type: 'success',
+        message: `Agendamento salvo e enviado para automação: ${new Date(dataAgendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às ${horarioAgendamento}`
       });
-      
+
       handleCloseScheduleModal();
       await loadData();
     } catch (error) {
@@ -583,31 +686,31 @@ const PosVendasPage: React.FC = () => {
     }
   };
 
-  const handleRemoveSchedule = async (record: PosVenda & { PROFISSIONAL: string | null }) => {
+  const handleRemoveSchedule = async (record: PosVenda) => {
     if (!confirm('Deseja remover o agendamento deste pós-venda?')) return;
 
     try {
       const { updatePosVenda, getPosVendasByAtendimento } = await import('../../services/posVendas/posVendas.service');
-      
+
       // Verifica se o registro existe na tabela pos_vendas
-      const existingRecords = await getPosVendasByAtendimento(record.ATENDIMENTO_ID || '');
-      
+      const existingRecords = await getPosVendasByAtendimento(record.atendimento_id || '');
+
       if (existingRecords && existingRecords.length > 0) {
         await updatePosVenda(existingRecords[0].id, {
           data_agendamento: null,
           horario_agendamento: null
         });
 
-        setWebhookFeedback({ 
-          type: 'success', 
-          message: 'Agendamento removido com sucesso!' 
+        setWebhookFeedback({
+          type: 'success',
+          message: 'Agendamento removido com sucesso!'
         });
-        
+
         await loadData();
       } else {
-        setWebhookFeedback({ 
-          type: 'error', 
-          message: 'Registro não encontrado na base de pós-vendas' 
+        setWebhookFeedback({
+          type: 'error',
+          message: 'Registro não encontrado na base de pós-vendas'
         });
       }
     } catch (error) {
@@ -683,8 +786,8 @@ const PosVendasPage: React.FC = () => {
             </tr>
           ) : (
             records.map((record) => (
-              <tr 
-                key={record.id} 
+              <tr
+                key={record.id}
                 className="hover:bg-bg-tertiary transition-colors cursor-pointer"
                 onDoubleClick={() => handleEdit(record)}
                 title="Duplo clique para editar"
@@ -693,7 +796,7 @@ const PosVendasPage: React.FC = () => {
                   {formatDate(record.data)}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary font-mono">
-                  {record.ATENDIMENTO_ID || '-'}
+                  {record.atendimento_id || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
                   <div>
@@ -758,8 +861,8 @@ const PosVendasPage: React.FC = () => {
             </tr>
           ) : (
             records.map((record) => (
-              <tr 
-                key={record.id} 
+              <tr
+                key={record.id}
                 className="hover:bg-bg-tertiary transition-colors cursor-pointer"
                 onDoubleClick={() => handleEdit(record)}
                 title="Duplo clique para editar"
@@ -768,13 +871,13 @@ const PosVendasPage: React.FC = () => {
                   {formatDate(record.data)}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-text-primary font-mono">
-                  {record.ATENDIMENTO_ID || '-'}
+                  {record.atendimento_id || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
                   <p className="font-medium">{(record as any).CLIENTE || record.nome || '-'}</p>
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
-                  {(record as any).PROFISSIONAL || '-'}
+                  {(record as any).profissional || '-'}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {renderStars(record.nota)}
@@ -850,13 +953,13 @@ const PosVendasPage: React.FC = () => {
                 <td className="px-4 py-3 text-sm text-text-primary">
                   <div>
                     <p className="font-medium">{(record as any).CLIENTE || record.nome || '-'}</p>
-                    {record.ATENDIMENTO_ID && (
-                      <p className="text-xs text-text-secondary">ID: {record.ATENDIMENTO_ID}</p>
+                    {record.atendimento_id && (
+                      <p className="text-xs text-text-secondary">ID: {record.atendimento_id}</p>
                     )}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
-                  {(record as any).PROFISSIONAL || '-'}
+                  {(record as any).profissional || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-text-primary">
                   {record.contato || '-'}
@@ -951,18 +1054,17 @@ const PosVendasPage: React.FC = () => {
                 value={specificDate}
                 onChange={(e) => setSpecificDate(e.target.value)}
                 className="absolute inset-0 opacity-0 cursor-pointer"
-                style={{ 
+                style={{
                   width: '40px',
                   height: '40px'
                 }}
                 title={specificDate ? `Filtrado por: ${new Date(specificDate).toLocaleDateString('pt-BR')}` : 'Filtrar por data'}
               />
               <button
-                className={`p-2 rounded-md border transition-colors ${
-                  specificDate 
-                    ? 'bg-primary text-white border-primary' 
+                className={`p-2 rounded-md border transition-colors ${specificDate
+                    ? 'bg-primary text-white border-primary'
                     : 'bg-bg-secondary text-text-secondary border-border-primary'
-                }`}
+                  }`}
                 title={specificDate ? `Filtrado por: ${new Date(specificDate).toLocaleDateString('pt-BR')}` : 'Filtrar por data'}
               >
                 <Icon name="Calendar" className="w-5 h-5" />
@@ -994,11 +1096,10 @@ const PosVendasPage: React.FC = () => {
         {/* Card Geral */}
         <button
           onClick={() => setActiveCard('geral')}
-          className={`p-3 rounded-lg border transition-all ${
-            activeCard === 'geral'
+          className={`p-3 rounded-lg border transition-all ${activeCard === 'geral'
               ? 'bg-accent-primary text-white border-accent-primary shadow-lg'
               : 'bg-bg-secondary border-border-primary hover:border-accent-primary'
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2">
             <Icon name="BarChart3" className="w-5 h-5" />
@@ -1009,11 +1110,10 @@ const PosVendasPage: React.FC = () => {
         {/* Card Pendente */}
         <button
           onClick={() => setActiveCard('pendente')}
-          className={`p-3 rounded-lg border transition-all ${
-            activeCard === 'pendente'
+          className={`p-3 rounded-lg border transition-all ${activeCard === 'pendente'
               ? 'bg-amber-500 text-white border-amber-500 shadow-lg'
               : 'bg-bg-secondary border-border-primary hover:border-amber-500'
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2">
             <Icon name="Clock" className="w-5 h-5" />
@@ -1027,11 +1127,10 @@ const PosVendasPage: React.FC = () => {
         {/* Card Agendado */}
         <button
           onClick={() => setActiveCard('agendado')}
-          className={`p-3 rounded-lg border transition-all ${
-            activeCard === 'agendado'
+          className={`p-3 rounded-lg border transition-all ${activeCard === 'agendado'
               ? 'bg-purple-500 text-white border-purple-500 shadow-lg'
               : 'bg-bg-secondary border-border-primary hover:border-purple-500'
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2">
             <Icon name="CalendarClock" className="w-5 h-5" />
@@ -1045,11 +1144,10 @@ const PosVendasPage: React.FC = () => {
         {/* Card Contatado */}
         <button
           onClick={() => setActiveCard('contatado')}
-          className={`p-3 rounded-lg border transition-all ${
-            activeCard === 'contatado'
+          className={`p-3 rounded-lg border transition-all ${activeCard === 'contatado'
               ? 'bg-brand-cyan text-white border-brand-cyan shadow-lg'
               : 'bg-bg-secondary border-border-primary hover:border-brand-cyan'
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2">
             <Icon name="Phone" className="w-5 h-5" />
@@ -1063,11 +1161,10 @@ const PosVendasPage: React.FC = () => {
         {/* Card Finalizado */}
         <button
           onClick={() => setActiveCard('finalizados')}
-          className={`p-3 rounded-lg border transition-all ${
-            activeCard === 'finalizados'
+          className={`p-3 rounded-lg border transition-all ${activeCard === 'finalizados'
               ? 'bg-brand-green text-white border-brand-green shadow-lg'
               : 'bg-bg-secondary border-border-primary hover:border-brand-green'
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2">
             <Icon name="CheckCircle" className="w-5 h-5" />
@@ -1088,102 +1185,44 @@ const PosVendasPage: React.FC = () => {
               <div className="bg-bg-tertiary rounded-lg border border-border-primary p-6">
                 <h3 className="text-lg font-semibold text-text-primary mb-6">Status de Avaliações</h3>
                 <div className="flex flex-col items-center">
-                  {/* Pizza Chart SVG */}
-                  <div className="flex-shrink-0">
-                    <svg viewBox="0 0 200 200" className="w-52 h-52">
-                      {(() => {
-                        const totalPendentes = pendentes.length;
-                        const totalAgendados = agendados.length;
-                        const totalContatados = metrics.totalContatados;
-                        const totalFinalizados = metrics.totalFinalizados;
-                        const total = totalPendentes + totalAgendados + totalContatados + totalFinalizados;
-                        
-                        if (total === 0) {
-                          return (
-                            <circle cx="100" cy="100" r="80" fill="#e5e7eb" />
-                          );
-                        }
-                        
-                        const pendentesPercent = (totalPendentes / total) * 100;
-                        const agendadosPercent = (totalAgendados / total) * 100;
-                        const contatadosPercent = (totalContatados / total) * 100;
-                        const finalizadosPercent = (totalFinalizados / total) * 100;
-                        
-                        // Calcular ângulos acumulados
-                        let currentAngle = 0;
-                        const pendentesAngle = currentAngle + (pendentesPercent / 100) * 360;
-                        currentAngle = pendentesAngle;
-                        const agendadosAngle = currentAngle + (agendadosPercent / 100) * 360;
-                        currentAngle = agendadosAngle;
-                        const contatadosAngle = currentAngle + (contatadosPercent / 100) * 360;
-                        currentAngle = contatadosAngle;
-                        const finalizadosAngle = 360; // Última fatia vai até 360
-                        
-                        // Função para calcular coordenadas do arco
-                        const getArcPath = (startAngle: number, endAngle: number) => {
-                          const start = (startAngle - 90) * (Math.PI / 180);
-                          const end = (endAngle - 90) * (Math.PI / 180);
-                          const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-                          
-                          const x1 = 100 + 80 * Math.cos(start);
-                          const y1 = 100 + 80 * Math.sin(start);
-                          const x2 = 100 + 80 * Math.cos(end);
-                          const y2 = 100 + 80 * Math.sin(end);
-                          
-                          return `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                        };
-                        
-                        return (
-                          <>
-                            {/* Fatia Pendentes (amarelo) */}
-                            {totalPendentes > 0 && (
-                              <path
-                                d={getArcPath(0, pendentesAngle)}
-                                fill="#f59e0b"
-                                className="transition-all hover:opacity-80"
-                              />
-                            )}
-                            {/* Fatia Agendados (roxo) */}
-                            {totalAgendados > 0 && (
-                              <path
-                                d={getArcPath(pendentesAngle, agendadosAngle)}
-                                fill="#a855f7"
-                                className="transition-all hover:opacity-80"
-                              />
-                            )}
-                            {/* Fatia Contatados (cyan) */}
-                            {totalContatados > 0 && (
-                              <path
-                                d={getArcPath(agendadosAngle, contatadosAngle)}
-                                fill="#06b6d4"
-                                className="transition-all hover:opacity-80"
-                              />
-                            )}
-                            {/* Fatia Finalizados (verde) */}
-                            {totalFinalizados > 0 && (
-                              <path
-                                d={getArcPath(contatadosAngle, finalizadosAngle)}
-                                fill="#10b981"
-                                className="transition-all hover:opacity-80"
-                              />
-                            )}
-                            
-                            {/* Gráfico de pizza menor no centro (hole) */}
-                            <circle cx="100" cy="100" r="50" fill="currentColor" className="fill-bg-tertiary" />
-                            
-                            {/* Texto central com total */}
-                            <text x="100" y="95" textAnchor="middle" className="fill-text-primary font-bold text-2xl">
-                              {total}
-                            </text>
-                            <text x="100" y="115" textAnchor="middle" className="fill-text-secondary text-xs">
-                              Total
-                            </text>
-                          </>
-                        );
-                      })()}
-                    </svg>
+                  <div className="w-full h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Pendentes', value: pendentes.length, color: '#f59e0b' },
+                            { name: 'Agendados', value: agendados.length, color: '#a855f7' },
+                            { name: 'Contatados', value: metrics.totalContatados, color: '#06b6d4' },
+                            { name: 'Finalizados', value: metrics.totalFinalizados, color: '#10b981' }
+                          ].filter(d => d.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {[
+                            { name: 'Pendentes', value: pendentes.length, color: '#f59e0b' },
+                            { name: 'Agendados', value: agendados.length, color: '#a855f7' },
+                            { name: 'Contatados', value: metrics.totalContatados, color: '#06b6d4' },
+                            { name: 'Finalizados', value: metrics.totalFinalizados, color: '#10b981' }
+                          ].filter(d => d.value > 0).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip
+                          contentStyle={{
+                            backgroundColor: 'var(--bg-secondary)',
+                            borderColor: 'var(--border-primary)',
+                            borderRadius: '8px',
+                            color: 'var(--text-primary)'
+                          }}
+                          itemStyle={{ color: 'var(--text-primary)' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
-                  
+
                   {/* Legenda - Linha horizontal compacta */}
                   <div className="mt-4 flex flex-wrap justify-center gap-4 w-full">
                     <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary rounded-lg border border-border-secondary">
@@ -1192,56 +1231,36 @@ const PosVendasPage: React.FC = () => {
                         <span className="text-xs font-medium text-text-secondary">Pendentes</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-bold text-text-primary">{pendentes.length}</span>
-                          <span className="text-[10px] text-text-secondary">
-                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
-                              ? Math.round((pendentes.length / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                              : 0}%)
-                          </span>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary rounded-lg border border-border-secondary">
                       <div className="w-3 h-3 rounded-full bg-purple-500"></div>
                       <div className="flex flex-col">
                         <span className="text-xs font-medium text-text-secondary">Agendados</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-bold text-text-primary">{agendados.length}</span>
-                          <span className="text-[10px] text-text-secondary">
-                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
-                              ? Math.round((agendados.length / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                              : 0}%)
-                          </span>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary rounded-lg border border-border-secondary">
                       <div className="w-3 h-3 rounded-full bg-brand-cyan"></div>
                       <div className="flex flex-col">
                         <span className="text-xs font-medium text-text-secondary">Contatados</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-bold text-text-primary">{metrics.totalContatados}</span>
-                          <span className="text-[10px] text-text-secondary">
-                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
-                              ? Math.round((metrics.totalContatados / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                              : 0}%)
-                          </span>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary rounded-lg border border-border-secondary">
                       <div className="w-3 h-3 rounded-full bg-brand-green"></div>
                       <div className="flex flex-col">
                         <span className="text-xs font-medium text-text-secondary">Finalizados</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-base font-bold text-text-primary">{metrics.totalFinalizados}</span>
-                          <span className="text-[10px] text-text-secondary">
-                            ({pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados > 0 
-                              ? Math.round((metrics.totalFinalizados / (pendentes.length + agendados.length + metrics.totalContatados + metrics.totalFinalizados)) * 100)
-                              : 0}%)
-                          </span>
                         </div>
                       </div>
                     </div>
@@ -1259,48 +1278,51 @@ const PosVendasPage: React.FC = () => {
                       {(() => {
                         const somaNotas = metrics.distribuicaoNotas.reduce((acc, { nota, count }) => acc + (nota * count), 0);
                         const totalRespostas = metrics.distribuicaoNotas.reduce((acc, { count }) => acc + count, 0);
-                        const media = totalRespostas > 0 ? (somaNotas / totalRespostas).toFixed(1) : '0.0';
-                        return media;
+                        return totalRespostas > 0 ? (somaNotas / totalRespostas).toFixed(1) : '0.0';
                       })()}
                     </span>
                     <Icon name="Star" className="w-5 h-5 text-yellow-400 fill-yellow-400" />
                   </div>
                 </div>
-                <div className="h-64 flex items-end justify-around gap-2 px-4">
-                  {[...metrics.distribuicaoNotas].reverse().map(({ nota, count }) => {
-                    const total = metrics.totalContatos;
-                    const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-                    const heightPercent = total > 0 ? (count / Math.max(...metrics.distribuicaoNotas.map(d => d.count))) * 100 : 0;
-                    
-                    return (
-                      <div key={nota} className="flex-1 flex flex-col items-center gap-2">
-                        {/* Barra */}
-                        <div className="w-full bg-bg-primary rounded-t-lg relative group" style={{ height: '200px' }}>
-                          <div 
-                            className="absolute bottom-0 w-full bg-gradient-to-t from-accent-primary to-brand-cyan rounded-t-lg transition-all duration-300 hover:opacity-80"
-                            style={{ height: `${heightPercent}%` }}
-                          >
-                            {/* Valor no topo da barra */}
-                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-center">
-                              <span className="text-sm font-bold text-text-primary">{percentage}%</span>
-                              <span className="block text-xs text-text-secondary">({count})</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Label com estrelas */}
-                        <div className="flex gap-0.5">
-                          {[1, 2, 3, 4, 5].map(star => (
-                            <Icon
-                              key={star}
-                              name="Star"
-                              className={`w-3 h-3 ${star <= nota ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsBarChart
+                      data={[...metrics.distribuicaoNotas].sort((a, b) => a.nota - b.nota)}
+                      margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-primary)" />
+                      <XAxis
+                        dataKey="nota"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                        label={{ value: 'Estrelas', position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 10 }}
+                      />
+                      <YAxis hide />
+                      <RechartsTooltip
+                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                        contentStyle={{
+                          backgroundColor: 'var(--bg-secondary)',
+                          borderColor: 'var(--border-primary)',
+                          borderRadius: '8px',
+                          color: 'var(--text-primary)'
+                        }}
+                      />
+                      <Bar
+                        dataKey="count"
+                        fill="var(--accent-primary)"
+                        radius={[4, 4, 0, 0]}
+                        name="Quantidade"
+                      >
+                        {[...metrics.distribuicaoNotas].sort((a, b) => a.nota - b.nota).map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.nota >= 4 ? '#10b981' : entry.nota >= 3 ? '#f59e0b' : '#ef4444'}
+                          />
+                        ))}
+                      </Bar>
+                    </RechartsBarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
@@ -1351,8 +1373,8 @@ const PosVendasPage: React.FC = () => {
                       </tr>
                     ) : (
                       finalizados.map((record) => (
-                        <tr 
-                          key={record.id} 
+                        <tr
+                          key={record.id}
                           className="hover:bg-bg-tertiary transition-colors cursor-pointer"
                           onDoubleClick={() => handleEdit(record)}
                           title="Duplo clique para editar"
@@ -1364,7 +1386,7 @@ const PosVendasPage: React.FC = () => {
                             {(record as any).CLIENTE || record.nome || '-'}
                           </td>
                           <td className="px-3 py-2 text-sm text-text-primary">
-                            {(record as any).PROFISSIONAL || '-'}
+                            {(record as any).profissional || '-'}
                           </td>
                           <td className="px-3 py-2 text-center">
                             {record.nota ? (
@@ -1418,125 +1440,125 @@ const PosVendasPage: React.FC = () => {
                 {webhookFeedback.message}
               </div>
             )}
-            
+
             {/* Tabela Desktop */}
             <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full">
-              <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Data
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Cliente
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Profissional
-                  </th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Ação
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-primary">
-                {pendentesFiltradosPorBusca.length === 0 ? (
+                <thead className="sticky top-0 z-10 bg-bg-tertiary shadow-sm">
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-text-secondary">
-                      {searchTerm ? 'Nenhum registro encontrado com esse termo' : 'Nenhum registro pendente'}
-                    </td>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Data
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Cliente
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Profissional
+                    </th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-text-secondary uppercase tracking-wider">
+                      Ação
+                    </th>
                   </tr>
-                ) : (
-                  pendentesPaginados.map((record) => (
-                    <tr 
-                      key={record.id} 
-                      className="hover:bg-bg-tertiary transition-colors cursor-pointer"
-                      onDoubleClick={() => handleEdit(record)}
-                      title="Duplo clique para editar"
-                    >
-                      <td className="px-3 py-2 whitespace-nowrap text-sm text-text-primary">
-                        {formatDate(record.data)}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-sm text-text-secondary">
-                        {record.ATENDIMENTO_ID || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-sm text-text-primary">
-                        <div>
-                          <p className="font-medium">{record.nome || '-'}</p>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-sm text-text-primary">
-                        {record.PROFISSIONAL || '-'}
-                      </td>
-                      <td className="px-3 py-2">
-                        {record.data_agendamento && record.horario_agendamento ? (
-                          // Exibe informações de agendamento - CENTRALIZADO
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Icon name="Clock" className="w-4 h-4 text-brand-cyan" />
-                              <div className="flex flex-col items-center">
-                                <span className="font-medium text-brand-cyan">Agendado</span>
-                                <span className="text-xs text-text-secondary whitespace-nowrap">
-                                  {new Date(record.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às {record.horario_agendamento.substring(0, 5)}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => handleOpenScheduleModal(record)}
-                                title="Editar agendamento"
-                                className="px-2 py-1 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-1 text-xs"
-                              >
-                                <Icon name="Edit" className="w-3 h-3" />
-                                Editar
-                              </button>
-                              <button
-                                onClick={() => handleRemoveSchedule(record)}
-                                title="Remover agendamento"
-                                className="px-2 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1 text-xs"
-                              >
-                                <Icon name="X" className="w-3 h-3" />
-                                Remover
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          // Exibe botões de ação normais - apenas ícones
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => handleSendWebhook(record)}
-                              disabled={sendingWebhook.has(record.id) || !posVendasWebhook}
-                              title={!posVendasWebhook ? 'Webhook não configurado para este módulo' : 'Enviar avaliação'}
-                              className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
-                            >
-                              {sendingWebhook.has(record.id) ? (
-                                <Icon name="Loader2" className="w-4 h-4 animate-spin" />
-                              ) : !posVendasWebhook ? (
-                                <Icon name="AlertCircle" className="w-4 h-4" />
-                              ) : (
-                                <Icon name="Send" className="w-4 h-4" />
-                              )}
-                            </button>
-                            
-                            <button
-                              onClick={() => handleOpenScheduleModal(record)}
-                              title="Agendar envio"
-                              className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center"
-                            >
-                              <Icon name="CalendarClock" className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
+                </thead>
+                <tbody className="divide-y divide-border-primary">
+                  {pendentesFiltradosPorBusca.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-6 text-center text-text-secondary">
+                        {searchTerm ? 'Nenhum registro encontrado com esse termo' : 'Nenhum registro pendente'}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
+                  ) : (
+                    pendentesPaginados.map((record) => (
+                      <tr
+                        key={record.id}
+                        className="hover:bg-bg-tertiary transition-colors cursor-pointer"
+                        onDoubleClick={() => handleEdit(record)}
+                        title="Duplo clique para editar"
+                      >
+                        <td className="px-3 py-2 whitespace-nowrap text-sm text-text-primary">
+                          {formatDate(record.data)}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-sm text-text-secondary">
+                          {record.atendimento_id || '-'}
+                        </td>
+                        <td className="px-3 py-2 text-sm text-text-primary">
+                          <div>
+                            <p className="font-medium">{record.nome || '-'}</p>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-sm text-text-primary">
+                          {record.profissional || '-'}
+                        </td>
+                        <td className="px-3 py-2">
+                          {record.data_agendamento && record.horario_agendamento ? (
+                            // Exibe informações de agendamento - CENTRALIZADO
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Icon name="Clock" className="w-4 h-4 text-brand-cyan" />
+                                <div className="flex flex-col items-center">
+                                  <span className="font-medium text-brand-cyan">Agendado</span>
+                                  <span className="text-xs text-text-secondary whitespace-nowrap">
+                                    {new Date(record.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR')} às {record.horario_agendamento.substring(0, 5)}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => handleOpenScheduleModal(record)}
+                                  title="Editar agendamento"
+                                  className="px-2 py-1 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-1 text-xs"
+                                >
+                                  <Icon name="Edit" className="w-3 h-3" />
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveSchedule(record)}
+                                  title="Remover agendamento"
+                                  className="px-2 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1 text-xs"
+                                >
+                                  <Icon name="X" className="w-3 h-3" />
+                                  Remover
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            // Exibe botões de ação normais - apenas ícones
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleSendWebhook(record)}
+                                disabled={sendingWebhook.has(record.id) || !posVendasWebhook}
+                                title={!posVendasWebhook ? 'Webhook não configurado para este módulo' : 'Enviar avaliação'}
+                                className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+                              >
+                                {sendingWebhook.has(record.id) ? (
+                                  <Icon name="Loader2" className="w-4 h-4 animate-spin" />
+                                ) : !posVendasWebhook ? (
+                                  <Icon name="AlertCircle" className="w-4 h-4" />
+                                ) : (
+                                  <Icon name="Send" className="w-4 h-4" />
+                                )}
+                              </button>
+
+                              <button
+                                onClick={() => handleOpenScheduleModal(record)}
+                                title="Agendar envio"
+                                className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center"
+                              >
+                                <Icon name="CalendarClock" className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
               </table>
             </div>
-            
+
             {/* Cards Mobile */}
             <div className="lg:hidden space-y-3">
               {pendentesFiltradosPorBusca.length === 0 ? (
@@ -1556,14 +1578,14 @@ const PosVendasPage: React.FC = () => {
                       <div className="flex-1">
                         <p className="font-semibold text-sm text-text-primary">{record.nome || '-'}</p>
                         <p className="text-xs text-text-secondary mt-0.5">
-                          ID: {record.ATENDIMENTO_ID || '-'}
+                          ID: {record.atendimento_id || '-'}
                         </p>
                       </div>
                       <span className="px-2 py-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 text-xs rounded-full">
                         Pendente
                       </span>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-text-secondary">Data:</span>
@@ -1571,10 +1593,10 @@ const PosVendasPage: React.FC = () => {
                       </div>
                       <div>
                         <span className="text-text-secondary">Profissional:</span>
-                        <p className="text-text-primary font-medium">{record.PROFISSIONAL || '-'}</p>
+                        <p className="text-text-primary font-medium">{record.profissional || '-'}</p>
                       </div>
                     </div>
-                    
+
                     {record.data_agendamento && record.horario_agendamento ? (
                       // Exibe informações de agendamento no mobile
                       <div className="space-y-2">
@@ -1629,7 +1651,7 @@ const PosVendasPage: React.FC = () => {
                             </>
                           )}
                         </button>
-                        
+
                         <button
                           onClick={() => handleOpenScheduleModal(record)}
                           className="flex-1 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 text-sm"
@@ -1643,7 +1665,7 @@ const PosVendasPage: React.FC = () => {
                 ))
               )}
             </div>
-            
+
             {/* Paginação */}
             {pendentesFiltradosPorBusca.length > 0 && (
               <div className="bg-bg-tertiary border-t border-border-primary mt-4 lg:mt-0 rounded-b-lg">
@@ -1716,8 +1738,8 @@ const PosVendasPage: React.FC = () => {
                     </tr>
                   ) : (
                     agendados.map((record) => (
-                      <tr 
-                        key={record.id} 
+                      <tr
+                        key={record.id}
                         className="hover:bg-bg-tertiary transition-colors cursor-pointer"
                         onDoubleClick={() => handleEdit(record)}
                         title="Duplo clique para editar"
@@ -1726,7 +1748,7 @@ const PosVendasPage: React.FC = () => {
                           {formatDate(record.data)}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-sm text-text-secondary">
-                          {record.ATENDIMENTO_ID || '-'}
+                          {record.atendimento_id || '-'}
                         </td>
                         <td className="px-3 py-2 text-sm text-text-primary">
                           <div>
@@ -1734,7 +1756,7 @@ const PosVendasPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-3 py-2 text-sm text-text-primary">
-                          {record.PROFISSIONAL || '-'}
+                          {record.profissional || '-'}
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col items-center gap-1">
@@ -1773,7 +1795,7 @@ const PosVendasPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
-            
+
             {/* Cards Mobile */}
             <div className="lg:hidden space-y-3">
               {agendados.length === 0 ? (
@@ -1791,14 +1813,14 @@ const PosVendasPage: React.FC = () => {
                       <div className="flex-1">
                         <p className="font-semibold text-sm text-text-primary">{record.nome || '-'}</p>
                         <p className="text-xs text-text-secondary mt-0.5">
-                          ID: {record.ATENDIMENTO_ID || '-'}
+                          ID: {record.atendimento_id || '-'}
                         </p>
                       </div>
                       <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 text-xs rounded-full">
                         Agendado
                       </span>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-text-secondary">Data:</span>
@@ -1806,10 +1828,10 @@ const PosVendasPage: React.FC = () => {
                       </div>
                       <div>
                         <span className="text-text-secondary">Profissional:</span>
-                        <p className="text-text-primary font-medium">{record.PROFISSIONAL || '-'}</p>
+                        <p className="text-text-primary font-medium">{record.profissional || '-'}</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
                       <Icon name="CalendarClock" className="w-5 h-5 text-purple-500" />
                       <div className="flex-1">
@@ -1819,7 +1841,7 @@ const PosVendasPage: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-2 justify-center">
                       <button
                         onClick={() => handleOpenScheduleModal(record)}
@@ -1868,7 +1890,7 @@ const PosVendasPage: React.FC = () => {
 
 // Componente Modal de Agendamento
 const ScheduleModal: React.FC<{
-  record: PosVenda & { PROFISSIONAL: string | null };
+  record: PosVenda;
   onClose: () => void;
   onSave: (dataAgendamento: string, horarioAgendamento: string) => void;
 }> = ({ record, onClose, onSave }) => {
@@ -1900,8 +1922,8 @@ const ScheduleModal: React.FC<{
               <Icon name="Clock" className="w-5 h-5 text-brand-cyan" />
               <h2 className="text-lg font-bold text-text-primary">Agendar Envio</h2>
             </div>
-            <button 
-              onClick={onClose} 
+            <button
+              onClick={onClose}
               type="button"
               className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors"
               aria-label="Fechar"
@@ -1917,9 +1939,9 @@ const ScheduleModal: React.FC<{
             {/* Info do Cliente */}
             <div className="bg-bg-tertiary/50 rounded-lg p-3 border border-border-secondary/50">
               <p className="text-sm font-medium text-text-primary">{record.nome || '-'}</p>
-              <p className="text-xs text-text-secondary mt-1">ID: {record.ATENDIMENTO_ID || '-'}</p>
-              {record.PROFISSIONAL && (
-                <p className="text-xs text-text-secondary">Profissional: {record.PROFISSIONAL}</p>
+              <p className="text-xs text-text-secondary mt-1">ID: {record.atendimento_id || '-'}</p>
+              {record.profissional && (
+                <p className="text-xs text-text-secondary">Profissional: {record.profissional}</p>
               )}
             </div>
 

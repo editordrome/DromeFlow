@@ -68,8 +68,8 @@ export const diagnosticCompareTables = async (unitId?: string) => {
     
     // 3. Comparar ATENDIMENTO_IDs únicos
     if (posVendasData && processedData) {
-      const posVendasIds = new Set(posVendasData.map(r => r.ATENDIMENTO_ID).filter(Boolean));
-      const processedDataIds = new Set(processedData.map(r => r.ATENDIMENTO_ID).filter(Boolean));
+      const posVendasIds = new Set(posVendasData.map(r => r.atendimento_id).filter(Boolean));
+      const processedDataIds = new Set(processedData.map(r => r.atendimento_id).filter(Boolean));
       
       const onlyInPosVendas = [...posVendasIds].filter(id => !processedDataIds.has(id));
       const onlyInProcessedData = [...processedDataIds].filter(id => !posVendasIds.has(id));
@@ -105,7 +105,7 @@ export const findOrphanRecords = async (unitId?: string) => {
     // Buscar todos ATENDIMENTO_IDs de pos_vendas
     let posVendasQuery = supabase
       .from('pos_vendas')
-      .select('ATENDIMENTO_ID, nome, data, status');
+      .select('atendimento_id, nome, data, status');
     
     if (unitId && unitId !== 'ALL') {
       posVendasQuery = posVendasQuery.eq('unit_id', unitId);
@@ -119,12 +119,12 @@ export const findOrphanRecords = async (unitId?: string) => {
     
     // Para cada registro, verificar se existe em processed_data
     for (const record of posVendasRecords.slice(0, 100)) { // Limitar a 100 para não sobrecarregar
-      if (!record.ATENDIMENTO_ID) continue;
+      if (!record.atendimento_id) continue;
       
       const { data: processedRecord } = await supabase
         .from('processed_data')
-        .select('ATENDIMENTO_ID, CLIENTE, DATA')
-        .eq('ATENDIMENTO_ID', record.ATENDIMENTO_ID)
+        .select('atendimento_id, cliente, data')
+        .eq('atendimento_id', record.atendimento_id)
         .single();
       
       if (!processedRecord) {

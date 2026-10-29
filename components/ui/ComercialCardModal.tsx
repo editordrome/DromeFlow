@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import type { ComercialCard } from '../../types';
+import { activityLogger } from '../../services/utils/activityLogger.service';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAppContext } from '../../contexts/AppContext';
 import { Icon } from './Icon';
 
 interface Props {
@@ -34,6 +37,8 @@ const ComercialCardModal: React.FC<Props> = ({
   onCreate,
   onUpdate,
 }) => {
+  const { profile } = useAuth();
+  const { selectedUnit } = useAppContext();
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState('');
   const [endereco, setEndereco] = useState('');
@@ -72,7 +77,7 @@ const ComercialCardModal: React.FC<Props> = ({
   // Auto-save status changes for existing cards
   const handleStatusChange = async (newStatus: string) => {
     setStatus(newStatus);
-    
+
     if (initialCard && onUpdate) {
       try {
         // Save silently without triggering full reload
@@ -89,7 +94,7 @@ const ComercialCardModal: React.FC<Props> = ({
   // Auto-save observações for existing cards
   const handleObservacaoChange = async (newObservacao: string) => {
     setObservacao(newObservacao);
-    
+
     if (initialCard && onUpdate) {
       try {
         // Save silently without triggering full reload
@@ -104,7 +109,7 @@ const ComercialCardModal: React.FC<Props> = ({
   // Auto-save tipo for existing cards
   const handleTipoChange = async (newTipo: string) => {
     setTipo(newTipo);
-    
+
     if (initialCard && onUpdate) {
       try {
         await onUpdate(initialCard.id, { tipo: newTipo.trim() || null });
@@ -117,7 +122,7 @@ const ComercialCardModal: React.FC<Props> = ({
   // Auto-save origem for existing cards
   const handleOrigemChange = async (newOrigem: string) => {
     setOrigem(newOrigem);
-    
+
     if (initialCard && onUpdate) {
       try {
         await onUpdate(initialCard.id, { origem: newOrigem.trim() || null });
@@ -157,6 +162,17 @@ const ComercialCardModal: React.FC<Props> = ({
         await onCreate(payload);
       }
 
+      // Registrar atividade comercial
+      if (profile && selectedUnit) {
+        const actionCode = initialCard ? 'update_comercial' : 'create_comercial';
+        const logMethod = initialCard ? activityLogger.logComercialUpdate : activityLogger.logComercialCreate;
+        logMethod(
+          profile.email || (profile as any).full_name || (profile as any).name,
+          typeof selectedUnit === 'string' ? selectedUnit : selectedUnit?.unit_code || 'ALL',
+          'success'
+        );
+      }
+
       onSaved();
       if (!initialCard) {
         onClose(); // Fecha apenas para novos registros
@@ -189,8 +205,8 @@ const ComercialCardModal: React.FC<Props> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-xl bg-bg-secondary shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header compacto com status */}
         <div className="relative bg-gradient-to-r from-accent-primary/5 to-brand-cyan/5 border-b border-border-secondary px-5 py-3.5">
           <div className="flex items-center justify-between gap-4">
@@ -203,7 +219,7 @@ const ComercialCardModal: React.FC<Props> = ({
                 <span>{unidadeNome}</span>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               {/* Status ao lado do botão fechar */}
               <label className="flex flex-col gap-1.5 min-w-[140px]">
@@ -220,9 +236,9 @@ const ComercialCardModal: React.FC<Props> = ({
                   ))}
                 </select>
               </label>
-              
-              <button 
-                onClick={onClose} 
+
+              <button
+                onClick={onClose}
                 className="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg p-1.5 transition-colors mt-5"
                 aria-label="Fechar"
               >

@@ -16,6 +16,13 @@ export const createUnit = async (unitData: Partial<Unit>) => {
 		id: (unitData as any).id,
 		unit_name: unitData.unit_name?.trim(),
 		unit_code: unitData.unit_code?.trim(),
+		razao_social: unitData.razao_social?.trim() || null,
+		cnpj: unitData.cnpj?.trim() || null,
+		endereco: unitData.endereco?.trim() || null,
+		responsavel: unitData.responsavel?.trim() || null,
+		contato: unitData.contato?.trim() || null,
+		email: unitData.email?.trim() || null,
+		teste: unitData.teste || false,
 	};
 	if (!payload.unit_name || !payload.unit_code) {
 		throw new Error('Nome e código da unidade são obrigatórios.');
@@ -34,6 +41,13 @@ export const updateUnit = async (unitId: string, unitData: Partial<Unit>) => {
 	const payload = {
 		unit_name: unitData.unit_name?.trim(),
 		unit_code: unitData.unit_code?.trim(),
+		razao_social: unitData.razao_social?.trim() || null,
+		cnpj: unitData.cnpj?.trim() || null,
+		endereco: unitData.endereco?.trim() || null,
+		responsavel: unitData.responsavel?.trim() || null,
+		contato: unitData.contato?.trim() || null,
+		email: unitData.email?.trim() || null,
+		teste: unitData.teste,
 	} as Partial<Unit>;
 	if (!payload.unit_name || !payload.unit_code) {
 		throw new Error('Nome e código da unidade são obrigatórios.');
@@ -51,5 +65,29 @@ export const updateUnit = async (unitId: string, unitData: Partial<Unit>) => {
 export const deleteUnit = async (unitId: string) => {
 	const { error } = await supabase.from('units').delete().eq('id', unitId);
 	if (error) throw error;
+};
+
+export const toggleUnitStatus = async (unitId: string, isActive: boolean) => {
+	const { error } = await supabase
+		.from('units')
+		.update({ is_active: isActive })
+		.eq('id', unitId);
+
+	if (error) {
+		console.error('Erro ao atualizar status da unidade:', error);
+		throw new Error(`Falha ao atualizar status: ${error.message}`);
+	}
+};
+
+export const patchUnitTesteStatus = async (unitId: string, isTeste: boolean) => {
+	const { error } = await supabase
+		.from('units')
+		.update({ teste: isTeste })
+		.eq('id', unitId);
+
+	if (error) {
+		console.error('Erro ao atualizar modo teste da unidade:', error);
+		throw new Error(`Falha ao atualizar modo teste: ${error.message}`);
+	}
 };
 

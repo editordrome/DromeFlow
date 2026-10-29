@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  fetchAllUsers, 
-  createUser, 
-  updateUser, 
-  deleteUser, 
+import {
+  fetchAllUsers,
+  createUser,
+  updateUser,
+  deleteUser,
   fetchUserAssignments,
   fetchUsersForAdminUnits,
   removeUserFromUnit
 } from '../../services/auth/users.service';
 import { fetchAllUnits } from '../../services/units/units.service';
 import { fetchAllModules } from '../../services/modules/modules.service';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { User, Profile, UserRole, Unit, Module } from '../../types';
@@ -18,10 +19,10 @@ import { UserFormModal } from '../ui/UserFormModal';
 
 type FullUser = User & Profile;
 
-type UserDataPayload = Partial<FullUser> & { 
-    password?: string;
-    unit_ids?: string[];
-    module_ids?: string[];
+type UserDataPayload = Partial<FullUser> & {
+  password?: string;
+  unit_ids?: string[];
+  module_ids?: string[];
 };
 
 const ManageUsersPage: React.FC = () => {
@@ -166,10 +167,28 @@ const ManageUsersPage: React.FC = () => {
           await createUser(data);
         }
       }
-      
+
+      // Registrar atividade de gerenciamento de usuário
+      if (profile) {
+        const adminUnitCode = profile.units?.[0]?.code || 'system';
+        if (editingUser) {
+          activityLogger.logUserUpdate(
+            profile.email || profile.full_name,
+            adminUnitCode,
+            'success'
+          );
+        } else {
+          activityLogger.logUserCreate(
+            profile.email || profile.full_name,
+            adminUnitCode,
+            'success'
+          );
+        }
+      }
+
       // Recarrega a lista de usuários ANTES de fechar o modal
       await loadUsers();
-      
+
       // Fecha o modal apenas após recarregar
       handleCloseModal();
     } catch (err: any) {
@@ -195,6 +214,17 @@ const ManageUsersPage: React.FC = () => {
         } else {
           throw new Error('Sem permissão para excluir.');
         }
+
+        // Registrar exclusão de usuário
+        if (profile) {
+          const adminUnitCode = profile.units?.[0]?.code || 'system';
+          activityLogger.logUserDelete(
+            profile.email || profile.full_name,
+            adminUnitCode,
+            'success'
+          );
+        }
+
         await loadUsers();
       } catch (err: any) {
         alert(`Erro: ${err.message}`);
@@ -225,7 +255,7 @@ const ManageUsersPage: React.FC = () => {
           )}
         </div>
       </div>
-      
+
       {/* Área de Tabela */}
       <div className="bg-bg-secondary rounded-lg shadow-md overflow-hidden">
         {isLoading ? (
@@ -238,98 +268,98 @@ const ManageUsersPage: React.FC = () => {
           </div>
         ) : (
           <>
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="min-w-full table-fixed divide-y divide-border-primary">
-            <thead className="bg-bg-tertiary">
-              <tr>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[22%]">Nome</th>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[26%]">Email</th>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[32%]">Unidade</th>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[12%] whitespace-nowrap">Função</th>
-                <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary w-[8%] whitespace-nowrap">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="bg-bg-secondary divide-y divide-border-primary">
-              {paginatedUsers.length === 0 && (
-                <tr>
-                  <td className="px-6 py-4 text-sm text-text-secondary" colSpan={5}>Nenhum usuário encontrado.</td>
-                </tr>
-              )}
-              {paginatedUsers.map((user) => (
-                <tr 
-                  key={user.id} 
-                  onDoubleClick={() => handleOpenModal(user)}
-                  className="transition-colors cursor-pointer hover:bg-bg-tertiary"
-                >
-                  <td className="px-6 py-2 text-sm font-medium text-text-primary truncate">{user.full_name}</td>
-                  <td className="px-6 py-2 text-sm text-text-secondary truncate">{user.email}</td>
-                  <td className="px-6 py-2 text-sm text-text-secondary truncate" title={(unitsByUser[user.id] && unitsByUser[user.id].length > 0) ? unitsByUser[user.id].join(', ') : '-' }>
-                    {(() => {
-                      const list = unitsByUser[user.id] || [];
-                      if (list.length === 0) return '-';
-                      const shown = list.slice(0, 2).join(', ');
-                      const extra = list.length - 2;
-                      return extra > 0 ? `${shown} +${extra}` : shown;
-                    })()}
-                  </td>
-                  <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
-                  <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
-                    <div className="flex items-center justify-end space-x-1">
-                      {profile?.role !== 'user' && (
-                        <>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleOpenModal(user); }} 
-                          className="p-2 rounded-md text-accent-primary hover:bg-accent-primary/10 transition-colors"
-                          title="Editar Usuário"
-                        >
-                          <Icon name="edit" className="w-5 h-5" />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleDeleteUser(user.id); }} 
-                          disabled={!!deletingUserId}
-                          className={`p-2 rounded-md transition-colors ${deletingUserId ? 'opacity-50 cursor-not-allowed' : 'text-danger hover:bg-danger/10'} `}
-                          title={deletingUserId ? 'Processando...' : 'Excluir Usuário'}
-                        >
-                          {deletingUserId === user.id ? (
-                            <span className="w-5 h-5 inline-block border-2 border-danger border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Icon name="delete" className="w-5 h-5" />
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table className="min-w-full table-fixed divide-y divide-border-primary">
+                <thead className="bg-bg-tertiary">
+                  <tr>
+                    <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[22%]">Nome</th>
+                    <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[26%]">Email</th>
+                    <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[32%]">Unidade</th>
+                    <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-left uppercase text-text-secondary w-[12%] whitespace-nowrap">Função</th>
+                    <th scope="col" className="px-6 py-2 text-xs font-medium tracking-wider text-right uppercase text-text-secondary w-[8%] whitespace-nowrap">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-bg-secondary divide-y divide-border-primary">
+                  {paginatedUsers.length === 0 && (
+                    <tr>
+                      <td className="px-6 py-4 text-sm text-text-secondary" colSpan={5}>Nenhum usuário encontrado.</td>
+                    </tr>
+                  )}
+                  {paginatedUsers.map((user) => (
+                    <tr
+                      key={user.id}
+                      onDoubleClick={() => handleOpenModal(user)}
+                      className="transition-colors cursor-pointer hover:bg-bg-tertiary"
+                    >
+                      <td className="px-6 py-2 text-sm font-medium text-text-primary truncate">{user.full_name}</td>
+                      <td className="px-6 py-2 text-sm text-text-secondary truncate">{user.email}</td>
+                      <td className="px-6 py-2 text-sm text-text-secondary truncate" title={(unitsByUser[user.id] && unitsByUser[user.id].length > 0) ? unitsByUser[user.id].join(', ') : '-'}>
+                        {(() => {
+                          const list = unitsByUser[user.id] || [];
+                          if (list.length === 0) return '-';
+                          const shown = list.slice(0, 2).join(', ');
+                          const extra = list.length - 2;
+                          return extra > 0 ? `${shown} +${extra}` : shown;
+                        })()}
+                      </td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-text-secondary">{user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+                      <td className="px-6 py-2 text-sm font-medium text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end space-x-1">
+                          {profile?.role !== 'user' && (
+                            <>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleOpenModal(user); }}
+                                className="p-2 rounded-md text-accent-primary hover:bg-accent-primary/10 transition-colors"
+                                title="Editar Usuário"
+                              >
+                                <Icon name="edit" className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteUser(user.id); }}
+                                disabled={!!deletingUserId}
+                                className={`p-2 rounded-md transition-colors ${deletingUserId ? 'opacity-50 cursor-not-allowed' : 'text-danger hover:bg-danger/10'} `}
+                                title={deletingUserId ? 'Processando...' : 'Excluir Usuário'}
+                              >
+                                {deletingUserId === user.id ? (
+                                  <span className="w-5 h-5 inline-block border-2 border-danger border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Icon name="delete" className="w-5 h-5" />
+                                )}
+                              </button>
+                            </>
                           )}
-                        </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        
-        {/* Paginação */}
-        <div className="flex items-center justify-between p-4 border-t border-border-secondary bg-bg-tertiary">
-          <p className="text-xs text-text-secondary">
-            Mostrando {filteredUsers.length === 0 ? 0 : start + 1}–{Math.min(end, filteredUsers.length)} de {filteredUsers.length}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-bg-secondary transition"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage <= 1}
-            >Anterior</button>
-            <span className="text-sm text-text-secondary">Página {currentPage} de {totalPages}</span>
-            <button
-              className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-bg-secondary transition"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
-            >Próxima</button>
-          </div>
-        </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginação */}
+            <div className="flex items-center justify-between p-4 border-t border-border-secondary bg-bg-tertiary">
+              <p className="text-xs text-text-secondary">
+                Mostrando {filteredUsers.length === 0 ? 0 : start + 1}–{Math.min(end, filteredUsers.length)} de {filteredUsers.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-bg-secondary transition"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >Anterior</button>
+                <span className="text-sm text-text-secondary">Página {currentPage} de {totalPages}</span>
+                <button
+                  className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 hover:bg-bg-secondary transition"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >Próxima</button>
+              </div>
+            </div>
           </>
-      )}
+        )}
       </div>
 
-      <UserFormModal 
+      <UserFormModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSave={handleSaveUser}

@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { supabase } from '../../services/supabaseClient';
+import { activityLogger } from '../../services/utils/activityLogger.service';
 import { Unit, Module, PageView } from '../../types';
 import { Icon } from '../ui/Icon';
 import ProfileModal from '../ui/ProfileModal';
+import WhatsAppConnectionsModal from '../ui/WhatsAppConnectionsModal';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -19,7 +21,10 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   // Isso garante que a opção 'Todos' (ALL) agregue dinamicamente todos os unit_code disponíveis
   // sem necessidade de estado duplicado ou múltiplos fetches locais.
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('2.0.0');
+
   // Módulos filtrados pela unidade selecionada
   const [filteredModules, setFilteredModules] = useState<Module[]>([]);
   const [loadingModules, setLoadingModules] = useState(false);
@@ -31,7 +36,18 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         setFilteredModules(userModules.filter(m => m.is_active));
         return;
       }
-      
+
+      // Debug: verificar se is_active está presente
+      console.log('[Sidebar] selectedUnit:', selectedUnit);
+      console.log('[Sidebar] is_active:', selectedUnit.id !== 'ALL' && 'is_active' in selectedUnit ? selectedUnit.is_active : 'N/A');
+
+      // Se a unidade estiver inativa, não mostra nenhum módulo
+      if (selectedUnit.id !== 'ALL' && 'is_active' in selectedUnit && selectedUnit.is_active === false) {
+        console.log('[Sidebar] Unidade inativa detectada, ocultando módulos');
+        setFilteredModules([]);
+        return;
+      }
+
       setLoadingModules(true);
       try {
         const modules = await getModulesForUnit(selectedUnit.id);
@@ -43,9 +59,31 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         setLoadingModules(false);
       }
     };
-    
+
     loadModulesForUnit();
   }, [selectedUnit, userModules, getModulesForUnit]);
+
+  // Carregar versão ativa do sistema
+  useEffect(() => {
+    const loadAppVersion = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_versions')
+          .select('version')
+          .eq('is_active', true)
+          .order('release_date', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!error && data) {
+          setAppVersion(data.version);
+        }
+      } catch (err) {
+        console.error('[Sidebar] Erro ao carregar versão:', err);
+      }
+    };
+    loadAppVersion();
+  }, []);
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -69,17 +107,62 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     }
   }, [user, profile, userUnits, selectedUnit, setSelectedUnit]);
 
+  // Verifica se a unidade selecionada foi desativada e redireciona para uma ativa
+  useEffect(() => {
+    if (!selectedUnit || selectedUnit.id === 'ALL') return;
+    if (!('is_active' in selectedUnit)) return;
+
+    // Se a unidade selecionada está inativa, redireciona para a primeira unidade ativa
+    if (selectedUnit.is_active === false) {
+      console.log('[Sidebar] Unidade selecionada está inativa, redirecionando...');
+      const firstActiveUnit = userUnits.find(u => u.is_active !== false);
+      if (firstActiveUnit) {
+        setSelectedUnit(firstActiveUnit);
+      } else if (profile?.role === 'super_admin') {
+        setSelectedUnit({ id: 'ALL', unit_name: 'Todas as Unidades', unit_code: 'ALL' } as any);
+      }
+    }
+  }, [selectedUnit, userUnits, setSelectedUnit, profile]);
+
+  // Fechar menu do usuário ao clicar fora
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-user-menu]')) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isUserMenuOpen]);
+
   const handleUnitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     if (val === 'ALL') {
-      setSelectedUnit({ id: 'ALL', unit_name: 'Todas as Unidades', unit_code: 'ALL' });
+      setSelectedUnit({ id: 'ALL', unit_name: 'Sistema (Global)', unit_code: 'ALL' });
       return;
     }
     const unit = userUnits.find(u => u.id === val) || null;
     setSelectedUnit(unit);
   };
-  
+
   const handleModuleClick = (module: Module) => {
+    // Registrar acesso ao módulo
+    if (profile && selectedUnit) {
+      const userIdentifier = profile.email || profile.full_name;
+      const unitCode = selectedUnit.unit_code === 'ALL' ? null : selectedUnit.unit_code;
+
+      activityLogger.logModuleAccess(
+        userIdentifier,
+        unitCode,
+        module.code,
+        module.name
+      );
+    }
+
     const viewIdNorm = (module.view_id || '').toLowerCase().replace(/-/g, '_');
     const url = (module.webhook_url || '').toLowerCase();
     const internalView = url.startsWith('internal://') ? url.slice('internal://'.length).replace(/-/g, '_') : '';
@@ -91,12 +174,12 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     }
     setSidebarOpen(false);
   };
-  
+
   const handleProfileUpdate = async (data: { email?: string; password?: string; full_name?: string }) => {
     if (!profile) return;
 
     const updates: { email?: string; password?: string; full_name?: string } = {};
-  if (data.email && data.email !== (user?.email || null)) updates.email = data.email;
+    if (data.email && data.email !== (user?.email || null)) updates.email = data.email;
     if (data.password) updates.password = data.password;
     if (data.full_name && data.full_name !== (profile as any).full_name) updates.full_name = data.full_name;
 
@@ -108,7 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
     const { data: updatedProfiles, error } = await supabase
       .from('profiles')
       .update(updates)
-  .eq('id', profile.id)
+      .eq('id', profile.id)
       .select('*')
       .single();
 
@@ -152,11 +235,10 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         // Quando recolhido, mostrar o nome do módulo como tooltip nativo
         title={isCollapsed ? label : undefined}
         aria-label={isCollapsed ? label : undefined}
-        className={`flex items-center ${isCollapsed ? 'justify-center' : ''} w-full px-4 py-2.5 text-sm rounded-lg transition-colors duration-200 ${
-          isActive
-            ? 'bg-accent-primary text-text-on-accent'
-            : 'text-gray-300 hover:bg-white/10 hover:text-brand-snow-white'
-        } ${className || ''}`}
+        className={`flex items-center ${isCollapsed ? 'justify-center' : ''} w-full px-4 py-2.5 text-sm rounded-lg transition-colors duration-200 ${isActive
+          ? 'bg-accent-primary text-text-on-accent'
+          : 'text-gray-300 hover:bg-white/10 hover:text-brand-snow-white'
+          } ${className || ''}`}
       >
         <Icon name={icon} className={isCollapsed ? 'w-6 h-6' : 'w-5 h-5'} />
         {!isCollapsed && (
@@ -184,10 +266,17 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       return a.name.localeCompare(b.name);
     });
 
-  const parents = sorted.filter(m => !m.parent_id);
-  const normalizeView = (v?: string | null) => (v || '').replace(/-/g, '_');
+    // Filtra módulos redundantes que já estão no menu do usuário
+    const filteredForRedundancy = sorted.filter(m =>
+      m.code !== 'configuracoes' &&
+      m.code !== 'manage_users' &&
+      m.code !== 'tutoriais'
+    );
+
+    const parents = filteredForRedundancy.filter(m => !m.parent_id);
+    const normalizeView = (v?: string | null) => (v || '').replace(/-/g, '_');
     const childrenMap = new Map<string, Module[]>();
-    for (const m of sorted) {
+    for (const m of filteredForRedundancy) {
       if (m.parent_id) {
         const list = childrenMap.get(m.parent_id) || [];
         list.push(m);
@@ -210,7 +299,7 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       const isActiveParent =
         (activeView === 'module' && activeModule?.id === parent.id) ||
         (parent.view_id && activeView === normalizeView(parent.view_id));
-  const isExpanded = expandedParents[parent.id] ?? false; // por padrão RECOLHIDO
+      const isExpanded = expandedParents[parent.id] ?? false; // por padrão RECOLHIDO
 
       return (
         <React.Fragment key={parent.id}>
@@ -262,118 +351,239 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
   const sidebarContent = (
     <>
-  <div className={`z-30 bg-brand-dark-blue text-brand-snow-white flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
-        <div className="flex items-center min-w-0">
-          <img src="https://iili.io/3RBGZox.png" alt="DromeFlow Logo" className="w-8 h-8 flex-shrink-0" />
-          {!isCollapsed && <span className="ml-2 text-xl font-bold truncate">DromeFlow</span>}
-        </div>
-        <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1 rounded-full hover:bg-white/10">
-          <Icon name={isCollapsed ? 'menu-unfold' : 'menu-fold'} className={isCollapsed ? 'w-8 h-8' : 'w-5 h-5'} />
+      <div className={`z-30 bg-brand-dark-blue text-brand-snow-white flex flex-col transition-all duration-300 relative ${isCollapsed ? 'w-20' : 'w-64'}`}>
+        {/* Toggle Button - Agora no topo, invisível até hover */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={`absolute left-0 top-0 z-50 p-4 transition-opacity duration-200 opacity-0 hover:opacity-100 flex items-center justify-center ${isCollapsed ? 'w-20' : 'w-full'} h-16 bg-transparent text-white hidden lg:flex`}
+          title={isCollapsed ? "Expandir menu" : "Recolher menu"}
+        >
+          <Icon name={isCollapsed ? 'ChevronRight' : 'ChevronLeft'} className="w-5 h-5" />
         </button>
-      </div>
 
-      <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        {profile?.role !== 'super_admin' && userUnits.length > 0 && (
-          <div>
-            <label htmlFor="unit-select-top" className="block text-xs font-medium text-gray-400 mb-1">
-              Unidade
-            </label>
-            {userUnits.length === 1 ? (
-              // Apenas uma unidade: exibir como texto fixo
-              <div className="block w-full rounded-md border border-gray-600 bg-bg-tertiary py-1.5 pl-2 pr-2 text-xs text-text-primary">
-                {userUnits[0].unit_name}
+        <div className="flex items-center justify-between p-4 border-b border-white/10 h-16">
+          <div className="flex items-center min-w-0 w-full">
+            <img src="https://iili.io/3RBGZox.png" alt="DromeFlow Logo" className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'mx-auto w-10 h-10' : 'w-8 h-8'}`} />
+            {!isCollapsed && <span className="ml-2 text-xl font-bold truncate">DromeFlow</span>}
+          </div>
+        </div>
+
+        <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+          {/* Seletor de Modo/Unidade para Super Admin */}
+          {profile?.role === 'super_admin' && !isCollapsed ? (
+            <div className="space-y-3">
+              <div className="flex bg-bg-tertiary rounded-lg p-1 border border-white/10">
+                <button
+                  onClick={() => setSelectedUnit({ id: 'ALL', unit_name: 'Sistema (Global)', unit_code: 'ALL' })}
+                  className={`flex-1 py-1.5 text-[10px] uppercase font-bold rounded transition-all ${selectedUnit?.id === 'ALL' ? 'bg-accent-primary text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Sistema
+                </button>
+                <button
+                  onClick={() => {
+                    const firstUnit = userUnits.find(u => u.id !== 'ALL');
+                    if (firstUnit) setSelectedUnit(firstUnit);
+                  }}
+                  className={`flex-1 py-1.5 text-[10px] uppercase font-bold rounded transition-all ${selectedUnit?.id !== 'ALL' ? 'bg-accent-primary text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Unidades
+                </button>
               </div>
-            ) : (
-              // Múltiplas unidades: exibir dropdown
-              <select
-                id="unit-select-top"
-                value={selectedUnit?.id || ''}
-                onChange={handleUnitChange}
-                className="block w-full rounded-md border-gray-600 bg-bg-secondary py-1.5 pl-2 pr-8 text-xs text-text-primary focus:border-accent-primary focus:outline-none focus:ring-accent-primary"
-              >
-                <option value="ALL">Todos</option>
-                {userUnits.map(unit => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.unit_name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        )}
-        <nav className="space-y-2 pt-2">
-          <ul className="list-none m-0 p-0">
-            {/* Renderiza os módulos agrupados por pai/filho */}
-            {renderModulesTree()}
-            {/* Removido fallback de Agendamentos para evitar exibir módulo não autorizado */}
-          </ul>
-        </nav>
-      </div>
 
-      <div className="border-t border-gray-700 p-3">
-        {isCollapsed ? (
-          <div className="flex flex-col items-center gap-3">
+              {selectedUnit?.id !== 'ALL' && userUnits.length > 0 && (
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label htmlFor="unit-select-admin" className="block text-[10px] font-medium text-gray-500 mb-1 uppercase">
+                    Selecionar Unidade
+                  </label>
+                  <select
+                    id="unit-select-admin"
+                    value={selectedUnit?.id || ''}
+                    onChange={handleUnitChange}
+                    className="block w-full rounded-md border-gray-600 bg-bg-secondary py-1.5 pl-2 pr-8 text-xs text-text-primary focus:border-accent-primary focus:outline-none focus:ring-accent-primary"
+                  >
+                    {userUnits.map(unit => (
+                      <option key={unit.id} value={unit.id}>
+                        {unit.unit_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Seletor de Unidade para Admin/User padrão */
+            userUnits.length > 0 && !isCollapsed && (
+              <div>
+                <label htmlFor="unit-select-top" className="block text-xs font-medium text-gray-400 mb-1">
+                  Unidade
+                </label>
+                {userUnits.filter(u => u.is_active !== false).length === 1 ? (
+                  <div className="block w-full rounded-md border border-gray-600 bg-bg-tertiary py-1.5 pl-2 pr-2 text-xs text-text-primary">
+                    {userUnits.find(u => u.is_active !== false)?.unit_name}
+                  </div>
+                ) : (
+                  <select
+                    id="unit-select-top"
+                    value={selectedUnit?.id || ''}
+                    onChange={handleUnitChange}
+                    className="block w-full rounded-md border-gray-600 bg-bg-secondary py-1.5 pl-2 pr-8 text-xs text-text-primary focus:border-accent-primary focus:outline-none focus:ring-accent-primary"
+                  >
+                    <option value="ALL">Todos</option>
+                    {userUnits.filter(unit => unit.is_active !== false).map(unit => (
+                      <option key={unit.id} value={unit.id}>
+                        {unit.unit_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )
+          )}
+
+          <nav className="space-y-2 pt-2">
+            {/* Mensagem quando unidade está inativa */}
+            {selectedUnit && selectedUnit.id !== 'ALL' && 'is_active' in selectedUnit && selectedUnit.is_active === false && !isCollapsed && (
+              <div className="px-4 py-3 bg-danger/10 border border-danger/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Icon name="alert-circle" className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold text-danger">Unidade Inativa</p>
+                    <p className="text-xs text-danger/80 mt-0.5">Esta unidade está desativada. Nenhum módulo está disponível.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <ul className="list-none m-0 p-0">
+              {renderModulesTree()}
+            </ul>
+          </nav>
+
+          {(() => {
+            const moduleInfo = filteredModules.find(m => m.code === 'tutoriais');
+            if (!moduleInfo && profile?.role !== 'super_admin') return null;
+
+            return (
+              <div className="mt-2 pt-2 border-t border-gray-700">
+                <button
+                  onClick={() => { setView('sistema'); setSidebarOpen(false); }}
+                  className={`flex items-center w-full px-3 py-2 rounded-lg transition-all duration-200 group ${activeView === 'sistema' ? 'bg-accent-primary text-white shadow-md' : 'text-gray-400 hover:bg-bg-tertiary hover:text-white'}`}
+                  title={moduleInfo?.name || "Tutoriais"}
+                >
+                  <div className={`transition-transform duration-200 ${!isCollapsed ? 'mr-3' : 'mx-auto'} group-hover:scale-110`}>
+                    <Icon name={moduleInfo?.icon || "Info"} className={`w-5 h-5 ${activeView === 'sistema' ? 'text-white' : 'text-gray-400 group-hover:text-accent-primary'}`} />
+                  </div>
+                  {!isCollapsed && <span className="text-sm font-medium truncate">{moduleInfo?.name || "Tutoriais"}</span>}
+                </button>
+              </div>
+            );
+          })()}
+        </div>
+
+        <div className="border-t border-gray-700 p-3 relative" data-user-menu>
+          <div className="relative">
             <button
               type="button"
-              onClick={() => setIsProfileModalOpen(true)}
-              className="relative group focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-brand-dark-blue"
-              aria-label="Abrir perfil do usuário"
-              title={profile?.full_name || user?.email || 'Perfil'}
-            >
-              <img
-                className="h-9 w-9 rounded-full ring-1 ring-white/10 group-hover:ring-accent-primary transition"
-                src={`https://ui-avatars.com/api/?name=${user?.email}&background=0D8ABC&color=fff`}
-                alt="Avatar"
-              />
-            </button>
-            <button
-              onClick={logout}
-              aria-label="Sair"
-              title="Sair"
-              className="flex items-center justify-center w-12 h-12 rounded-md bg-danger/80 text-brand-snow-white hover:bg-danger focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-2 focus:ring-offset-brand-dark-blue"
-            >
-              <Icon name="logout" className="w-7 h-7" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 mt-1">
-            <button
-              type="button"
-              onClick={() => setIsProfileModalOpen(true)}
-              className="flex items-center group text-left rounded-md focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-brand-dark-blue hover:bg-white/10 transition-colors px-2 py-1 flex-1"
-              aria-label="Abrir perfil do usuário"
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className={`flex items-center group text-left rounded-md focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-brand-dark-blue hover:bg-white/10 transition-colors px-2 py-1.5 w-full ${isCollapsed ? 'justify-center' : ''}`}
+              aria-label="Menu do usuário"
             >
               <img
                 className="h-8 w-8 rounded-full flex-shrink-0 ring-1 ring-white/10 group-hover:ring-accent-primary transition"
                 src={`https://ui-avatars.com/api/?name=${user?.email}&background=0D8ABC&color=fff`}
                 alt="Avatar"
               />
-              <div className="ml-2 min-w-0">
-                <p className="text-xs font-medium text-brand-snow-white truncate group-hover:text-white leading-tight">{profile?.full_name || 'Usuário'}</p>
-                <p className="text-[10px] text-gray-400 truncate leading-tight">{user?.email}</p>
+              {!isCollapsed && (
+                <>
+                  <div className="ml-2 min-w-0 flex-1">
+                    <p className="text-xs font-medium text-brand-snow-white truncate group-hover:text-white leading-tight">{profile?.full_name || 'Usuário'}</p>
+                    <p className="text-[10px] text-gray-400 truncate leading-tight">v{appVersion}</p>
+                  </div>
+                  <Icon name={isUserMenuOpen ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                </>
+              )}
+            </button>
+
+            {/* Dropdown Menu - Ajustado para funcionar tanto expandido quanto recolhido */}
+            {isUserMenuOpen && (
+              <div className={`absolute bottom-full mb-2 bg-bg-secondary border border-gray-600 rounded-lg shadow-lg overflow-hidden min-w-[160px] z-50 ${isCollapsed ? 'left-14' : 'left-0 right-0'}`}>
+                <div className="py-1">
+                  {/* Configurações */}
+                  {profile && (profile.role === 'admin' || profile.role === 'user') && (
+                    <button
+                      onClick={() => {
+                        setView('configuracoes', null);
+                        setIsUserMenuOpen(false);
+                        setSidebarOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-text-primary hover:bg-white/10 transition-colors"
+                    >
+                      <Icon name="Settings" className="w-4 h-4" />
+                      <span>Configurações</span>
+                    </button>
+                  )}
+
+
+                  {/* WhatsApp Cloud - Ocultado temporariamente */}
+                  {/*
+                  <button
+                    onClick={() => {
+                      setIsWhatsAppModalOpen(true);
+                      setIsUserMenuOpen(false);
+                      setSidebarOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-text-primary hover:bg-white/10 transition-colors"
+                  >
+                    <Icon name="MessageSquare" className="w-4 h-4" />
+                    <span>WhatsApp Cloud</span>
+                  </button>
+                  */}
+
+                  {/* Perfil */}
+                  <button
+                    onClick={() => {
+                      setIsProfileModalOpen(true);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-text-primary hover:bg-white/10 transition-colors"
+                  >
+                    <Icon name="User" className="w-4 h-4" />
+                    <span>Perfil</span>
+                  </button>
+
+                  {/* Divider */}
+                  <div className="border-t border-gray-600 my-1"></div>
+
+                  {/* Sair */}
+                  <button
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      logout();
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10 transition-colors"
+                  >
+                    <Icon name="logout" className="w-4 h-4" />
+                    <span>Sair</span>
+                  </button>
+                </div>
               </div>
-            </button>
-            <button
-              onClick={logout}
-              className="flex items-center justify-center rounded-md bg-danger/80 px-3 py-2 text-xs font-medium text-brand-snow-white hover:bg-danger focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-2 focus:ring-offset-brand-dark-blue"
-              aria-label="Sair"
-              title="Sair"
-            >
-              <Icon name="logout" className="w-5 h-5" />
-            </button>
+            )}
           </div>
-        )}
+          {isCollapsed && <p className="text-[9px] text-gray-400 text-center mt-1">v{appVersion}</p>}
+        </div>
       </div>
-    </div>
-    
-    <ProfileModal
-      isOpen={isProfileModalOpen}
-      onClose={() => setIsProfileModalOpen(false)}
-      onSave={handleProfileUpdate}
-      user={user}
-      fullNameInitial={(profile as any)?.full_name}
-    />
+
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onSave={handleProfileUpdate}
+        user={user}
+        fullNameInitial={(profile as any)?.full_name}
+      />
+      <WhatsAppConnectionsModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        selectedUnit={selectedUnit}
+      />
     </>
   );
 

@@ -1,8 +1,9 @@
 import { supabase } from '../supabaseClient';
 import { DataRecord } from '../../types';
+import { toFrontendRecord } from './processedDataMapper';
 
 export interface ClientHistoryRecord extends DataRecord {
-    // Adiciona campos específicos se necessário
+    pos_vendas_nota?: string | number | null;
 }
 
 /**
@@ -41,9 +42,9 @@ export async function fetchClientHistory(
             .from('processed_data')
             .select('*')
             .eq('unidade_code', unitCode)
-            .ilike('CLIENTE', `%${normalizedName}%`) // Busca parcial case-insensitive (mesmo padrão do ClientDetailModal)
-            .order('DATA', { ascending: false })
-            .order('HORARIO', { ascending: false })
+            .ilike('cliente', `%${normalizedName}%`) // Busca parcial case-insensitive
+            .order('data', { ascending: false })
+            .order('horario', { ascending: false })
             .limit(limit);
 
         // Filtro por período (mês/ano)
@@ -52,7 +53,7 @@ export async function fetchClientHistory(
             const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
             const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
             console.log('[ClientHistory] Filtrando por período:', { startDate, endDate });
-            query = query.gte('DATA', startDate).lte('DATA', endDate);
+            query = query.gte('data', startDate).lte('data', endDate);
         }
 
         // Excluir o registro atual
@@ -67,43 +68,46 @@ export async function fetchClientHistory(
             throw error;
         }
 
-        console.log(`[ClientHistory] Histórico encontrado para "${normalizedName}":`, data?.length || 0, 'registros', data);
+        console.log(`[ClientHistory] Histórico encontrado para "${normalizedName}":`, data?.length || 0, 'registros');
         
         // Buscar notas do pós-venda para cada registro
         if (data && data.length > 0) {
-            const atendimentoIds = data
-                .map(rec => rec.ATENDIMENTO_ID)
+            const mappedData = data.map(toFrontendRecord);
+            const atendimentoIds = mappedData
+                .map(rec => rec.atendimento_id)
                 .filter(id => id && !id.includes('_')); // Excluir derivados (_1, _2, etc)
             
             if (atendimentoIds.length > 0) {
                 const { data: posVendasData } = await supabase
                     .from('pos_vendas')
-                    .select('ATENDIMENTO_ID, nota')
-                    .in('ATENDIMENTO_ID', atendimentoIds);
+                    .select('atendimento_id, nota')
+                    .in('atendimento_id', atendimentoIds);
                 
                 console.log('[ClientHistory] Notas pós-venda encontradas:', posVendasData);
                 
-                // Criar um mapa de notas por ATENDIMENTO_ID
-                const notasMap = new Map<string, string>();
+                // Criar um mapa de notas por atendimento_id
+                const notasMap = new Map<string, any>();
                 if (posVendasData) {
                     posVendasData.forEach((pv: any) => {
-                        if (pv.ATENDIMENTO_ID && pv.nota) {
-                            notasMap.set(pv.ATENDIMENTO_ID, pv.nota);
+                        if (pv.atendimento_id && pv.nota) {
+                            notasMap.set(pv.atendimento_id, pv.nota);
                         }
                     });
                 }
                 
                 // Adicionar as notas aos registros
-                return data.map(rec => ({
+                return mappedData.map(rec => ({
                     ...rec,
-                    pos_vendas_nota: notasMap.get(rec.ATENDIMENTO_ID) || null
+                    pos_vendas_nota: rec.atendimento_id ? notasMap.get(rec.atendimento_id) : null
                 }));
             }
+            return mappedData;
         }
         
-        return data || [];
+        return [];
     } catch (error) {
         console.error('[ClientHistory] Erro ao buscar histórico do cliente:', error);
         throw error;
     }
 }
+

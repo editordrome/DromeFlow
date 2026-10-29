@@ -32,15 +32,13 @@ const LoginPage: React.FC = () => {
         style={{ backgroundColor: 'rgba(1, 13, 50, 0.9)' }}
       >
         <div className="p-8 md:p-10">
-          <h2 className="mb-10 text-center">
+          <div className="mb-10 flex justify-center">
             <img
-              src="https://iili.io/3IVuaEb.png"
-              alt="Logo DromeFlow"
-              width="180"
-              height="60"
-              className="mx-auto max-w-[50%] h-auto"
+              src="/logo-dromedario.png"
+              alt="DromeFlow Logo"
+              className="h-32 w-auto object-contain"
             />
-          </h2>
+          </div>
           <form className="space-y-6" onSubmit={handleLogin}>
             <div className="space-y-5">
               <div>
@@ -78,9 +76,8 @@ const LoginPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 transition ${
-                      password ? 'text-[#010d32] hover:text-[#0A1A4A]' : 'text-white/60 hover:text-white/90'
-                    }`}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 transition ${password ? 'text-[#010d32] hover:text-[#0A1A4A]' : 'text-white/60 hover:text-white/90'
+                      }`}
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                   >
                     {showPassword ? (

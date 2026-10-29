@@ -8,17 +8,47 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist - Build de produção (commitado intencionalmente)
+# Descomente a linha abaixo para ignorar:
+# dist
 dist-ssr
 *.local
+
+# Test coverage
+coverage
+*.lcov
+.nyc_output
+test-results/
+
+# Cache directories
+.cache
+.parcel-cache
+.turbo
+.next
+.nuxt
+.vuepress/dist
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Build outputs
+*.tsbuildinfo
+.eslintcache

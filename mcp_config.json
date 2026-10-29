@@ -1,0 +1,25 @@
+{
+    "mcpServers": {
+        "supabase-data": {
+            "command": "sh",
+            "args": [
+                "-c",
+                "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH && npx -y @modelcontextprotocol/server-postgres postgresql://postgres:[SUA_SENHA]@db.uframhbsgtxckdxttofo.supabase.co:5432/postgres"
+            ]
+        },
+        "memory": {
+            "command": "sh",
+            "args": [
+                "-c",
+                "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH && npx -y @modelcontextprotocol/server-memory"
+            ]
+        },
+        "filesystem": {
+            "command": "sh",
+            "args": [
+                "-c",
+                "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH && npx -y @modelcontextprotocol/server-filesystem \"/Users/jeanpetri/Ag. Dromedario/Sistema - MB Dromeflow/DromeFlow\""
+            ]
+        }
+    }
+}

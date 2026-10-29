@@ -1,0 +1,13 @@
+{
+  "status": "init",
+  "executionArgs": {
+    "projectName": "DromeFlow",
+    "projectPath": "/Users/jeanpetri/Ag. Dromedario/Sistema - MB Dromeflow/DromeFlow",
+    "testIds": [],
+    "additionalInstruction": "Tente um smoke test na página de login e onboarding. Verifique a visibilidade dos elementos principais.",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-PaxgFjp9k1uTfZ6X9qdAriVq_SMG_3g0wt2LuOj04TSXHp1jYNeiELvMW-ceKWbKc-LRgkRCK2faJwuVIM1LC4ItUAM1ScSanehlumdon_MfK3Bu7-lQFZR9vtzOrcy0iYU"
+    }
+  }
+}

@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
+
 import { fetchWebhookContent } from '../../services/content/content.service';
 
 // Lazy loading das páginas
@@ -10,6 +12,7 @@ const ManageUnitsPage = lazy(() => import('../pages/ManageUnitsPage'));
 const ManageAccessPage = lazy(() => import('../pages/ManageAccessPage'));
 const DataPage = lazy(() => import('../pages/DataPage'));
 const DashboardMetricsPage = lazy(() => import('../pages/DashboardMetricsPage'));
+const AgendaPage = lazy(() => import('../pages/AgendaPage'));
 const AppointmentsPage = lazy(() => import('../pages/AppointmentsPage'));
 const ClientsPage = lazy(() => import('../pages/ClientsPage'));
 const ClientsBasePage = lazy(() => import('../pages/ClientsBasePage'));
@@ -20,8 +23,17 @@ const UnitKeysPage = lazy(() => import('../pages/UnitKeysPage'));
 const ComercialPage = lazy(() => import('../pages/ComercialPage'));
 const PosVendasPage = lazy(() => import('../pages/PosVendasPage'));
 const DashboardSistemaPage = lazy(() => import('../pages/DashboardSistemaPage'));
-
-// Loading component
+const ManagePlansPage = lazy(() => import('../pages/ManagePlansPage'));
+const ComercialAdminPage = lazy(() => import('../pages/ComercialAdminPage'));
+const FinancialPage = lazy(() => import('../pages/FinancialPage'));
+const ConfiguracoesPage = lazy(() => import('../pages/ConfiguracoesPage'));
+const ManageVersionsPage = lazy(() => import('../pages/ManageVersionsPage'));
+const TypebotPage = lazy(() => import('../pages/TypebotPage'));
+const SistemaPage = lazy(() => import('../pages/SistemaPage'));
+const SistemaAdminPage = lazy(() => import('../pages/SistemaAdminPage'));
+const LoyaltyPage = lazy(() => import('../pages/LoyaltyPage'));
+const UmblerPage = lazy(() => import('../pages/UmblerPage'));
+const ProductionPage = lazy(() => import('../pages/ProductionPage'));
 const PageLoader = () => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
@@ -79,7 +91,10 @@ const ContentArea: React.FC = () => {
     if (activeView === 'data') {
         return <Suspense fallback={<PageLoader />}><DataPage /></Suspense>;
     }
-    if (activeView === 'appointments' || activeView === 'agenda') {
+    if (activeView === 'agenda') {
+        return <Suspense fallback={<PageLoader />}><AgendaPage /></Suspense>;
+    }
+    if (activeView === 'appointments') {
         return <Suspense fallback={<PageLoader />}><AppointmentsPage /></Suspense>;
     }
     if (activeView === 'clients') {
@@ -109,8 +124,44 @@ const ContentArea: React.FC = () => {
     if (activeView === 'dashboard_admin') {
         return <Suspense fallback={<PageLoader />}><DashboardSistemaPage /></Suspense>;
     }
-    
-    // Default to module view
+    if (activeView === 'manage_plans') {
+        return <Suspense fallback={<PageLoader />}><ManagePlansPage /></Suspense>;
+    }
+    if (activeView === 'comercial_admin') {
+        return <Suspense fallback={<PageLoader />}><ComercialAdminPage /></Suspense>;
+    }
+    if (activeView === 'financial') {
+        return <Suspense fallback={<PageLoader />}><FinancialPage /></Suspense>;
+    }
+    if (activeView === 'configuracoes') {
+        return <Suspense fallback={<PageLoader />}><ConfiguracoesPage /></Suspense>;
+    }
+    if (activeView === 'typebot') {
+        return <Suspense fallback={<PageLoader />}><TypebotPage /></Suspense>;
+    }
+    if (activeView === 'sistema') {
+        return (
+            <Suspense fallback={<PageLoader />}>
+                <SistemaPage />
+            </Suspense>
+        );
+    }
+
+    // @ts-ignore - TypeScript não consegue inferir todos os valores possíveis de activeView
+    if (activeView === 'manage_versions') {
+        return <Suspense fallback={<PageLoader />}><ManageVersionsPage /></Suspense>;
+    }
+    if (activeView === 'loyalty') {
+        return <Suspense fallback={<PageLoader />}><LoyaltyPage /></Suspense>;
+    }
+    // @ts-ignore
+    if (activeView === 'umbler') {
+        return <Suspense fallback={<PageLoader />}><UmblerPage /></Suspense>;
+    }
+    if (activeView === 'production') {
+        return <Suspense fallback={<PageLoader />}><ProductionPage /></Suspense>;
+    }
+
     return (
         <div className="h-full w-full bg-bg-secondary rounded-lg shadow-md overflow-hidden flex flex-col">
             {!activeModule && (
@@ -118,23 +169,44 @@ const ContentArea: React.FC = () => {
                     <p className="text-text-secondary text-center px-4">Selecione um módulo na barra lateral para começar.</p>
                 </div>
             )}
-            
+
             {activeModule && isLoading && (
                 <div className="flex items-center justify-center h-full min-h-[400px]">
                     <div className="w-16 h-16 border-4 border-t-4 border-gray-200 rounded-full animate-spin border-t-accent-primary"></div>
                 </div>
             )}
-            
+
             {activeModule && error && (
                 <div className="p-4 text-danger bg-danger/10 border border-danger/30 rounded-md m-4">{error}</div>
             )}
-            
+
             {activeModule && !isLoading && !error && (
                 <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-                    <div
-                        className="prose max-w-none break-words"
-                        dangerouslySetInnerHTML={{ __html: activeModule?.webhook_url?.startsWith('internal://') ? content : '<p>Conteúdo externo bloqueado por segurança.</p>' }}
-                    />
+                    {/* Fallback para módulos que deveriam ser views internas mas caíram aqui */}
+                    {(() => {
+                        const viewIdNorm = (activeModule.view_id || '').toLowerCase().replace(/-/g, '_');
+                        if (viewIdNorm && viewIdNorm !== 'module') {
+                            console.warn(`[ContentArea] Módulo ${activeModule.name} caiu na renderização genérica. Redirecionando para view: ${viewIdNorm}`);
+                            // O ideal é que o AppContext já tenha resolvido isso, mas aqui serve como proteção
+                        }
+                        
+                        const isInternal = (activeModule?.webhook_url || '').startsWith('internal://');
+                        
+                        return (
+                            <div
+                                className="prose max-w-none break-words"
+                                dangerouslySetInnerHTML={{ 
+                                    __html: isInternal 
+                                        ? content 
+                                        : `<div class="p-8 text-center bg-bg-tertiary rounded-xl border border-dashed border-border-primary">
+                                            <h3 class="text-lg font-semibold text-text-primary mb-2">Módulo: ${activeModule.name}</h3>
+                                            <p class="text-text-secondary text-sm">Conteúdo externo bloqueado por segurança ou não configurado.</p>
+                                            <p class="text-[10px] mt-4 text-text-tertiary">URL: ${activeModule.webhook_url || 'Nenhuma'}</p>
+                                           </div>` 
+                                }}
+                            />
+                        );
+                    })()}
                 </div>
             )}
         </div>

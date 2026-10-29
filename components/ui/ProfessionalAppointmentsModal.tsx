@@ -51,11 +51,11 @@ const ProfessionalAppointmentsModal: React.FC<Props> = ({ isOpen, onClose, profi
                 </thead>
                 <tbody className="bg-bg-secondary divide-y divide-border-primary">
                   {appointments.map((a, idx) => (
-                    <tr key={`${a.DATA}-${idx}`}>
-                      <td className="px-4 py-2 text-sm text-text-primary whitespace-nowrap">{formatDate(a.DATA)}</td>
-                      <td className="px-4 py-2 text-sm text-text-primary">{a.CLIENTE || '-'}</td>
-                      <td className="px-4 py-2 text-sm text-text-primary">{a.MOMENTO || a.HORARIO || '-'}</td>
-                      <td className="px-4 py-2 text-sm text-text-primary">{Number(a.REPASSE||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    <tr key={`${a.data}-${idx}`}>
+                      <td className="px-4 py-2 text-sm text-text-primary whitespace-nowrap">{formatDate(a.data)}</td>
+                      <td className="px-4 py-2 text-sm text-text-primary">{a.cliente || '-'}</td>
+                      <td className="px-4 py-2 text-sm text-text-primary">{a.momento || a.horario || '-'}</td>
+                      <td className="px-4 py-2 text-sm text-text-primary">{Number(a.repasse||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                     </tr>
                   ))}
                 </tbody>

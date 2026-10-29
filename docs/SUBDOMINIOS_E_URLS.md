@@ -2,8 +2,8 @@
 
 Este guia descreve como publicar a aplicação com subdomínios por unidade e paths por módulo:
 
-- Acesso por unidade: https://<unit-slug>.dromeboard.com.br
-- Módulo na URL: https://<unit-slug>.dromeboard.com.br/<module-code>
+- Acesso por unidade: https://<unit-slug>.dromeflow.com
+- Módulo na URL: https://<unit-slug>.dromeflow.com/<module-code>
 
 ## 1) Cloudflare + Hostinger (DNS e SSL)
 
@@ -64,7 +64,7 @@ Boas práticas:
 Implemente utilitários para ler a unidade pelo subdomínio e o módulo pelo path:
 
 ```ts
-export const BASE_DOMAIN = 'dromeboard.com.br';
+export const BASE_DOMAIN = 'dromeflow.com';
 
 export function parseUnitAndModule() {
   const host = window.location.hostname;
@@ -91,12 +91,12 @@ Integração com o AppContext:
 
 ## 5) Testes
 
-- DNS: `dig +short unidade-teste.dromeboard.com.br` deve resolver para o IP do host.
-- HTTPS: `curl -I https://unidade-teste.dromeboard.com.br` deve responder 200/301/302.
-- Navegador: acessar `https://unidade-teste.dromeboard.com.br/dashboard` deve carregar o app e manter o módulo no path.
+- DNS: `dig +short unidade-teste.dromeflow.com` deve resolver para o IP do host.
+- HTTPS: `curl -I https://unidade-teste.dromeflow.com` deve responder 200/301/302.
+- Navegador: acessar `https://unidade-teste.dromeflow.com/dashboard` deve carregar o app e manter o módulo no path.
 
 ## 6) Observações
 
 - Para ambientes locais, mantenha um fallback por path (ex.: `/u/:slug/:module`).
-- Se usar Supabase Auth, adicione `https://*.dromeboard.com.br` nas URLs permitidas (Auth > URL config).
+- Se usar Supabase Auth, adicione `https://*.dromeflow.com` nas URLs permitidas (Auth > URL config).
 - Para cache eficiente: bypass do index.html no Cloudflare e cache agressivo dos assets estáticos.

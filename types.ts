@@ -14,33 +14,73 @@ export interface Profile {
   email?: string | null;
   full_name: string;
   role: UserRole;
+  units?: any[]; // Adicionado para suportar permissões de unidade
 }
-
 export interface Unit {
   id: string;
   unit_name: string;
   unit_code: string;
-  slug: string; // Slug único para subdomínio (kebab-case, ex: mb-joinville)
+  slug: string; // Slug único para subdomínio (kebab-case)
+
   address?: string | null;
   is_active: boolean;
+  created_at: string;
+
+  // Company information fields
+  razao_social?: string | null;
+  cnpj?: string | null;
+  endereco?: string | null;
+  responsavel?: string | null;
+  contato?: string | null;
+  email?: string | null;
+  uniform_value?: string | number | null;
+  teste?: boolean;
+}
+
+export interface UnitService {
+  id: string;
+  unit_id: string;
+  name: string;
+  repasse_value: string;
+  active: boolean;
   created_at: string;
 }
 
 export interface UnitKey {
-  id: string;
+  id: string | number;
   created_at: string;
   updated_at?: string;
   unit_id: string;
-  // Campos de configuração por unidade (Option A)
-  umbler: string | null;
-  whats_profi: string | null;
-  whats_client: string | null;
-  botID: string | null;
-  organizationID: string | null;
-  trigger: string | null;
-  description: string | null;
-  conexao: string | null; // Campo de conexão da unidade
   is_active: boolean;
+  // Campos de configuração por unidade
+  codigo: string | null;
+  istancia: string | null;
+  recrutadora: string | null;
+  botID: string | null;
+  triggerName: string | null;
+  organizationID: string | null;
+  contato_profissionais: string | null;
+  umbler: string | null;
+  contato_atend: string | null;
+  pos_vendas: string | null;
+  conexao: string | null;
+  id_recruta: string | null;
+  key_umbler: string | null;
+  google: string | null;
+  triggerPos: string | null;
+  main_email?: string | null;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  description: string | null;
+  value: number;
+  cycle: 'monthly' | 'annual';
+  status: boolean;
+  payment_link: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Module {
@@ -76,7 +116,36 @@ export interface UnitModuleSummary {
   module_names: string[];
 }
 
-export type PageView = 'welcome' | 'module' | 'manage_users' | 'manage_modules' | 'manage_units' | 'manage_access' | 'data' | 'dashboard' | 'appointments' | 'agenda' | 'clients' | 'clients_base' | 'recrutadora' | 'prestadoras' | 'profissionais' | 'comercial';
+export type PageView =
+  | 'welcome'
+  | 'module'
+  | 'manage_users'
+  | 'manage_modules'
+  | 'manage_units'
+  | 'manage_access'
+  | 'data'
+  | 'dashboard'
+  | 'appointments'
+  | 'agenda'
+  | 'clients'
+  | 'clients_base'
+  | 'recrutadora'
+  | 'prestadoras'
+  | 'profissionais'
+  | 'comercial'
+  | 'comercial_admin'
+  | 'pos_vendas'
+  | 'unit_keys'
+  | 'dashboard_admin'
+  | 'manage_plans'
+  | 'financial'
+  | 'typebot'
+  | 'sistema'
+  | 'manage_versions'
+  | 'loyalty'
+  | 'umbler'
+  | 'production'
+  | 'configuracoes';
 
 export type AccessCredentialType = 'LINK' | 'API_KEY' | 'TOKEN';
 
@@ -116,36 +185,36 @@ export interface BatchUpdateResult {
 export interface DataRecord {
   id?: number;
   created_at?: string;
-  // Removido: orcamento e NÚMERO (agora usa apenas ATENDIMENTO_ID)
-  DATA: string | null;
-  HORARIO: string;
-  VALOR: number;
-  // Fix: Added missing 'SERVIÇO' property to fix type error during data upload.
-  SERVIÇO: string;
-  TIPO: string;
-  // Campo renomeado: agora apenas MOMENTO (antes PERÍODO)
-  MOMENTO?: string;
-  // Novo campo com acento 'PERÍODO' para armazenar coluna Horas (coluna H do XLSX)
-  'PERÍODO'?: string | null;
-  CLIENTE: string;
-  PROFISSIONAL: string | null; // Aceita null quando não há profissional atribuído
-  ENDEREÇO: string;
-  DIA: string;
-  REPASSE: number;
+  data?: string | null;
+  horario?: string;
+  valor?: number;
+  servico?: string;
+  tipo?: string;
+  momento?: string;
+  periodo?: string | null;
+  cliente?: string;
+  profissional?: string | null;
+  endereco?: string;
+  dia?: string;
+  repasse?: number;
   whatscliente: string;
-  CUPOM: string;
-  ORIGEM: string;
-  ATENDIMENTO_ID: string;
-  IS_DIVISAO: string;
-  CADASTRO: string | null;
-  ACAO: string | null;
-  // Novas colunas
+  cupom?: string;
+  origem?: string;
+  atendimento_id?: string;
+  is_divisao?: string;
+  cadastro?: string | null;
+  acao?: string | null;
   confirmacao: boolean | null;
   status: string | null;
   unidade: string | null;
   observacao: string | null;
-  'pos vendas': string | null;
+  pos_vendas: string | null;
   comentario: string | null;
+  reagendou?: boolean | null;
+  unidade_code: string;
+  is_verified?: boolean;
+  payment_status?: string | null;
+  pagto?: string | null;
 }
 
 export interface DashboardMetrics {
@@ -157,29 +226,31 @@ export interface DashboardMetrics {
 }
 
 export interface UploadMetrics {
-    total: number;
-    inserted: number;
-    updated: number;
-    ignored: number;
-    deleted: number;
+  total: number;
+  inserted: number;
+  updated: number;
+  ignored: number;
+  deleted: number;
 }
 
 export interface ServiceAnalysisRecord {
-  CADASTRO: string | null;
-  DATA: string | null;
-  DIA: string;
-  ATENDIMENTO_ID: string;
+  cadastro: string | null;
+  data: string | null;
+  dia: string;
+  atendimento_id: string;
+  is_divisao?: string;
 }
+
 
 export interface ClientAnalysisData {
   currentMonthClients: Set<string>;
   allPreviousClients: Set<string>;
-  clientDetails: { CLIENTE: string, PERÍODO: string, TIPO: string }[];
+  clientDetails: { cliente: string, periodo: string, tipo: string }[];
 }
 
 export interface RepasseAnalysisRecord {
-  PROFISSIONAL: string | null; // Aceita null quando não há profissional
-  REPASSE: number;
+  profissional: string | null;
+  repasse: number;
 }
 
 // Diretório de Clientes por Unidade
@@ -191,6 +262,8 @@ export interface UnitClient {
   endereco: string | null;
   contato: string | null;
   responsavel?: string | null;
+  is_verified?: boolean;
+  asaas_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -211,24 +284,22 @@ export interface RecrutadoraColumn {
 export interface RecrutadoraCard {
   id: number;
   created_at: string;
-  unit_id: string; // chave de unidade atual
-  unidade?: string;  // textual opcional
+  unit_id: string;
+  unidade?: string;
   status: string;
   position: number;
   nome: string | null;
   whatsapp: string | null;
   color_card: string | null;
-  // Campos adicionais (pessoais)
-  data_nascimento?: string | null; // ISO date (legado UI)
-  data_nasc?: string | null; // ISO date (coluna DB)
-  fumante?: boolean | null;
+  
+  // Campos pessoais (snake_case padrão)
+  data_nasc?: string | null;
+  fumante?: string | null;
   estado_civil?: string | null;
-  filhos?: boolean | null;
-  qtos_filhos?: number | null; // legado UI
-  qto_filhos?: number | null; // coluna DB
+  filhos?: string | null;
+  qto_filhos?: number | null;
   rotina_filhos?: string | null;
-  endereco?: string | null; // legado UI
-  'endereço'?: string | null; // coluna DB com acento
+  endereco?: string | null;
   rg?: string | null;
   cpf?: string | null;
 
@@ -236,17 +307,17 @@ export interface RecrutadoraCard {
   dias_livres?: string | null;
   dias_semana?: string | null;
   exp_residencial?: string | null;
-  ref_residencial?: string | null; // legado UI
-  ref_redidencial?: string | null; // coluna DB (grafia fornecida)
+  ref_residencial?: string | null;
   exp_comercial?: string | null;
   ref_comercial?: string | null;
-  sit_atual?: string | null; // situação atual
-  motivo_cadastro?: string | null; // legado UI
-  motivo_cadstro?: string | null; // coluna DB (grafia fornecida)
+  sit_atual?: string | null;
+  motivo_cadastro?: string | null;
   transporte?: string | null;
 
-  // Observação
+  // Observação e Metadados
   observacao?: string | null;
+  assinatura?: string | null;
+  updated_at?: string;
 }
 
 // Comercial (Kanban)
@@ -276,10 +347,59 @@ export interface ComercialCard {
   position: number;
 }
 
+// Comercial Admin (Kanban para Super Admin)
+export interface ComercialAdminColumn {
+  id: string;
+  unit_id: string | null;
+  code: string;
+  name: string;
+  color?: string | null;
+  image_url?: string | null;
+  position: number;
+  is_active: boolean;
+}
+
+export interface ComercialAdminCard {
+  id: string;
+  unit_id: string | null;
+  linked_unit_id: string | null;
+  nome: string;
+  email: string | null;
+  cnpj: string | null;
+  quantidade_unidades: number | null;
+  nome_unidade: string | null;
+  contato: string | null;
+  origem: string | null;
+  status: string;
+  observacao: string | null;
+  plano_id: string | null;
+  check_cadastro_unidade: boolean;
+  check_status_pagamento: boolean;
+  check_recrutadora: boolean;
+  check_umbler: boolean;
+  producao_status: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
+
+  // Campos populados via JOIN (não persistidos)
+  plano?: {
+    id: string;
+    name: string;
+    value: number;
+    cycle: 'monthly' | 'annual';
+  };
+  linked_unit?: {
+    id: string;
+    unit_name: string;
+  };
+}
+
 // Pós-Vendas
 export interface PosVenda {
   id: string;
-  ATENDIMENTO_ID: string | null;
+  atendimento_id: string | null;
+  ATENDIMENTO_ID?: string | null; // Mantido para compatibilidade temporária
   chat_id: string | null;
   nome: string | null;
   contato: string | null;
@@ -291,12 +411,15 @@ export interface PosVenda {
   feedback: string | null;
   data_agendamento: string | null; // Data programada para envio (YYYY-MM-DD)
   horario_agendamento: string | null; // Horário programado para envio (HH:MM:SS)
+  data_finalizacao?: string | null; // Data em que o pós-venda foi concluído
+  profissional?: string | null; // Profissional que executou o serviço
   created_at: string;
   updated_at: string;
 }
 
 export interface PosVendaFormData {
-  ATENDIMENTO_ID?: string | null;
+  atendimento_id?: string | null;
+  ATENDIMENTO_ID?: string | null; // Mantido para compatibilidade temporária
   chat_id?: string | null;
   nome?: string | null;
   contato?: string | null;
@@ -308,17 +431,163 @@ export interface PosVendaFormData {
   feedback?: string | null;
   data_agendamento?: string | null; // Data programada para envio
   horario_agendamento?: string | null; // Horário programado para envio
+  profissional?: string | null;
+  data_finalizacao?: string | null;
+  PROFISSIONAL?: string | null;
+}
+
+// Unit Plans & Payments
+export interface UnitPlan {
+  id: string;
+  unit_id: string;
+  plan_id: string;
+  start_date: string;
+  end_date: string | null;
+  status: 'active' | 'inactive' | 'cancelled';
+  due_day?: number;
+  payment_type?: 'pix' | 'credit_card';
+  created_at: string;
+  updated_at: string;
+  parent_unit_id: string | null;
+  // Joins
+  plan?: Plan;
+}
+
+export interface UnitPayment {
+  id: string;
+  unit_plan_id: string;
+  reference_date: string; // YYYY-MM-DD
+  amount: number;
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  payment_date: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AtendimentoSearchResult {
-  ATENDIMENTO_ID: string;
-  CLIENTE: string;
-  DATA: string;
-  SERVICO: string;
-  ENDERECO: string;
+  atendimento_id: string;
+  cliente: string;
+  data: string;
+  servico: string;
+  endereco: string;
+  profissional: string | null;
 }
 
-// Data Drome - N8N Monitoring Types
+export interface PaymentRecord {
+  id: string;
+  cliente_asaas_id: string;
+  atendimento_id?: string | null;
+  id_pagamento_asaas: string;
+  status_pagamento: string;
+  valor: number;
+  data_vencimento: string; // YYYY-MM-DD
+  tipo_pagamento?: string | null;
+  data_pagamento?: string | null; // ISO timestamp
+  link?: string | null;
+  grupo?: string | null;
+  nome?: string | null; // Nome do cliente desnormalizado
+  unit_id?: string | null; // ID da unidade (opcional se quiser filtrar direto sem join)
+  created_at: string;
+  updated_at: string;
+  // Joins
+  unit_clients?: {
+    nome: string;
+    // outros campos se necessário
+  };
+}
+
+// ============================================================================
+// Activity Logs & Monitoring (Consolidado do Data Drome → DromeFlow)
+// ============================================================================
+
+export interface Action {
+  id: string;
+  action_code: string;
+  action_name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActivityLog {
+  id: number;
+  created_at: string;
+  unit_code: string | null;
+  unit_id?: string | null;
+  workflow: string | null;
+  action_code: string | null;
+  atend_id: string | null;
+  user_identifier: string | null;
+  status: 'success' | 'error' | 'pending' | 'cancelled';
+  horario: string | null;
+  metadata: Record<string, unknown> | null;
+  actions?: { action_name: string; description: string | null } | null;
+}
+
+export interface ErrorLog {
+  id: number;
+  created_at: string;
+  workflow: string | null;
+  url_workflow: string | null;
+  error_message: string | null;
+  error_type: string | null;
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  stack_trace: string | null;
+  user_id: string | null;
+  unit_code: string | null;
+  context: Record<string, unknown> | null;
+  resolved: boolean;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution_notes: string | null;
+}
+
+export interface ActivityStats {
+  action_code: string;
+  action_name: string;
+  total_executions: number;
+  success_count: number;
+  error_count: number;
+  success_rate: number;
+}
+
+// ============================================================================
+// Agenda 
+// ============================================================================
+
+export interface AgendaSettings {
+  id: string;
+  unit_id: string;
+  dias_liberados: number[]; // ex: [1, 2, 3, 4, 5] para segunda a sexta
+  periodos_cadastrados: string[]; // ex: ['Manhã', 'Tarde', 'Integral']
+  is_link_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AgendaDisponibilidade {
+  id: string;
+  unit_id: string;
+  profissional_id: string;
+  data: string; // ISO Date YYYY-MM-DD
+  periodos: string[]; // ex: ['Manhã', 'Tarde']
+  selecao_real: string | null;
+  conflito: boolean;
+  created_at?: string;
+  updated_at?: string;
+  
+  // Joins (para UI)
+  profissional?: {
+    id: string;
+    nome: string;
+    whatsapp: string;
+  };
+}
+
+// ============================================================================
+// Legacy Types (Data Drome - Deprecated após consolidação)
+// ============================================================================
+// @deprecated Use ActivityLog ao invés disso
 export interface N8NMonitoringLog {
   id: number;
   created_at: string;
@@ -328,9 +597,11 @@ export interface N8NMonitoringLog {
   user: string | null;
   atend_id: string | null;
   action: string | null;
+  action_description?: string;
   workflow: string | null;
 }
 
+// @deprecated Use ErrorLog ao invés disso
 export interface N8NErrorLog {
   id: number;
   created_at: string;
@@ -338,3 +609,187 @@ export interface N8NErrorLog {
   url_workflow: string | null;
   erro_message: string | null;
 }
+
+export interface SystemManual {
+  id: string;
+  module_id: string;
+  title: string;
+  content: string | null;
+  image_url: string | null;
+  image_position: 'top' | 'bottom' | 'left' | 'right';
+  image_size: 'small' | 'medium' | 'large' | 'full';
+  position: number;
+  created_at: string;
+  updated_at: string;
+  // Join fields
+  module_name?: string;
+  module_code?: string;
+}
+
+// ============================================================================
+// Loyalty / Fidelidade (Cashback/Pontos)
+// ============================================================================
+
+export interface LoyaltyPlan {
+  id: string;
+  unit_id: string;
+  name: string;
+  description: string | null;
+  type: 'cashback' | 'points';
+
+  // Regras de acúmulo
+  reward_percentage: number | null;
+  points_per_real: number | null;
+  min_purchase_value: number | null;
+  vip_multiplier: number | null;
+
+  // Regras de resgate
+  min_redemption_points: number;
+  points_to_real_ratio: number | null;
+
+  // Validade
+  validity_days: number | null; // Período em dias a partir do primeiro acúmulo
+
+  // Status
+  is_active: boolean;
+  start_date: string | null;
+  end_date: string | null;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoyaltyPlanClient {
+  id: string;
+  plan_id: string;
+  client_id: string;
+
+  current_balance: number;
+  total_earned: number;
+  total_redeemed: number;
+
+  is_active: boolean;
+  is_vip: boolean;
+  joined_at: string;
+  last_transaction_at: string | null;
+
+  // Validade individual
+  validity_start_date: string | null;
+  validity_end_date: string | null;
+
+  created_at: string;
+  updated_at: string;
+
+  // Joins
+  // Relação com cliente
+  client?: {
+    id: string;
+    nome: string;
+    codigo?: string;
+  };
+  plan?: LoyaltyPlan;
+}
+
+export type LoyaltyTransactionType = 'earn' | 'redeem' | 'manual_adjustment';
+export type LoyaltyTransactionSource = 'appointment' | 'manual' | 'redemption';
+
+export interface LoyaltyTransaction {
+  id: string;
+  plan_client_id: string;
+  type: LoyaltyTransactionType;
+  points: number,
+  atendimento_id: string | null;
+  purchase_value: number | null;
+  description: string | null;
+  metadata: any;
+
+  // Novos campos para rastreamento
+  source_id: string | null;
+  source_type: LoyaltyTransactionSource | null;
+  adjusted_by_user_id: string | null;
+  adjustment_reason: string | null;
+  expires_at: string | null;
+
+  created_at: string;
+
+  // Relações
+  adjusted_by?: {
+    id: string;
+    full_name: string;
+  };
+
+  // Relação com cliente
+  client?: {
+    id: string;
+    nome: string;
+    codigo?: string; // Código do cliente
+  };
+}
+
+// ============================================================================
+// WhatsApp Cloud (Meta API) Coexistence Types
+// ============================================================================
+
+export type WhatsAppConnectionType = 'comercial' | 'profissionais';
+export type WhatsAppConnectionStatus = 'connected' | 'disconnected' | 'error';
+
+export interface WhatsAppConnection {
+  id: string;
+  unit_id: string;
+  connection_type: WhatsAppConnectionType;
+  user_id?: string | null;
+  waba_id: string;
+  phone_number_id: string;
+  phone_number?: string | null;
+  access_token: string;
+  status: WhatsAppConnectionStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// Production Module (Super Admin)
+// ============================================================================
+
+export interface ProductionColumn {
+  id: string;
+  name: string;
+  position: number;
+  is_fixed: boolean;
+  templates?: ProductionColumnTemplate[];
+}
+
+export interface ProductionColumnTemplate {
+  id: string;
+  column_id: string;
+  title: string;
+  position: number;
+}
+
+export interface ProductionCard {
+  id: string;
+  unit_id: string;
+  current_column_id: string;
+  position: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  
+  // Joins
+  unit?: {
+    id: string;
+    unit_name: string;
+  };
+  progress?: ProductionCardProgress[];
+}
+
+export interface ProductionCardProgress {
+  id: string;
+  card_id: string;
+  template_item_id: string;
+  column_id: string;
+  is_completed: boolean;
+  updated_at: string;
+}
+
+// ============================================================================

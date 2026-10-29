@@ -7,6 +7,7 @@ export type ServiceMonthlySubmetrics = {
   startOfMonth: number; // atendimentos de clientes existentes
   evolution: number;    // atendimentos de novos clientes
   productiveDayAvg: number; // média por dia produtivo (>5 atendimentos), baseada em serviços únicos (orcamentos)
+  year?: number;
 };
 
 export type ClientMonthlySubmetrics = {
@@ -15,6 +16,7 @@ export type ClientMonthlySubmetrics = {
   recurringCount: number;       // clientes que estavam no mês anterior e repetiram neste mês
   servicesPerClient: number;    // atendimentos (serviços únicos) / clientes únicos no mês
   churnRate: number;            // % clientes do mês anterior que não retornaram neste mês
+  year?: number;
 };
 
 export const fetchServiceAnalysisData = async (
@@ -27,43 +29,44 @@ export const fetchServiceAnalysisData = async (
   const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('processed_data')
-    .select('CADASTRO, DATA, DIA, ATENDIMENTO_ID')
+    .select('cadastro, data, dia, atendimento_id, is_divisao')
     .eq('unidade_code', unitCode)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate);
+    .gte('data', startDate)
+    .lte('data', endDate);
+
   if (error) throw error;
-  return (data as ServiceAnalysisRecord[]) || [];
+  return (data as any[])?.map(r => ({ ...r })) as ServiceAnalysisRecord[] || [];
 };
 
 export const fetchServicePeriodAnalysisData = async (
   unitCode: string,
   period: string
-): Promise<{ PERÍODO: string; TIPO?: string }[]> => {
+): Promise<{ periodo: string; tipo?: string }[]> => {
   if (!/^\d{4}-\d{2}$/.test(period)) return [];
   const [year, month] = period.split('-').map(Number);
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-  
+
   const { data, error } = await supabase
     .from('processed_data')
-    .select('"PERÍODO", "TIPO"')
+    .select('periodo, tipo')
     .eq('unidade_code', unitCode)
-    .gte('DATA', startDate)
-    .lte('DATA', endDate);
-    
+    .gte('data', startDate)
+    .lte('data', endDate);
+
   if (error) {
     console.error('Error fetching period data:', error);
     throw error;
   }
-  
+
   console.log('🔍 Period Data from Supabase:', {
     total: data?.length || 0,
     first5: data?.slice(0, 5),
-    uniquePeriods: [...new Set(data?.map(d => d.PERÍODO))].filter(Boolean),
-    uniqueTypes: [...new Set(data?.map(d => d.TIPO))].filter(Boolean)
+    uniquePeriods: [...new Set(data?.map(d => d.periodo))].filter(Boolean),
+    uniqueTypes: [...new Set(data?.map(d => d.tipo))].filter(Boolean)
   });
-  
-  return (data as { PERÍODO: string; TIPO?: string }[]) || [];
+
+  return (data as any[])?.map(r => ({ periodo: r.periodo, tipo: r.tipo })) || [];
 };
 
 export const fetchClientAnalysisData = async (
@@ -79,35 +82,35 @@ export const fetchClientAnalysisData = async (
   const [currentPeriodDetailsRes, previousClientsRes] = await Promise.all([
     supabase
       .from('processed_data')
-      .select('CLIENTE, "PERÍODO", TIPO')
+      .select('cliente, periodo, tipo')
       .eq('unidade_code', unitCode)
-      .gte('DATA', startDate)
-      .lte('DATA', endDate),
+      .gte('data', startDate)
+      .lte('data', endDate),
     supabase
       .from('processed_data')
-      .select('CLIENTE')
+      .select('cliente')
       .eq('unidade_code', unitCode)
-      .lt('DATA', startDate),
+      .lt('data', startDate),
   ]);
 
   if (currentPeriodDetailsRes.error) throw currentPeriodDetailsRes.error;
   if (previousClientsRes.error) throw previousClientsRes.error;
 
   const clientDetails =
-    ((currentPeriodDetailsRes.data as { CLIENTE: string; PERÍODO: string; TIPO: string }[]) || []);
+    ((currentPeriodDetailsRes.data as any[]) || []).map(r => ({ cliente: r.cliente, periodo: r.periodo, tipo: r.tipo }));
 
   const currentMonthClients = new Set(
-    clientDetails.map((r) => r.CLIENTE).filter(Boolean)
+    clientDetails.map((r) => r.cliente).filter(Boolean)
   );
   const allPreviousClients = new Set(
     (((previousClientsRes.data as any[]) || [])
-      .map((r) => r.CLIENTE)
+      .map((r) => r.cliente)
       .filter((c) => typeof c === 'string' && c.trim() !== '')) as string[]
   );
 
   return { currentMonthClients, allPreviousClients, clientDetails };
 };
- 
+
 export const fetchServiceMonthlySubmetrics = async (
   unitCode: string,
   year: number
@@ -135,10 +138,10 @@ export const fetchServiceMonthlySubmetrics = async (
 
     const { data, error } = await supabase
       .from('processed_data')
-      .select('CADASTRO, DATA, ATENDIMENTO_ID, IS_DIVISAO')
+      .select('cadastro, data, atendimento_id, is_divisao')
       .eq('unidade_code', unitCode)
-      .gte('DATA', startDate)
-      .lt('DATA', endDate);
+      .gte('data', startDate)
+      .lt('data', endDate);
     if (error) {
       results.push({ month: m.value, monthName: m.name, startOfMonth: 0, evolution: 0, productiveDayAvg: 0 });
       continue;
@@ -148,30 +151,51 @@ export const fetchServiceMonthlySubmetrics = async (
     const seenAppointments = new Set<string>();
     let startOfMonth = 0;
     let evolution = 0;
-    const dailyCounts: Record<string, number> = {};
+    const dailyBudgets: Map<string, Set<string>> = new Map();
 
     // serviços únicos por atendimento original
-    const original = records.filter(r => r.IS_DIVISAO !== 'SIM');
+    const original = records.filter(r => r.is_divisao !== 'SIM');
     const uniqueBudgets = new Set<string>();
-    original.forEach(r => { if (r.ATENDIMENTO_ID) uniqueBudgets.add(r.ATENDIMENTO_ID); });
+    original.forEach(r => { if (r.atendimento_id) uniqueBudgets.add(r.atendimento_id); });
     const totalServices = uniqueBudgets.size;
 
-    records.forEach(r => {
-      if (r.DATA) dailyCounts[r.DATA] = (dailyCounts[r.DATA] || 0) + 1;
-      if (r.ATENDIMENTO_ID && r.CADASTRO) {
-        if (!seenAppointments.has(r.ATENDIMENTO_ID)) {
-          const cadastroDate = new Date(`${r.CADASTRO}T12:00:00Z`);
+    original.forEach(r => {
+      if (r.data && r.atendimento_id) {
+        if (!dailyBudgets.has(r.data)) {
+          dailyBudgets.set(r.data, new Set());
+        }
+        dailyBudgets.get(r.data)!.add(r.atendimento_id);
+      }
+      if (r.atendimento_id && r.cadastro) {
+        if (!seenAppointments.has(r.atendimento_id)) {
+          const cadastroDate = new Date(`${r.cadastro}T12:00:00Z`);
           if (!isNaN(cadastroDate.getTime())) {
             if (cadastroDate < periodStartDate) startOfMonth++;
             else evolution++;
           }
-          seenAppointments.add(r.ATENDIMENTO_ID);
+          seenAppointments.add(r.atendimento_id);
         }
       }
     });
-    const productiveDays = Object.values(dailyCounts).filter(c => c > 5).length;
+
+    const productiveDays = Array.from(dailyBudgets.values()).filter(budgets => budgets.size > 5).length;
+
     const productiveDayAvg = productiveDays > 0 ? totalServices / productiveDays : 0;
+
+    // DEBUG: Log temporário para verificar valores
+    if (unitCode === 'mb-teresina' && m.value === '02' && year === 2026) {
+      console.log('🔍 DEBUG MB Teresina Fev 2026:', {
+        totalServices,
+        startOfMonth,
+        evolution,
+        productiveDays,
+        productiveDayAvg,
+        dailyBudgetsSize: dailyBudgets.size
+      });
+    }
+
     results.push({ month: m.value, monthName: m.name, startOfMonth, evolution, productiveDayAvg });
+
   }
   return results;
 };
@@ -204,10 +228,10 @@ export const fetchServiceMonthlySubmetricsMulti = async (
 
     let query = supabase
       .from('processed_data')
-      .select('CADASTRO, DATA, ATENDIMENTO_ID, IS_DIVISAO, unidade_code')
+      .select('cadastro, data, atendimento_id, is_divisao, unidade_code')
       .in('unidade_code', unitCodes)
-      .gte('DATA', startDate)
-      .lt('DATA', endDate);
+      .gte('data', startDate)
+      .lt('data', endDate);
     const { data, error } = await query;
     if (error) {
       results.push({ month: m.value, monthName: m.name, startOfMonth: 0, evolution: 0, productiveDayAvg: 0 });
@@ -218,27 +242,34 @@ export const fetchServiceMonthlySubmetricsMulti = async (
     const seenAppointments = new Set<string>();
     let startOfMonth = 0;
     let evolution = 0;
-    const dailyCounts: Record<string, number> = {};
+    const dailyBudgets: Map<string, Set<string>> = new Map();
 
-    const original = records.filter(r => r.IS_DIVISAO !== 'SIM');
+    const original = records.filter(r => r.is_divisao !== 'SIM');
     const uniqueBudgets = new Set<string>();
-    original.forEach(r => { if (r.ATENDIMENTO_ID) uniqueBudgets.add(r.ATENDIMENTO_ID); });
+    original.forEach(r => { if (r.atendimento_id) uniqueBudgets.add(r.atendimento_id); });
     const totalServices = uniqueBudgets.size;
 
-    records.forEach(r => {
-      if (r.DATA) dailyCounts[r.DATA] = (dailyCounts[r.DATA] || 0) + 1;
-      if (r.ATENDIMENTO_ID && r.CADASTRO) {
-        if (!seenAppointments.has(r.ATENDIMENTO_ID)) {
-          const cadastroDate = new Date(`${r.CADASTRO}T12:00:00Z`);
+    original.forEach(r => {
+      if (r.data && r.atendimento_id) {
+        if (!dailyBudgets.has(r.data)) {
+          dailyBudgets.set(r.data, new Set());
+        }
+        dailyBudgets.get(r.data)!.add(r.atendimento_id);
+      }
+      if (r.atendimento_id && r.cadastro) {
+        if (!seenAppointments.has(r.atendimento_id)) {
+          const cadastroDate = new Date(`${r.cadastro}T12:00:00Z`);
           if (!isNaN(cadastroDate.getTime())) {
             if (cadastroDate < periodStartDate) startOfMonth++;
             else evolution++;
           }
-          seenAppointments.add(r.ATENDIMENTO_ID);
+          seenAppointments.add(r.atendimento_id);
         }
       }
     });
-    const productiveDays = Object.values(dailyCounts).filter(c => c > 5).length;
+
+    const productiveDays = Array.from(dailyBudgets.values()).filter(budgets => budgets.size > 5).length;
+
     const productiveDayAvg = productiveDays > 0 ? totalServices / productiveDays : 0;
     results.push({ month: m.value, monthName: m.name, startOfMonth, evolution, productiveDayAvg });
   }
@@ -271,16 +302,16 @@ export const fetchClientMonthlySubmetrics = async (
     const [currRes, prevRes] = await Promise.all([
       supabase
         .from('processed_data')
-        .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID')
+        .select('cliente, is_divisao, atendimento_id')
         .eq('unidade_code', unitCode)
-        .gte('DATA', startDate)
-        .lt('DATA', endDate),
+        .gte('data', startDate)
+        .lt('data', endDate),
       supabase
         .from('processed_data')
-        .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID')
+        .select('cliente, is_divisao, atendimento_id')
         .eq('unidade_code', unitCode)
-        .gte('DATA', prevStart)
-        .lt('DATA', prevEnd),
+        .gte('data', prevStart)
+        .lt('data', prevEnd),
     ]);
     if (currRes.error || prevRes.error) {
       results.push({ month: m.value, monthName: m.name, recurringCount: 0, servicesPerClient: 0, churnRate: 0 });
@@ -288,13 +319,13 @@ export const fetchClientMonthlySubmetrics = async (
     }
     const currAll = (currRes.data as any[]) || [];
     const prevAll = (prevRes.data as any[]) || [];
-    const currOriginal = currAll.filter(r => r.IS_DIVISAO !== 'SIM');
-    const prevOriginal = prevAll.filter(r => r.IS_DIVISAO !== 'SIM');
-    const currClients = new Set<string>(currOriginal.map(r => r.CLIENTE).filter(Boolean));
-    const prevClients = new Set<string>(prevOriginal.map(r => r.CLIENTE).filter(Boolean));
+    const currOriginal = currAll.filter(r => r.is_divisao !== 'SIM');
+    const prevOriginal = prevAll.filter(r => r.is_divisao !== 'SIM');
+    const currClients = new Set<string>(currOriginal.map(r => r.cliente).filter(Boolean));
+    const prevClients = new Set<string>(prevOriginal.map(r => r.cliente).filter(Boolean));
     // serviços únicos do mês
     const currBudgets = new Set<string>();
-    currOriginal.forEach(r => { if (r.ATENDIMENTO_ID) currBudgets.add(r.ATENDIMENTO_ID); });
+    currOriginal.forEach(r => { if (r.atendimento_id) currBudgets.add(r.atendimento_id); });
     const totalServices = currBudgets.size;
     const uniqueClients = currClients.size;
     const servicesPerClient = uniqueClients > 0 ? totalServices / uniqueClients : 0;
@@ -336,16 +367,16 @@ export const fetchClientMonthlySubmetricsMulti = async (
     const [currRes, prevRes] = await Promise.all([
       supabase
         .from('processed_data')
-        .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID, unidade_code')
+        .select('cliente, is_divisao, atendimento_id, unidade_code')
         .in('unidade_code', unitCodes)
-        .gte('DATA', startDate)
-        .lt('DATA', endDate),
+        .gte('data', startDate)
+        .lt('data', endDate),
       supabase
         .from('processed_data')
-        .select('CLIENTE, IS_DIVISAO, ATENDIMENTO_ID, unidade_code')
+        .select('cliente, is_divisao, atendimento_id, unidade_code')
         .in('unidade_code', unitCodes)
-        .gte('DATA', prevStart)
-        .lt('DATA', prevEnd),
+        .gte('data', prevStart)
+        .lt('data', prevEnd),
     ]);
     if (currRes.error || prevRes.error) {
       results.push({ month: m.value, monthName: m.name, recurringCount: 0, servicesPerClient: 0, churnRate: 0 });
@@ -353,12 +384,12 @@ export const fetchClientMonthlySubmetricsMulti = async (
     }
     const currAll = (currRes.data as any[]) || [];
     const prevAll = (prevRes.data as any[]) || [];
-    const currOriginal = currAll.filter(r => r.IS_DIVISAO !== 'SIM');
-    const prevOriginal = prevAll.filter(r => r.IS_DIVISAO !== 'SIM');
-    const currClients = new Set<string>(currOriginal.map(r => r.CLIENTE).filter(Boolean));
-    const prevClients = new Set<string>(prevOriginal.map(r => r.CLIENTE).filter(Boolean));
+    const currOriginal = currAll.filter(r => r.is_divisao !== 'SIM');
+    const prevOriginal = prevAll.filter(r => r.is_divisao !== 'SIM');
+    const currClients = new Set<string>(currOriginal.map(r => r.cliente).filter(Boolean));
+    const prevClients = new Set<string>(prevOriginal.map(r => r.cliente).filter(Boolean));
     const currBudgets = new Set<string>();
-    currOriginal.forEach(r => { if (r.ATENDIMENTO_ID) currBudgets.add(r.ATENDIMENTO_ID); });
+    currOriginal.forEach(r => { if (r.atendimento_id) currBudgets.add(r.atendimento_id); });
     const totalServices = currBudgets.size;
     const uniqueClients = currClients.size;
     const servicesPerClient = uniqueClients > 0 ? totalServices / uniqueClients : 0;
@@ -377,4 +408,4 @@ export const fetchClientMonthlySubmetricsMulti = async (
 
 // TODO: migrar função: fetchServiceAnalysisData
 
-export {};
+export { };
