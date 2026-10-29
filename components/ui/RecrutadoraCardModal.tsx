@@ -1345,25 +1345,43 @@ const RecrutadoraCardModal: React.FC<Props> = ({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => {
-                if (!isEditing || !editMode) {
-                  setEditMode(true);
-                } else {
-                  handleSave();
-                }
-              }}
-              disabled={saving}
-              className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
-              title={saving ? "Salvando..." : (!isEditing || !editMode) ? "Editar" : "Salvar"}
-            >
-              {saving ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              ) : (
-                <Icon name={(!isEditing || !editMode) ? "edit" : "Check"} className="w-4 h-4" />
-              )}
-            </button>
+            {!isEditing ? (
+              // Card em branco (novo cadastro): botão explícito de criação
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1.5 rounded-lg bg-accent-primary px-4 py-2 text-sm font-semibold text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
+                title="Criar cadastro"
+              >
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <Icon name="Check" className="w-4 h-4" />
+                )}
+                Criar cadastro
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!editMode) {
+                    setEditMode(true);
+                  } else {
+                    handleSave();
+                  }
+                }}
+                disabled={saving}
+                className="rounded-lg bg-accent-primary p-2.5 text-white hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent-primary/20"
+                title={saving ? "Salvando..." : (!editMode) ? "Editar" : "Salvar"}
+              >
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <Icon name={!editMode ? "edit" : "Check"} className="w-4 h-4" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

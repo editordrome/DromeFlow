@@ -543,6 +543,22 @@ const RecrutadoraPage: React.FC = () => {
                 </button>
               );
             })}
+            {!isAllUnits && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingCard(null);
+                  setModalStatus('qualificadas');
+                  setViewMode('kanban');
+                  setModalOpen(true);
+                }}
+                aria-label="Novo Card"
+                title="Novo Card"
+                className="flex items-center justify-center px-3 py-2 rounded-md transition border border-accent-primary text-accent-primary hover:bg-accent-primary hover:text-text-on-accent"
+              >
+                <Icon name="Plus" className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
