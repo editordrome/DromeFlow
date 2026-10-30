@@ -53,6 +53,9 @@ const AppointmentsPage: React.FC = () => {
   // Controle local de envios individuais do status CONFIRMADO
   const [sentConfirmed, setSentConfirmed] = useState<Set<string>>(new Set());
   const [sendingConfirmed, setSendingConfirmed] = useState<Set<string>>(new Set());
+  // Controle local de envios individuais do status PENDENTE
+  const [sentPendente, setSentPendente] = useState<Set<string>>(new Set());
+  const [sendingPendente, setSendingPendente] = useState<Set<string>>(new Set());
   // Campo de busca
   const [searchTerm, setSearchTerm] = useState<string>('');
   // Clientes verificados
@@ -94,8 +97,8 @@ const AppointmentsPage: React.FC = () => {
 
   // Envia payload simplificado ao webhook (POST JSON com fallback GET)
   const sendWebhookPayload = useCallback(
-    async (_appointmentsData: DataRecord[], _total: number, keyword?: string, _atendimentoId?: string) => {
-      if (!appointmentsWebhook) return;
+    async (_appointmentsData: DataRecord[], _total: number, keyword?: string, _atendimentoId?: string, webhookUrl = appointmentsWebhook) => {
+      if (!webhookUrl) return;
       if (!activeDate) return;
       const unidadeCode = selectedUnit?.unit_code || '';
 
@@ -121,7 +124,7 @@ const AppointmentsPage: React.FC = () => {
 
       let usedFallback = false;
       try {
-        const resp = await fetch(appointmentsWebhook, {
+        const resp = await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -141,7 +144,7 @@ const AppointmentsPage: React.FC = () => {
       }
 
       if (usedFallback) {
-        const url = new URL(appointmentsWebhook);
+        const url = new URL(webhookUrl);
         url.searchParams.set('DATA', activeDate);
         url.searchParams.set('unit_id', selectedUnit.id);
         url.searchParams.set('keyword', keyword || 'atendimento');
@@ -240,6 +243,63 @@ const AppointmentsPage: React.FC = () => {
       setSendFeedback({ type: 'error', message: msg });
     } finally {
       setSendingConfirmed(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  // Envio individual para registros PENDENTE
+  const handleSendSinglePendente = async (rec: DataRecord) => {
+    if (!appointmentsWebhook || !activeDate) return;
+    if (!selectedUnit || selectedUnit.unit_code === 'ALL') return;
+    const key = recordKey(rec);
+    if (sentPendente.has(key)) return;
+    setSendingPendente(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    try {
+      const atendimentoId = String(rec.atendimento_id || rec.id || '');
+      // Envia apenas este atendimento específico com keyword 'pendente-unico'
+      const result = await sendWebhookPayload(
+        [rec],
+        1,
+        'pendente-unico',
+        atendimentoId,
+        'https://n8n.dromedario.cloud/webhook/pendente-unico'
+      );
+      if (result?.ok) {
+        setSendFeedback({ type: 'success', message: 'Envio realizado.' });
+        setSentPendente(prev => {
+          const next = new Set(prev);
+          next.add(key);
+          return next;
+        });
+        
+        // Logar a atividade
+        activityLogger.logActivity({
+          actionCode: 'notify_client',
+          moduleName: 'Atendimentos',
+          unitId: selectedUnit.id,
+          unitCode: selectedUnit.unit_code,
+          userIdentifier: profile?.full_name || profile?.email || 'Usuário Desconhecido',
+          status: 'success',
+          metadata: { atendimento_id: atendimentoId, cliente: rec.cliente }
+        });
+      }
+    } catch (err: any) {
+      let msg = 'Erro ao enviar.';
+      if (err?.message) {
+        if (err.message.includes('Failed to fetch')) msg = 'Falha de rede/DNS ao contatar webhook.';
+        else msg = err.message;
+      }
+      console.error('Erro ao enviar webhook individual PENDENTE:', err);
+      setSendFeedback({ type: 'error', message: msg });
+    } finally {
+      setSendingPendente(prev => {
         const next = new Set(prev);
         next.delete(key);
         return next;
@@ -831,6 +891,41 @@ const AppointmentsPage: React.FC = () => {
                         if (value === 'PENDENTE') style = 'bg-warning text-black border-warning/80 hover:bg-warning/90';
                         else if (value === 'AGUARDANDO') style = 'bg-blue-500/10 text-blue-500 border-blue-400/40 hover:bg-blue-500/15';
                         else if (value === 'RECUSADO' || value === 'CANCELADO') style = 'bg-rose-500/10 text-rose-500 border-rose-500/40 hover:bg-rose-500/15';
+
+                        // Para PENDENTE: status badge + botão de envio individual (keyword 'pendente-unico')
+                        if (value === 'PENDENTE') {
+                          const key = recordKey(rec);
+                          const wasSent = sentPendente.has(key);
+                          const isRowSending = sendingPendente.has(key);
+                          const isDisabled = !appointmentsWebhook || selectedUnit.unit_code === 'ALL' || isRowSending || wasSent;
+                          const pendingStyle = 'bg-warning text-black border-warning/80 hover:bg-warning/90';
+                          return (
+                            <div className="flex items-center gap-1 justify-center">
+                              <button
+                                type="button"
+                                disabled
+                                className={`${base} ${pendingStyle} cursor-default`}
+                                aria-label={`Status: ${value}`}
+                              >
+                                {value}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleSendSinglePendente(rec); }}
+                                disabled={isDisabled}
+                                className={`${base} ${pendingStyle} ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-warning/90'} px-2`}
+                                aria-label={`Enviar atendimento PENDENTE individual (${rec.cliente})`}
+                                title={wasSent ? 'Enviado' : 'Enviar este atendimento'}
+                              >
+                                {isRowSending ? (
+                                  <span className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                                ) : (
+                                  <Icon name="send" className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          );
+                        }
 
                         // Para CONFIRMADO: vira botão acionável que envia o atendimento individual com keyword 'cliente'
                         if (value === 'CONFIRMADO') {
