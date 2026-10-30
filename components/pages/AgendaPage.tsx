@@ -22,7 +22,7 @@ const AgendaPage: React.FC = () => {
    
    // Hooks de Lógica
    const agenda = useAgendaPrincipal(selectedUnit);
-   const config = useAgendaConfig(selectedUnit);
+   const config = useAgendaConfig(selectedUnit, agenda.selectedDate);
    const dnd = useAgendaDnd(selectedUnit, agenda);
 
    // Estados de Modais

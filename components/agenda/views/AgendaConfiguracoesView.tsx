@@ -74,7 +74,7 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
    if (!configSettings) return null;
 
    return (
-      <div className="flex flex-col flex-1 bg-bg-secondary rounded-xl border border-border-secondary overflow-y-auto p-6 scroll-smooth">
+      <div className={`flex flex-col h-full min-h-0 bg-bg-secondary rounded-xl border border-border-secondary p-6 scroll-smooth ${configTab === 'metricas' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
          {/* HEADER CONTEXTUAL (Apenas seletor de dados histórico na Disponibilidade antiga - Removido daqui em favor da nova posição) */}
 
          {configTab === 'parametros' && (
@@ -312,6 +312,7 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                           nome: profRef?.nome || d.profissional?.nome || '—',
                                           habilidade: profRef?.habilidade || '—',
                                           envios: {},
+                                          disponibilidadeDetalhada: {}, // status_manha, status_tarde, periodos por data
                                           last_created: d.created_at
                                        };
                                     }
@@ -321,6 +322,12 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                                             ? `${d.status_manha} / ${d.status_tarde}` 
                                                             : (d.status_manha || d.status_tarde || '—')));
                                     professionalMap[d.profissional_id].envios[entryDate] = originalData;
+                                    // Guarda detalhes por período para detecção de conflitos
+                                    professionalMap[d.profissional_id].disponibilidadeDetalhada[entryDate] = {
+                                       status_manha: d.status_manha,
+                                       status_tarde: d.status_tarde,
+                                       periodos: d.periodos || []
+                                    };
                                     if (new Date(d.created_at || 0) > new Date(professionalMap[d.profissional_id].last_created || 0)) {
                                        professionalMap[d.profissional_id].last_created = d.created_at;
                                     }
@@ -338,7 +345,7 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                  );
 
                                  return rows.map((row: any) => (
-                                    <div key={row.id} className="group bg-bg-primary rounded-xl border border-border-primary hover:border-border-secondary shadow-sm transition-all duration-200 h-10 flex relative z-0">
+                                    <div key={row.id} className="group bg-bg-primary rounded-xl border border-border-primary hover:border-border-secondary shadow-sm transition-all duration-200 h-12 flex relative z-0">
                                        <div className="w-[280px] shrink-0 border-r border-border-secondary/40 py-1 px-3 flex flex-col justify-center sticky left-0 z-10 bg-bg-primary rounded-l-xl group-hover:bg-bg-tertiary/50 transition-colors">
                                           <span className="font-bold text-xs truncate text-text-primary">{row.nome}</span>
                                           <span className="text-[9px] uppercase truncate text-text-tertiary">{row.habilidade}</span>
@@ -347,17 +354,65 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                           {weekDates.map(date => {
                                              const status = formatStatus(row.envios[date]);
                                              const isToday = date === formatLocalISO(new Date());
+
+                                             // Detecção de conflitos para sinalização visual (não substitui o status enviado)
+                                             const dispDetalhada = row.disponibilidadeDetalhada?.[date];
+                                             const statusManha = dispDetalhada?.status_manha;
+                                             const statusTarde = dispDetalhada?.status_tarde;
+                                             const periodos = dispDetalhada?.periodos || [];
+
+                                             // Busca atendimentos do dia para este profissional
+                                             const atsDia = atendimentosSemana?.filter(at => {
+                                                const atDate = typeof at.DATA === 'string' && at.DATA.includes('T') ? at.DATA.split('T')[0] : at.DATA;
+                                                const atProf = (at.PROFISSIONAL || '').trim().toLowerCase();
+                                                const rowProf = row.nome.trim().toLowerCase();
+                                                return atDate === date && !!at.PROFISSIONAL && atProf === rowProf;
+                                             }) || [];
+
+                                             // Verifica overlap por período (manhã 6-13h, tarde 13-20h)
+                                             const checkOverlap = (startH: number, endH: number) => {
+                                                return atsDia.find(at => {
+                                                   const [atStH] = (at.HORARIO || '0:0').split(':').map(Number);
+                                                   const dur = parseFloat(at['PERÍODO']?.toString().replace(',', '.') || '1');
+                                                   return atStH < endH && (atStH + dur) > startH;
+                                                });
+                                             };
+
+                                             const overlapManha = checkOverlap(6, 13);
+                                             const overlapTarde = checkOverlap(13, 20);
+
+                                             // Detecta conflitos REAIS para sinalização visual:
+                                             // - Profissional marcou "NÃO" ou indisponível mas há agendamento no período
+                                             // - Profissional marcou horário específico (ex: "só tarde") mas há agendamento FORA desse horário no período
+                                             const isNaoManha = statusManha === 'NÃO' || statusManha === 'NÃO DISPONÍVEL' || statusManha === 'NÃO DISPONIVEL';
+                                             const isNaoTarde = statusTarde === 'NÃO' || statusTarde === 'NÃO DISPONÍVEL' || statusTarde === 'NÃO DISPONIVEL';
+                                             const temPeriodoManha = periodos.some(p => ['8 horas', '6 horas', '4 horas manhã'].includes(p));
+                                             const temPeriodoTarde = periodos.some(p => ['8 horas', '6 horas', '4 horas tarde'].includes(p));
+                                             const soManha = temPeriodoManha && !temPeriodoTarde;
+                                             const soTarde = temPeriodoTarde && !temPeriodoManha;
+
+                                             const conflitoManha = overlapManha && (isNaoManha || (soTarde && !temPeriodoManha));
+                                             const conflitoTarde = overlapTarde && (isNaoTarde || (soManha && !temPeriodoTarde));
+
+                                             const temConflito = conflitoManha || conflitoTarde;
+                                             const temAtendimento = !!atsDia?.length;
+
+                                             // SEMPRE mostra o status original enviado pela profissional
+                                             // Apenas adiciona indicador visual de conflito (borda vermelha) se houver conflito real
                                              return (
-                                                <div key={date} className={`flex-1 flex items-center justify-center p-1 border-r border-border-secondary/40 ${isToday ? 'bg-accent-primary/5' : ''}`}>
+                                                <div key={date} className={`flex-1 flex items-center justify-center p-1 border-r border-border-secondary/40 ${isToday ? 'bg-accent-primary/5' : ''} ${temConflito ? 'ring-2 ring-red-500' : ''}`}>
                                                    {status ? (
                                                       <span className={`w-full h-full flex items-center justify-center rounded-lg text-[8px] font-black uppercase tracking-tighter transition-all group-hover:scale-[1.02] px-1 text-center leading-none 
                                                          ${status === 'NÃO DISPONÍVEL' || status.includes('NÃO') ? 'bg-[#1A1A1A] text-white shadow-sm' : 
                                                            status === '8 HORAS' ? 'bg-[#15803D] text-white shadow-sm' : 
                                                            status === '6 HORAS' || status.includes('LIVRE') ? 'bg-[#4ADE80] text-black shadow-sm' : 
-                                                           'bg-accent-primary text-white shadow-sm'}`}>
-                                                         {status}
+                                                           'bg-accent-primary text-white shadow-sm'}`}
+                                                            title={temConflito ? `⚠ CONFLITO: ${conflitoManha ? 'Manhã' : ''}${conflitoTarde ? ' Tarde' : ''} - Profissional indisponível mas há agendamento` : (temAtendimento ? 'Há agendamento neste dia' : '')}>
+                                                        {status}
                                                       </span>
-                                                   ) : <span className="text-text-tertiary opacity-10 text-[11px]">—</span>}
+                                                   ) : (
+                                                      <span className="text-text-tertiary opacity-10 text-[11px]">—</span>
+                                                   )}
                                                 </div>
                                              );
                                           })}
@@ -378,9 +433,9 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
          )}
 
          {configTab === 'metricas' && (
-            <div className="flex flex-col h-[calc(100vh-200px)] lg:h-[calc(100vh-250px)]">
-               <div className="flex flex-col bg-bg-secondary rounded-2xl border border-border-secondary overflow-hidden flex-1">
-                  <div className="p-4 bg-bg-tertiary border-b border-border-secondary flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-col flex-1 min-h-0">
+               <div className="flex flex-col bg-bg-secondary rounded-2xl border border-border-secondary flex-1 min-h-0">
+                  <div className="p-4 bg-bg-tertiary border-b border-border-secondary flex flex-wrap items-center justify-between gap-4 shrink-0">
                      <div className="flex items-center gap-2">
                         {(['TODOS', 'RESERVA', 'LIVRE', 'NÃO', 'FALTOU', 'CANCELOU'] as const).map(f => (
                            <button
@@ -444,8 +499,8 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                      </div>
                   </div>
 
-                  <div className="flex-1 overflow-auto custom-scrollbar">
-                     <div className="min-w-[1200px] overflow-visible">
+                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                     <div className="min-w-[1200px]">
                         <div className="sticky top-0 z-20 bg-bg-tertiary/95 backdrop-blur-sm border-b border-border-secondary flex px-2 py-2">
                            <div className="w-[280px] shrink-0 px-3 text-[10px] font-bold uppercase tracking-wider text-text-tertiary flex items-center">
                               Profissional
@@ -511,7 +566,7 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                  const atsSemanaProf = atendimentosSemana.filter(a => matchName(a.PROFISSIONAL, prof.nome));
 
                                  return (
-                                    <div key={prof.id} className={`group bg-bg-primary rounded-xl border transition-all duration-200 h-10 flex border-border-primary hover:border-border-secondary shadow-sm ${statusMenu?.profId === prof.id ? 'relative z-50' : 'relative z-0'} ${isSelected ? 'border-accent-primary ring-1 ring-accent-primary' : ''}`}>
+                                    <div key={prof.id} className={`group bg-bg-primary rounded-xl border transition-all duration-200 h-12 flex border-border-primary hover:border-border-secondary shadow-sm ${statusMenu?.profId === prof.id ? 'relative z-50' : 'relative z-0'} ${isSelected ? 'border-accent-primary ring-1 ring-accent-primary' : ''}`}>
                                        <div
                                           className={`w-[280px] shrink-0 border-r border-border-secondary py-1 px-3 flex flex-col justify-center cursor-pointer transition-colors sticky left-0 z-10 bg-bg-primary rounded-l-xl hover:bg-bg-tertiary/50 ${isSelected ? 'bg-accent-primary/10' : ''}`}
                                           onClick={() => {
@@ -527,7 +582,7 @@ export const AgendaConfiguracoesView: React.FC<AgendaConfiguracoesViewProps> = (
                                           {weekDatesMap.map((wd) => {
                                              const isToday = wd.iso === formatLocalISO(new Date());
                                              const isSelectedDay = wd.iso === formatLocalISO(selectedDate);
-                                             const disp = todasDisponibilidades.find(d => d.profissional_id === prof.id && matchDate(d.data, wd.iso));
+                                             const disp = todasDisponibilidades.find(d => String(d.profissional_id) === String(prof.id) && matchDate(d.data, wd.iso));
                                              const atsDia = atsSemanaProf.filter(a => matchDate(a.DATA, wd.iso));
 
                                              const getPeriodStatus = (startH: number, endH: number) => {

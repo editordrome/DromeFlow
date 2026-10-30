@@ -1,3 +1,11 @@
+SetEnv no-gzip 1
+SetEnv no-brotli 1
+SetEnv no-zstd 1
+
+<IfModule mod_headers.c>
+  Header always unset Content-Encoding
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -8,44 +16,6 @@
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
-
-# ─── Brotli: serve arquivos .br pré-comprimidos ───────────────────────────────
-<IfModule mod_rewrite.c>
-  RewriteCond %{HTTP:Accept-Encoding} br
-  RewriteCond %{REQUEST_FILENAME}\.br -f
-  RewriteRule ^(.*)$ $1.br [L]
-</IfModule>
-
-<FilesMatch "\.js\.br$">
-  ForceType application/javascript
-  Header set Content-Encoding br
-  Header append Vary Accept-Encoding
-</FilesMatch>
-
-<FilesMatch "\.css\.br$">
-  ForceType text/css
-  Header set Content-Encoding br
-  Header append Vary Accept-Encoding
-</FilesMatch>
-
-# ─── Gzip: serve arquivos .gz como fallback ───────────────────────────────────
-<IfModule mod_rewrite.c>
-  RewriteCond %{HTTP:Accept-Encoding} gzip
-  RewriteCond %{REQUEST_FILENAME}\.gz -f
-  RewriteRule ^(.*)$ $1.gz [L]
-</IfModule>
-
-<FilesMatch "\.js\.gz$">
-  ForceType application/javascript
-  Header set Content-Encoding gzip
-  Header append Vary Accept-Encoding
-</FilesMatch>
-
-<FilesMatch "\.css\.gz$">
-  ForceType text/css
-  Header set Content-Encoding gzip
-  Header append Vary Accept-Encoding
-</FilesMatch>
 
 # ─── Cache de longa duração para assets com hash ──────────────────────────────
 <IfModule mod_expires.c>

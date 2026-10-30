@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../services/supabaseClient';
 import { saveAgendaSettings } from '../../../services/agenda/agenda.service';
+import { formatLocalISO } from '../helpers';
 
-export const useAgendaConfig = (selectedUnit: any) => {
+export const useAgendaConfig = (selectedUnit: any, selectedDate: Date = new Date()) => {
    const [configSettings, setConfigSettings] = useState<any>({
       dias_liberados: [],
       periodos_cadastrados: [],
@@ -55,21 +56,35 @@ export const useAgendaConfig = (selectedUnit: any) => {
             .or('status.ilike.ativo,status.ilike.ativa,status.is.null')
             .order('nome');
 
-         // Disponibilidades para Config (Filtra pela versão atual para evitar fantasmas de versões antigas)
+         // Disponibilidades para Config - filtra pela semana da data selecionada para performance
+         const startOfWeekDate = new Date(selectedDate);
+         startOfWeekDate.setDate(selectedDate.getDate() - selectedDate.getDay() + (selectedDate.getDay() === 0 ? -6 : 1));
+         const endOfWeekDate = new Date(startOfWeekDate);
+         endOfWeekDate.setDate(startOfWeekDate.getDate() + 6);
+         const startISO = formatLocalISO(startOfWeekDate);
+         const endISO = formatLocalISO(endOfWeekDate);
+
          let dispQuery = supabase
             .from('agenda_disponibilidade')
             .select('*')
-            .eq('unit_id', selectedUnit.id);
+            .eq('unit_id', selectedUnit.id)
+            .gte('data', startISO)
+            .lte('data', endISO);
 
-         const { data: dispData } = await dispQuery;
+         const { data: dispData, error: dispError } = await dispQuery;
+         if (dispError) {
+            console.error('[useAgendaConfig] Erro ao buscar disponibilidades:', dispError);
+         } else {
+            console.log('[useAgendaConfig] Disponibilidades carregadas:', dispData?.length || 0, 'registros para semana', startISO, 'a', endISO);
+         }
 
          setTodasProfissionais(profsData || []);
          setTodasDisponibilidades(dispData || []);
          setHasSynced(true);
       } catch (err) {
-         console.error('Erro ao buscar metadados de configuração', err);
+         console.error('[useAgendaConfig] Erro ao buscar metadados de configuração:', err);
       }
-   }, [selectedUnit]);
+   }, [selectedUnit, selectedDate]);
 
    const handleStatusUpdate = async (profId: string, status: string, periodo: 'M' | 'T', dateStr: string) => {
       if (!selectedUnit?.id) return;
